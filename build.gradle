@@ -1,0 +1,10 @@
+plugins {
+    // Fabric Loom: builds and runs the Fabric module.
+    // New versions: https://maven.fabricmc.net/fabric-loom/fabric-loom.gradle.plugin/maven-metadata.xml
+    id 'net.fabricmc.fabric-loom' version '1.16.3' apply false
+
+    // ModDevGradle: gives the `common` module a plain, un-modded Minecraft to compile against
+    // (via NeoForm). It is also what the future `neoforge` module will use.
+    // New versions: https://projects.neoforged.net/neoforged/moddevgradle
+    id 'net.neoforged.moddev' version '2.0.141' apply false
+}

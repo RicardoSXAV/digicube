@@ -1,0 +1,24 @@
+{
+  "item.digicube.digivice": "Digivice",
+
+  "digimon.digicube.koromon": "Koromon",
+  "digimon.digicube.agumon": "Agumon",
+  "digimon.digicube.greymon": "Greymon",
+
+  "digicube.stage.baby_i": "Fresh",
+  "digicube.stage.baby_ii": "In-Training",
+  "digicube.stage.child": "Rookie",
+  "digicube.stage.adult": "Champion",
+  "digicube.stage.perfect": "Ultimate",
+  "digicube.stage.ultimate": "Mega",
+  "digicube.stage.super_ultimate": "Ultra",
+  "digicube.stage.armor": "Armor",
+  "digicube.stage.hybrid": "Hybrid",
+
+  "digicube.attribute.vaccine": "Vaccine",
+  "digicube.attribute.data": "Data",
+  "digicube.attribute.virus": "Virus",
+  "digicube.attribute.free": "Free",
+  "digicube.attribute.variable": "Variable",
+  "digicube.attribute.unknown": "Unknown"
+}

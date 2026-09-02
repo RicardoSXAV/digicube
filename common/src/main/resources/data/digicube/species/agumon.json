@@ -1,0 +1,21 @@
+{
+  "_comment": "Target shape for the data-driven species loader (see AGENTS.md roadmap). Not read by the game yet.",
+  "stage": "child",
+  "attribute": "vaccine",
+  "base_health": 20,
+  "base_attack": 6,
+  "base_defence": 4,
+  "base_speed": 0.30,
+  "evolutions": [
+    {
+      "target": "digicube:greymon",
+      "min_level": 16,
+      "min_bond": 40,
+      "min_training": 20
+    },
+    {
+      "target": "digicube:greymon",
+      "min_level": 20
+    }
+  ]
+}

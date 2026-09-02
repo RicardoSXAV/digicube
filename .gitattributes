@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Gradle wrapper must keep its own line endings and not be diffed as text.
+gradlew        text eol=lf
+gradlew.bat    text eol=crlf
+*.jar          binary
+*.png          binary
+*.ogg          binary

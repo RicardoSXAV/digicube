@@ -1,0 +1,35 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'Fabric'
+                    url = uri('https://maven.fabricmc.net')
+                }
+            }
+            filter {
+                includeGroupAndSubgroups('net.fabricmc')
+            }
+        }
+        maven {
+            name = 'NeoForged'
+            url = uri('https://maven.neoforged.net/releases')
+        }
+    }
+}
+
+plugins {
+    // Lets Gradle download the required JDK automatically if it is not installed.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+// Must match the folder name of the project or IntelliJ complains.
+// See https://youtrack.jetbrains.com/issue/IDEA-317606
+rootProject.name = 'digicube'
+
+include('common')
+include('fabric')
+// When we add NeoForge support, create the `neoforge/` module and uncomment:
+// include('neoforge')
