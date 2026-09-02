@@ -1,7 +1,7 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -22,7 +22,7 @@ import java.util.Optional;
  */
 public final class DigimonSpeciesRegistry {
 
-    private static final Map<ResourceLocation, DigimonSpecies> SPECIES = new LinkedHashMap<>();
+    private static final Map<Identifier, DigimonSpecies> SPECIES = new LinkedHashMap<>();
 
     private DigimonSpeciesRegistry() {}
 
@@ -33,7 +33,7 @@ public final class DigimonSpeciesRegistry {
         }
     }
 
-    public static Optional<DigimonSpecies> get(ResourceLocation id) {
+    public static Optional<DigimonSpecies> get(Identifier id) {
         return Optional.ofNullable(SPECIES.get(id));
     }
 
@@ -41,7 +41,7 @@ public final class DigimonSpeciesRegistry {
      * @throws IllegalArgumentException if the species is missing. Use this only where
      *         a missing species is a bug rather than bad user data.
      */
-    public static DigimonSpecies getOrThrow(ResourceLocation id) {
+    public static DigimonSpecies getOrThrow(Identifier id) {
         DigimonSpecies species = SPECIES.get(id);
         if (species == null) {
             throw new IllegalArgumentException("Unknown Digimon species: " + id);

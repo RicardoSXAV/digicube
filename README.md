@@ -71,9 +71,9 @@ you need readable names. The build tools download Minecraft, apply Mojang's offi
 mappings, and decompile it into readable Java. That's the slow first build. Afterwards it
 is cached.
 
-Because we use **Mojang's official mappings**, the class names you see are `ResourceLocation`,
-`Level`, `Player`. Older tutorials may use Yarn names (`Identifier`, `World`, `PlayerEntity`) —
-those will not compile here.
+Because we use **Mojang's official mappings**, the class names you see are `Identifier`,
+`Level`, `Player`. Note that 26.x renamed `ResourceLocation` to `Identifier`, and Yarn names
+(`World`, `PlayerEntity`) do not exist here at all — neither will compile.
 
 ---
 

@@ -1,6 +1,6 @@
 package com.digicube.digimon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * One possible digivolution from a species into another.
@@ -17,16 +17,16 @@ import net.minecraft.resources.ResourceLocation;
  * @param requiredItem item the tamer must be holding, or null for none
  */
 public record Evolution(
-        ResourceLocation target,
+        Identifier target,
         int minLevel,
         int minBond,
         int maxWeight,
         int minTraining,
-        ResourceLocation requiredItem
+        Identifier requiredItem
 ) {
 
     /** A plain level-gated evolution with no extra conditions. */
-    public static Evolution atLevel(ResourceLocation target, int minLevel) {
+    public static Evolution atLevel(Identifier target, int minLevel) {
         return new Evolution(target, minLevel, 0, -1, 0, null);
     }
 

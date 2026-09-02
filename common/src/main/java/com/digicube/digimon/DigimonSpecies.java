@@ -1,6 +1,6 @@
 package com.digicube.digimon;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,7 +22,7 @@ import java.util.Objects;
  * @param evolutions   digivolutions available from this species, most specific first
  */
 public record DigimonSpecies(
-        ResourceLocation id,
+        Identifier id,
         DigimonStage stage,
         DigimonAttribute attribute,
         int baseHealth,

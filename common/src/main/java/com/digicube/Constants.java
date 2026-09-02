@@ -2,7 +2,7 @@ package com.digicube;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Values that every other class needs. Keep this class free of logic.
@@ -22,7 +22,7 @@ public final class Constants {
      * Builds a {@code digicube:<path>} identifier. Use this everywhere instead of
      * writing the namespace by hand, so a rename only has to happen in one place.
      */
-    public static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
 }

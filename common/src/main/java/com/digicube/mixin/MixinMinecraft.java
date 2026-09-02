@@ -1,7 +1,6 @@
 package com.digicube.mixin;
 
 import com.digicube.Constants;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,6 +19,6 @@ public class MixinMinecraft {
 
     @Inject(at = @At("TAIL"), method = "<init>")
     private void digicube$onClientInit(CallbackInfo info) {
-        Constants.LOG.info("DigiCube mixins are applying. Minecraft {}.", SharedConstants.getCurrentVersion().name());
+        Constants.LOG.info("DigiCube mixins are applying.");
     }
 }
