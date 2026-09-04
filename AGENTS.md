@@ -256,6 +256,14 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   specific branch first, the plain level-gated fallback last.
 - Attribute damage multipliers live in `DigimonAttribute.damageMultiplierAgainst`. Keep
   balance numbers there rather than scattered through combat code.
+- Attacks are data on the species too: `DigimonSpecies.attacks` is a list of
+  `DigimonAttack` in **priority order** (first ready + in range wins). Timing, power and
+  cooldown live there; `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks
+  the move. The client animation is looked up by the attack id path, so an attack named
+  `digicube:claw` needs a harness animation called `claw` (plus `claw_mirrored` when it
+  alternates sides). Author animations in `../harness` (README §3c), never by hand in Java.
+- Ownership: `DigimonEntity` implements `OwnableEntity`; `/givedigimon <species> [player]`
+  spawns a partner. Owned Digimon follow their tamer and join their fights.
 
 `DigimonSpeciesBootstrap` is a temporary fixture holding three species. **Do not bulk-add
 Digimon to it.** The next architectural step is loading species from
