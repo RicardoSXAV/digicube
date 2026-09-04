@@ -2,7 +2,9 @@ package com.digicube.fabric.client;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.model.AgumonModel;
+import com.digicube.fabric.client.model.PepperBreathModel;
 import com.digicube.fabric.client.render.DigimonRenderer;
+import com.digicube.fabric.client.render.PepperBreathRenderer;
 import com.digicube.registry.DCEntityTypes;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
@@ -18,7 +20,9 @@ public class DigiCubeFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
 
         Constants.LOG.info("DigiCube client initialised.");
     }

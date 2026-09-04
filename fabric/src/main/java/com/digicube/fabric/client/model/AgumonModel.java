@@ -2,6 +2,10 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
+import net.minecraft.client.animation.KeyframeAnimation;
+
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -45,6 +49,9 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart tail;
     private final ModelPart tailTip;
 
+    /** Baked once per model instance; keyed by harness animation name. */
+    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+
     public AgumonModel(ModelPart root) {
         super(root);
         this.body = root.getChild("body");
@@ -68,6 +75,7 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
         this.rightLeg = root.getChild("right_leg");
         this.tail = root.getChild("body").getChild("tail");
         this.tailTip = root.getChild("body").getChild("tail").getChild("tail_tip");
+        AgumonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -190,7 +198,11 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
         this.tail.yRot += Mth.sin(state.ageInTicks * 0.1F) * 0.12F
                 + Mth.cos(state.walkAnimationPos * 0.6662F) * 0.25F * state.walkAnimationSpeed;
 
-        this.jaw.xRot += state.jawOpen * rad(38.0F);   // 0..1 from the render state
+        // Attack keyframes (see AgumonAnimations) layer on top of the idle/walk pose.
+        KeyframeAnimation attack = state.attackAnimationName == null ? null : this.animations.get(state.attackAnimationName);
+        if (attack != null) {
+            attack.apply(state.attackAnimation, state.ageInTicks);
+        }
     }
 
     private static float rad(float degrees) {

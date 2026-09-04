@@ -2,6 +2,7 @@ package com.digicube.registry;
 
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
+import com.digicube.entity.PepperBreathEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -29,6 +30,15 @@ public final class DCEntityTypes {
                     .sized(0.7F, 1.3F)
                     .eyeHeight(1.15F)
                     .clientTrackingRange(10));
+
+    public static final ResourceKey<EntityType<?>> PEPPER_BREATH_KEY = key("pepper_breath");
+    /** Agumon's fireball. Tracked like vanilla fireballs: close range, frequent updates. */
+    public static final EntityType<PepperBreathEntity> PEPPER_BREATH = register(PEPPER_BREATH_KEY,
+            EntityType.Builder.<PepperBreathEntity>of(PepperBreathEntity::new, MobCategory.MISC)
+                    .sized(0.5F, 0.5F)
+                    .eyeHeight(0.25F)
+                    .clientTrackingRange(8)
+                    .updateInterval(4));
 
     private DCEntityTypes() {}
 

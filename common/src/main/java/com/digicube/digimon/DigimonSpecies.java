@@ -20,6 +20,7 @@ import java.util.Objects;
  * @param baseDefence  defence at level 1
  * @param baseSpeed    movement speed multiplier
  * @param evolutions   digivolutions available from this species, most specific first
+ * @param attacks      moves in priority order (first usable one wins); empty = cannot fight
  */
 public record DigimonSpecies(
         Identifier id,
@@ -29,15 +30,17 @@ public record DigimonSpecies(
         int baseAttack,
         int baseDefence,
         float baseSpeed,
-        List<Evolution> evolutions
+        List<Evolution> evolutions,
+        List<DigimonAttack> attacks
 ) {
 
     public DigimonSpecies {
         Objects.requireNonNull(id, "species id");
         Objects.requireNonNull(stage, "species stage");
         Objects.requireNonNull(attribute, "species attribute");
-        // Defensive copy: a species must stay immutable once registered.
+        // Defensive copies: a species must stay immutable once registered.
         evolutions = List.copyOf(evolutions);
+        attacks = List.copyOf(attacks);
     }
 
     /** Translation key for the species name, e.g. {@code digimon.digicube.agumon}. */
@@ -48,5 +51,9 @@ public record DigimonSpecies(
     /** The path segment only, e.g. {@code agumon}. Handy for asset lookups. */
     public String name() {
         return id.getPath();
+    }
+
+    public boolean canFight() {
+        return !attacks.isEmpty();
     }
 }

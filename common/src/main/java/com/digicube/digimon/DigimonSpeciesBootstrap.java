@@ -15,13 +15,24 @@ public final class DigimonSpeciesBootstrap {
 
     private DigimonSpeciesBootstrap() {}
 
+    /** Agumon's signature fireball: slow, hard-hitting, used whenever it is ready. */
+    public static final DigimonAttack PEPPER_BREATH = new DigimonAttack(
+            Constants.id("pepper_breath"), DigimonAttack.Kind.FIREBALL,
+            1.5F, 100, 24, 12, 12.0, false);
+
+    /** Agumon's basic swipe: quick, alternates hands. */
+    public static final DigimonAttack CLAW = new DigimonAttack(
+            Constants.id("claw"), DigimonAttack.Kind.MELEE,
+            0.7F, 20, 10, 4, 0.0, true);
+
     public static void registerBuiltIn() {
         DigimonSpeciesRegistry.register(new DigimonSpecies(
                 Constants.id("koromon"),
                 DigimonStage.BABY_II,
                 DigimonAttribute.FREE,
                 12, 2, 2, 0.25F,
-                List.of(Evolution.atLevel(Constants.id("agumon"), 5))
+                List.of(Evolution.atLevel(Constants.id("agumon"), 5)),
+                List.of()
         ));
 
         DigimonSpeciesRegistry.register(new DigimonSpecies(
@@ -33,7 +44,9 @@ public final class DigimonSpeciesBootstrap {
                         // Most specific branch first: Greymon needs training, not just a level.
                         new Evolution(Constants.id("greymon"), 16, 40, -1, 20, null),
                         Evolution.atLevel(Constants.id("greymon"), 20)
-                )
+                ),
+                // Priority order: the fireball whenever it is off cooldown, claws in between.
+                List.of(PEPPER_BREATH, CLAW)
         ));
 
         DigimonSpeciesRegistry.register(new DigimonSpecies(
@@ -41,6 +54,7 @@ public final class DigimonSpeciesBootstrap {
                 DigimonStage.ADULT,
                 DigimonAttribute.VACCINE,
                 40, 14, 10, 0.32F,
+                List.of(),
                 List.of()
         ));
 

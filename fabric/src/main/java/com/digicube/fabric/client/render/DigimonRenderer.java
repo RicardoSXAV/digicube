@@ -36,7 +36,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     public void extractRenderState(DigimonEntity entity, DigimonRenderState state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
         state.species = entity.getSpeciesId();
-        state.jawOpen = 0.0F;
+        state.attackAnimation.copyFrom(entity.attackAnimationState);
+        state.attackAnimationName = entity.getAttackAnimationName();
     }
 
     @Override
