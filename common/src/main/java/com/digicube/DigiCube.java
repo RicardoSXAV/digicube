@@ -2,7 +2,9 @@ package com.digicube;
 
 import com.digicube.digimon.DigimonSpeciesBootstrap;
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.entity.DigimonEntity;
 import com.digicube.platform.Services;
+import com.digicube.registry.DCEntityTypes;
 import com.digicube.registry.DCItems;
 
 /**
@@ -24,6 +26,8 @@ public final class DigiCube {
                 Services.PLATFORM.getEnvironmentName());
 
         DCItems.init();
+        DCEntityTypes.init();
+        Services.PLATFORM.registerEntityAttributes(DCEntityTypes.DIGIMON, DigimonEntity.createAttributes());
         DigimonSpeciesBootstrap.registerBuiltIn();
 
         Constants.LOG.info("{} ready with {} species.", Constants.MOD_NAME, DigimonSpeciesRegistry.size());

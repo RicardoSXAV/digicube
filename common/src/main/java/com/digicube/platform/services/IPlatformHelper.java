@@ -1,5 +1,9 @@
 package com.digicube.platform.services;
 
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+
 /**
  * Things every mod loader can do, but each does differently.
  *
@@ -23,4 +27,10 @@ public interface IPlatformHelper {
     default String getEnvironmentName() {
         return isDevelopmentEnvironment() ? "development" : "production";
     }
+
+    /**
+     * Registers the default attributes (max health, speed, ...) of a living entity type.
+     * Vanilla keeps these in an immutable map, so each loader exposes its own hook.
+     */
+    void registerEntityAttributes(EntityType<? extends LivingEntity> type, AttributeSupplier.Builder attributes);
 }

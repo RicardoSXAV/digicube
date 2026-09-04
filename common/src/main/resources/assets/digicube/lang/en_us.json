@@ -1,6 +1,12 @@
 {
   "item.digicube.digivice": "Digivice",
 
+  "entity.digicube.digimon": "Digimon",
+
+  "commands.digicube.spawn.success": "Spawned %s",
+  "commands.digicube.spawn.unknown": "Unknown Digimon species: %s",
+  "commands.digicube.spawn.failed": "Could not create the Digimon entity",
+
   "digimon.digicube.koromon": "Koromon",
   "digimon.digicube.agumon": "Agumon",
   "digimon.digicube.greymon": "Greymon",
