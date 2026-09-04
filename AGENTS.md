@@ -308,12 +308,26 @@ Dev-run game files (worlds, logs, configs) live in `fabric/runs/client/` and
 Before reporting a change as complete:
 
 1. `./gradlew build` passes.
-2. `./gradlew :fabric:runClient` starts and reaches the main menu with no error in the log.
-3. The feature was actually exercised in game — item given, entity spawned, recipe crafted.
-4. If it touches gameplay logic, `:fabric:runServer` also starts cleanly.
+2. Launch the updated build with `./gradlew :fabric:runClient` so it is ready to try
+   (`--args="--quickPlaySingleplayer \"New World\""` opens the dev world directly).
+3. Tell the user exactly what to try in game — the command, the item, the recipe — and
+   leave the in-game testing to them.
+4. If it touches gameplay logic, mention that `:fabric:runServer` should be checked too.
 5. No new warnings in `latest.log` that this change introduced.
 
-If you could not run the game, **say so explicitly** rather than implying it was tested.
+### In-game testing is manual
+
+The user tests in game themselves. An AI agent must **not** drive the running game: no
+sending keystrokes or chat commands to the Minecraft window, no screenshotting it, no
+scripted "spawn it and look" loops. Launching the client with the fresh build so the
+test is one click away is welcome; everything after that is the user's.
+
+Model verification **outside** the game is different and encouraged: rendering a
+Blender model (the harness in `../harness` produces idle, front, side and action
+renders) and looking at the images before handing the model over is expected.
+
+If something could not be built or launched, **say so explicitly** rather than implying
+it was tested.
 
 ---
 
