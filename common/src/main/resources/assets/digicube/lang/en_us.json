@@ -9,6 +9,7 @@
   "commands.digicube.givedigimon.success": "Gave %s to %s",
 
   "entity.digicube.pepper_breath": "Pepper Breath",
+  "entity.digicube.bubble_blow": "Bubble Blow",
 
   "digimon.digicube.koromon": "Koromon",
   "digimon.digicube.agumon": "Agumon",

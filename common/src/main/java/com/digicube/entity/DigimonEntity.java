@@ -82,6 +82,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     private static final double MOUTH_HEIGHT = 0.95;
     private static final double MOUTH_FORWARD = 0.6;
     private static final int FIREBALL_CHARGE_TICKS = 8;
+    /** Centre of the pursed mouth at the Bubble Blow release pose, at model scale 0.75. */
+    private static final double BUBBLE_MOUTH_HEIGHT = 0.2026;
+    private static final double BUBBLE_MOUTH_FORWARD = 0.3615;
 
     private static final EntityDataAccessor<String> DATA_SPECIES =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.STRING);
@@ -94,6 +97,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     private int attackTick;
     private boolean attackMirrored;
     private boolean nextAttackMirrored;
+    /** Predicted release point, updated during the bubble windup and held through recovery. */
+    private Vec3 bubbleAimPoint;
     /** Attack id -> {@link #tickCount} at which it may be used again. */
     private final Map<Identifier, Integer> cooldownUntil = new HashMap<>();
 
@@ -257,7 +262,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     private boolean inRange(DigimonAttack attack, LivingEntity target) {
         return switch (attack.kind()) {
             case MELEE -> isWithinMeleeAttackRange(target);
-            case FIREBALL -> distanceToSqr(target) <= attack.range() * attack.range()
+            case FIREBALL, BUBBLES -> distanceToSqr(target) <= attack.range() * attack.range()
                     && getSensing().hasLineOfSight(target);
         };
     }
@@ -273,12 +278,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
         activeAttack = attack;
         attackTarget = target;
         attackTick = 0;
+        bubbleAimPoint = null;
         attackMirrored = attack.alternateSides() && nextAttackMirrored;
         if (attack.alternateSides()) {
             nextAttackMirrored = !nextAttackMirrored;
         }
         cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
         lookAt(target, 60.0F, 60.0F);
+        if (attack.kind() == DigimonAttack.Kind.BUBBLES) {
+            aimBubbleBlow();
+        }
         level().broadcastEntityEvent(this, (byte) (ATTACK_EVENT_BASE + index + (attackMirrored ? ATTACK_EVENT_MIRROR : 0)));
     }
 
@@ -288,7 +297,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
         if (activeAttack == null) {
             return;
         }
-        if (attackTarget != null && attackTarget.isAlive()) {
+        if (activeAttack.kind() == DigimonAttack.Kind.BUBBLES) {
+            aimBubbleBlow();
+        } else if (attackTarget != null && attackTarget.isAlive()) {
             getLookControl().setLookAt(attackTarget, 30.0F, 30.0F);
         }
         if (activeAttack.kind() == DigimonAttack.Kind.FIREBALL) {
@@ -301,7 +312,31 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
         if (attackTick >= activeAttack.durationTicks()) {
             activeAttack = null;
             attackTarget = null;
+            bubbleAimPoint = null;
         }
+    }
+
+    /**
+     * A blob has no separate head to turn. Face the same predicted point the volley
+     * uses, then keep that direction while blowing instead of following the next target.
+     * Entity yaw is synced normally; the renderer uses it directly during this attack
+     * so vanilla's delayed body-follow-head control cannot leave the face sideways.
+     */
+    private void aimBubbleBlow() {
+        Vec3 origin = position().add(0.0, BUBBLE_MOUTH_HEIGHT, 0.0);
+        if (attackTick <= activeAttack.hitTick() && attackTarget != null && attackTarget.isAlive()) {
+            bubbleAimPoint = PepperBreathEntity.predictImpactPoint(attackTarget, origin,
+                    BubbleBlowEntity.SPEED, BubbleBlowEntity.MAX_AIM_LEAD);
+        }
+        if (bubbleAimPoint == null) {
+            return;
+        }
+        Vec3 direction = bubbleAimPoint.subtract(origin);
+        if (direction.x * direction.x + direction.z * direction.z > 1.0E-8) {
+            setYRot((float) Math.toDegrees(Math.atan2(-direction.x, direction.z)));
+        }
+        yHeadRot = getYRot();
+        yBodyRot = getYRot();
     }
 
     /** Embers gather at the mouth while Agumon inhales, then a whoosh as it fires. */
@@ -344,6 +379,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
                 level.addFreshEntity(fireball);
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.0F, 1.15F);
                 level.sendParticles(ParticleTypes.FLAME, mouth.x, mouth.y, mouth.z, 12, 0.2, 0.2, 0.2, 0.1);
+            }
+            case BUBBLES -> {
+                // Use the same facing and predicted point as the windup, with the
+                // mouth offset along that axis so the volley cannot leave sideways.
+                double yaw = Math.toRadians(getYRot());
+                Vec3 forward = new Vec3(-Math.sin(yaw), 0.0, Math.cos(yaw));
+                Vec3 mouth = position().add(0.0, BUBBLE_MOUTH_HEIGHT, 0.0).add(forward.scale(BUBBLE_MOUTH_FORWARD));
+                boolean aimed = target != null && target.isAlive();
+                Vec3 aim = bubbleAimPoint != null ? bubbleAimPoint : mouth.add(forward.scale(4.0));
+                Vec3 direction = aim.subtract(mouth);
+                BubbleBlowEntity bubbles = new BubbleBlowEntity(level, this, mouth,
+                        damageAgainst(attack, target), aimed ? target : null);
+                bubbles.shoot(direction.x, direction.y, direction.z, BubbleBlowEntity.SPEED, 0.0F);
+                level.addFreshEntity(bubbles);
+                level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE,
+                        SoundSource.NEUTRAL, 0.6F, 1.5F);
             }
         }
     }

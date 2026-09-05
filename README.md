@@ -162,6 +162,21 @@ visibility switches. Facial planes export only their front polygon and sit clear
 the body surface; keep this setup when regenerating to avoid depth flicker.
 
 Try `/givedigimon koromon`, then walk away to see your partner hop after you.
+Koromon's only attack is **Bubble Blow**: a seven-bubble visual volley, 8-block
+range, 40-tick (2-second) cooldown, and a 24-tick blowing animation. The shot leaves
+on tick 10. It deals one normal attack's damage per volley, does not ignite targets,
+protects its tamer and allies, and pops on impact. Pepper Breath keeps its 100-tick
+cooldown. Hit a nearby hostile mob to have your partner join the fight.
+During the windup, Koromon turns his whole body toward the predicted bubble aim point
+and holds that facing through the blow. The projectile uses that same point at release.
+
+The bubble rig and its flight/pop clips live in `../harness/digimon/bubble_blow.py`.
+Export it with the same `run.py` command using `SPECIES = "bubble_blow"`; copy its
+model and animation Java beside Koromon's, and its PNG to
+`common/src/main/resources/assets/digicube/textures/entity/projectile/`.
+`../harness/blender/preview_bubble_blow.py`, run after Koromon's export, produces an
+editable combined attack scene and frames under `../harness/out/koromon/`.
+
 Use `/digicube spawn agumon` alongside it to check species model selection.
 In-game testing is manual; the harness provides front, side, three-quarter and
 airborne renders plus animation filmstrips for inspection outside Minecraft.

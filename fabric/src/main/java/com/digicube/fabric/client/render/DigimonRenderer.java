@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 
 import java.util.Map;
 
@@ -54,6 +55,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.species = entity.getSpeciesId();
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
+        if (state.attackAnimation.isStarted() && "bubble_blow".equals(state.attackAnimationName)) {
+            // Bubble Blow turns the entire creature. Vanilla body rotation can lag
+            // behind its synced yaw by up to the head/body limit while standing still.
+            state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
+            state.yRot = 0.0F;
+        }
     }
 
     @Override

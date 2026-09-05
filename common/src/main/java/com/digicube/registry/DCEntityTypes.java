@@ -2,6 +2,7 @@ package com.digicube.registry;
 
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
+import com.digicube.entity.BubbleBlowEntity;
 import com.digicube.entity.PepperBreathEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -41,6 +42,14 @@ public final class DCEntityTypes {
                     .updateInterval(2));
 
     private DCEntityTypes() {}
+
+    /** Koromon's small bubble volley; its visual trail follows behind the hitbox. */
+    public static final EntityType<BubbleBlowEntity> BUBBLE_BLOW = register(key("bubble_blow"),
+            EntityType.Builder.<BubbleBlowEntity>of(BubbleBlowEntity::new, MobCategory.MISC)
+                    .sized(0.45F, 0.3F)
+                    .eyeHeight(0.15F)
+                    .clientTrackingRange(8)
+                    .updateInterval(1));
 
     /** Forces the static initialiser, which performs the registration. */
     public static void init() {

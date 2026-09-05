@@ -25,6 +25,11 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("claw"), DigimonAttack.Kind.MELEE,
             0.7F, 20, 10, 4, 0.0, true);
 
+    /** Koromon's only move: a small bubble stream every two seconds. */
+    public static final DigimonAttack BUBBLE_BLOW = new DigimonAttack(
+            Constants.id("bubble_blow"), DigimonAttack.Kind.BUBBLES,
+            1.0F, 40, 24, 10, 8.0, false);
+
     public static void registerBuiltIn() {
         DigimonSpeciesRegistry.register(new DigimonSpecies(
                 Constants.id("koromon"),
@@ -32,7 +37,7 @@ public final class DigimonSpeciesBootstrap {
                 DigimonAttribute.FREE,
                 12, 2, 2, 0.25F,
                 List.of(Evolution.atLevel(Constants.id("agumon"), 5)),
-                List.of()
+                List.of(BUBBLE_BLOW)
         ));
 
         DigimonSpeciesRegistry.register(new DigimonSpecies(

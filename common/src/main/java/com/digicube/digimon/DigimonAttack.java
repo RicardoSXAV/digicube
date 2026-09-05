@@ -48,7 +48,9 @@ public record DigimonAttack(
         /** Damage applied directly when the target is within melee reach on the hit tick. */
         MELEE,
         /** A {@link com.digicube.entity.PepperBreathEntity} fireball launched on the hit tick. */
-        FIREBALL
+        FIREBALL,
+        /** A non-burning bubble volley launched on the hit tick. */
+        BUBBLES
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
