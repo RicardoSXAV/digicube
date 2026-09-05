@@ -1,8 +1,11 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Temporary hardcoded species list so there is something to test against.
@@ -37,7 +40,8 @@ public final class DigimonSpeciesBootstrap {
                 DigimonAttribute.FREE,
                 12, 2, 2, 0.25F,
                 List.of(Evolution.atLevel(Constants.id("agumon"), 5)),
-                List.of(BUBBLE_BLOW)
+                List.of(BUBBLE_BLOW),
+                DigimonBody.DEFAULT
         ));
 
         DigimonSpeciesRegistry.register(new DigimonSpecies(
@@ -51,7 +55,8 @@ public final class DigimonSpeciesBootstrap {
                         Evolution.atLevel(Constants.id("greymon"), 20)
                 ),
                 // Priority order: the fireball whenever it is off cooldown, claws in between.
-                List.of(PEPPER_BREATH, CLAW)
+                List.of(PEPPER_BREATH, CLAW),
+                DigimonBody.DEFAULT
         ));
 
         DigimonSpeciesRegistry.register(new DigimonSpecies(
@@ -60,7 +65,10 @@ public final class DigimonSpeciesBootstrap {
                 DigimonAttribute.VACCINE,
                 40, 14, 10, 0.32F,
                 List.of(),
-                List.of()
+                List.of(),
+                // Rear crown seat (0, 2, 65) pixels, scale 1.4; +Y in Blender is backward.
+                new DigimonBody(1.4F, EntityDimensions.scalable(2.5F, 5.65F).withEyeHeight(5.075F),
+                        Optional.of(new DigimonBody.Mount(new Vec3(0.0, 5.6875, -0.175), 0.32F, 1.0F)))
         ));
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());

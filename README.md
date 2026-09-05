@@ -184,6 +184,49 @@ Use `/digicube spawn agumon` alongside it to check species model selection.
 In-game testing is manual; the harness provides front, side, three-quarter and
 airborne renders plus animation filmstrips for inspection outside Minecraft.
 
+### Greymon and riding
+
+Greymon uses the improved Blender body study: a revised three-horned skull and eyes,
+painted chest shading, continuous navy tiger stripes, and cupped three-digit hands
+with flat claws. The 256×256 atlas and 28-tick walk include delayed elbow and wrist
+motion, planted supporting feet, and tail sway. The final hand placements edited
+directly in Blender are also recorded in the source.
+
+Source: `../harness/digimon/greymon_body_study.py`, which combines the approved head
+with the original body. Open `../harness/out/greymon_body_study/greymon_body_study.blend`
+and export through Blender MCP:
+
+```python
+exec(compile(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_greymon.py",
+                  encoding="utf-8").read(), "export_greymon.py", "exec"))
+```
+
+The exporter backs up the open scene, regenerates it, and verifies that its geometry,
+UVs and transforms match before exporting. It also checks walk loop closure and
+planted feet. Copy `GreymonModel.java`, `GreymonAnimations.java`, and `greymon.png`
+from `../harness/out/greymon_release/` to the mod locations above. Preview renders
+remain under `../harness/out/greymon_body_study/`. The existing species id, model
+layer, scale, collision box and riding settings are preserved.
+
+Try this in a large open area:
+
+```
+/digicube give greymon
+```
+
+Right-click your Greymon to sit on the rear of its skull. Use **WASD** to steer and
+**Shift** to dismount. It automatically steps up one-block rises; it has no charged
+jump. Only the owner can mount, and there is one passenger seat. Walk away while
+unmounted to see it follow with the walk animation. Use `/digicube spawn greymon`
+for a wild one, or `/digicube give agumon` to compare scale.
+
+Physical size and riding settings live on `DigimonSpecies.body`: Greymon's model is
+scaled by 1.4, with a 2.5×5.65-block collision box and a seat 5.6875 blocks above its
+feet. Horns and tail extend beyond the main collision box. Existing rookie sizes are
+preserved. Riding uses vanilla movement synchronization, and dismounting searches
+for a clear floor beside its feet. Check riding, ownership, save/reload, and dismounting
+on a dedicated server too; that startup requires accepting its EULA manually.
+
 ## 4. How the project is organised
 
 ```

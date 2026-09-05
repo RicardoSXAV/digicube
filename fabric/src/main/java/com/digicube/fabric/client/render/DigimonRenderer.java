@@ -4,6 +4,7 @@ import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
+import com.digicube.fabric.client.model.GreymonModel;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -21,12 +22,10 @@ import java.util.Map;
  */
 public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderState, EntityModel<DigimonRenderState>> {
 
-    /** Model pixels are authored at 16 px per block; 0.75 brings Agumon down to ~1.3 blocks. */
-    private static final float SCALE = 0.75F;
-
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
-            Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"));
+            Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
+            Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
 
@@ -34,7 +33,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
-                Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)));
+                Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
+                Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER)));
     }
 
     @Override
@@ -53,6 +53,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     public void extractRenderState(DigimonEntity entity, DigimonRenderState state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
         state.species = entity.getSpeciesId();
+        state.modelScale = entity.getBody().modelScale();
+        state.shadowRadius = entity.getBbWidth() * 0.5F;
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
         if (state.attackAnimation.isStarted() && "bubble_blow".equals(state.attackAnimationName)) {
@@ -70,6 +72,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
 
     @Override
     protected void scale(DigimonRenderState state, PoseStack poseStack) {
-        poseStack.scale(SCALE, SCALE, SCALE);
+        poseStack.scale(state.modelScale, state.modelScale, state.modelScale);
     }
 }

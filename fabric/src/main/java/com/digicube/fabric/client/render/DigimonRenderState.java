@@ -9,6 +9,7 @@ import net.minecraft.world.entity.AnimationState;
 public class DigimonRenderState extends LivingEntityRenderState {
 
     public Identifier species = DigimonEntity.DEFAULT_SPECIES;
+    public float modelScale = 0.75F;
 
     /** Clock of the attack animation in progress; copied from the entity every frame. */
     public final AnimationState attackAnimation = new AnimationState();

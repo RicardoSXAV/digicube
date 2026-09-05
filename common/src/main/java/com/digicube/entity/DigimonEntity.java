@@ -2,6 +2,7 @@ package com.digicube.entity;
 
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
+import com.digicube.digimon.DigimonBody;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.entity.ai.DigimonAttackGoal;
@@ -9,6 +10,7 @@ import com.digicube.entity.ai.FollowOwnerGoal;
 import com.digicube.entity.ai.OwnerHurtByTargetGoal;
 import com.digicube.entity.ai.OwnerHurtTargetGoal;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -17,29 +19,38 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.PlayerRideable;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.PanicGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.HashMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,7 +70,7 @@ import java.util.Optional;
  * <p>Summon a wild one with {@code /digicube spawn agumon}; a partner with
  * {@code /digicube give agumon}.
  */
-public class DigimonEntity extends PathfinderMob implements OwnableEntity {
+public class DigimonEntity extends PathfinderMob implements OwnableEntity, PlayerRideable {
 
     /** NBT key holding the species id. Changing it is a save-data migration. */
     public static final String SPECIES_TAG = "Species";
@@ -124,6 +135,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
+        this.goalSelector.addGoal(1, new RiderControlGoal());
         this.goalSelector.addGoal(1, new WildPanicGoal(this, 1.4));
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
         this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.15, 10.0F, 3.0F));
@@ -158,6 +170,126 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
         this.entityData.set(DATA_SPECIES, speciesId.toString());
     }
 
+    public DigimonBody getBody() {
+        return getSpecies().map(DigimonSpecies::body).orElse(DigimonBody.DEFAULT);
+    }
+
+    @Override
+    protected EntityDimensions getDefaultDimensions(Pose pose) {
+        // LivingEntity asks for dimensions during construction, before entity data exists.
+        return this.entityData == null ? super.getDefaultDimensions(pose) : getBody().dimensions();
+    }
+
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
+        super.onSyncedDataUpdated(accessor);
+        if (DATA_SPECIES.equals(accessor)) {
+            refreshDimensions();
+            if (!level().isClientSide() && getBody().mount().isEmpty()) {
+                ejectPassengers();
+            }
+        }
+    }
+
+    // --- riding: species data supplies the seat; vanilla handles movement packets -----
+
+    @Override
+    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
+        if (getBody().mount().isPresent() && isOwnedBy(player) && !isVehicle()
+                && !player.isSecondaryUseActive()) {
+            if (level().isClientSide()) {
+                return InteractionResult.SUCCESS;
+            }
+            if (player.startRiding(this)) {
+                getNavigation().stop();
+                setTarget(null);
+                return InteractionResult.SUCCESS_SERVER;
+            }
+        }
+        return super.mobInteract(player, hand);
+    }
+
+    @Override
+    protected boolean canAddPassenger(Entity passenger) {
+        return getBody().mount().isPresent() && !isVehicle()
+                && passenger instanceof Player player && isOwnedBy(player)
+                && super.canAddPassenger(passenger);
+    }
+
+    @Override
+    public LivingEntity getControllingPassenger() {
+        return getBody().mount().isPresent() && getFirstPassenger() instanceof Player player
+                && isOwnedBy(player) ? player : null;
+    }
+
+    @Override
+    protected void tickRidden(Player player, Vec3 input) {
+        super.tickRidden(player, input);
+        setYRot(player.getYRot());
+        setXRot(player.getXRot() * 0.35F);
+        yBodyRot = getYRot();
+        yHeadRot = getYRot();
+    }
+
+    @Override
+    protected Vec3 getRiddenInput(Player player, Vec3 input) {
+        return new Vec3(player.xxa * 0.5F, 0.0, player.zza > 0.0F ? player.zza : player.zza * 0.25F);
+    }
+
+    @Override
+    protected float getRiddenSpeed(Player player) {
+        return getBody().mount().map(DigimonBody.Mount::speed).orElseGet(() -> super.getRiddenSpeed(player));
+    }
+
+    @Override
+    public float maxUpStep() {
+        return getBody().mount().map(DigimonBody.Mount::stepHeight).orElseGet(super::maxUpStep);
+    }
+
+    @Override
+    protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float scale) {
+        return getBody().mount()
+                .map(mount -> mount.seat().scale(scale).yRot(-getYRot() * Mth.DEG_TO_RAD))
+                .orElseGet(() -> super.getPassengerAttachmentPoint(passenger, dimensions, scale));
+    }
+
+    @Override
+    public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
+        if (getBody().mount().isPresent()) {
+            // Search beside the feet, so leaving a tall mount does not drop the tamer
+            // from its shoulders. Vanilla checks floor, dangerous blocks and clearance.
+            double radius = (getBbWidth() + passenger.getBbWidth()) * 0.5 + 0.5;
+            for (int angle : new int[]{90, -90, 135, -135, 45, -45, 180, 0}) {
+                Vec3 offset = new Vec3(0.0, 0.0, radius).yRot(-(getYRot() + angle) * Mth.DEG_TO_RAD);
+                for (int dy : new int[]{0, 1, -1, 2}) {
+                    BlockPos block = BlockPos.containing(getX() + offset.x, getY() + dy, getZ() + offset.z);
+                    Vec3 safe = DismountHelper.findSafeDismountLocation(passenger.getType(), level(), block, true);
+                    if (safe != null) {
+                        return safe;
+                    }
+                }
+            }
+        }
+        return super.getDismountLocationForPassenger(passenger);
+    }
+
+    /** Reserve movement and look controls while the tamer drives the vanilla ridden path. */
+    private final class RiderControlGoal extends Goal {
+        RiderControlGoal() {
+            setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            return getControllingPassenger() != null;
+        }
+
+        @Override
+        public void start() {
+            getNavigation().stop();
+        }
+    }
+
     private List<DigimonAttack> attacks() {
         return getSpecies().map(DigimonSpecies::attacks).orElse(List.of());
     }
@@ -172,6 +304,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     /** Makes {@code owner} this Digimon's tamer (null releases it into the wild). */
     public void setOwner(LivingEntity owner) {
         this.entityData.set(DATA_OWNER, Optional.ofNullable(owner).map(EntityReference::of));
+        if (!level().isClientSide() && isVehicle() && getControllingPassenger() == null) {
+            ejectPassengers();
+        }
         if (owner != null) {
             setPersistenceRequired();
         }
