@@ -186,27 +186,26 @@ airborne renders plus animation filmstrips for inspection outside Minecraft.
 
 ### Greymon and riding
 
-Greymon uses the improved Blender body study: a revised three-horned skull and eyes,
-painted chest shading, continuous navy tiger stripes, and cupped three-digit hands
-with flat claws. The 256×256 atlas and 28-tick walk include delayed elbow and wrist
-motion, planted supporting feet, and tail sway. The final hand placements edited
-directly in Blender are also recorded in the source.
+Greymon uses the approved reference model: a three-horned skull mask, inset red eyes,
+painted orange shading, navy tiger stripes, and three-digit hands with flat claws.
+The 256×256 atlas includes the fix for helmet flicker. Its 40-tick walk preserves the
+approved foot placements, weight shifts and delayed arm/tail motion. Animation speed
+tracks distance traveled; a full cycle covers 2.4 blocks at the authored scale.
 
-Source: `../harness/digimon/greymon_body_study.py`, which combines the approved head
-with the original body. Open `../harness/out/greymon_body_study/greymon_body_study.blend`
+Source: `../harness/digimon/greymon_reference.py`. Open the approved scene at
+`../harness/out/greymon_reference/greymon_reference.blend`
 and export through Blender MCP:
 
 ```python
-exec(compile(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_greymon.py",
-                  encoding="utf-8").read(), "export_greymon.py", "exec"))
+exec(compile(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_greymon_reference.py",
+                  encoding="utf-8").read(), "export_greymon_reference.py", "exec"))
 ```
 
-The exporter backs up the open scene, regenerates it, and verifies that its geometry,
-UVs and transforms match before exporting. It also checks walk loop closure and
-planted feet. Copy `GreymonModel.java`, `GreymonAnimations.java`, and `greymon.png`
-from `../harness/out/greymon_release/` to the mod locations above. Preview renders
-remain under `../harness/out/greymon_body_study/`. The existing species id, model
-layer, scale, collision box and riding settings are preserved.
+The exporter backs up the open scene, verifies its geometry, UVs and texture against
+the approved source, and includes the baked foot corrections. Copy `GreymonModel.java`,
+`GreymonAnimations.java`, and `greymon.png` from `../harness/out/greymon_reference_release/`
+to the mod locations above. Preview renders remain under `../harness/out/greymon_reference/`.
+The species id and model layer remain `greymon`, so existing partners use the new model.
 
 Try this in a large open area:
 
@@ -221,11 +220,14 @@ unmounted to see it follow with the walk animation. Use `/digicube spawn greymon
 for a wild one, or `/digicube give agumon` to compare scale.
 
 Physical size and riding settings live on `DigimonSpecies.body`: Greymon's model is
-scaled by 1.4, with a 2.5×5.65-block collision box and a seat 5.6875 blocks above its
-feet. Horns and tail extend beyond the main collision box. Existing rookie sizes are
-preserved. Riding uses vanilla movement synchronization, and dismounting searches
-for a clear floor beside its feet. Check riding, ownership, save/reload, and dismounting
-on a dedicated server too; that startup requires accepting its EULA manually.
+scaled by 1.5, with a 2.5×4.6-block collision box. The crown seat is 4.540426 blocks
+above its feet and 0.507345 blocks forward, measured through the new neck/head pose.
+Horns reach about 5.44 blocks; horns and tail extend beyond the main collision box.
+While mounted, the rendered crown stays beneath the fixed rider attachment as the
+body walks, and body yaw follows the ridden yaw. Existing ownership, movement speed,
+one-block stepping, and safe dismount behavior are retained. Check riding, ownership,
+save/reload, and dismounting on a dedicated server too; that startup requires accepting
+its EULA manually.
 
 ## 4. How the project is organised
 

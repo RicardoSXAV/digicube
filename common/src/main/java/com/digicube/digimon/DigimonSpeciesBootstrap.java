@@ -66,9 +66,10 @@ public final class DigimonSpeciesBootstrap {
                 40, 14, 10, 0.32F,
                 List.of(),
                 List.of(),
-                // Rear crown seat (0, 2, 65) pixels, scale 1.4; +Y in Blender is backward.
-                new DigimonBody(1.4F, EntityDimensions.scalable(2.5F, 5.65F).withEyeHeight(5.075F),
-                        Optional.of(new DigimonBody.Mount(new Vec3(0.0, 5.6875, -0.175), 0.32F, 1.0F)))
+                // Approved reference model at scale 1.5; horns extend above the collision box.
+                // Crown marker (0, -4, 49) transformed through the authored neck/head rest pose.
+                new DigimonBody(1.5F, EntityDimensions.scalable(2.5F, 4.6F).withEyeHeight(4.1F),
+                        Optional.of(new DigimonBody.Mount(new Vec3(0.0, 4.540426, 0.507345), 0.32F, 1.0F)))
         ));
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());

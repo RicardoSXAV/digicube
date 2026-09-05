@@ -11,6 +11,9 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public Identifier species = DigimonEntity.DEFAULT_SPECIES;
     public float modelScale = 0.75F;
 
+    /** The tamer is riding this Digimon; its visible seat must remain aligned. */
+    public boolean isBeingRidden;
+
     /** Clock of the attack animation in progress; copied from the entity every frame. */
     public final AnimationState attackAnimation = new AnimationState();
 

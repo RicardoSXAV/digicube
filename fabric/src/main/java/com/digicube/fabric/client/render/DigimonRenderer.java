@@ -54,12 +54,14 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         super.extractRenderState(entity, state, partialTick);
         state.species = entity.getSpeciesId();
         state.modelScale = entity.getBody().modelScale();
+        state.isBeingRidden = entity.isVehicle();
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
-        if (state.attackAnimation.isStarted() && "bubble_blow".equals(state.attackAnimationName)) {
-            // Bubble Blow turns the entire creature. Vanilla body rotation can lag
-            // behind its synced yaw by up to the head/body limit while standing still.
+        if (state.isBeingRidden
+                || state.attackAnimation.isStarted() && "bubble_blow".equals(state.attackAnimationName)) {
+            // Riding and Bubble Blow turn the entire creature. Keep the rendered
+            // body aligned with the synced yaw used by the passenger attachment.
             state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }
