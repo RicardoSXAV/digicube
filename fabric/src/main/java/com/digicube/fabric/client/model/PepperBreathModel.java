@@ -17,90 +17,175 @@ import net.minecraft.util.Mth;
  * Geometry matches the Blender rig bone for bone; edit the spec and regenerate rather
  * than hand-tuning coordinates here. setupAnim is a starting point and may be edited.
  *
- * Vanilla model space: Y down, ground at y=24, front at -Z. Atlas 128x32.
+ * Vanilla model space: Y down, ground at y=24, front at -Z. Atlas 512x128.
  */
 public class PepperBreathModel extends EntityModel<PepperBreathRenderState> {
 
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(Constants.id("pepper_breath"), "main");
 
-    private final ModelPart frame0;
-    private final ModelPart flame0A;
-    private final ModelPart flame0B;
-    private final ModelPart frame1;
-    private final ModelPart flame1A;
-    private final ModelPart flame1B;
-    private final ModelPart frame2;
-    private final ModelPart flame2A;
-    private final ModelPart flame2B;
+    private final ModelPart head;
+    private final ModelPart headroll;
+    private final ModelPart glow;
+    private final ModelPart tail;
+    private final ModelPart head0;
+    private final ModelPart tail0;
+    private final ModelPart head1;
+    private final ModelPart tail1;
+    private final ModelPart head2;
+    private final ModelPart tail2;
+    private final ModelPart head3;
+    private final ModelPart tail3;
+    private final ModelPart head4;
+    private final ModelPart tail4;
+    private final ModelPart head5;
+    private final ModelPart tail5;
+    private final ModelPart head6;
+    private final ModelPart tail6;
+    private final ModelPart head7;
+    private final ModelPart tail7;
+    private final ModelPart disks;
 
     public PepperBreathModel(ModelPart root) {
         super(root);
-        this.frame0 = root.getChild("frame0");
-        this.flame0A = root.getChild("frame0").getChild("flame0_a");
-        this.flame0B = root.getChild("frame0").getChild("flame0_b");
-        this.frame1 = root.getChild("frame1");
-        this.flame1A = root.getChild("frame1").getChild("flame1_a");
-        this.flame1B = root.getChild("frame1").getChild("flame1_b");
-        this.frame2 = root.getChild("frame2");
-        this.flame2A = root.getChild("frame2").getChild("flame2_a");
-        this.flame2B = root.getChild("frame2").getChild("flame2_b");
+        this.head = root.getChild("head");
+        this.headroll = root.getChild("head").getChild("headroll");
+        this.glow = root.getChild("head").getChild("glow");
+        this.tail = root.getChild("tail");
+        this.head0 = root.getChild("head").getChild("headroll").getChild("head0");
+        this.tail0 = root.getChild("tail").getChild("tail0");
+        this.head1 = root.getChild("head").getChild("headroll").getChild("head1");
+        this.tail1 = root.getChild("tail").getChild("tail1");
+        this.head2 = root.getChild("head").getChild("headroll").getChild("head2");
+        this.tail2 = root.getChild("tail").getChild("tail2");
+        this.head3 = root.getChild("head").getChild("headroll").getChild("head3");
+        this.tail3 = root.getChild("tail").getChild("tail3");
+        this.head4 = root.getChild("head").getChild("headroll").getChild("head4");
+        this.tail4 = root.getChild("tail").getChild("tail4");
+        this.head5 = root.getChild("head").getChild("headroll").getChild("head5");
+        this.tail5 = root.getChild("tail").getChild("tail5");
+        this.head6 = root.getChild("head").getChild("headroll").getChild("head6");
+        this.tail6 = root.getChild("tail").getChild("tail6");
+        this.head7 = root.getChild("head").getChild("headroll").getChild("head7");
+        this.tail7 = root.getChild("tail").getChild("tail7");
+        this.disks = root.getChild("disks");
     }
 
     public static LayerDefinition createBodyLayer() {
         MeshDefinition mesh = new MeshDefinition();
         PartDefinition root = mesh.getRoot();
 
-        PartDefinition frame0 = root.addOrReplaceChild("frame0", CubeListBuilder.create()
-                        .texOffs(84, 0).addBox(-4.0F, -4.0F, -4.0F, 8.0F, 8.0F, 0.0F)   // core0
+        PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create(), PartPose.offset(0.0F, 24.0F, 0.0F));
+
+        PartDefinition headroll = head.addOrReplaceChild("headroll", CubeListBuilder.create(), PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head0", CubeListBuilder.create()
+                        .texOffs(208, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head0
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head1", CubeListBuilder.create()
+                        .texOffs(240, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head1
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head2", CubeListBuilder.create()
+                        .texOffs(272, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head2
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head3", CubeListBuilder.create()
+                        .texOffs(304, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head3
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head4", CubeListBuilder.create()
+                        .texOffs(336, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head4
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head5", CubeListBuilder.create()
+                        .texOffs(368, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head5
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head6", CubeListBuilder.create()
+                        .texOffs(400, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head6
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        headroll.addOrReplaceChild("head7", CubeListBuilder.create()
+                        .texOffs(432, 56).addBox(-8.0F, -8.0F, 0.0F, 16.0F, 16.0F, 0.0F)   // head7
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        head.addOrReplaceChild("glow", CubeListBuilder.create()
+                        .texOffs(160, 56).addBox(-12.0F, -12.0F, 0.0F, 24.0F, 24.0F, 0.0F)   // glow
+                , PartPose.offset(0.0F, 0.0F, -3.0F));
+
+        PartDefinition tail = root.addOrReplaceChild("tail", CubeListBuilder.create(), PartPose.offset(0.0F, 24.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail0", CubeListBuilder.create()
+                        .texOffs(0, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail0
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail1", CubeListBuilder.create()
+                        .texOffs(80, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail1
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail2", CubeListBuilder.create()
+                        .texOffs(160, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail2
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail3", CubeListBuilder.create()
+                        .texOffs(240, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail3
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail4", CubeListBuilder.create()
+                        .texOffs(320, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail4
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail5", CubeListBuilder.create()
+                        .texOffs(400, 0).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail5
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail6", CubeListBuilder.create()
+                        .texOffs(0, 56).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail6
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        tail.addOrReplaceChild("tail7", CubeListBuilder.create()
+                        .texOffs(80, 56).addBox(0.0F, -8.0F, -8.0F, 0.0F, 16.0F, 40.0F)   // tail7
+                , PartPose.offset(0.0F, 0.0F, 0.0F));
+
+        root.addOrReplaceChild("disks", CubeListBuilder.create()
+                        .texOffs(464, 56).addBox(-5.0F, -5.0F, 12.0F, 10.0F, 10.0F, 0.0F)   // disk_mid
+                        .texOffs(484, 56).addBox(-3.0F, -3.0F, 22.0F, 6.0F, 6.0F, 0.0F)   // disk_end
                 , PartPose.offset(0.0F, 24.0F, 0.0F));
-
-        frame0.addOrReplaceChild("flame0_a", CubeListBuilder.create()
-                        .texOffs(0, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame0_a
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(45.0F)));
-
-        frame0.addOrReplaceChild("flame0_b", CubeListBuilder.create()
-                        .texOffs(0, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame0_b
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(-45.0F)));
-
-        PartDefinition frame1 = root.addOrReplaceChild("frame1", CubeListBuilder.create()
-                        .texOffs(100, 0).addBox(-4.0F, -4.0F, -4.0F, 8.0F, 8.0F, 0.0F)   // core1
-                , PartPose.offset(0.0F, 24.0F, 0.0F));
-
-        frame1.addOrReplaceChild("flame1_a", CubeListBuilder.create()
-                        .texOffs(28, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame1_a
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(45.0F)));
-
-        frame1.addOrReplaceChild("flame1_b", CubeListBuilder.create()
-                        .texOffs(28, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame1_b
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(-45.0F)));
-
-        PartDefinition frame2 = root.addOrReplaceChild("frame2", CubeListBuilder.create()
-                        .texOffs(0, 22).addBox(-4.0F, -4.0F, -4.0F, 8.0F, 8.0F, 0.0F)   // core2
-                , PartPose.offset(0.0F, 24.0F, 0.0F));
-
-        frame2.addOrReplaceChild("flame2_a", CubeListBuilder.create()
-                        .texOffs(56, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame2_a
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(45.0F)));
-
-        frame2.addOrReplaceChild("flame2_b", CubeListBuilder.create()
-                        .texOffs(56, 0).addBox(0.0F, -4.0F, -14.0F, 0.0F, 8.0F, 14.0F)   // flame2_b
-                , PartPose.offsetAndRotation(0.0F, 0.0F, 7.0F, rad(0.0F), rad(0.0F), rad(-45.0F)));
-        return LayerDefinition.create(mesh, 128, 32);
+        return LayerDefinition.create(mesh, 512, 128);
     }
 
     @Override
     public void setupAnim(PepperBreathRenderState state) {
         super.setupAnim(state);
 
-        // Frame flip every 2 ticks: exactly one frame bone visible, like an animated sprite.
-        int frame = ((int) (state.ageInTicks / 2.0F)) % 3;
-        this.frame0.visible = frame == 0;
-        this.frame1.visible = frame == 1;
-        this.frame2.visible = frame == 2;
+        // Frame flip every 2 ticks: one head/tail pair visible, like an animated sprite.
+        int frame = ((int) (state.ageInTicks / 2.0F)) % 8;
+        this.head0.visible = this.tail0.visible = frame == 0;
+        this.head1.visible = this.tail1.visible = frame == 1;
+        this.head2.visible = this.tail2.visible = frame == 2;
+        this.head3.visible = this.tail3.visible = frame == 3;
+        this.head4.visible = this.tail4.visible = frame == 4;
+        this.head5.visible = this.tail5.visible = frame == 5;
+        this.head6.visible = this.tail6.visible = frame == 6;
+        this.head7.visible = this.tail7.visible = frame == 7;
 
-        // Slow roll about the travel axis (-Z) keeps the crossed planes from ever reading as flat.
-        float roll = state.ageInTicks * 12.0F * Mth.DEG_TO_RAD;
-        this.frame0.zRot = this.frame1.zRot = this.frame2.zRot = roll;
+        // Billboards, computed by the renderer from the camera position (model space).
+        // The sheet rolls about the travel axis; the ball turns to face the camera, is
+        // pushed 1 px toward it so it always draws over the sheet, and rolls so its
+        // hot spot leads the flight.
+        this.tail.zRot = state.tailRoll;
+        this.head.xRot = state.headPitch;
+        this.head.yRot = state.headYaw;
+        this.headroll.zRot = state.headRoll;
+        float lift = 1.0F;
+        this.head.x = Mth.cos(state.headPitch) * Mth.sin(state.headYaw) * lift;
+        this.head.y = 24.0F - Mth.sin(state.headPitch) * lift;
+        this.head.z = Mth.cos(state.headPitch) * Mth.cos(state.headYaw) * lift;
+
+        // The halo breathes: a slow pulse on top of the frame flicker.
+        float pulse = 1.0F + 0.08F * Mth.sin(state.ageInTicks * 0.45F);
+        this.glow.xScale = this.glow.yScale = pulse;
     }
 
     private static float rad(float degrees) {

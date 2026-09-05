@@ -14,7 +14,7 @@
       "cooldown_ticks": 100,
       "duration_ticks": 24,
       "hit_tick": 12,
-      "range": 12
+      "range": 10
     },
     {
       "id": "digicube:claw",

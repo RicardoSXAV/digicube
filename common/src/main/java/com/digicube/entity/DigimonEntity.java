@@ -82,6 +82,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
     private static final double MOUTH_HEIGHT = 0.95;
     private static final double MOUTH_FORWARD = 0.6;
     private static final int FIREBALL_CHARGE_TICKS = 8;
+    /** Blocks. Longer leads assume the target keeps its heading longer than mobs usually do. */
+    private static final double MAX_AIM_LEAD = 4.0;
 
     private static final EntityDataAccessor<String> DATA_SPECIES =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.STRING);
@@ -330,16 +332,41 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity {
             case FIREBALL -> {
                 Vec3 mouth = mouthPosition();
                 Vec3 aim = target != null && target.isAlive()
-                        ? target.position().add(0.0, target.getBbHeight() * 0.5, 0.0)
+                        ? predictImpactPoint(target, mouth, PepperBreathEntity.SPEED)
                         : mouth.add(getViewVector(1.0F).scale(4.0));
                 Vec3 direction = aim.subtract(mouth);
                 PepperBreathEntity fireball = new PepperBreathEntity(level, this, mouth, damageAgainst(attack, target));
-                fireball.shoot(direction.x, direction.y, direction.z, PepperBreathEntity.SPEED, 0.5F);
+                fireball.shoot(direction.x, direction.y, direction.z, PepperBreathEntity.SPEED, 0.0F);
                 level.addFreshEntity(fireball);
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.0F, 1.15F);
-                level.sendParticles(ParticleTypes.FLAME, mouth.x, mouth.y, mouth.z, 8, 0.1, 0.1, 0.1, 0.08);
+                level.sendParticles(ParticleTypes.FLAME, mouth.x, mouth.y, mouth.z, 12, 0.2, 0.2, 0.2, 0.1);
             }
         }
+    }
+
+    /**
+     * Where to aim a slow projectile so it meets a moving target: the centre of the
+     * target's hitbox, led by its current horizontal velocity for the flight time (which
+     * is refined once because the lead changes the distance). The lead is capped so a
+     * mob that turns around does not get a fireball thrown at empty ground.
+     */
+    private static Vec3 predictImpactPoint(LivingEntity target, Vec3 from, double blocksPerTick) {
+        Vec3 centre = target.position().add(0.0, target.getBbHeight() * 0.5, 0.0);
+        Vec3 velocity = target.position().subtract(target.oldPosition());
+        velocity = new Vec3(velocity.x, 0.0, velocity.z);
+        if (velocity.lengthSqr() < 1.0E-4) {
+            return centre;
+        }
+        double flightTicks = centre.subtract(from).length() / blocksPerTick;
+        for (int refine = 0; refine < 2; refine++) {
+            Vec3 predicted = centre.add(velocity.scale(flightTicks));
+            flightTicks = predicted.subtract(from).length() / blocksPerTick;
+        }
+        Vec3 lead = velocity.scale(flightTicks);
+        if (lead.length() > MAX_AIM_LEAD) {
+            lead = lead.normalize().scale(MAX_AIM_LEAD);
+        }
+        return centre.add(lead);
     }
 
     /** Attack power times this Digimon's attack attribute, with the attribute triangle vs other Digimon. */

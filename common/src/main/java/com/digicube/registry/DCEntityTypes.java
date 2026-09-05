@@ -32,11 +32,11 @@ public final class DCEntityTypes {
                     .clientTrackingRange(10));
 
     public static final ResourceKey<EntityType<?>> PEPPER_BREATH_KEY = key("pepper_breath");
-    /** Agumon's fireball. Tracked like vanilla fireballs: close range, frequent updates. */
+    /** Agumon's fireball: a one-block ball. Tracked like vanilla fireballs: close range, frequent updates. */
     public static final EntityType<PepperBreathEntity> PEPPER_BREATH = register(PEPPER_BREATH_KEY,
             EntityType.Builder.<PepperBreathEntity>of(PepperBreathEntity::new, MobCategory.MISC)
-                    .sized(0.5F, 0.5F)
-                    .eyeHeight(0.25F)
+                    .sized(0.9F, 0.9F)
+                    .eyeHeight(0.45F)
                     .clientTrackingRange(8)
                     .updateInterval(4));
 

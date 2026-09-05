@@ -18,7 +18,7 @@ public final class DigimonSpeciesBootstrap {
     /** Agumon's signature fireball: slow, hard-hitting, used whenever it is ready. */
     public static final DigimonAttack PEPPER_BREATH = new DigimonAttack(
             Constants.id("pepper_breath"), DigimonAttack.Kind.FIREBALL,
-            1.5F, 100, 24, 12, 12.0, false);
+            1.5F, 100, 24, 12, 10.0, false);
 
     /** Agumon's basic swipe: quick, alternates hands. */
     public static final DigimonAttack CLAW = new DigimonAttack(
