@@ -57,7 +57,7 @@ import java.util.Optional;
  * play the matching keyframe animation through an entity event.
  *
  * <p>Summon a wild one with {@code /digicube spawn agumon}; a partner with
- * {@code /givedigimon agumon}.
+ * {@code /digicube give agumon}.
  */
 public class DigimonEntity extends PathfinderMob implements OwnableEntity {
 

@@ -6,7 +6,7 @@
   "commands.digicube.spawn.success": "Spawned %s",
   "commands.digicube.spawn.unknown": "Unknown Digimon species: %s",
   "commands.digicube.spawn.failed": "Could not create the Digimon entity",
-  "commands.digicube.givedigimon.success": "Gave %s to %s",
+  "commands.digicube.give.success": "Gave %s to %s",
 
   "entity.digicube.pepper_breath": "Pepper Breath",
   "entity.digicube.bubble_blow": "Bubble Blow",

@@ -27,7 +27,7 @@ import java.util.Optional;
  *
  * <pre>
  * /digicube spawn &lt;species&gt;          spawn a wild Digimon at the caller's feet
- * /givedigimon &lt;species&gt; [player]     spawn a Digimon next to a player as their partner
+ * /digicube give &lt;species&gt; [player]  spawn a Digimon next to a player as their partner
  * </pre>
  */
 public final class DigiCubeCommands {
@@ -40,18 +40,16 @@ public final class DigiCubeCommands {
                 .then(Commands.literal("spawn")
                         .then(speciesArgument()
                                 .executes(context -> spawn(context.getSource(),
-                                        IdentifierArgument.getId(context, "species"))))));
-
-        dispatcher.register(Commands.literal("givedigimon")
-                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                .then(speciesArgument()
-                        .executes(context -> give(context.getSource(),
-                                IdentifierArgument.getId(context, "species"),
-                                context.getSource().getPlayerOrException()))
-                        .then(Commands.argument("player", EntityArgument.player())
+                                        IdentifierArgument.getId(context, "species")))))
+                .then(Commands.literal("give")
+                        .then(speciesArgument()
                                 .executes(context -> give(context.getSource(),
                                         IdentifierArgument.getId(context, "species"),
-                                        EntityArgument.getPlayer(context, "player"))))));
+                                        context.getSource().getPlayerOrException()))
+                                .then(Commands.argument("player", EntityArgument.player())
+                                        .executes(context -> give(context.getSource(),
+                                                IdentifierArgument.getId(context, "species"),
+                                                EntityArgument.getPlayer(context, "player")))))));
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, Identifier> speciesArgument() {
@@ -95,7 +93,7 @@ public final class DigiCubeCommands {
         }
         digimon.setOwner(player);
 
-        source.sendSuccess(() -> Component.translatable("commands.digicube.givedigimon.success",
+        source.sendSuccess(() -> Component.translatable("commands.digicube.give.success",
                 Component.translatable(species.translationKey()), player.getDisplayName()), true);
         return 1;
     }

@@ -262,7 +262,7 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   the move. The client animation is looked up by the attack id path, so an attack named
   `digicube:claw` needs a harness animation called `claw` (plus `claw_mirrored` when it
   alternates sides). Author animations in `../harness` (README §3c), never by hand in Java.
-- Ownership: `DigimonEntity` implements `OwnableEntity`; `/givedigimon <species> [player]`
+- Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
   ray (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a

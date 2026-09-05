@@ -161,7 +161,10 @@ The shaded blowing expression replaces the normal face on ticks 5–18 using exp
 visibility switches. Facial planes export only their front polygon and sit clear of
 the body surface; keep this setup when regenerating to avoid depth flicker.
 
-Try `/givedigimon koromon`, then walk away to see your partner hop after you.
+Try `/digicube give koromon`, then walk away to see your partner hop after you.
+Use `/digicube give <species> [player]` to give a partner to yourself or a selected
+player; `/digicube spawn <species>` spawns a wild Digimon. Both require operator
+permissions, and the console must specify a player for `give`.
 Koromon's only attack is **Bubble Blow**: a seven-bubble visual volley, 8-block
 range, 40-tick (2-second) cooldown, and a 24-tick blowing animation. The shot leaves
 on tick 10. It deals one normal attack's damage per volley, does not ignite targets,
