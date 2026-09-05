@@ -29,3 +29,6 @@ Thumbs.db
 # Local secrets: Modrinth/CurseForge tokens etc. Never commit these.
 .env
 *.local.properties
+
+# Local MCP configuration
+/.mcp.json
