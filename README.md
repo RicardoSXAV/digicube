@@ -135,6 +135,37 @@ bodies. Adding new classes, fields or registry entries still needs a restart.
 
 ---
 
+### Model authoring with Blender MCP
+
+The local [model harness](../harness/README.md) owns geometry, pixel textures and
+keyframe animations. Koromon's source is `../harness/digimon/koromon.py`; its saved
+Blender scene and preview renders are under `../harness/out/koromon/`.
+
+Rebuild through Blender MCP:
+
+```python
+SPECIES = "koromon"
+exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/run.py", encoding="utf-8").read())
+```
+
+Copy the generated `KoromonModel.java` and `KoromonAnimations.java` into
+`fabric/src/main/java/com/digicube/fabric/client/model/`, and `koromon.png` into
+`common/src/main/resources/assets/digicube/textures/entity/digimon/`, then build.
+Edit the harness source to change geometry or motion; keep the exports reproducible.
+
+Koromon uses a 128×64 atlas, thin folded ear tips and a looping 16-tick hop with
+squash, stretch and delayed ear motion. Movement controls animation speed and weight;
+standing still fades the hop out. This is a visual walk cycle; collision and navigation
+still use the shared Digimon entity dimensions.
+The shaded blowing expression replaces the normal face on ticks 5–18 using explicit
+visibility switches. Facial planes export only their front polygon and sit clear of
+the body surface; keep this setup when regenerating to avoid depth flicker.
+
+Try `/givedigimon koromon`, then walk away to see your partner hop after you.
+Use `/digicube spawn agumon` alongside it to check species model selection.
+In-game testing is manual; the harness provides front, side, three-quarter and
+airborne renders plus animation filmstrips for inspection outside Minecraft.
+
 ## 4. How the project is organised
 
 ```
