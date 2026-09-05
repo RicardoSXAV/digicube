@@ -23,6 +23,7 @@ import java.util.Objects;
  * @param hitTick        tick within the animation when the damage lands / projectile leaves
  * @param range          blocks; melee uses the vanilla reach test instead
  * @param alternateSides whether consecutive uses mirror the animation (left claw, right claw)
+ * @param motion         optional Blender-exported origin, contact and movement profile
  */
 public record DigimonAttack(
         Identifier id,
@@ -32,7 +33,8 @@ public record DigimonAttack(
         int durationTicks,
         int hitTick,
         double range,
-        boolean alternateSides
+        boolean alternateSides,
+        AttackMotion motion
 ) {
 
     public DigimonAttack {
@@ -41,6 +43,19 @@ public record DigimonAttack(
         if (hitTick < 0 || hitTick >= durationTicks) {
             throw new IllegalArgumentException(id + ": hitTick must lie inside the animation");
         }
+        if (cooldownTicks < durationTicks || power <= 0 || range < 0) {
+            throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
+        }
+        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM)
+                && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
+            throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
+        }
+    }
+
+    /** Existing moves without authored contact trajectories. */
+    public DigimonAttack(Identifier id, Kind kind, float power, int cooldownTicks, int durationTicks,
+                         int hitTick, double range, boolean alternateSides) {
+        this(id, kind, power, cooldownTicks, durationTicks, hitTick, range, alternateSides, null);
     }
 
     /** How an attack reaches its target. */
@@ -50,7 +65,11 @@ public record DigimonAttack(
         /** A {@link com.digicube.entity.PepperBreathEntity} fireball launched on the hit tick. */
         FIREBALL,
         /** A non-burning bubble volley launched on the hit tick. */
-        BUBBLES
+        BUBBLES,
+        /** A large animated flame shot with an impact burst. */
+        FLAME_SHOT,
+        /** Collision-safe forward movement and swept contact along the authored horn. */
+        HORN_RAM
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -59,6 +78,11 @@ public record DigimonAttack(
     }
 
     public boolean isRanged() {
-        return kind != Kind.MELEE;
+        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT;
+    }
+
+    /** Whole-body attacks hold a common visual and physical facing. */
+    public boolean locksBodyFacing() {
+        return kind == Kind.BUBBLES || motion != null;
     }
 }

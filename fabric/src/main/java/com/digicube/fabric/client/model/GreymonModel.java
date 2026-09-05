@@ -366,12 +366,22 @@ public class GreymonModel extends EntityModel<DigimonRenderState> {
                     this.riderSeat.x / 16.0F, this.riderSeat.y / 16.0F, this.riderSeat.z / 16.0F,
                     new org.joml.Vector3f());
         }
-        this.animations.get("walk").applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 4.1666667F, 4.1666667F);
-        if (!state.isBeingRidden) {
+        boolean attacking = !state.isBeingRidden && state.attackAnimation.isStarted()
+                && this.animations.containsKey(state.attackAnimationName);
+        if (attacking) {
+            this.animations.get(state.attackAnimationName).apply(state.attackAnimation, state.ageInTicks);
+            if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
+                float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
+                this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(tick).aimWeight() * Mth.DEG_TO_RAD;
+            }
+        } else {
+            this.animations.get("walk").applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 4.1666667F, 4.1666667F);
+        }
+        if (!state.isBeingRidden && !attacking) {
             this.head.yRot += Mth.clamp(state.yRot, -25.0F, 25.0F) * Mth.DEG_TO_RAD;
             this.head.xRot += Mth.clamp(state.xRot, -15.0F, 15.0F) * Mth.DEG_TO_RAD;
         }
-        this.jaw.xRot += Mth.sin(state.ageInTicks * 0.07F) * 0.012F;
+        if (!attacking) this.jaw.xRot += Mth.sin(state.ageInTicks * 0.07F) * 0.012F;
         if (seatTarget != null) {
             // Keep the crown beneath the server-authoritative rider seat.
             // Only the head translation is corrected; the body/feet keep the walk.

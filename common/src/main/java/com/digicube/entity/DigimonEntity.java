@@ -2,6 +2,7 @@ package com.digicube.entity;
 
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
+import com.digicube.digimon.AttackMotion;
 import com.digicube.digimon.DigimonBody;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
@@ -29,6 +30,7 @@ import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.PlayerRideable;
@@ -45,9 +47,12 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
 
 import java.util.HashMap;
 import java.util.EnumSet;
@@ -87,6 +92,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     private static final byte ATTACK_EVENT_BASE = 64;
     private static final byte ATTACK_EVENT_MIRROR = 16;
+    private static final byte ATTACK_CANCEL_EVENT = 63;
     private static final int MAX_ATTACKS_PER_SPECIES = ATTACK_EVENT_MIRROR;
 
     /** Where Pepper Breath leaves the model, relative to the feet: mouth height and snout reach. */
@@ -99,6 +105,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     private static final EntityDataAccessor<String> DATA_SPECIES =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Float> DATA_ATTACK_AIM_PITCH =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Optional<EntityReference<LivingEntity>>> DATA_OWNER =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.OPTIONAL_LIVING_ENTITY_REFERENCE);
 
@@ -110,6 +118,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private boolean nextAttackMirrored;
     /** Predicted release point, updated during the bubble windup and held through recovery. */
     private Vec3 bubbleAimPoint;
+    private Vec3 authoredAimPoint;
+    private boolean hornConnected;
+    private boolean chargeBlocked;
+    private float previousAttackAimPitch;
     /** Attack id -> {@link #tickCount} at which it may be used again. */
     private final Map<Identifier, Integer> cooldownUntil = new HashMap<>();
 
@@ -152,6 +164,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(DATA_SPECIES, DEFAULT_SPECIES.toString());
+        builder.define(DATA_ATTACK_AIM_PITCH, 0.0F);
         builder.define(DATA_OWNER, Optional.empty());
     }
 
@@ -201,6 +214,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 return InteractionResult.SUCCESS;
             }
             if (player.startRiding(this)) {
+                cancelAttack();
                 getNavigation().stop();
                 setTarget(null);
                 return InteractionResult.SUCCESS_SERVER;
@@ -386,6 +400,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * claws whenever it is ready and the target is in sight.
      */
     public DigimonAttack chooseAttack(LivingEntity target) {
+        if (isVehicle() || isAttacking() || target == null || !target.isAlive() || !canAttack(target)) return null;
         for (DigimonAttack attack : attacks()) {
             if (isAttackReady(attack) && inRange(attack, target)) {
                 return attack;
@@ -399,11 +414,25 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             case MELEE -> isWithinMeleeAttackRange(target);
             case FIREBALL, BUBBLES -> distanceToSqr(target) <= attack.range() * attack.range()
                     && getSensing().hasLineOfSight(target);
+            case FLAME_SHOT, HORN_RAM -> distanceToSqr(target) <= attack.range() * attack.range()
+                    && distanceToSqr(target) >= attack.motion().minimumRange() * attack.motion().minimumRange()
+                    && getSensing().hasLineOfSight(target) && (attack.isRanged() || onGround());
         };
+    }
+
+    /**
+     * Space needed to bring an authored snout or horn to bear on a nearby target.
+     * @return minimum usable distance in blocks, or zero for ordinary melee
+     */
+    public double minimumAttackSpacing() {
+        return attacks().stream().filter(a -> a.motion() != null)
+                .mapToDouble(a -> a.motion().minimumRange()).min().orElse(0.0);
     }
 
     /** Server only. Begins the attack timeline and tells clients to animate it. */
     public void startAttack(DigimonAttack attack, LivingEntity target) {
+        if (level().isClientSide() || isVehicle() || activeAttack != null || target == null
+                || !target.isAlive() || !canAttack(target) || !isAttackReady(attack) || !inRange(attack, target)) return;
         List<DigimonAttack> attacks = attacks();
         int index = attacks.indexOf(attack);
         if (index < 0 || index >= MAX_ATTACKS_PER_SPECIES) {
@@ -414,6 +443,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         attackTarget = target;
         attackTick = 0;
         bubbleAimPoint = null;
+        authoredAimPoint = null;
+        hornConnected = chargeBlocked = false;
+        this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
         attackMirrored = attack.alternateSides() && nextAttackMirrored;
         if (attack.alternateSides()) {
             nextAttackMirrored = !nextAttackMirrored;
@@ -422,6 +454,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         lookAt(target, 60.0F, 60.0F);
         if (attack.kind() == DigimonAttack.Kind.BUBBLES) {
             aimBubbleBlow();
+        } else if (attack.motion() != null) {
+            aimAuthoredAttack();
+            level().playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_AMBIENT,
+                    SoundSource.NEUTRAL, 0.65F, 0.72F);
         }
         level().broadcastEntityEvent(this, (byte) (ATTACK_EVENT_BASE + index + (attackMirrored ? ATTACK_EVENT_MIRROR : 0)));
     }
@@ -432,8 +468,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (activeAttack == null) {
             return;
         }
+        if (isVehicle() || !isAlive() || (attackTick < activeAttack.hitTick()
+                && (attackTarget == null || !attackTarget.isAlive() || !canAttack(attackTarget)))) {
+            cancelAttack();
+            return;
+        }
         if (activeAttack.kind() == DigimonAttack.Kind.BUBBLES) {
             aimBubbleBlow();
+        } else if (activeAttack.motion() != null) {
+            aimAuthoredAttack();
+            getNavigation().stop();
+            setDeltaMovement(0.0, getDeltaMovement().y, 0.0);
+            if (activeAttack.kind() == DigimonAttack.Kind.HORN_RAM) tickHornDrive(level);
         } else if (attackTarget != null && attackTarget.isAlive()) {
             getLookControl().setLookAt(attackTarget, 30.0F, 30.0F);
         }
@@ -448,6 +494,99 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             activeAttack = null;
             attackTarget = null;
             bubbleAimPoint = null;
+            authoredAimPoint = null;
+        }
+    }
+
+    /** Interrupt combat before rider controls take over; the client also resets its pose. */
+    private void cancelAttack() {
+        if (activeAttack == null) return;
+        activeAttack = null;
+        attackTarget = null;
+        bubbleAimPoint = authoredAimPoint = null;
+        level().broadcastEntityEvent(this, ATTACK_CANCEL_EVENT);
+    }
+
+    private Vec3 authoredPoint(Vec3 local) {
+        return position().add(local.yRot(-getYRot() * Mth.DEG_TO_RAD));
+    }
+
+    /** Face the aim during anticipation, then commit to that direction through the strike. */
+    private void aimAuthoredAttack() {
+        if (attackTick <= activeAttack.hitTick() && attackTarget != null && attackTarget.isAlive()) {
+            AttackMotion.Frame release = activeAttack.motion().sample(activeAttack.hitTick());
+            Vec3 origin = authoredPoint(release.mouth());
+            authoredAimPoint = activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT
+                    ? PepperBreathEntity.predictImpactPoint(attackTarget, origin, MegaFlameEntity.SPEED, MegaFlameEntity.MAX_AIM_LEAD)
+                    : attackTarget.getBoundingBox().getCenter();
+            Vec3 direction = authoredAimPoint.subtract(position());
+            if (direction.horizontalDistanceSqr() > 1.0E-8) {
+                setYRot((float) Math.toDegrees(Math.atan2(-direction.x, direction.z)));
+            }
+            if (activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT) {
+                float pitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
+                // The mouth moves around the head pivot as it aims: solve that offset too.
+                for (int i = 0; i < 4; i++) {
+                    Vec3 aim = authoredAimPoint.subtract(authoredPoint(release.aimedMouth(pitch)));
+                    pitch = Mth.clamp((float) Math.toDegrees(Math.atan2(-aim.y, aim.horizontalDistance()))
+                            - release.headPitch(), -30.0F, 45.0F);
+                }
+                this.entityData.set(DATA_ATTACK_AIM_PITCH, pitch);
+            }
+        }
+        yHeadRot = yBodyRot = getYRot();
+    }
+
+    /** Move only by the exported root displacement; vanilla collision resolves walls. */
+    private void tickHornDrive(ServerLevel level) {
+        AttackMotion motion = activeAttack.motion();
+        Vec3 before = position();
+        double travel = motion.sample(attackTick + 1).travel() - motion.sample(attackTick).travel();
+        if (!chargeBlocked && travel > 0.0) {
+            Vec3 step = new Vec3(0, 0, travel).yRot(-getYRot() * Mth.DEG_TO_RAD);
+            Vec3 groundProbe = before.add(step).add(0, 0.15, 0);
+            boolean groundAhead = level.clip(new ClipContext(groundProbe, groundProbe.add(0, -1.25, 0),
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS;
+            if (onGround() && groundAhead) {
+                move(MoverType.SELF, step);
+                chargeBlocked = horizontalCollision;
+            } else {
+                chargeBlocked = true;
+            }
+        }
+        if (attackTick == motion.activeFrom()) {
+            level.playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_ATTACK,
+                    SoundSource.NEUTRAL, 1.0F, 0.8F);
+        }
+        if (hornConnected || chargeBlocked || attackTick < motion.activeFrom() || attackTick > motion.activeUntil()) return;
+        // Subdivide the moving horn, not an arbitrary melee radius around the feet.
+        for (int i = 0; i <= 4 && !hornConnected; i++) {
+            double partial = i / 4.0;
+            AttackMotion.Frame frame = motion.sample(attackTick + partial);
+            Vec3 at = before.lerp(position(), partial);
+            Vec3 base = at.add(frame.hornBase().yRot(-getYRot() * Mth.DEG_TO_RAD));
+            Vec3 tip = at.add(frame.hornTip().yRot(-getYRot() * Mth.DEG_TO_RAD));
+            AABB region = new AABB(base, tip).inflate(motion.contactRadius());
+            for (Entity entity : level.getEntities(this, region,
+                    e -> e instanceof LivingEntity living && living.isAlive() && canAttack(living) && !isAllyOf(living))) {
+                var contact = entity.getBoundingBox().inflate(motion.contactRadius()).clip(base, tip);
+                if (!entity.getBoundingBox().inflate(motion.contactRadius()).contains(base) && contact.isEmpty()) continue;
+                Vec3 end = contact.orElse(base);
+                if (level.clip(new ClipContext(authoredPoint(frame.head()), end,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
+                LivingEntity victim = (LivingEntity) entity;
+                float damage = damageAgainst(activeAttack, victim);
+                var source = damageSources().mobAttack(this);
+                if (victim.hurtServer(level, source, damage)) {
+                    victim.knockback(1.1, getX() - victim.getX(), getZ() - victim.getZ(), source, damage);
+                    setLastHurtMob(victim);
+                    level.playSound(null, end.x, end.y, end.z, SoundEvents.PLAYER_ATTACK_KNOCKBACK,
+                            SoundSource.NEUTRAL, 1.0F, 0.65F);
+                    level.sendParticles(ParticleTypes.CRIT, end.x, end.y, end.z, 12, .2, .2, .2, .08);
+                }
+                hornConnected = true;
+                break;
+            }
         }
     }
 
@@ -531,6 +670,23 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE,
                         SoundSource.NEUTRAL, 0.6F, 1.5F);
             }
+            case FLAME_SHOT -> {
+                AttackMotion.Frame frame = attack.motion().sample(attackTick);
+                Vec3 mouth = authoredPoint(frame.aimedMouth(this.entityData.get(DATA_ATTACK_AIM_PITCH)));
+                // A snout outside the body box must not spawn a shot through a wall.
+                HitResult obstruction = level.clip(new ClipContext(authoredPoint(frame.head()), mouth,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+                if (obstruction.getType() != HitResult.Type.MISS) mouth = obstruction.getLocation();
+                Vec3 aim = authoredAimPoint != null ? authoredAimPoint : mouth.add(getViewVector(1).scale(8));
+                Vec3 direction = aim.subtract(mouth);
+                MegaFlameEntity flame = new MegaFlameEntity(level, this, mouth, damageAgainst(attack, null), target);
+                flame.shoot(direction.x, direction.y, direction.z, MegaFlameEntity.SPEED, 0.0F);
+                level.addFreshEntity(flame);
+                if (obstruction.getType() != HitResult.Type.MISS) flame.burst(level);
+                level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.BLAZE_SHOOT,
+                        SoundSource.NEUTRAL, 1.4F, 0.65F);
+            }
+            case HORN_RAM -> { /* The authored contact interval is swept in tickHornDrive. */ }
         }
     }
 
@@ -558,6 +714,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     public void handleEntityEvent(byte id) {
+        if (id == ATTACK_CANCEL_EVENT) {
+            attackAnimationState.stop();
+            attackAnimationName = null;
+            return;
+        }
         int offset = id - ATTACK_EVENT_BASE;
         if (offset >= 0 && offset < 2 * ATTACK_EVENT_MIRROR) {
             boolean mirrored = (offset & ATTACK_EVENT_MIRROR) != 0;
@@ -576,6 +737,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     public void tick() {
+        previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
         super.tick();
         if (level().isClientSide() && attackAnimationState.isStarted() && tickCount >= attackAnimationEndTick) {
             attackAnimationState.stop();
@@ -586,6 +748,24 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Harness animation name currently playing on the client, or null when idle. */
     public String getAttackAnimationName() {
         return attackAnimationName;
+    }
+
+    /**
+     * Attack data for the current client animation.
+     * @return attack definition, or null when idle
+     */
+    public DigimonAttack getAnimatingAttack() {
+        return attacks().stream().filter(a -> a.animationName(false).equals(attackAnimationName)
+                || a.animationName(true).equals(attackAnimationName)).findFirst().orElse(null);
+    }
+
+    /**
+     * Interpolated server-authoritative head aim, relative to the authored attack pose.
+     * @param partialTick fraction between entity ticks
+     * @return additional downward head pitch in degrees
+     */
+    public float getAttackAimPitch(float partialTick) {
+        return Mth.lerp(partialTick, previousAttackAimPitch, this.entityData.get(DATA_ATTACK_AIM_PITCH));
     }
 
     // --- persistence -----------------------------------------------------------------

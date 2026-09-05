@@ -5,6 +5,8 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.GreymonModel;
+import com.digicube.fabric.client.model.MegaFlameModel;
+import com.digicube.digimon.DigimonAttack;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -28,9 +30,11 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
+    private final MegaFlameModel mouthFlame;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
+        mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
@@ -42,6 +46,25 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
         super.submit(state, poseStack, collector, cameraState);
+        if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
+                && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_SHOT) {
+            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
+            if (tick >= 7 && tick < 22) {
+                var frame = state.attackDefinition.motion().sample(tick);
+                var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
+                var flame = state.mouthFlame;
+                flame.ageInTicks = tick;
+                flame.charging = true;
+                flame.burst = false;
+                flame.yRot = state.bodyRot;
+                flame.xRot = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
+                flame.outlineColor = state.outlineColor;
+                poseStack.pushPose();
+                poseStack.translate(mouth.x, mouth.y, mouth.z);
+                MegaFlameRenderer.submitFlame(mouthFlame, flame, poseStack, collector);
+                poseStack.popPose();
+            }
+        }
     }
 
     @Override
@@ -58,9 +81,11 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
+        state.attackDefinition = entity.getAnimatingAttack();
+        state.attackAimPitch = entity.getAttackAimPitch(partialTick);
         if (state.isBeingRidden
-                || state.attackAnimation.isStarted() && "bubble_blow".equals(state.attackAnimationName)) {
-            // Riding and Bubble Blow turn the entire creature. Keep the rendered
+                || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
+            // Riding and committed attacks turn the entire creature. Keep the rendered
             // body aligned with the synced yaw used by the passenger attachment.
             state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;

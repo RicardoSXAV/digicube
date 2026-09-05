@@ -3,6 +3,7 @@ package com.digicube.registry;
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.BubbleBlowEntity;
+import com.digicube.entity.MegaFlameEntity;
 import com.digicube.entity.PepperBreathEntity;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -50,6 +51,11 @@ public final class DCEntityTypes {
                     .eyeHeight(0.15F)
                     .clientTrackingRange(8)
                     .updateInterval(1));
+
+    /** Greymon's broad flame core; trailing sheets are visual follow-through. */
+    public static final EntityType<MegaFlameEntity> MEGA_FLAME = register(key("mega_flame"),
+            EntityType.Builder.<MegaFlameEntity>of(MegaFlameEntity::new, MobCategory.MISC)
+                    .sized(1.2F, 1.2F).eyeHeight(0.6F).clientTrackingRange(10).updateInterval(1));
 
     /** Forces the static initialiser, which performs the registration. */
     public static void init() {

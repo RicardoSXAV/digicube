@@ -5,6 +5,8 @@ import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.GreymonModel;
 import com.digicube.fabric.client.model.BubbleBlowModel;
+import com.digicube.fabric.client.model.MegaFlameModel;
+import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
 import com.digicube.fabric.client.model.PepperBreathModel;
 import com.digicube.fabric.client.render.DigimonRenderer;
@@ -27,10 +29,12 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GreymonModel.LAYER, GreymonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
 
         Constants.LOG.info("DigiCube client initialised.");
     }

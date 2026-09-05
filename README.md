@@ -229,6 +229,48 @@ one-block stepping, and safe dismount behavior are retained. Check riding, owner
 save/reload, and dismounting on a dedicated server too; that startup requires accepting
 its EULA manually.
 
+#### Greymon's attacks
+
+Greymon prioritizes **Mega Flame** whenever it is ready and has a clear shot. It
+inhales, opens its jaw, fires on tick 16, recoils, then settles over a 40-tick clip.
+The flame's mouth flare, flickering sheets, hot core and ten-tick impact breakup
+are all authored in Blender. Its cooldown is **160 ticks (8 seconds)** and range is
+**3.4–16 blocks**. The shot leads moving targets, collides as a 1.2-block volume,
+damages visible opponents within 1.8 blocks of impact and burns them for 6 seconds.
+It protects the tamer and allies and does not destroy terrain or place fire blocks.
+
+**Great Antler** fills the shorter gaps: a braced crouch, lowered front horn,
+2.4-block drive, impact and recovery. Its cooldown is **50 ticks (2.5 seconds)**,
+clip length is 36 ticks, and starting range is **2.4–6.2 blocks**. The actual horn
+segment is checked on ticks 11–19, with one damaging hit and knockback per use.
+Movement respects walls and stops before an unsupported drop. Greymon backs up if
+the target is too close to bring its horn to bear.
+
+The creature clips live in `../harness/digimon/greymon_reference.py`; the fire rig
+and charge/flight/burst clips live in `../harness/digimon/mega_flame.py`.
+Run `../harness/blender/build_greymon_attacks.py` through Blender MCP to export the
+model, all animations, flame assets and contact profiles. Copy the Greymon Java
+files from `out/greymon_reference_release/`, flame Java/PNG from `out/mega_flame/`,
+and `mega_flame.json` / `great_antler.json` from `out/greymon_attacks/` into the
+corresponding model, projectile texture and `data/digicube/attack_motion/` folders.
+These contact profiles are bundled data; datapack reload support is not implemented.
+`preview_greymon_attacks.py` produces editable combined scenes and preview frames;
+`package_greymon_attacks.py` packages the frames as GIFs. The motion design uses
+[anticipation and stored energy](https://www.animationmentor.com/blog/anticipation-the-12-basic-principles-of-animation/)
+and the [rhino's heavy head and horn](https://animals.sandiegozoo.org/animals/rhinoceros)
+as references, adapted to Greymon's bipedal anatomy.
+
+To test, give yourself a Greymon and hit a nearby hostile mob in an open area.
+Watch Mega Flame first, followed by Great Antler while the flame is cooling down.
+Mounting cancels an attack and reserves control for the rider; dismount before
+testing autonomous combat. Also check allies near an impact, walls, moving targets,
+and mounting during the windup. Dedicated-server combat still needs a manual test.
+
+The harness's `tools/verify_greymon_attacks.init.gradle` runs the compiled model
+against the exported mouth and horn markers at fractional ticks, checks the attack
+order/cooldowns/range, flame clips, idle reset and the rider seat during late attack
+events. `tools/verify_greymon.init.gradle` retains the approved walk and mount checks.
+
 ## 4. How the project is organised
 
 ```

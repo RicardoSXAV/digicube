@@ -33,6 +33,16 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("bubble_blow"), DigimonAttack.Kind.BUBBLES,
             1.0F, 40, 24, 10, 8.0, false);
 
+    /** Greymon's priority flame shot: a two-second performance, eight-second cooldown. */
+    public static final DigimonAttack MEGA_FLAME = new DigimonAttack(
+            Constants.id("mega_flame"), DigimonAttack.Kind.FLAME_SHOT,
+            2.4F, 160, 40, 16, 16.0, false, AttackMotion.load(Constants.id("mega_flame")));
+
+    /** A committed horn drive with shorter recovery between uses. */
+    public static final DigimonAttack GREAT_ANTLER = new DigimonAttack(
+            Constants.id("great_antler"), DigimonAttack.Kind.HORN_RAM,
+            1.15F, 50, 36, 11, 6.2, false, AttackMotion.load(Constants.id("great_antler")));
+
     public static void registerBuiltIn() {
         DigimonSpeciesRegistry.register(new DigimonSpecies(
                 Constants.id("koromon"),
@@ -65,7 +75,7 @@ public final class DigimonSpeciesBootstrap {
                 DigimonAttribute.VACCINE,
                 40, 14, 10, 0.32F,
                 List.of(),
-                List.of(),
+                List.of(MEGA_FLAME, GREAT_ANTLER),
                 // Approved reference model at scale 1.5; horns extend above the collision box.
                 // Crown marker (0, -4, 49) transformed through the authored neck/head rest pose.
                 new DigimonBody(1.5F, EntityDimensions.scalable(2.5F, 4.6F).withEyeHeight(4.1F),

@@ -30,7 +30,7 @@ public final class DigimonAttackGoal extends Goal {
     @Override
     public boolean canUse() {
         LivingEntity target = mob.getTarget();
-        return target != null && target.isAlive() && mob.hasAttacks() && mob.canAttack(target);
+        return !mob.isVehicle() && target != null && target.isAlive() && mob.hasAttacks() && mob.canAttack(target);
     }
 
     @Override
@@ -77,7 +77,14 @@ public final class DigimonAttackGoal extends Goal {
 
         if (--ticksUntilPathRecalc <= 0) {
             ticksUntilPathRecalc = adjustedTickDelay(6 + mob.getRandom().nextInt(6));
-            mob.getNavigation().moveTo(target, speedModifier);
+            double spacing = mob.minimumAttackSpacing();
+            if (spacing > 0 && mob.distanceToSqr(target) < spacing * spacing) {
+                var away = mob.position().subtract(target.position()).multiply(1, 0, 1).normalize();
+                var retreat = mob.position().add(away.scale(spacing + 0.5));
+                mob.getNavigation().moveTo(retreat.x, retreat.y, retreat.z, speedModifier * 0.65);
+            } else {
+                mob.getNavigation().moveTo(target, speedModifier);
+            }
         }
     }
 }
