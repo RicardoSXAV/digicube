@@ -264,6 +264,12 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   alternates sides). Author animations in `../harness` (README §3c), never by hand in Java.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/givedigimon <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
+- Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
+  ray (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a
+  big fireball drawn one block wide would miss like a needle. `PepperBreathEntity` is the
+  pattern: lead the target (`predictImpactPoint`), sweep the projectile's own box for
+  hits before `super.tick()`, and bend a few degrees per tick toward the target while it
+  stays ahead. Tune those constants before touching speed or hitbox size.
 
 `DigimonSpeciesBootstrap` is a temporary fixture holding three species. **Do not bulk-add
 Digimon to it.** The next architectural step is loading species from

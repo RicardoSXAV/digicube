@@ -6,6 +6,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -14,6 +15,7 @@ import net.minecraft.world.entity.projectile.ThrowableProjectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -25,15 +27,30 @@ import net.minecraft.world.phys.Vec3;
  * attribute) and carried here; the hit also sets the target on fire. Lives a few
  * seconds at most. Rendered client-side as flat pixel planes (see the fabric module);
  * the particles here are the loose sparks and smoke the model cannot carry.
+ *
+ * <p>Accuracy. A slow, big projectile needs three things to land on a moving mob, and
+ * vanilla gives none of them: the shooter leads the target ({@link #predictImpactPoint}),
+ * the ball hits with its whole body rather than the thin ray vanilla sweeps (which has a
+ * margin of 0 for the first two ticks and at most 0.3 blocks after), and it bends gently
+ * toward its target in flight so a mob that turns mid-flight is still met. The bend is
+ * rate-limited and only works while the target stays ahead, so a sharp dodge still wins.
  */
 public final class PepperBreathEntity extends ThrowableProjectile {
 
     /**
      * Blocks per tick: 10 blocks/s, about a third of a ghast fireball at full speed. Slow
      * enough to watch the ball roll and flicker; the shooter leads moving targets to
-     * compensate (see {@code DigimonEntity#predictImpactPoint}).
+     * compensate.
      */
     public static final float SPEED = 0.5F;
+    /** Blocks. Longer leads assume the target keeps its heading longer than mobs usually do. */
+    public static final double MAX_AIM_LEAD = 6.0;
+    /** Degrees per tick the ball may bend toward its target: 80 degrees over a second of flight. */
+    private static final float MAX_TURN_DEGREES = 4.0F;
+    /** Homing gives up once the target is more than this far off the nose (no boomerangs). */
+    private static final double HOMING_CONE_COS = Math.cos(Math.toRadians(70.0));
+    /** Extra reach around the ball's own box when sweeping for hits, blocks. */
+    private static final double HIT_MARGIN = 0.2;
     private static final int MAX_AGE_TICKS = 60;
     private static final float BURN_SECONDS = 3.0F;
     private static final String DAMAGE_TAG = "Damage";
@@ -41,16 +58,47 @@ public final class PepperBreathEntity extends ThrowableProjectile {
     private static final double TAIL_LENGTH = 1.5;
 
     private float damage = 6.0F;
+    /** What the shooter was aiming at; server-side only and not saved (a reloaded fireball just flies straight). */
+    private LivingEntity target;
 
     public PepperBreathEntity(EntityType<? extends PepperBreathEntity> type, Level level) {
         super(type, level);
     }
 
-    /** Spawns at {@code from}, owned by {@code shooter}; call {@link #shoot} before adding it. */
-    public PepperBreathEntity(Level level, LivingEntity shooter, Vec3 from, float damage) {
+    /**
+     * Spawns at {@code from}, owned by {@code shooter} and homing on {@code target} (may be
+     * null); call {@link #shoot} before adding it.
+     */
+    public PepperBreathEntity(Level level, LivingEntity shooter, Vec3 from, float damage, LivingEntity target) {
         super(DCEntityTypes.PEPPER_BREATH, from.x, from.y, from.z, level);
         setOwner(shooter);
         this.damage = damage;
+        this.target = target;
+    }
+
+    /**
+     * Where to aim a projectile of the given speed so it meets a moving target: the centre
+     * of the target's hitbox, led by its current horizontal velocity for the flight time
+     * (refined because the lead changes the distance). The lead is capped so a mob that
+     * turns around does not get a fireball thrown at empty ground.
+     */
+    public static Vec3 predictImpactPoint(LivingEntity target, Vec3 from, double blocksPerTick, double maxLead) {
+        Vec3 centre = target.position().add(0.0, target.getBbHeight() * 0.5, 0.0);
+        Vec3 velocity = target.position().subtract(target.oldPosition());
+        velocity = new Vec3(velocity.x, 0.0, velocity.z);
+        if (velocity.lengthSqr() < 1.0E-4) {
+            return centre;
+        }
+        double flightTicks = centre.subtract(from).length() / blocksPerTick;
+        for (int refine = 0; refine < 2; refine++) {
+            Vec3 predicted = centre.add(velocity.scale(flightTicks));
+            flightTicks = predicted.subtract(from).length() / blocksPerTick;
+        }
+        Vec3 lead = velocity.scale(flightTicks);
+        if (lead.length() > maxLead) {
+            lead = lead.normalize().scale(maxLead);
+        }
+        return centre.add(lead);
     }
 
     @Override
@@ -68,14 +116,85 @@ public final class PepperBreathEntity extends ThrowableProjectile {
         return 1.0F;
     }
 
+    /** Never burn the tamer or stable-mates standing in the way. */
+    @Override
+    protected boolean canHitEntity(Entity entity) {
+        if (!super.canHitEntity(entity)) {
+            return false;
+        }
+        return !(getOwner() instanceof DigimonEntity shooter) || !shooter.isAllyOf(entity);
+    }
+
     @Override
     public void tick() {
+        if (level() instanceof ServerLevel) {
+            steerTowardsTarget();
+            if (sweepForHit()) {
+                return;
+            }
+        }
         super.tick();
         if (level().isClientSide()) {
             spawnTrail();
         } else if (tickCount > MAX_AGE_TICKS) {
             discard();
         }
+    }
+
+    /** Bends the flight path toward the predicted meeting point, a few degrees per tick at most. */
+    private void steerTowardsTarget() {
+        if (target == null || !target.isAlive()) {
+            return;
+        }
+        Vec3 velocity = getDeltaMovement();
+        double speed = velocity.length();
+        if (speed < 1.0E-4) {
+            return;
+        }
+        Vec3 centre = getBoundingBox().getCenter();
+        Vec3 desired = predictImpactPoint(target, centre, speed, MAX_AIM_LEAD).subtract(centre);
+        if (desired.lengthSqr() < 1.0E-4) {
+            return;
+        }
+        desired = desired.normalize();
+        Vec3 current = velocity.scale(1.0 / speed);
+        double cos = current.dot(desired);
+        if (cos < HOMING_CONE_COS) {
+            return;
+        }
+        double angle = Math.acos(Mth.clamp(cos, -1.0, 1.0));
+        if (angle < 1.0E-3) {
+            return;
+        }
+        // Blend toward the wanted heading by the fraction that turns at most MAX_TURN_DEGREES.
+        double blend = Math.min(1.0, Math.toRadians(MAX_TURN_DEGREES) / angle);
+        Vec3 heading = current.scale(1.0 - blend).add(desired.scale(blend)).normalize();
+        setDeltaMovement(heading.scale(speed));
+    }
+
+    /**
+     * Hits whatever the ball's own body would pass through this tick. Vanilla's move-vector
+     * ray (run afterwards by {@code super.tick()}) is left in place for blocks.
+     *
+     * @return true if the fireball hit something and is gone
+     */
+    private boolean sweepForHit() {
+        AABB swept = getBoundingBox().expandTowards(getDeltaMovement()).inflate(HIT_MARGIN);
+        Vec3 centre = getBoundingBox().getCenter();
+        Entity closest = null;
+        double closestDistance = Double.MAX_VALUE;
+        for (Entity candidate : level().getEntities(this, swept, this::canHitEntity)) {
+            double distance = candidate.getBoundingBox().distanceToSqr(centre);
+            if (distance < closestDistance) {
+                closest = candidate;
+                closestDistance = distance;
+            }
+        }
+        if (closest == null) {
+            return false;
+        }
+        hitTargetOrDeflectSelf(new EntityHitResult(closest, centre));
+        return isRemoved();
     }
 
     /**
@@ -115,14 +234,14 @@ public final class PepperBreathEntity extends ThrowableProjectile {
         if (!(level() instanceof ServerLevel serverLevel)) {
             return;
         }
-        Entity target = hit.getEntity();
+        Entity hitEntity = hit.getEntity();
         Entity owner = getOwner();
         LivingEntity shooter = owner instanceof LivingEntity living ? living : null;
         DamageSource source = damageSources().mobProjectile(this, shooter);
-        if (target.hurtServer(serverLevel, source, damage)) {
-            target.igniteForSeconds(BURN_SECONDS);
+        if (hitEntity.hurtServer(serverLevel, source, damage)) {
+            hitEntity.igniteForSeconds(BURN_SECONDS);
             if (shooter != null) {
-                shooter.setLastHurtMob(target);
+                shooter.setLastHurtMob(hitEntity);
             }
         }
     }
