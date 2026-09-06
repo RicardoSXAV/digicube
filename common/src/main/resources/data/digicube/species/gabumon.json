@@ -7,6 +7,12 @@
   "base_speed": 0.30,
   "attacks": [],
   "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 4.0,
+    "follow_stop_distance": 2.0,
+    "walk_speed": 1.15,
+    "run_speed": 1.65
+  },
   "body": {
     "model_scale": 0.6,
     "width": 0.95,

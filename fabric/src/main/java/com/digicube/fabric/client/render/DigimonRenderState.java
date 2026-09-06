@@ -17,6 +17,9 @@ public class DigimonRenderState extends LivingEntityRenderState {
     /** The tamer is riding this Digimon; its visible seat must remain aligned. */
     public boolean isBeingRidden;
 
+    /** Smooth walk/run blend from the server's follow state, zero at walking pace. */
+    public float runAnimationAmount;
+
     /** Clock of the attack animation in progress; copied from the entity every frame. */
     public final AnimationState attackAnimation = new AnimationState();
 

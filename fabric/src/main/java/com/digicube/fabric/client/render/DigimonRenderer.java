@@ -84,6 +84,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.species = entity.getSpeciesId();
         state.modelScale = entity.getBody().modelScale();
         state.isBeingRidden = entity.isVehicle();
+        state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();

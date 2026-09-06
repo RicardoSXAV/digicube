@@ -87,7 +87,14 @@ public final class BundledSpeciesLoader {
         }
         return new DigimonSpecies(id, DigimonStage.byId(GsonHelper.getAsString(json, "stage")),
                 DigimonAttribute.byId(GsonHelper.getAsString(json, "attribute")), health, attack, defence, speed,
-                evolutions, moves, json.has("body") ? body(GsonHelper.getAsJsonObject(json, "body")) : DigimonBody.DEFAULT);
+                evolutions, moves, json.has("body") ? body(GsonHelper.getAsJsonObject(json, "body")) : DigimonBody.DEFAULT,
+                json.has("locomotion") ? locomotion(GsonHelper.getAsJsonObject(json, "locomotion")) : DigimonLocomotion.DEFAULT);
+    }
+
+    private static DigimonLocomotion locomotion(JsonObject json) {
+        return new DigimonLocomotion(GsonHelper.getAsFloat(json, "follow_start_distance"),
+                GsonHelper.getAsFloat(json, "follow_stop_distance"),
+                GsonHelper.getAsDouble(json, "walk_speed"), GsonHelper.getAsDouble(json, "run_speed"));
     }
 
     private static DigimonBody body(JsonObject json) {

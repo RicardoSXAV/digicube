@@ -28,6 +28,11 @@ public final class SpeciesRegressionTest {
             check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
                     && gabumon.body().dimensions().height() == 1.45F && gabumon.body().mount().isEmpty(),
                     "Gabumon uses its own non-rideable dimensions");
+            var follow = gabumon.locomotion();
+            check(follow.canRun() && follow.followSpeed(true) == 1.65 && follow.followSpeed(false) == 1.15,
+                    "Gabumon accelerates for sprint-following and returns to walking speed");
+            check(follow.followStartDistance() == 4 && follow.followStopDistance() == 2,
+                    "Gabumon follows before its owner gets far away, with a stop/start gap");
             check(tsunomon.stage() == DigimonStage.BABY_II && tsunomon.attribute() == DigimonAttribute.FREE,
                     "Tsunomon is an in-training species");
             check(tsunomon.attacks().size() == 1 && tsunomon.attacks().getFirst() == koromon.attacks().getFirst(),
@@ -41,6 +46,12 @@ public final class SpeciesRegressionTest {
             check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
                     "Koromon evolution preserved");
             var agumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon"));
+            for (String other : List.of("agumon", "greymon", "koromon", "tsunomon")) {
+                var unchanged = DigimonSpeciesRegistry.getOrThrow(Constants.id(other)).locomotion();
+                check(unchanged.equals(DigimonLocomotion.DEFAULT) && !unchanged.canRun()
+                                && unchanged.followSpeed(true) == unchanged.followSpeed(false),
+                        other + " retains its original follow distances and speed even when the owner sprints");
+            }
             check(agumon.baseHealth() == 20 && agumon.baseAttack() == 6 && agumon.baseDefence() == 4
                     && agumon.baseSpeed() == .30F && agumon.body().equals(DigimonBody.DEFAULT),
                     "Agumon stats and dimensions preserved");
@@ -73,6 +84,25 @@ public final class SpeciesRegressionTest {
             data.addProperty("base_speed", .25F);
             data.addProperty("base_health", 0);
             rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "invalid health rejected");
+            data.addProperty("base_health", 12);
+            var locomotion = GsonHelper.parse("""
+                    {"follow_start_distance":4,"follow_stop_distance":2,"walk_speed":1.15,"run_speed":1.65}
+                    """);
+            data.add("locomotion", locomotion);
+            check(BundledSpeciesLoader.parse(Constants.id("test"), data, moves).locomotion().equals(follow),
+                    "running is available to another species through data alone");
+            locomotion.addProperty("follow_stop_distance", 4);
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "empty follow hysteresis rejected");
+            locomotion.addProperty("follow_stop_distance", 0);
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "zero stopping distance rejected");
+            locomotion.addProperty("follow_stop_distance", 2);
+            locomotion.addProperty("run_speed", Double.POSITIVE_INFINITY);
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "nonfinite run speed rejected");
+            locomotion.addProperty("run_speed", 1.0);
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "running slower than walking rejected");
+            locomotion.addProperty("run_speed", 1.65);
+            locomotion.addProperty("walk_speed", -1);
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "negative walk speed rejected");
             Constants.LOG.info("Species regression checks passed.");
         } finally {
             Util.shutdownExecutors();

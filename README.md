@@ -279,10 +279,11 @@ and rejects malformed species content.
 
 ### Gabumon
 
-Gabumon's approved first model is available with its striped fur hood and sleeves,
-yellow body, belly emblem, split back pelt and tail. It uses the original 256×64
-pixel atlas and 32-tick walk, including the delayed sleeves, ears and tail. Movement
-drives the walk playback and fades it to the rest pose when standing still.
+Gabumon uses the approved revised model: a fuller belly with its fitted emblem,
+sturdier legs, and yellow arms holding the striped coat through shared shoulder,
+elbow and wrist joints. The 256×64 pixel atlas, idle pose, 32-tick walk and 16-tick
+anime run come from the approved Blender files. The coat follows his hands; both
+arms sweep behind him when running. Movement fades back to the approved idle.
 
 ```
 /digicube give gabumon
@@ -290,27 +291,45 @@ drives the walk playback and fades it to the rest pose when standing still.
 ```
 
 The first command adds a partner to your Digivice; deploy him into a party slot if
-all three slots are already occupied. Walk away to see him follow, then stop to
-check the idle pose. Gabumon is a [Data Rookie](https://digimon.net/reference_en/detail.php?directory_name=gabumon)
+all three slots are already occupied. Walk away to see him follow, sprint to see him
+accelerate and run, then release sprint and stop to check the transitions and idle.
+He starts following at four blocks and settles within two. His follow speed changes
+from 1.15× to 1.65× while his owner sprints, with a short visual walk/run blend.
+The server controls this state; another player's sprint does not trigger it.
+Other species retain their existing follow behavior. Gabumon is a [Data Rookie](https://digimon.net/reference_en/detail.php?directory_name=gabumon)
 with starter stats matching Agumon. His model scale is 0.6, with a 0.95×1.45-block
 collision box. This release adds the model and locomotion; attacks, evolution
 branches and a dedicated party icon are not authored yet. The Digivice uses its
 existing fallback icon. Dedicated-server partner behavior should be checked too.
 
-The source remains `../harness/digimon/gabumon.py`. With the approved
-`../harness/out/gabumon/gabumon.blend` open, export through Blender MCP:
+The source is `../harness/digimon/gabumon_locomotion.py`. Approved idle, walk and run
+files live in `../harness/out/gabumon_locomotion/`; previous revisions are retained.
+Export through Blender MCP in a background process (the script opens all three
+saved files), or save any interactive Blender edits before running it there:
 
 ```python
-exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_gabumon.py",
+exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_gabumon_locomotion.py",
           encoding="utf-8").read())
 ```
 
-This exporter verifies the geometry, UVs, paint and authored keys against the
-approved scene, samples its saved animation curves at quarter ticks, and writes
+This exporter verifies geometry, UVs and paint against the approved scenes, samples
+their saved native animation curves at sixteenth ticks, and writes
 `GabumonModel.java`, `GabumonAnimations.java` and `gabumon.png` under
-`../harness/out/gabumon_release/`. It exports one polygon per flat sheet to avoid
-depth flicker. The external `tools/verify_gabumon.init.gradle` check compares the
-compiled Minecraft model with the Blender poses and verifies a clean idle reset.
+`../harness/out/gabumon_locomotion_release/`. Copy the Java files to
+`fabric/src/main/java/com/digicube/fabric/client/model/` and the atlas to
+`common/src/main/resources/assets/digicube/textures/entity/digimon/gabumon.png`.
+It exports one polygon per flat sheet to avoid depth flicker. Run
+`gradlew.bat -I ../harness/tools/verify_gabumon_locomotion.init.gradle :fabric:verifyGabumonLocomotionExport`
+to compare the compiled Minecraft model with all sampled Blender poses and check
+walk/run blending and a clean idle reset.
+The transition audit (`blender/audit_gabumon_game_blends.py`) supplies its Blender
+comparison poses. During the game-only fade, hands clear the thighs before the
+legs step, and feet stay above ground. The approved idle and full cycles are unchanged.
+
+The optional species `locomotion` object supplies `follow_start_distance`,
+`follow_stop_distance`, `walk_speed` and `run_speed`. Speeds are navigation modifiers;
+equal values disable sprint-following. Omitting the object preserves the original
+10/3-block distances and 1.15× walking speed.
 
 ### Greymon and riding
 

@@ -4,6 +4,7 @@ import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
 import com.digicube.digimon.AttackMotion;
 import com.digicube.digimon.DigimonBody;
+import com.digicube.digimon.DigimonLocomotion;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.entity.ai.DigimonAttackGoal;
@@ -100,6 +101,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Optional<EntityReference<LivingEntity>>> DATA_OWNER =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.OPTIONAL_LIVING_ENTITY_REFERENCE);
+    private static final EntityDataAccessor<Boolean> DATA_RUNNING_TO_OWNER =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.BOOLEAN);
 
     // --- server-side combat state ---------------------------------------------------
     private DigimonAttack activeAttack;
@@ -125,6 +128,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public final AnimationState attackAnimationState = new AnimationState();
     private String attackAnimationName;
     private int attackAnimationEndTick;
+    private float previousRunAnimationAmount;
+    private float runAnimationAmount;
 
     public DigimonEntity(EntityType<? extends DigimonEntity> type, Level level) {
         super(type, level);
@@ -145,7 +150,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         this.goalSelector.addGoal(1, new RiderControlGoal());
         this.goalSelector.addGoal(1, new WildPanicGoal(this, 1.4));
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
-        this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.15, 10.0F, 3.0F));
+        this.goalSelector.addGoal(3, new FollowOwnerGoal(this));
         this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
@@ -161,6 +166,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_SPECIES, DEFAULT_SPECIES.toString());
         builder.define(DATA_ATTACK_AIM_PITCH, 0.0F);
         builder.define(DATA_OWNER, Optional.empty());
+        builder.define(DATA_RUNNING_TO_OWNER, false);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -180,6 +186,33 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     public DigimonBody getBody() {
         return getSpecies().map(DigimonSpecies::body).orElse(DigimonBody.DEFAULT);
+    }
+
+    /** @return this species' follow settings, or the original defaults if unavailable */
+    public DigimonLocomotion getLocomotion() {
+        return getSpecies().map(DigimonSpecies::locomotion).orElse(DigimonLocomotion.DEFAULT);
+    }
+
+    /** @return the server's current sprint-following state */
+    public boolean isRunningToOwner() {
+        return this.entityData.get(DATA_RUNNING_TO_OWNER);
+    }
+
+    /**
+     * Set by the server follow goal; independent of vanilla's sprint attribute modifier.
+     * @param running whether the active follow goal is running to a sprinting owner
+     */
+    public void setRunningToOwner(boolean running) {
+        this.entityData.set(DATA_RUNNING_TO_OWNER, running);
+    }
+
+    /**
+     * Each entity owns its blend, so rendering another Digimon cannot affect this one.
+     * @param partialTick fraction between client ticks
+     * @return the walking (0) to running (1) blend
+     */
+    public float getRunAnimationAmount(float partialTick) {
+        return Mth.lerp(partialTick, previousRunAnimationAmount, runAnimationAmount);
     }
 
     @Override
@@ -734,6 +767,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
         previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
         super.tick();
+        if (level().isClientSide()) {
+            previousRunAnimationAmount = runAnimationAmount;
+            runAnimationAmount = Mth.approach(runAnimationAmount, isRunningToOwner() ? 1.0F : 0.0F, 0.2F);
+        }
         if (level().isClientSide() && attackAnimationState.isStarted() && tickCount >= attackAnimationEndTick) {
             attackAnimationState.stop();
             attackAnimationName = null;

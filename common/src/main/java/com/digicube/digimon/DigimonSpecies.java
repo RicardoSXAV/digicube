@@ -22,6 +22,7 @@ import java.util.Objects;
  * @param evolutions   digivolutions available from this species, most specific first
  * @param attacks      moves in priority order (first usable one wins); empty = cannot fight
  * @param body         physical dimensions, model scale and optional mount settings
+ * @param locomotion   follow distances and walking/running speed modifiers
  */
 public record DigimonSpecies(
         Identifier id,
@@ -33,7 +34,8 @@ public record DigimonSpecies(
         float baseSpeed,
         List<Evolution> evolutions,
         List<DigimonAttack> attacks,
-        DigimonBody body
+        DigimonBody body,
+        DigimonLocomotion locomotion
 ) {
 
     public DigimonSpecies {
@@ -41,6 +43,7 @@ public record DigimonSpecies(
         Objects.requireNonNull(stage, "species stage");
         Objects.requireNonNull(attribute, "species attribute");
         Objects.requireNonNull(body, "species body");
+        Objects.requireNonNull(locomotion, "species locomotion");
         // Defensive copies: a species must stay immutable once registered.
         evolutions = List.copyOf(evolutions);
         attacks = List.copyOf(attacks);
