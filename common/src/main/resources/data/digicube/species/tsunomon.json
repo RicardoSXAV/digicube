@@ -1,0 +1,10 @@
+{
+  "stage": "baby_ii",
+  "attribute": "free",
+  "base_health": 12,
+  "base_attack": 2,
+  "base_defence": 2,
+  "base_speed": 0.25,
+  "attacks": ["bubble_blow"],
+  "evolutions": []
+}

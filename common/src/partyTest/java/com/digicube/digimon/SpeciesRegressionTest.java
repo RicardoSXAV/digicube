@@ -8,7 +8,7 @@ import net.minecraft.util.Util;
 import java.util.List;
 import java.util.Map;
 
-/** Checks catalog migration and malformed content without a game. */
+/** Checks catalog migration, shared bubble behavior and malformed content without a game. */
 public final class SpeciesRegressionTest {
     private SpeciesRegressionTest() {}
 
@@ -17,12 +17,19 @@ public final class SpeciesRegressionTest {
         try {
             SharedConstants.tryDetectVersion();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 3, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 4, "all bundled species loaded");
             var koromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("koromon"));
-            var bubble = koromon.attacks().getFirst();
+            var tsunomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tsunomon"));
+            check(tsunomon.stage() == DigimonStage.BABY_II && tsunomon.attribute() == DigimonAttribute.FREE,
+                    "Tsunomon is an in-training species");
+            check(tsunomon.attacks().size() == 1 && tsunomon.attacks().getFirst() == koromon.attacks().getFirst(),
+                    "Tsunomon reuses Koromon's exact shared attack");
+            var bubble = tsunomon.attacks().getFirst();
             check(bubble.kind() == DigimonAttack.Kind.BUBBLES && bubble.cooldownTicks() == 40
                     && bubble.durationTicks() == 24 && bubble.hitTick() == 10 && bubble.range() == 8,
                     "bubble delivery and timing retained");
+            check(tsunomon.body().equals(koromon.body()) && tsunomon.baseSpeed() == koromon.baseSpeed(),
+                    "shared model scale and follow speed");
             check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
                     "Koromon evolution preserved");
             var agumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon"));

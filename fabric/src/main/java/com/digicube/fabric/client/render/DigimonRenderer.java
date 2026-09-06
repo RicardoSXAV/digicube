@@ -4,6 +4,7 @@ import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
+import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
 import com.digicube.fabric.client.model.MegaFlameModel;
 import com.digicube.digimon.DigimonAttack;
@@ -27,6 +28,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
+            Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
@@ -38,6 +40,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
+                Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER)));
     }
 
