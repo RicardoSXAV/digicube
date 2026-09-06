@@ -14,10 +14,10 @@ import java.util.Optional;
  * Every {@link DigimonSpecies} the game knows about, keyed by id.
  *
  * <p>This is a plain in-memory map on purpose. Species are content, not vanilla
- * registry objects, which keeps them reloadable and easy to drive from JSON later
- * (see {@code data/digicube/species/} and the roadmap in AGENTS.md).
+ * registry objects. Bundled definitions come from {@code data/digicube/species/};
+ * datapack reload and server catalog synchronization remain future work.
  *
- * <p>Thread safety: populated once during mod init / datapack reload, read-only
+ * <p>Thread safety: populated once during mod init, read-only
  * afterwards. Do not mutate it during gameplay.
  */
 public final class DigimonSpeciesRegistry {

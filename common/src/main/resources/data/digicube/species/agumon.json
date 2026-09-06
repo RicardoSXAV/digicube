@@ -1,31 +1,11 @@
 {
-  "_comment": "Target shape for the data-driven species loader (see AGENTS.md roadmap). Not read by the game yet.",
   "stage": "child",
   "attribute": "vaccine",
   "base_health": 20,
   "base_attack": 6,
   "base_defence": 4,
   "base_speed": 0.30,
-  "attacks": [
-    {
-      "id": "digicube:pepper_breath",
-      "kind": "fireball",
-      "power": 1.5,
-      "cooldown_ticks": 100,
-      "duration_ticks": 24,
-      "hit_tick": 12,
-      "range": 10
-    },
-    {
-      "id": "digicube:claw",
-      "kind": "melee",
-      "power": 0.7,
-      "cooldown_ticks": 20,
-      "duration_ticks": 10,
-      "hit_tick": 4,
-      "alternate_sides": true
-    }
-  ],
+  "attacks": ["pepper_breath", "claw"],
   "evolutions": [
     {
       "target": "digicube:greymon",

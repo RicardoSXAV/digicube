@@ -68,3 +68,15 @@ tasks.register('partyTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('partyTest') }
+
+tasks.register('speciesTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.digimon.SpeciesRegressionTest'
+    workingDir = layout.buildDirectory.dir('species-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('speciesTest') }

@@ -1,0 +1,21 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.32,
+  "attacks": ["mega_flame", "great_antler"],
+  "evolutions": [],
+  "body": {
+    "model_scale": 1.5,
+    "width": 2.5,
+    "height": 4.6,
+    "eye_height": 4.1,
+    "mount": {
+      "seat": [0.0, 4.540426, 0.507345],
+      "speed": 0.32,
+      "step_height": 1.0
+    }
+  }
+}

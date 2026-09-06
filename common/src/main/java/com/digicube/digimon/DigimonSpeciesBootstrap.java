@@ -1,18 +1,11 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
-import net.minecraft.world.entity.EntityDimensions;
-import net.minecraft.world.phys.Vec3;
-
-import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 /**
- * Temporary hardcoded species list so there is something to test against.
- *
- * <p>ROADMAP: this whole class goes away once species are loaded from
- * {@code data/digicube/species/*.json} through a datapack reload listener.
- * Treat it as a fixture, not as the place to add hundreds of Digimon.
+ * Shared attack mechanics and startup loading of the bundled JSON species catalog.
+ * New species belong in the catalog and species JSON files, not in Java.
  */
 public final class DigimonSpeciesBootstrap {
 
@@ -28,7 +21,7 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("claw"), DigimonAttack.Kind.MELEE,
             0.7F, 20, 10, 4, 0.0, true);
 
-    /** Koromon's only move: a small bubble stream every two seconds. */
+    /** Shared baby-stage move: a small bubble stream every two seconds. */
     public static final DigimonAttack BUBBLE_BLOW = new DigimonAttack(
             Constants.id("bubble_blow"), DigimonAttack.Kind.BUBBLES,
             1.0F, 40, 24, 10, 8.0, false);
@@ -44,43 +37,10 @@ public final class DigimonSpeciesBootstrap {
             1.15F, 50, 36, 11, 6.2, false, AttackMotion.load(Constants.id("great_antler")));
 
     public static void registerBuiltIn() {
-        DigimonSpeciesRegistry.register(new DigimonSpecies(
-                Constants.id("koromon"),
-                DigimonStage.BABY_II,
-                DigimonAttribute.FREE,
-                12, 2, 2, 0.25F,
-                List.of(Evolution.atLevel(Constants.id("agumon"), 5)),
-                List.of(BUBBLE_BLOW),
-                DigimonBody.DEFAULT
-        ));
-
-        DigimonSpeciesRegistry.register(new DigimonSpecies(
-                Constants.id("agumon"),
-                DigimonStage.CHILD,
-                DigimonAttribute.VACCINE,
-                20, 6, 4, 0.30F,
-                List.of(
-                        // Most specific branch first: Greymon needs training, not just a level.
-                        new Evolution(Constants.id("greymon"), 16, 40, -1, 20, null),
-                        Evolution.atLevel(Constants.id("greymon"), 20)
-                ),
-                // Priority order: the fireball whenever it is off cooldown, claws in between.
-                List.of(PEPPER_BREATH, CLAW),
-                DigimonBody.DEFAULT
-        ));
-
-        DigimonSpeciesRegistry.register(new DigimonSpecies(
-                Constants.id("greymon"),
-                DigimonStage.ADULT,
-                DigimonAttribute.VACCINE,
-                40, 14, 10, 0.32F,
-                List.of(),
-                List.of(MEGA_FLAME, GREAT_ANTLER),
-                // Approved reference model at scale 1.5; horns extend above the collision box.
-                // Crown marker (0, -4, 49) transformed through the authored neck/head rest pose.
-                new DigimonBody(1.5F, EntityDimensions.scalable(2.5F, 4.6F).withEyeHeight(4.1F),
-                        Optional.of(new DigimonBody.Mount(new Vec3(0.0, 4.540426, 0.507345), 0.32F, 1.0F)))
-        ));
+        var species = BundledSpeciesLoader.load(Map.of(
+                PEPPER_BREATH.id(), PEPPER_BREATH, CLAW.id(), CLAW, BUBBLE_BLOW.id(), BUBBLE_BLOW,
+                MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER));
+        species.forEach(DigimonSpeciesRegistry::register);
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());
     }
