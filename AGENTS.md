@@ -200,10 +200,17 @@ Miss a step and it shows up in game as a black-and-purple cube named `item.digic
 - [ ] `common/src/main/resources/assets/digicube/models/item/foo.json` — the model
 - [ ] `common/src/main/resources/assets/digicube/textures/item/foo.png` — 16x16 PNG
 - [ ] `item.digicube.foo` in `assets/digicube/lang/en_us.json`
+- [ ] Add player-facing items to the DigiCube Creative tab's ordered `displayItems`
+      list and an appropriate vanilla category in `fabric/.../registry/DCCreativeTabs.java`
 
 Verify in game with `/give @s digicube:foo`.
 
-There is currently no creative-mode tab. Until one exists, use `/give` to test items.
+The dedicated **DigiCube** tab is the home for all player-facing mod items, with the
+Digivice as its icon and first item. The Digivice also appears in **Tools & Utilities**,
+after the compass, and in Creative search. Retain appropriate vanilla-category
+entries as the collection grows. The Fabric builder and events live in
+`fabric/.../registry/DCCreativeTabs.java`; initialize it after `DCItems` on both sides.
+Fabric tab APIs belong in `fabric/`, not `common/`.
 
 ---
 
@@ -271,10 +278,12 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   hits before `super.tick()`, and bend a few degrees per tick toward the target while it
   stays ahead. Tune those constants before touching speed or hitbox size.
 
-`DigimonSpeciesBootstrap` is a temporary fixture holding three species. **Do not bulk-add
-Digimon to it.** The next architectural step is loading species from
-`data/digicube/species/*.json` through a datapack reload listener; `agumon.json` in that
-folder shows the target shape. Build the loader before the content.
+Species are loaded from the bundled `data/digicube/species.json` catalog and
+`data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at
+startup. Add species as data; do not add species constructors to
+`DigimonSpeciesBootstrap`. Attack ids reference shared moves in the bootstrap, in
+priority order. The next architectural step is datapack reload support plus server
+catalog synchronization; the current classpath loader does not process `/reload`.
 
 ---
 

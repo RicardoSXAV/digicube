@@ -114,7 +114,12 @@ terminal — you get breakpoints and a debugger.
 
 ### Testing what you built
 
-Once in game:
+In Creative mode, open the **DigiCube** tab, identified by the **Digivice** icon.
+Use the Creative inventory's page arrows if the tab is on another page. The Digivice
+is its first item and is also available in **Tools & Utilities**, immediately after
+the compass, and through **Search Items**: search for `Digivice`.
+
+Or obtain it with a command:
 
 ```
 /give @s digicube:digivice
@@ -122,6 +127,15 @@ Once in game:
 
 If you get a black-and-purple cube called `item.digicube.digivice`, a texture, model or
 lang file is missing — see the item checklist in `AGENTS.md` section 6.
+
+The **DigiCube** tab is the consistent home for the mod's growing item collection.
+Add future player-facing items to its ordered `displayItems` list in
+`fabric/.../registry/DCCreativeTabs.java`, alongside entries in suitable vanilla
+categories. It uses Fabric's
+[custom tab builder](https://docs.fabricmc.net/develop/items/custom-creative-tabs)
+and [category event](https://docs.fabricmc.net/develop/items/first-item#adding-the-item-to-a-creative-tab),
+initialized after the shared item registry on both client and dedicated server.
+Tab contents include items in Creative search and are built without a tick handler.
 
 ### When something breaks
 
@@ -236,6 +250,32 @@ editable combined attack scene and frames under `../harness/out/koromon/`.
 Use `/digicube spawn agumon` alongside it to check species model selection.
 In-game testing is manual; the harness provides front, side, three-quarter and
 airborne renders plus animation filmstrips for inspection outside Minecraft.
+
+### Tsunomon
+
+Tsunomon has a stepped orange body, a cream heart-shaped face, red-orange eyes,
+thin fur planes and a curved slate horn. Its original 128×64 pixel atlas includes
+the normal smile and shaded blowing expression. The harness source is
+`../harness/digimon/tsunomon.py`; run `blender/run.py` through Blender MCP with
+`SPECIES = "tsunomon"` to rebuild its scene, renders, model and animations.
+
+It imports Koromon's body keyframes for the same 16-tick hopping walk and 24-tick
+Bubble Blow, including the face swap on ticks 5–18. It uses the same shared bubble
+attack, projectile, aim, damage, range and cooldown. Its horn moves with the body.
+The 32×32 party icon source is `../harness/art/pixel_sprites/tsunomon/sprite.json`.
+
+Try `/digicube give tsunomon`, walk away to see the hop, and hit a nearby hostile
+mob to see the bubble attack. Open the Digivice to check the collection preview
+and party icon. If the party is full, deploy Tsunomon from the collection first.
+Also check partner behavior on a dedicated server.
+
+Species now load from the bundled `data/digicube/species.json` catalog and one JSON
+sheet per species at startup, on both client and server. Attack lists reference
+shared move ids; omitted `body` uses the original dimensions and scale. Existing
+species retain their stats, attacks, evolution order and Greymon's mount settings.
+Tsunomon has no evolution branch yet. Datapack reload and server catalog sync are
+still future work. `:common:speciesTest`, included in `build`, checks the migration
+and rejects malformed species content.
 
 ### Greymon and riding
 
@@ -362,19 +402,20 @@ Working:
 
 - Build system for Minecraft 26.2 on Fabric, structured for NeoForge later
 - Platform abstraction via `ServiceLoader`
-- One item, `digicube:digivice`, registered end to end with model, texture and translation
+- A dedicated DigiCube Creative tab with the Digivice as its icon and first item
+- One item, `digicube:digivice`, with model, texture, translation and Creative access
+  through DigiCube, Tools & Utilities and Search Items
 - Persistent Digivice collection, three active party slots, and a matching pixel-icon HUD
 - Digimon domain model: species, stages, attributes with a damage triangle, evolution branches
-- Three placeholder species (Koromon, Agumon, Greymon) as a fixture
+- Four species (Koromon, Tsunomon, Agumon, Greymon), loaded from bundled JSON sheets
+- Owned partner entities that follow their tamers and join combat
+- Harness-authored models and animations rendered with Minecraft's native model API
 - A working mixin, as proof the pipeline runs
 - CI that builds on every push
 
 Not built yet, roughly in the order it should be tackled:
 
-1. **Data-driven species loading** from `data/digicube/species/*.json`, replacing the
-   hardcoded bootstrap. Do this before adding Digimon in bulk.
-2. **The Digimon entity** — a tameable mob holding level, bond, training and current species.
-3. **Rendering** with [GeckoLib](https://github.com/bernie-g/geckolib) (supports 26.2) and
-   models made in Blockbench.
-4. **The evolution engine** — evaluating `Evolution` branches and swapping species at runtime.
-5. **Taming and DigiEggs**, beyond the existing spawn/give commands.
+1. **Datapack species reload and synchronization**, extending the bundled JSON loader.
+2. **Raising and training** — individual levels, bond and training progression for partners.
+3. **The evolution engine** — evaluating `Evolution` branches and swapping species at runtime.
+4. **Taming and DigiEggs**, beyond the existing spawn/give commands.
