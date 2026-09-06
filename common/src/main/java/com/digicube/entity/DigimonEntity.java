@@ -86,16 +86,6 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Species used when none was given, e.g. a plain {@code /summon digicube:digimon}. */
     public static final Identifier DEFAULT_SPECIES = Constants.id("agumon");
 
-    /**
-     * Entity events {@code 64 + attackIndex} start an attack animation on clients; adding
-     * {@link #ATTACK_EVENT_MIRROR} picks the mirrored (other-hand) variant. Vanilla's own
-     * events stop well below 64.
-     */
-    private static final byte ATTACK_EVENT_BASE = 64;
-    private static final byte ATTACK_EVENT_MIRROR = 16;
-    private static final byte ATTACK_CANCEL_EVENT = 63;
-    private static final int MAX_ATTACKS_PER_SPECIES = ATTACK_EVENT_MIRROR;
-
     /** Where Pepper Breath leaves the model, relative to the feet: mouth height and snout reach. */
     private static final double MOUTH_HEIGHT = 0.95;
     private static final double MOUTH_FORWARD = 0.6;
@@ -440,7 +430,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 || !target.isAlive() || !canAttack(target) || !isAttackReady(attack) || !inRange(attack, target)) return;
         List<DigimonAttack> attacks = attacks();
         int index = attacks.indexOf(attack);
-        if (index < 0 || index >= MAX_ATTACKS_PER_SPECIES) {
+        if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS) {
             Constants.LOG.warn("{} cannot use {}: not in its attack list", getSpeciesId(), attack.id());
             return;
         }
@@ -464,7 +454,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             level().playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_AMBIENT,
                     SoundSource.NEUTRAL, 0.65F, 0.72F);
         }
-        level().broadcastEntityEvent(this, (byte) (ATTACK_EVENT_BASE + index + (attackMirrored ? ATTACK_EVENT_MIRROR : 0)));
+        level().broadcastEntityEvent(this, DigimonAnimationEvents.start(index, attackMirrored));
     }
 
     @Override
@@ -509,7 +499,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         activeAttack = null;
         attackTarget = null;
         bubbleAimPoint = authoredAimPoint = null;
-        level().broadcastEntityEvent(this, ATTACK_CANCEL_EVENT);
+        level().broadcastEntityEvent(this, DigimonAnimationEvents.CANCEL);
     }
 
     private Vec3 authoredPoint(Vec3 local) {
@@ -719,15 +709,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     public void handleEntityEvent(byte id) {
-        if (id == ATTACK_CANCEL_EVENT) {
+        if (id == DigimonAnimationEvents.CANCEL) {
             attackAnimationState.stop();
             attackAnimationName = null;
             return;
         }
-        int offset = id - ATTACK_EVENT_BASE;
-        if (offset >= 0 && offset < 2 * ATTACK_EVENT_MIRROR) {
-            boolean mirrored = (offset & ATTACK_EVENT_MIRROR) != 0;
-            int index = offset & (ATTACK_EVENT_MIRROR - 1);
+        int index = DigimonAnimationEvents.attackIndex(id);
+        if (index >= 0) {
+            boolean mirrored = DigimonAnimationEvents.mirrored(id);
             List<DigimonAttack> attacks = attacks();
             if (index < attacks.size()) {
                 DigimonAttack attack = attacks.get(index);

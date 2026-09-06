@@ -127,6 +127,7 @@ public final class PartyRegressionTest {
             check(rejected, "oversized network member lists rejected before allocation");
         } finally { buffer.release(); }
         PartyHealthRegressionTest.run();
+        DigimonAnimationRegressionTest.run();
         Constants.LOG.info("Party regression checks passed: cap, ownership, swaps, persistence, generation, defeat and packets.");
     }
 

@@ -52,7 +52,7 @@ sourceSets.configureEach {
     }
 }
 
-// Exercise party persistence and authorization without starting a Minecraft world.
+// Exercise party persistence, authorization and combat packets without starting a Minecraft world.
 sourceSets.create('partyTest') {
     compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
     runtimeClasspath += output + compileClasspath
