@@ -51,3 +51,20 @@ sourceSets.configureEach {
         }
     }
 }
+
+// Exercise party persistence and authorization without starting a Minecraft world.
+sourceSets.create('partyTest') {
+    compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+    runtimeClasspath += output + compileClasspath
+}
+tasks.register('partyTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.party.PartyRegressionTest'
+    workingDir = layout.buildDirectory.dir('party-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('partyTest') }

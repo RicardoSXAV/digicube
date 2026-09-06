@@ -10,6 +10,7 @@ import com.digicube.entity.ai.DigimonAttackGoal;
 import com.digicube.entity.ai.FollowOwnerGoal;
 import com.digicube.entity.ai.OwnerHurtByTargetGoal;
 import com.digicube.entity.ai.OwnerHurtTargetGoal;
+import com.digicube.party.PartyManager;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -124,6 +125,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private float previousAttackAimPitch;
     /** Attack id -> {@link #tickCount} at which it may be used again. */
     private final Map<Identifier, Integer> cooldownUntil = new HashMap<>();
+    private long partyGeneration;
+
+    public long getPartyGeneration() { return partyGeneration; }
+    public void setPartyGeneration(long generation) { partyGeneration = generation; }
 
     // --- client-side animation state ------------------------------------------------
     /** Started by {@link #handleEntityEvent}; read by the renderer. Meaningful on the client only. */
@@ -737,6 +742,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     public void tick() {
+        if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
         previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
         super.tick();
         if (level().isClientSide() && attackAnimationState.isStarted() && tickCount >= attackAnimationEndTick) {
@@ -775,6 +781,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         super.addAdditionalSaveData(output);
         output.putString(SPECIES_TAG, getSpeciesId().toString());
         EntityReference.store(getOwnerReference(), output, OWNER_TAG);
+        output.putLong("PartyGeneration", partyGeneration);
+        ValueOutput cooldowns = output.child("AttackCooldowns");
+        cooldownUntil.forEach((id, until) -> {
+            if (until > tickCount) cooldowns.putInt(id.toString(), until - tickCount);
+        });
     }
 
     @Override
@@ -784,6 +795,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         setSpecies(speciesId != null ? speciesId : DEFAULT_SPECIES);
         EntityReference<LivingEntity> owner = EntityReference.read(input, OWNER_TAG);
         this.entityData.set(DATA_OWNER, Optional.ofNullable(owner));
+        partyGeneration = input.getLongOr("PartyGeneration", 0L);
+        cooldownUntil.clear();
+        ValueInput cooldowns = input.childOrEmpty("AttackCooldowns");
+        for (DigimonAttack attack : attacks()) {
+            int remaining = cooldowns.getIntOr(attack.id().toString(), 0);
+            if (remaining > 0) cooldownUntil.put(attack.id(), tickCount + remaining);
+        }
     }
 
     /** Name plates, death messages and the like show the species name, not "Digimon". */

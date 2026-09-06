@@ -4,6 +4,8 @@ import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.entity.DigimonEntity;
+import com.digicube.party.PartyManager;
+import com.digicube.party.PartyMember;
 import com.digicube.registry.DCEntityTypes;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -83,17 +85,16 @@ public final class DigiCubeCommands {
             return 0;
         }
 
-        // A step in front of the player, so the partner appears where they are looking.
-        Vec3 forward = player.getViewVector(1.0F);
-        Vec3 position = player.position().add(forward.x * 1.5, 0.0, forward.z * 1.5);
-        DigimonEntity digimon = create(player.level(), species, position);
+        DigimonEntity digimon = DCEntityTypes.DIGIMON.create(player.level(), EntitySpawnReason.COMMAND);
         if (digimon == null) {
             source.sendFailure(Component.translatable("commands.digicube.spawn.failed"));
             return 0;
         }
-        digimon.setOwner(player);
+        digimon.setSpecies(species.id());
+        PartyMember member = PartyManager.give(player, digimon);
 
-        source.sendSuccess(() -> Component.translatable("commands.digicube.give.success",
+        source.sendSuccess(() -> Component.translatable(member.active()
+                        ? "commands.digicube.give.party" : "commands.digicube.give.reserve",
                 Component.translatable(species.translationKey()), player.getDisplayName()), true);
         return 1;
     }

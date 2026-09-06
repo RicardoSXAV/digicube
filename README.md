@@ -135,6 +135,59 @@ bodies. Adding new classes, fields or registry entries still needs a restart.
 
 ---
 
+### Digivice collection and party
+
+Right-click a **Digivice** to open your collection (air, a block or an entity).
+Select a partner in the collection, then click one of the **three party slots** to
+deploy it. An occupied slot swaps its current partner into reserve. Select an active
+partner and press **Recall** to store it. The arrows or mouse wheel change collection
+pages; the screen supports keyboard focus and tooltips with name, stage and health.
+The world keeps running while the Digivice is open.
+
+```
+/give @s digicube:digivice
+/digicube give koromon
+/digicube give agumon
+/digicube give greymon
+/digicube give agumon
+```
+
+The first three partners fill the party; the fourth goes into reserve. Duplicate
+species are separate individuals. Existing owned Digimon join the collection as
+their chunks load; the first three fill empty slots and extras go into reserve.
+Wild `/digicube spawn` Digimon are unaffected. The HUD shows the same pixel icons
+beside the left of the hotbar, with health bars and numbered empty slots. It moves
+away from the offhand slot and uses a vertical strip at narrow GUI sizes. F1 hides it.
+
+Health bars update at the end of the server tick when damage, healing or maximum
+health changes (normally within 50 ms, plus network latency). Updates are batched
+per owner and contain only changed health values. Idle parties send no health
+packets; full entity saves keep their once-per-second cadence. The Digivice also
+updates its health bars and tooltips without rebuilding buttons for health packets.
+
+Collections and selections belong to the **player UUID in the world save**, survive
+death/reconnect, and work across dimensions. Full entity data, including names,
+health, effects and attack cooldowns, is retained in reserve; storage does not heal
+or reset cooldowns. Active partners recall on logout/chunk unload and deploy beside
+their tamer when safe space is available. An amber HUD dot means a selected partner
+is waiting for space. Dismount before swapping or recalling a mount. A Digimon that
+dies remains marked **Defeated** in the collection and cannot be deployed; revival
+is not implemented.
+
+Storage is server-authoritative and scoped to the world (`digicube:parties` saved
+data). A deployment generation on each entity prevents old chunk copies from
+duplicating recalled partners. Only the owner's current collection page and party
+summaries are sent to their client. Future species automatically use
+`assets/<namespace>/textures/gui/digimon/<species>.png`, with a neutral fallback
+if a resource pack omits an icon.
+
+`gradlew.bat build` includes the headless `:common:partyTest` regression suite.
+Manually try swapping, recalling, repeated species, a large collection, saving and
+reloading, portals, mounting, health preservation and two different players on a
+dedicated server. The dedicated server's EULA must be accepted manually before
+`:fabric:runServer` can start its world. Existing dev partners are tied to the dev
+username/UUID, so keep the same `--username` when testing across client launches.
+
 ### Model authoring with Blender MCP
 
 The local [model harness](../harness/README.md) owns geometry, pixel textures and
@@ -310,6 +363,7 @@ Working:
 - Build system for Minecraft 26.2 on Fabric, structured for NeoForge later
 - Platform abstraction via `ServiceLoader`
 - One item, `digicube:digivice`, registered end to end with model, texture and translation
+- Persistent Digivice collection, three active party slots, and a matching pixel-icon HUD
 - Digimon domain model: species, stages, attributes with a damage triangle, evolution branches
 - Three placeholder species (Koromon, Agumon, Greymon) as a fixture
 - A working mixin, as proof the pipeline runs
@@ -323,5 +377,4 @@ Not built yet, roughly in the order it should be tackled:
 3. **Rendering** with [GeckoLib](https://github.com/bernie-g/geckolib) (supports 26.2) and
    models made in Blockbench.
 4. **The evolution engine** — evaluating `Evolution` branches and swapping species at runtime.
-5. **The Digivice UI** — a screen showing your partner's stats.
-6. **Spawning, taming, and DigiEggs.**
+5. **Taming and DigiEggs**, beyond the existing spawn/give commands.
