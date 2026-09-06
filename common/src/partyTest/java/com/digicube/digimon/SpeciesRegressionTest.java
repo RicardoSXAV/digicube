@@ -17,9 +17,17 @@ public final class SpeciesRegressionTest {
         try {
             SharedConstants.tryDetectVersion();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 4, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 5, "all bundled species loaded");
             var koromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("koromon"));
             var tsunomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tsunomon"));
+            var gabumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gabumon"));
+            check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
+                    "Gabumon is a data rookie");
+            check(gabumon.attacks().isEmpty() && gabumon.evolutions().isEmpty(),
+                    "Gabumon model release has no unauthored attacks or evolutions");
+            check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
+                    && gabumon.body().dimensions().height() == 1.45F && gabumon.body().mount().isEmpty(),
+                    "Gabumon uses its own non-rideable dimensions");
             check(tsunomon.stage() == DigimonStage.BABY_II && tsunomon.attribute() == DigimonAttribute.FREE,
                     "Tsunomon is an in-training species");
             check(tsunomon.attacks().size() == 1 && tsunomon.attacks().getFirst() == koromon.attacks().getFirst(),

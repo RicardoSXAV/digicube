@@ -277,6 +277,41 @@ Tsunomon has no evolution branch yet. Datapack reload and server catalog sync ar
 still future work. `:common:speciesTest`, included in `build`, checks the migration
 and rejects malformed species content.
 
+### Gabumon
+
+Gabumon's approved first model is available with its striped fur hood and sleeves,
+yellow body, belly emblem, split back pelt and tail. It uses the original 256×64
+pixel atlas and 32-tick walk, including the delayed sleeves, ears and tail. Movement
+drives the walk playback and fades it to the rest pose when standing still.
+
+```
+/digicube give gabumon
+/digicube spawn gabumon
+```
+
+The first command adds a partner to your Digivice; deploy him into a party slot if
+all three slots are already occupied. Walk away to see him follow, then stop to
+check the idle pose. Gabumon is a [Data Rookie](https://digimon.net/reference_en/detail.php?directory_name=gabumon)
+with starter stats matching Agumon. His model scale is 0.6, with a 0.95×1.45-block
+collision box. This release adds the model and locomotion; attacks, evolution
+branches and a dedicated party icon are not authored yet. The Digivice uses its
+existing fallback icon. Dedicated-server partner behavior should be checked too.
+
+The source remains `../harness/digimon/gabumon.py`. With the approved
+`../harness/out/gabumon/gabumon.blend` open, export through Blender MCP:
+
+```python
+exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_gabumon.py",
+          encoding="utf-8").read())
+```
+
+This exporter verifies the geometry, UVs, paint and authored keys against the
+approved scene, samples its saved animation curves at quarter ticks, and writes
+`GabumonModel.java`, `GabumonAnimations.java` and `gabumon.png` under
+`../harness/out/gabumon_release/`. It exports one polygon per flat sheet to avoid
+depth flicker. The external `tools/verify_gabumon.init.gradle` check compares the
+compiled Minecraft model with the Blender poses and verifies a clean idle reset.
+
 ### Greymon and riding
 
 Greymon uses the approved reference model: a three-horned skull mask, inset red eyes,
@@ -407,7 +442,7 @@ Working:
   through DigiCube, Tools & Utilities and Search Items
 - Persistent Digivice collection, three active party slots, and a matching pixel-icon HUD
 - Digimon domain model: species, stages, attributes with a damage triangle, evolution branches
-- Four species (Koromon, Tsunomon, Agumon, Greymon), loaded from bundled JSON sheets
+- Five species (Koromon, Tsunomon, Agumon, Gabumon, Greymon), loaded from bundled JSON sheets
 - Owned partner entities that follow their tamers and join combat
 - Harness-authored models and animations rendered with Minecraft's native model API
 - A working mixin, as proof the pipeline runs

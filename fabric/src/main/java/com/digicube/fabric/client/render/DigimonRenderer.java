@@ -3,6 +3,7 @@ package com.digicube.fabric.client.render;
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
+import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
@@ -27,6 +28,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
 
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
+            Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
@@ -39,6 +41,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
+                Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER)));
