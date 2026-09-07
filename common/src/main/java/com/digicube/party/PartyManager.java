@@ -54,7 +54,7 @@ public final class PartyManager {
         if (existing != null) return existing;
         PartyMember member = new PartyMember(entity.getUUID(), entity.getOwnerReference().getUUID(),
                 entity.getSpeciesId(), nickname(entity), entity.getHealth(), entity.getMaxHealth(),
-                -1, entity.getPartyGeneration(), save(entity));
+                entity.getLevel(), entity.getXp(), -1, entity.getPartyGeneration(), save(entity));
         data.roster().add(member);
         data.session(member.owner()).sync.invalidate();
         data.setDirty();
@@ -62,8 +62,15 @@ public final class PartyManager {
     }
 
     private static void capture(PartySavedData data, PartyMember member, DigimonEntity entity) {
-        member.capture(entity.getSpeciesId(), nickname(entity), entity.getHealth(), entity.getMaxHealth(), save(entity));
+        member.capture(entity.getSpeciesId(), nickname(entity), entity.getHealth(), entity.getMaxHealth(),
+                entity.getLevel(), entity.getXp(), save(entity));
         data.setDirty();
+    }
+
+    /** A partner gained XP or a level: its owner's HUD and Digivice need a fresh snapshot. */
+    public static void progressChanged(DigimonEntity entity) {
+        if (!entity.isOwned() || !(entity.level() instanceof ServerLevel level)) return;
+        PartySavedData.get(level.getServer()).session(entity.getOwnerReference().getUUID()).sync.invalidate();
     }
 
     /** Runs before chunk entities enter the world, so legacy excess partners never tick. */

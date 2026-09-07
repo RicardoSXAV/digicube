@@ -47,8 +47,7 @@ public record PartyHealthPayload(List<Health> members) implements CustomPacketPa
         for (Health health : members) {
             if (health.id().equals(member.id())) {
                 if (health.health() == member.health() && health.maxHealth() == member.maxHealth()) return member;
-                return new PartyMemberView(member.id(), member.species(), member.nickname(), health.health(),
-                        health.maxHealth(), member.slot(), member.deployed());
+                return member.withHealth(health.health(), health.maxHealth());
             }
         }
         return member;

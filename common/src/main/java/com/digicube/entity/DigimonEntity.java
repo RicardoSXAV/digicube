@@ -7,8 +7,10 @@ import com.digicube.digimon.FuelReserve;
 import com.digicube.registry.DCDamageTypes;
 import com.digicube.digimon.DigimonBody;
 import com.digicube.digimon.DigimonLocomotion;
+import com.digicube.digimon.DamageLedger;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.Progression;
 import com.digicube.entity.ai.DigimonAttackGoal;
 import com.digicube.entity.ai.DigimonLookControl;
 import com.digicube.entity.ai.DigimonMoveControl;
@@ -24,11 +26,13 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
@@ -84,6 +88,10 @@ import java.util.Optional;
  * {@link #customServerAiStep} (damage or projectile on the hit tick) and tells clients to
  * play the matching keyframe animation through an entity event.
  *
+ * <p>Every Digimon has a level and XP, scaled and awarded by the rules in
+ * {@link Progression}. A wild one keeps a {@link DamageLedger} of the health it lost to
+ * partners and, when defeated, splits its yield among them ({@code ExperienceAward}).
+ *
  * <p>Summon a wild one with {@code /digicube spawn agumon}; a partner with
  * {@code /digicube give agumon}.
  */
@@ -93,6 +101,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public static final String SPECIES_TAG = "Species";
     /** NBT key holding the owner reference. Changing it is a save-data migration. */
     public static final String OWNER_TAG = "Owner";
+    /** NBT keys holding the level and the XP progress within it. Changing them is a save-data migration. */
+    public static final String LEVEL_TAG = "Level";
+    public static final String XP_TAG = "Xp";
+    /** Vanilla remembers a player's hit this long for orb drops; a partner's hit counts as its tamer's. */
+    private static final int TAMER_CREDIT_TICKS = 100;
 
     /** Species used when none was given, e.g. a plain {@code /summon digicube:digimon}. */
     public static final Identifier DEFAULT_SPECIES = Constants.id("agumon");
@@ -117,6 +130,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Integer> DATA_SUSTAINED_TICK =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    /** Synched so nameplates and the HUD can show it; XP itself stays on the server. */
+    private static final EntityDataAccessor<Integer> DATA_LEVEL =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
 
     // --- server-side combat state ---------------------------------------------------
     private DigimonAttack activeAttack;
@@ -134,6 +150,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private final Map<Identifier, Integer> cooldownUntil = new HashMap<>();
     private final Map<Identifier, FuelReserve> attackFuel = new HashMap<>();
     private long partyGeneration;
+
+    // --- server-side progression state ------------------------------------------------
+    /** Progress toward the next level; the level itself is synched entity data. */
+    private int xp;
+    /** Wild only: health lost to each partner, for the XP split on defeat. Not saved. */
+    private final DamageLedger contributions = new DamageLedger();
+    private boolean experienceAwarded;
 
     public long getPartyGeneration() { return partyGeneration; }
     public void setPartyGeneration(long generation) { partyGeneration = generation; }
@@ -204,6 +227,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_RUNNING_TO_OWNER, false);
         builder.define(DATA_SUSTAINED_ATTACK, "");
         builder.define(DATA_SUSTAINED_TICK, 0);
+        builder.define(DATA_LEVEL, Progression.MIN_LEVEL);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -332,6 +356,75 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
     }
 
+    // --- progression: level, XP and the stats they scale ------------------------------
+
+    public int getLevel() {
+        return this.entityData.get(DATA_LEVEL);
+    }
+
+    /** Progress toward the next level. Meaningful on the server only. */
+    public int getXp() {
+        return xp;
+    }
+
+    /**
+     * Server. Sets the level and rescales max health and attack from the species sheet.
+     * Current health is only clamped, so callers decide whether to heal.
+     */
+    public void setLevel(int level) {
+        this.entityData.set(DATA_LEVEL, Progression.clampLevel(level));
+        applyLevelAttributes();
+    }
+
+    /** Server. Sets the level, discards XP progress and restores full health, as a command or spawn does. */
+    public void resetToLevel(int level) {
+        setLevel(level);
+        xp = 0;
+        setHealth(getMaxHealth());
+        PartyManager.progressChanged(this);
+    }
+
+    /** Server. Configures a freshly created Digimon: species, level, no XP and full health. */
+    public void initializeAs(DigimonSpecies species, int level) {
+        setSpecies(species.id());
+        resetToLevel(level);
+    }
+
+    /**
+     * Server. Grants XP through the normal path: overflow carries over, level-ups rescale
+     * the stats, heal the gained health and announce themselves to the tamer.
+     */
+    public void addExperience(int amount) {
+        if (!(level() instanceof ServerLevel serverLevel) || amount <= 0) return;
+        Progression.Gain gain = Progression.gain(getLevel(), xp, amount);
+        xp = gain.xp();
+        if (gain.levelsGained() > 0) {
+            float previousMax = getMaxHealth();
+            setLevel(gain.level());
+            heal(Math.max(0.0F, getMaxHealth() - previousMax));
+            celebrateLevelUp(serverLevel);
+        }
+        PartyManager.progressChanged(this);
+    }
+
+    /** Server. Species base stats scaled by level become the attribute base values. */
+    private void applyLevelAttributes() {
+        if (level().isClientSide()) return;
+        DigimonSpecies species = getSpecies().orElse(null);
+        if (species == null) return;
+        getAttribute(Attributes.MAX_HEALTH).setBaseValue(Progression.maxHealth(species.baseHealth(), getLevel()));
+        getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(Progression.attack(species.baseAttack(), getLevel()));
+    }
+
+    private void celebrateLevelUp(ServerLevel level) {
+        level.playSound(null, getX(), getY(), getZ(), SoundEvents.PLAYER_LEVELUP, SoundSource.NEUTRAL, 0.8F, 1.0F);
+        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY(0.5), getZ(), 12,
+                getBbWidth() * 0.5, getBbHeight() * 0.3, getBbWidth() * 0.5, 0.05);
+        if (getOwner() instanceof ServerPlayer tamer) {
+            tamer.sendSystemMessage(Component.translatable("digimon.digicube.level_up", getDisplayName(), getLevel()));
+        }
+    }
+
     /** @return the server's current sprint-following state */
     public boolean isRunningToOwner() {
         return this.entityData.get(DATA_RUNNING_TO_OWNER);
@@ -368,7 +461,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (DATA_SPECIES.equals(accessor)) {
             refreshDimensions();
-            if (!level().isClientSide()) configureSpeciesMovement();
+            if (!level().isClientSide()) {
+                configureSpeciesMovement();
+                applyLevelAttributes();
+            }
             if (!level().isClientSide() && getBody().mount().isEmpty()) {
                 ejectPassengers();
             }
@@ -549,6 +645,49 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             }
         }
         return super.considersEntityAsAlly(other);
+    }
+
+    // --- wild Digimon: defeat and the XP it yields ------------------------------------
+
+    /** Vanilla orbs for the tamer: a small taste of the yield the partners split. */
+    @Override
+    protected int getBaseExperienceReward(ServerLevel level) {
+        if (isOwned()) return 0;
+        return getSpecies().map(species -> Progression.stageYield(species.stage()) / 2).orElse(0);
+    }
+
+    /** Wild Digimon always show a nameplate; the renderer prefixes it with the level. */
+    @Override
+    public boolean shouldShowName() {
+        return !isOwned() || super.shouldShowName();
+    }
+
+    /**
+     * Records what a wild Digimon loses to each partner, as health actually lost, and
+     * splits its XP the moment the last hit lands. Vanilla decides the hit; this only
+     * watches the outcome, so armour, immunity frames and overkill never inflate a share.
+     */
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        DigimonEntity partner = !isOwned() && source.getEntity() instanceof DigimonEntity attacker && attacker.isOwned()
+                ? attacker : null;
+        // A partner's hit counts as its tamer's, like a tamed wolf's, so vanilla orbs drop for the tamer.
+        if (partner != null && partner.getOwner() instanceof Player tamer) setLastHurtByPlayer(tamer, TAMER_CREDIT_TICKS);
+        float healthBefore = getHealth();
+        if (!super.hurtServer(level, source, amount)) return false;
+        if (partner != null) {
+            contributions.record(partner.getUUID(), healthBefore - Math.max(0.0F, getHealth()), level.getGameTime());
+        }
+        if (!isOwned() && isDeadOrDying()) awardExperienceOnDefeat(level);
+        return true;
+    }
+
+    /** Server. Splits this wild Digimon's yield among its recent contributors, once. */
+    private void awardExperienceOnDefeat(ServerLevel level) {
+        if (experienceAwarded) return;
+        experienceAwarded = true;
+        ExperienceAward.award(level, this, contributions);
+        contributions.clear();
     }
 
     // --- combat: choosing and running attacks ---------------------------------------
@@ -1125,6 +1264,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putString(SPECIES_TAG, getSpeciesId().toString());
+        output.putInt(LEVEL_TAG, getLevel());
+        output.putInt(XP_TAG, xp);
         EntityReference.store(getOwnerReference(), output, OWNER_TAG);
         output.putLong("PartyGeneration", partyGeneration);
         ValueOutput cooldowns = output.child("AttackCooldowns");
@@ -1141,9 +1282,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
-        super.readAdditionalSaveData(input);
+        // Species and level first, so max health is already right when vanilla reads "Health" below.
         Identifier speciesId = Identifier.tryParse(input.getStringOr(SPECIES_TAG, DEFAULT_SPECIES.toString()));
         setSpecies(speciesId != null ? speciesId : DEFAULT_SPECIES);
+        setLevel(input.getIntOr(LEVEL_TAG, Progression.MIN_LEVEL));
+        xp = Math.max(0, input.getIntOr(XP_TAG, 0));
+        super.readAdditionalSaveData(input);
+        // The saved attribute list may predate a balance change; the formula wins.
+        applyLevelAttributes();
         EntityReference<LivingEntity> owner = EntityReference.read(input, OWNER_TAG);
         this.entityData.set(DATA_OWNER, Optional.ofNullable(owner));
         partyGeneration = input.getLongOr("PartyGeneration", 0L);

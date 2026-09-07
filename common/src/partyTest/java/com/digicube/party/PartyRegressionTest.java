@@ -68,6 +68,12 @@ public final class PartyRegressionTest {
         check(restored.generation() == first.generation(), "generation survives reload");
         check(restored.slot() == 0 && decoded.roster().party(owner).size() == 3, "selection survives reload");
         check(restored.entityData().equals(first.entityData()) && restored.health() == 7.5F, "health, nickname and future entity data preserved");
+        check(restored.level() == 4 && restored.xp() == 120, "level and XP of a reserve partner survive reload");
+        CompoundTag legacy = (CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, first).getOrThrow();
+        legacy.remove("level");
+        legacy.remove("xp");
+        PartyMember beforeProgression = PartyMember.CODEC.parse(NbtOps.INSTANCE, legacy).getOrThrow();
+        check(beforeProgression.level() == 1 && beforeProgression.xp() == 0, "rosters saved before progression existed load at level 1");
         // Exercise Minecraft's actual disk API too: a valid codec alone does not verify
         // SavedDataType/data-fixer configuration or asynchronous write completion.
         Path directory = Files.createTempDirectory("digicube-party-test-").toAbsolutePath().normalize();
@@ -94,7 +100,7 @@ public final class PartyRegressionTest {
         check(!external.equals(restored.entityData()), "snapshots cannot be mutated through accessors");
 
         PartyMember dead = member(owner);
-        dead.capture(dead.species(), "", 0, 20, dead.entityData());
+        dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), dead.entityData());
         roster.add(dead);
         check(!dead.active() && !roster.select(owner, dead.id(), 0), "party storage cannot resurrect dead partners");
         PartyMember malformed = member(owner);
@@ -137,7 +143,7 @@ public final class PartyRegressionTest {
         entity.putString("CustomName", "My partner");
         entity.putString("FutureTrainingData", "retained");
         return new PartyMember(UUID.randomUUID(), owner, Constants.id("agumon"), "My partner", 7.5F, 20,
-                -1, 0, entity);
+                4, 120, -1, 0, entity);
     }
 
     private static void check(boolean condition, String message) {

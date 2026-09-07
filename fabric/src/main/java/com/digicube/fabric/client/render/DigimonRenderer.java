@@ -20,6 +20,7 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 
@@ -101,6 +102,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     public void extractRenderState(DigimonEntity entity, DigimonRenderState state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
+        // Vanilla decided whether a nameplate shows (distance, F1, invisibility); wild ones add their level.
+        if (state.nameTag != null && !entity.isOwned()) {
+            state.nameTag = Component.translatable("digimon.digicube.wild_nameplate", entity.getLevel(), state.nameTag);
+        }
         state.species = entity.getSpeciesId();
         state.modelScale = entity.getBody().modelScale();
         state.isBeingRidden = entity.isVehicle();

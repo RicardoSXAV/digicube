@@ -92,3 +92,16 @@ tasks.register('locomotionTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('locomotionTest') }
+
+// Reproduces the balance tables of ../design/wild-spawns-and-progression.md (kept outside the repository).
+tasks.register('progressionTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.digimon.ProgressionRegressionTest'
+    workingDir = layout.buildDirectory.dir('progression-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('progressionTest') }

@@ -1,6 +1,7 @@
 package com.digicube.fabric.client.party;
 
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.Progression;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyMemberView;
@@ -205,9 +206,14 @@ public final class DigiviceScreen extends Screen {
         void updateMember(PartyMemberView member) {
             this.member = member;
             if (member != null) {
+                Component progress = Progression.isMaxLevel(member.level())
+                        ? Component.translatable("gui.digicube.party.xp_max")
+                        : Component.translatable("gui.digicube.party.xp", member.xp(), Progression.xpToNext(member.level()));
                 var detail = Component.empty().append(PartyGraphics.name(member)).append("\n")
                         .append(PartyGraphics.status(member)).append(" · ")
-                        .append(Component.translatable("gui.digicube.party.hp", (int) Math.ceil(member.health()), (int) Math.ceil(member.maxHealth())));
+                        .append(Component.translatable("gui.digicube.party.hp", (int) Math.ceil(member.health()), (int) Math.ceil(member.maxHealth())))
+                        .append("\n").append(Component.translatable("gui.digicube.party.level_long", member.level()))
+                        .append(" · ").append(progress);
                 DigimonSpeciesRegistry.get(member.species()).ifPresent(species -> detail.append("\n").append(
                         Component.translatable("digicube.stage." + species.stage().getId())));
                 setTooltip(Tooltip.create(detail));
@@ -231,8 +237,12 @@ public final class DigiviceScreen extends Screen {
             PartyGraphics.icon(graphics, member, getX() + 3, iconY, iconSize);
             int textX = getX() + iconSize + 5;
             int textY = getY() + (getHeight() - 18) / 2 - (partySlot >= 0 ? 2 : 0);
-            graphics.text(font, PartyGraphics.shortText(font, PartyGraphics.name(member), getWidth() - iconSize - 10),
+            String level = Component.translatable("gui.digicube.party.level", member.level()).getString();
+            int levelWidth = font.width(level);
+            graphics.text(font, PartyGraphics.shortText(font, PartyGraphics.name(member), getWidth() - iconSize - 14 - levelWidth),
                     textX, textY, active ? PartyGraphics.WHITE : PartyGraphics.MUTED, false);
+            graphics.text(font, level, getX() + getWidth() - levelWidth - 5, textY,
+                    member.slot() >= 0 ? PartyGraphics.TEAL : PartyGraphics.MUTED, false);
             Component status = partySlot >= 0 ? Component.translatable("gui.digicube.party.slot", partySlot + 1) : PartyGraphics.status(member);
             graphics.text(font, PartyGraphics.shortText(font, status, getWidth() - iconSize - 10), textX, textY + 10,
                     member.slot() >= 0 ? PartyGraphics.TEAL : PartyGraphics.MUTED, false);

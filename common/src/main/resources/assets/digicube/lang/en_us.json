@@ -4,12 +4,15 @@
 
   "entity.digicube.digimon": "Digimon",
 
-  "commands.digicube.spawn.success": "Spawned %s",
+  "commands.digicube.spawn.success": "Spawned %s at level %s",
   "commands.digicube.spawn.unknown": "Unknown Digimon species: %s",
   "commands.digicube.spawn.failed": "Could not create the Digimon entity",
   "commands.digicube.give.success": "Gave %s to %s",
   "commands.digicube.give.party": "Added %s to %s's party. It will appear when there is room nearby.",
   "commands.digicube.give.reserve": "Stored %s in %s's Digivice. The three party slots are full.",
+  "commands.digicube.targets.none": "No Digimon selected",
+  "commands.digicube.level.success": "Set %s Digimon to level %s",
+  "commands.digicube.xp.success": "Granted %s XP to %s Digimon",
 
   "gui.digicube.party.title": "DIGIVICE",
   "gui.digicube.party.subtitle": "Your partners, one connection.",
@@ -27,6 +30,10 @@
   "gui.digicube.party.waiting": "Waiting for space",
   "gui.digicube.party.defeated": "Defeated",
   "gui.digicube.party.hp": "%s / %s HP",
+  "gui.digicube.party.level": "Lv%s",
+  "gui.digicube.party.level_long": "Level %s",
+  "gui.digicube.party.xp": "%s / %s XP",
+  "gui.digicube.party.xp_max": "MAX",
   "gui.digicube.party.invalid": "That partner or slot is unavailable.",
   "gui.digicube.party.unavailable": "You cannot deploy a partner right now.",
   "gui.digicube.party.riding": "Dismount before changing this partner.",
@@ -39,6 +46,9 @@
   "entity.digicube.bubble_blow": "Bubble Blow",
   "entity.digicube.mega_flame": "Mega Flame",
   "entity.digicube.marching_fishes": "Marching Fishes",
+
+  "digimon.digicube.level_up": "%s reached level %s!",
+  "digimon.digicube.wild_nameplate": "Lv %s %s",
 
   "digimon.digicube.koromon": "Koromon",
   "digimon.digicube.tsunomon": "Tsunomon",

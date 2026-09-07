@@ -43,8 +43,10 @@ final class PartyHealthRegressionTest {
         check(!patched.openScreen() && patched.message().isEmpty(), "health does not replay screen or feedback events");
         check(patched.party().getFirst().slot() == first.slot()
                         && patched.party().getFirst().species().equals(first.species())
-                        && patched.party().getFirst().nickname().equals(first.nickname()),
-                "health leaves party identity and presentation intact");
+                        && patched.party().getFirst().nickname().equals(first.nickname())
+                        && patched.party().getFirst().level() == first.level()
+                        && patched.party().getFirst().xp() == first.xp(),
+                "health leaves party identity, presentation and progression intact");
         check(!sync.updateSnapshot(patched), "periodic snapshot does not resend already delivered health");
 
         sync.recordHealth(first.id(), 3, 20);
@@ -65,7 +67,8 @@ final class PartyHealthRegressionTest {
         sync.recordHealth(first.id(), 0, 20);
         sync.invalidate();
         check(sync.takeHealthChanges() == null, "death or recall prioritizes membership over queued health");
-        PartyMemberView defeated = new PartyMemberView(first.id(), first.species(), first.nickname(), 0, 20, -1, false);
+        PartyMemberView defeated = new PartyMemberView(first.id(), first.species(), first.nickname(), 0, 20,
+                first.level(), first.xp(), -1, false);
         PartySnapshotPayload afterDeath = new PartySnapshotPayload(false, 0, 3,
                 List.of(patched.party().get(1), patched.party().get(2)),
                 List.of(defeated, patched.collection().get(1), patched.collection().get(2)), "");
@@ -102,7 +105,7 @@ final class PartyHealthRegressionTest {
     }
 
     private static PartyMemberView member(int slot) {
-        return new PartyMemberView(UUID.randomUUID(), Constants.id("agumon"), "Partner " + slot, 7.5F, 20, slot, true);
+        return new PartyMemberView(UUID.randomUUID(), Constants.id("agumon"), "Partner " + slot, 7.5F, 20, 3, 40, slot, true);
     }
 
     private static void check(boolean condition, String message) {

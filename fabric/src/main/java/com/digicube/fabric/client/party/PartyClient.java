@@ -12,6 +12,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.HumanoidArm;
 
 import java.util.List;
@@ -76,6 +77,10 @@ public final class PartyClient {
                 PartyGraphics.icon(graphics, member, sx + 1, sy, 22);
                 PartyGraphics.health(graphics, member, sx + 3, sy + tile - 4, tile - 6);
                 if (!member.deployed()) graphics.fill(sx + tile - 5, sy + 3, sx + tile - 3, sy + 5, PartyGraphics.ORANGE);
+                // The level sits beside the tile: above it along the hotbar, to its right in the vertical strip.
+                String level = Component.translatable("gui.digicube.party.level", member.level()).getString();
+                if (vertical) graphics.text(client.font, level, sx + tile + 3, sy + 8, PartyGraphics.WHITE, true);
+                else graphics.centeredText(client.font, level, sx + tile / 2, sy - 10, PartyGraphics.WHITE);
             } else graphics.centeredText(client.font, Integer.toString(slot + 1), sx + tile / 2, sy + 8, PartyGraphics.MUTED);
         }
     }
