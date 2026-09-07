@@ -6,6 +6,8 @@ import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
+import com.digicube.fabric.client.model.GarurumonModel;
+import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
@@ -31,6 +33,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
+            Constants.id("garurumon"), Constants.id("textures/entity/digimon/garurumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
@@ -46,6 +49,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
+                Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER)));
@@ -131,6 +135,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
         AABB bounds = super.getBoundingBoxForCulling(entity);
+        if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel) {
+            bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
+        }
         var attack = entity.getAnimatingAttack();
         return attack != null && attack.kind() == DigimonAttack.Kind.FLAME_STREAM
                 ? bounds.inflate(attack.range()) : bounds;
@@ -144,5 +151,25 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     protected void scale(DigimonRenderState state, PoseStack poseStack) {
         poseStack.scale(state.modelScale, state.modelScale, state.modelScale);
+    }
+
+    /**
+     * Rider presentation for the current frame.
+     * @param offset animated local seat displacement
+     * @param pose seated leg angles
+     */
+    public record RiderVisual(net.minecraft.world.phys.Vec3 offset, AnimatedRiderModel.RiderPose pose) {}
+
+    /**
+     * Evaluate the actual mount model at the same clock as its rendered body.
+     * @param entity ridden Digimon
+     * @param partialTick render interpolation
+     * @return its visual attachment, or null for mounts with an already fixed seat
+     */
+    public RiderVisual riderVisual(DigimonEntity entity, float partialTick) {
+        if (!(models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel mount)) return null;
+        var state = createRenderState();
+        extractRenderState(entity, state, partialTick);
+        return new RiderVisual(mount.riderOffset(state), mount.riderPose());
     }
 }

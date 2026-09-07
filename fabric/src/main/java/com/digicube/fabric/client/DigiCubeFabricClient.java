@@ -4,6 +4,7 @@ import com.digicube.Constants;
 import com.digicube.fabric.client.party.PartyClient;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
+import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
@@ -32,6 +33,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         new PartyClient().init();
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(GarurumonModel.LAYER, GarurumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TsunomonModel.LAYER, TsunomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GreymonModel.LAYER, GreymonModel::createBodyLayer);

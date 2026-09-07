@@ -1,0 +1,27 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.42,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.2,
+    "run_speed": 1.2
+  },
+  "body": {
+    "model_scale": 1.0,
+    "width": 1.9,
+    "height": 2.8,
+    "eye_height": 2.5,
+    "mount": {
+      "seat": [0.0, 2.1875, -0.375],
+      "speed": 0.5,
+      "step_height": 1.0
+    }
+  }
+}

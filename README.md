@@ -391,6 +391,41 @@ poses. It also verifies the actual flame renderer transform across 150 headings/
 target alignment at varied heights/ranges, and clipping individual tongues. Standard
 `build` includes common-side cardinal aim, plume volume, transport and fuel regressions.
 
+### Garurumon and riding
+
+Garurumon uses the approved Minecraft-style wolf model, including its fitted eyes,
+tapered muzzle and paws, closed mouth and stepped pixel teeth. The native 16-tick
+run is the only moving gait; stopping restores the standing pose. Its cadence
+follows traveled distance, so it accelerates with movement instead of sliding
+through a fixed-speed loop.
+
+Use `/digicube give garurumon`, then right-click your partner to mount. **WASD**
+steers and **Shift** dismounts. It runs at the same fast follow pace whether the
+owner walks or sprints, and has ridden speed 0.5 with one-block stepping. Wild
+Garurumon can be created with `/digicube spawn garurumon`; only an owner can ride.
+Attack animations are reserved for a later pass.
+
+Model scale is 1.0: its back is about 2.1 blocks high, with a 1.9 × 2.8-block body
+box. The rider sits between the shoulder and hip plumes, 2.1875 blocks above the
+feet and 0.375 blocks behind the origin. A wider seated leg pose fits the wolf's
+back. The rider's visible position follows the animated seat while the physical
+attachment retains the existing server-authoritative mounting controls.
+
+Approved model/texture source: `../harness/digimon/garurumon.py`; saved native clips:
+`../harness/out/garurumon_visible_teeth/`. Export through Blender MCP with
+`../harness/blender/export_garurumon_release.py`; review scenes and videos are in
+`../harness/out/garurumon_release/`. That exporter preserves the refined surfaces
+as mesh JSON as well as exporting the saved native animation curves. Regenerating
+only the old cuboid source loses the approved refinements.
+
+The compiled export check is
+`gradlew.bat -I ../harness/tools/verify_garurumon.init.gradle :fabric:verifyGarurumonExport`.
+It verifies native geometry/UVs, the full run, partial movement, idle reset and the
+moving rider seat. In game, check walking away from Garurumon, mounting, steering,
+stopping, one-block rises and dismounting, including armor and another player's
+view. Dedicated-server mounting still needs a manual test; the dev server's EULA
+must be accepted before it can open a world.
+
 ### Greymon and riding
 
 Greymon uses the approved reference model: a three-horned skull mask, inset red eyes,

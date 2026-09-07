@@ -17,10 +17,21 @@ public final class SpeciesRegressionTest {
         try {
             SharedConstants.tryDetectVersion();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 5, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 6, "all bundled species loaded");
             var koromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("koromon"));
             var tsunomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tsunomon"));
             var gabumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gabumon"));
+            var garurumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("garurumon"));
+            var garurumonMount = garurumon.body().mount().orElseThrow();
+            check(garurumon.stage() == DigimonStage.ADULT && garurumon.attribute() == DigimonAttribute.VACCINE
+                            && garurumon.baseSpeed() > gabumon.baseSpeed(), "Garurumon is a fast vaccine champion");
+            check(garurumon.body().modelScale() == 1 && garurumonMount.seat().y == 2.1875
+                            && garurumonMount.seat().z == -.375 && garurumonMount.speed() == .5F
+                            && garurumonMount.stepHeight() == 1, "Garurumon has the measured back seat and fast ridden pace");
+            check(garurumon.locomotion().followSpeed(false) == garurumon.locomotion().followSpeed(true)
+                            && garurumon.locomotion().followSpeed(false) * garurumon.baseSpeed() > .5,
+                    "Garurumon keeps its fast pace whether or not its owner sprints");
+            check(garurumon.attacks().isEmpty(), "unapproved Garurumon attack animations are not enabled");
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
             check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
