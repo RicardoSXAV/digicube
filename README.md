@@ -195,6 +195,9 @@ summaries are sent to their client. Future species automatically use
 `assets/<namespace>/textures/gui/digimon/<species>.png`, with a neutral fallback
 if a resource pack omits an icon.
 
+Garurumon's approved 32×32 party icon appears in the Digivice and party HUD. Its
+editable source and approved face-v8 snapshot live in `../harness/art/pixel_sprites/`.
+
 `gradlew.bat build` includes the headless `:common:partyTest` regression suite.
 Manually try swapping, recalling, repeated species, a large collection, saving and
 reloading, portals, mounting, health preservation and two different players on a
