@@ -10,8 +10,8 @@ import java.util.EnumSet;
 /**
  * Keeps a partner Digimon near its tamer, like a tamed wolf: walks over when the tamer
  * gets beyond its species' start distance, stops at its stop distance, and
- * teleports next to them when left far behind. Yields to combat (does nothing while the
- * Digimon has a target).
+ * teleports next to them when left far behind. Yields to combat when the Digimon
+ * has both a target and usable attacks.
  */
 public final class FollowOwnerGoal extends Goal {
 
@@ -64,7 +64,7 @@ public final class FollowOwnerGoal extends Goal {
 
     private boolean canFollow(LivingEntity candidate) {
         return candidate != null && candidate.isAlive() && !candidate.isSpectator()
-                && mob.isAlive() && mob.getTarget() == null && !mob.isAttacking()
+                && mob.isAlive() && (mob.getTarget() == null || !mob.hasAttacks()) && !mob.isAttacking()
                 && !mob.isPassenger() && !mob.isVehicle();
     }
 
@@ -86,29 +86,30 @@ public final class FollowOwnerGoal extends Goal {
             ticksUntilPathRecalc = 0;
             mob.setRunningToOwner(running);
         }
-        double speed = locomotion.followSpeed(running);
+        double speed = mob.canSwim() && mob.isInWater() ? 1.0 : locomotion.followSpeed(running);
         mob.getNavigation().setSpeedModifier(speed);
         mob.getLookControl().setLookAt(owner, 10.0F, (float) mob.getMaxHeadXRot());
         if (--ticksUntilPathRecalc > 0) {
             return;
         }
         ticksUntilPathRecalc = adjustedTickDelay(running ? 5 : 10);
-        if (mob.distanceToSqr(owner) >= TELEPORT_DISTANCE * TELEPORT_DISTANCE) {
-            teleportNearOwner();
-        } else {
-            mob.getNavigation().moveTo(owner, speed);
-        }
+        if (!mob.isSwimmingMovement() && mob.distanceToSqr(owner) >= TELEPORT_DISTANCE * TELEPORT_DISTANCE
+                && teleportNearOwner()) return;
+        // A swimmer catches up through the water. If vanilla cannot teleport to
+        // a submerged owner, keep navigating instead of becoming stuck far away.
+        mob.getNavigation().moveTo(owner, speed);
     }
 
-    private void teleportNearOwner() {
+    private boolean teleportNearOwner() {
         for (int attempt = 0; attempt < TELEPORT_ATTEMPTS; attempt++) {
             double x = owner.getX() + mob.getRandom().nextInt(7) - 3;
             double z = owner.getZ() + mob.getRandom().nextInt(7) - 3;
             if (mob.randomTeleport(x, owner.getY(), z, false)) {
                 mob.setRunningToOwner(false);
                 mob.getNavigation().stop();
-                return;
+                return true;
             }
         }
+        return false;
     }
 }

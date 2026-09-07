@@ -80,3 +80,15 @@ tasks.register('speciesTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('speciesTest') }
+
+tasks.register('locomotionTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.entity.ai.LocomotionRegressionTest'
+    workingDir = layout.buildDirectory.dir('locomotion-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('locomotionTest') }

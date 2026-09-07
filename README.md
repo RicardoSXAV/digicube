@@ -426,6 +426,32 @@ stopping, one-block rises and dismounting, including armor and another player's
 view. Dedicated-server mounting still needs a manual test; the dev server's EULA
 must be accepted before it can open a world.
 
+### Gomamon on land and in water
+
+Use `/digicube give gomamon`, deploy him from the party, and walk away to see his
+slow seal shuffle, driven by his rear paws. Enter deeper water and swim away: he
+switches to fast three-dimensional swimming, with gradual dives, turns and stops.
+He keeps swimming to catch a distant owner instead of teleporting out of the water.
+Use `/digicube spawn gomamon` for a wild one. He is not rideable.
+
+The two-second swim cycle combines a broad forepaw power stroke, feathered recovery,
+a streamlined glide and delayed motion through the hips and tail. Stroke intensity
+and cadence ease with speed; entering and leaving water blends with the approved
+walk. The cuboid model, pixel texture and head-surface cleanup are preserved.
+Aquatic movement is enabled by species data through `locomotion.swim_speed` (blocks
+per tick); Gomamon uses `0.46`, versus a ground base speed of `0.055` and follow
+multiplier `0.55`. Missing swim speed keeps the existing land behavior.
+
+Authoring source: `../harness/digimon/gomamon_swim.py`. The approved native model and
+walk, glide and swim files are in `../harness/out/gomamon_swim/`, including the review
+GIFs. Export the saved Blender files with
+`../harness/blender/export_gomamon_release.py`; it preserves native faces and UVs.
+Run `gradlew.bat --init-script ../harness/tools/gomamon-verification.gradle build
+:fabric:verifyGomamon` to check native-to-compiled poses, transitions and idle reset.
+In game, check following on dry ground, diving into deep water, turning, stopping,
+surfacing and returning up a bank. Dedicated-server aquatic movement also needs a
+manual check after the dev server's EULA is accepted.
+
 ### Greymon and riding
 
 Greymon uses the approved reference model: a three-horned skull mask, inset red eyes,

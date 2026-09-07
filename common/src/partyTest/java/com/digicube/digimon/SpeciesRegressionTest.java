@@ -17,7 +17,15 @@ public final class SpeciesRegressionTest {
         try {
             SharedConstants.tryDetectVersion();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 6, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 7, "all bundled species loaded");
+            var gomamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gomamon"));
+            check(gomamon.stage() == DigimonStage.CHILD && gomamon.attribute() == DigimonAttribute.VACCINE,
+                    "Gomamon is a vaccine rookie");
+            check(gomamon.locomotion().canSwim() && gomamon.locomotion().swimSpeed() == .46
+                            && !gomamon.locomotion().canRun() && gomamon.baseSpeed() < .06F,
+                    "Gomamon crawls on land and has independently configured fast swimming");
+            check(gomamon.attacks().isEmpty() && gomamon.body().mount().isEmpty(),
+                    "Gomamon enables only its authored locomotion and is not rideable");
             var koromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("koromon"));
             var tsunomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tsunomon"));
             var gabumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gabumon"));
@@ -48,6 +56,8 @@ public final class SpeciesRegressionTest {
             var follow = gabumon.locomotion();
             check(follow.canRun() && follow.followSpeed(true) == 1.65 && follow.followSpeed(false) == 1.15,
                     "Gabumon accelerates for sprint-following and returns to walking speed");
+            check(!follow.canSwim() && !DigimonLocomotion.DEFAULT.canSwim(),
+                    "existing land species do not gain aquatic movement");
             check(follow.followStartDistance() == 4 && follow.followStopDistance() == 2,
                     "Gabumon follows before its owner gets far away, with a stop/start gap");
             check(tsunomon.stage() == DigimonStage.BABY_II && tsunomon.attribute() == DigimonAttribute.FREE,
@@ -120,6 +130,14 @@ public final class SpeciesRegressionTest {
             locomotion.addProperty("run_speed", 1.65);
             locomotion.addProperty("walk_speed", -1);
             rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "negative walk speed rejected");
+            locomotion.addProperty("walk_speed", 1.15);
+            locomotion.addProperty("swim_speed", .46);
+            check(BundledSpeciesLoader.parse(Constants.id("test"), data, moves).locomotion().canSwim(),
+                    "another species can opt into swimming through data alone");
+            for (double invalid : new double[] {-1, Double.NaN, Double.POSITIVE_INFINITY, 1.01}) {
+                locomotion.addProperty("swim_speed", invalid);
+                rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "invalid swimming speed rejected");
+            }
             Constants.LOG.info("Species regression checks passed.");
         } finally {
             Util.shutdownExecutors();

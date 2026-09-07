@@ -94,7 +94,8 @@ public final class BundledSpeciesLoader {
     private static DigimonLocomotion locomotion(JsonObject json) {
         return new DigimonLocomotion(GsonHelper.getAsFloat(json, "follow_start_distance"),
                 GsonHelper.getAsFloat(json, "follow_stop_distance"),
-                GsonHelper.getAsDouble(json, "walk_speed"), GsonHelper.getAsDouble(json, "run_speed"));
+                GsonHelper.getAsDouble(json, "walk_speed"), GsonHelper.getAsDouble(json, "run_speed"),
+                GsonHelper.getAsDouble(json, "swim_speed", 0));
     }
 
     private static DigimonBody body(JsonObject json) {

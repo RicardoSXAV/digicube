@@ -10,6 +10,8 @@ import com.digicube.digimon.DigimonLocomotion;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.entity.ai.DigimonAttackGoal;
+import com.digicube.entity.ai.DigimonLookControl;
+import com.digicube.entity.ai.DigimonMoveControl;
 import com.digicube.entity.ai.FollowOwnerGoal;
 import com.digicube.entity.ai.OwnerHurtByTargetGoal;
 import com.digicube.entity.ai.OwnerHurtTargetGoal;
@@ -41,12 +43,18 @@ import net.minecraft.world.entity.PlayerRideable;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.control.MoveControl;
+import net.minecraft.world.entity.ai.control.LookControl;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.PanicGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
+import net.minecraft.world.entity.ai.goal.RandomSwimmingGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
+import net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation;
+import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.DismountHelper;
@@ -137,12 +145,24 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private int attackAnimationEndTick;
     private float previousRunAnimationAmount;
     private float runAnimationAmount;
+    private float previousSwimAnimationAmount;
+    private float swimAnimationAmount;
+    private float previousSwimAnimationPhase;
+    private float swimAnimationPhase;
+    private float previousSwimMotionAmount;
+    private float swimMotionAmount;
+    private float previousGroundAnimationPhase;
+    private float groundAnimationPhase;
+    private float previousSwimBank;
+    private float swimBank;
+    private float landWaterMalus;
+    private float landWaterBorderMalus;
 
     public DigimonEntity(EntityType<? extends DigimonEntity> type, Level level) {
         super(type, level);
     }
 
-    /** Placeholder attributes; per-species stats will be applied on top once levels exist. */
+    /** Default attributes; species movement speed is applied when species data arrives. */
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0)
@@ -153,12 +173,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new FloatGoal(this));
+        this.goalSelector.addGoal(0, new FloatGoal(this) {
+            @Override public boolean canUse() { return !canSwim() && super.canUse(); }
+        });
         this.goalSelector.addGoal(1, new RiderControlGoal());
         this.goalSelector.addGoal(1, new WildPanicGoal(this, 1.4));
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
         this.goalSelector.addGoal(3, new FollowOwnerGoal(this));
-        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0));
+        this.goalSelector.addGoal(5, new RandomSwimmingGoal(this, 1.0, 60) {
+            @Override public boolean canUse() { return canSwim() && isInWater() && super.canUse(); }
+            @Override public boolean canContinueToUse() { return canSwim() && isInWater() && super.canContinueToUse(); }
+        });
+        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0) {
+            @Override public boolean canUse() { return (!canSwim() || !isInWater()) && super.canUse(); }
+        });
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
 
@@ -202,6 +230,108 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return getSpecies().map(DigimonSpecies::locomotion).orElse(DigimonLocomotion.DEFAULT);
     }
 
+    /**
+     * Read the species' aquatic capability.
+     * @return whether this species is adapted to sustained swimming
+     */
+    public boolean canSwim() { return getLocomotion().canSwim(); }
+
+    /**
+     * Keep the walking pose in very shallow water at the shore.
+     * @return whether the body is immersed enough to adopt its swimming pose
+     */
+    public boolean isSwimmingMovement() {
+        return canSwim() && isInWater() && getFluidHeight(FluidTags.WATER) > getBbHeight() * 0.35;
+    }
+
+    /**
+     * Interpolate the transition into the water pose.
+     * @param partialTick render interpolation
+     * @return gradual water-pose weight
+     */
+    public float getSwimAnimationAmount(float partialTick) {
+        return Mth.lerp(partialTick, previousSwimAnimationAmount, swimAnimationAmount);
+    }
+
+    /**
+     * Interpolate this creature's swim clock.
+     * @param partialTick render interpolation
+     * @return per-entity swim clock in ticks
+     */
+    public float getSwimAnimationPhase(float partialTick) {
+        return Mth.lerp(partialTick, previousSwimAnimationPhase, swimAnimationPhase);
+    }
+
+    /**
+     * Interpolate the stroke intensity from observed movement.
+     * @param partialTick render interpolation
+     * @return glide-to-power-stroke blend
+     */
+    public float getSwimMotionAmount(float partialTick) {
+        return Mth.lerp(partialTick, previousSwimMotionAmount, swimMotionAmount);
+    }
+
+    /**
+     * Interpolate the slow land cycle for aquatic species.
+     * @param partialTick render interpolation
+     * @return slow land-cycle clock
+     */
+    public float getGroundAnimationPhase(float partialTick) {
+        return Mth.lerp(partialTick, previousGroundAnimationPhase, groundAnimationPhase);
+    }
+
+    /**
+     * Interpolate the visual bank into a swimming turn.
+     * @param partialTick render interpolation
+     * @return gentle bank in degrees
+     */
+    public float getSwimBank(float partialTick) {
+        return Mth.lerp(partialTick, previousSwimBank, swimBank);
+    }
+
+    @Override
+    public boolean canBreatheUnderwater() { return canSwim() || super.canBreatheUnderwater(); }
+
+    @Override
+    public boolean isPushedByFluid() { return !canSwim() && super.isPushedByFluid(); }
+
+    @Override
+    protected void travelInWater(Vec3 input, double gravity, boolean falling, double previousY) {
+        if (!canSwim()) {
+            super.travelInWater(input, gravity, falling, previousY);
+            return;
+        }
+        moveRelative(getSpeed(), input);
+        move(MoverType.SELF, getDeltaMovement());
+        setDeltaMovement(getDeltaMovement().scale(DigimonMoveControl.WATER_DRAG));
+    }
+
+    private void configureSpeciesMovement() {
+        getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(getSpecies().map(DigimonSpecies::baseSpeed).orElse(.3F));
+        if (canSwim() && !(this.moveControl instanceof DigimonMoveControl)) {
+            this.moveControl = new DigimonMoveControl(this);
+            this.lookControl = new DigimonLookControl(this);
+        } else if (!canSwim() && this.moveControl instanceof DigimonMoveControl) {
+            this.moveControl = new MoveControl<>(this);
+            this.lookControl = new LookControl(this);
+        }
+        boolean amphibious = getNavigation() instanceof AmphibiousPathNavigation;
+        if (canSwim() && !amphibious) {
+            landWaterMalus = getPathfindingMalus(PathType.WATER);
+            landWaterBorderMalus = getPathfindingMalus(PathType.WATER_BORDER);
+            getNavigation().stop();
+            this.navigation = new AmphibiousPathNavigation(this, level());
+            setPathfindingMalus(PathType.WATER, 0);
+            setPathfindingMalus(PathType.WATER_BORDER, 0);
+        } else if (!canSwim() && amphibious) {
+            getNavigation().stop();
+            this.navigation = super.createNavigation(level());
+            setPathfindingMalus(PathType.WATER, landWaterMalus);
+            setPathfindingMalus(PathType.WATER_BORDER, landWaterBorderMalus);
+            setXRot(0);
+        }
+    }
+
     /** @return the server's current sprint-following state */
     public boolean isRunningToOwner() {
         return this.entityData.get(DATA_RUNNING_TO_OWNER);
@@ -238,6 +368,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (DATA_SPECIES.equals(accessor)) {
             refreshDimensions();
+            if (!level().isClientSide()) configureSpeciesMovement();
             if (!level().isClientSide() && getBody().mount().isEmpty()) {
                 ejectPassengers();
             }
@@ -912,6 +1043,29 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (level().isClientSide()) {
             previousRunAnimationAmount = runAnimationAmount;
             runAnimationAmount = Mth.approach(runAnimationAmount, isRunningToOwner() ? 1.0F : 0.0F, 0.2F);
+            previousSwimAnimationAmount = swimAnimationAmount;
+            previousSwimAnimationPhase = swimAnimationPhase;
+            previousSwimMotionAmount = swimMotionAmount;
+            previousGroundAnimationPhase = groundAnimationPhase;
+            previousSwimBank = swimBank;
+            float target = isSwimmingMovement() ? 1 : 0;
+            swimAnimationAmount = Mth.approach(swimAnimationAmount, target, target > swimAnimationAmount ? .08F : .10F);
+            double dx = getX() - xo;
+            double dy = getY() - yo;
+            double dz = getZ() - zo;
+            double horizontalTravel = Math.sqrt(dx * dx + dz * dz);
+            double travelled = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            double speed = Math.max(travelled, getDeltaMovement().length());
+            float motion = canSwim() ? (float) Mth.clamp(speed / (getLocomotion().swimSpeed() * .7), 0, 1) : 0;
+            swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, motion);
+            swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimMotionAmount, .45F, 1.0F);
+            if (canSwim() && onGround()) {
+                // Remote entities can move through position interpolation between
+                // velocity packets; keep the paws moving with that displacement too.
+                double groundSpeed = Math.max(horizontalTravel, Math.sqrt(getDeltaMovement().horizontalDistanceSqr()));
+                groundAnimationPhase += .55F * (float) Mth.clamp(groundSpeed / .025, 0, 1);
+            }
+            swimBank = Mth.lerp(.15F, swimBank, Mth.clamp(-Mth.wrapDegrees(getYRot() - yRotO) * 2.0F, -12, 12));
         }
         if (level().isClientSide() && attackAnimationState.isStarted() && tickCount >= attackAnimationEndTick) {
             attackAnimationState.stop();

@@ -6,6 +6,7 @@ import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
+import com.digicube.fabric.client.model.GomamonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
@@ -33,6 +34,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
+            Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
             Constants.id("garurumon"), Constants.id("textures/entity/digimon/garurumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
@@ -49,6 +51,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
+                Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
                 Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
@@ -102,15 +105,20 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.modelScale = entity.getBody().modelScale();
         state.isBeingRidden = entity.isVehicle();
         state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
+        state.swimAnimationAmount = entity.getSwimAnimationAmount(partialTick);
+        state.swimAnimationPhase = entity.getSwimAnimationPhase(partialTick);
+        state.swimMotionAmount = entity.getSwimMotionAmount(partialTick);
+        state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
+        state.swimBank = entity.getSwimBank(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
         state.attackDefinition = entity.getAnimatingAttack();
         state.attackAimPitch = entity.getAttackAimPitch(partialTick);
-        if (state.isBeingRidden
+        if ((entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
                 || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
-            // Riding and committed attacks turn the entire creature. Keep the rendered
-            // body aligned with the synced yaw used by the passenger attachment.
+            // Swimming, riding and committed attacks turn the entire creature.
+            // Keep its rendered body aligned with the server's steering direction.
             state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }
@@ -135,6 +143,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
         AABB bounds = super.getBoundingBoxForCulling(entity);
+        if (entity.canSwim()) bounds = bounds.inflate(entity.getBody().modelScale());
         if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel) {
             bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
         }

@@ -21,6 +21,17 @@ public class DigimonRenderState extends LivingEntityRenderState {
     /** Smooth walk/run blend from the server's follow state, zero at walking pace. */
     public float runAnimationAmount;
 
+    /** Species-authored swimming pose, independent of the amount of forward movement. */
+    public float swimAnimationAmount;
+    /** Interpolated per-entity swimming clock, in authored ticks. */
+    public float swimAnimationPhase;
+    /** Observed movement blended between the glide and full stroke clips. */
+    public float swimMotionAmount;
+    /** Slow land-cycle clock for aquatic species. */
+    public float groundAnimationPhase;
+    /** Smoothed bank into a swimming turn, in degrees. */
+    public float swimBank;
+
     /** Clock of the attack animation in progress; copied from the entity every frame. */
     public final AnimationState attackAnimation = new AnimationState();
 

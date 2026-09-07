@@ -1,0 +1,23 @@
+{
+  "stage": "child",
+  "attribute": "vaccine",
+  "base_health": 20,
+  "base_attack": 5,
+  "base_defence": 5,
+  "base_speed": 0.055,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 0.55,
+    "run_speed": 0.55,
+    "swim_speed": 0.46
+  },
+  "body": {
+    "model_scale": 0.65,
+    "width": 1.1,
+    "height": 1.15,
+    "eye_height": 0.72
+  }
+}
