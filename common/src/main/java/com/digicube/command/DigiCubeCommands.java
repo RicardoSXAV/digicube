@@ -8,8 +8,12 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.party.PartyManager;
 import com.digicube.party.PartyMember;
 import com.digicube.registry.DCEntityTypes;
+import com.digicube.spawn.SpawnAttempt;
+import com.digicube.spawn.WildSpawnSettings;
+import com.digicube.spawn.WildSpawner;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
@@ -38,6 +42,7 @@ import java.util.Optional;
  * /digicube give &lt;species&gt; [player [level]]   partner for a player, default the caller
  * /digicube level &lt;targets&gt; &lt;level&gt;         set the level, reset XP, restore full health
  * /digicube xp &lt;targets&gt; &lt;amount&gt;           grant XP through the normal path, level-ups included
+ * /digicube wild status|on|off|interval|cap|distance|try|clear|debug
  * </pre>
  */
 public final class DigiCubeCommands {
@@ -69,7 +74,34 @@ public final class DigiCubeCommands {
                         .then(Commands.argument("targets", EntityArgument.entities())
                                 .then(Commands.argument("amount", IntegerArgumentType.integer(1))
                                         .executes(context -> xp(context.getSource(), EntityArgument.getEntities(context, "targets"),
-                                                IntegerArgumentType.getInteger(context, "amount")))))));
+                                                IntegerArgumentType.getInteger(context, "amount"))))))
+                .then(wild()));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> wild() {
+        return Commands.literal("wild")
+                .then(Commands.literal("status").executes(context -> wildStatus(context.getSource())))
+                .then(Commands.literal("on").executes(context -> wildEnabled(context.getSource(), true)))
+                .then(Commands.literal("off").executes(context -> wildEnabled(context.getSource(), false)))
+                .then(Commands.literal("interval")
+                        .then(Commands.argument("ticks", IntegerArgumentType.integer(WildSpawnSettings.MIN_INTERVAL_TICKS))
+                                .executes(context -> wildInterval(context.getSource(), IntegerArgumentType.getInteger(context, "ticks")))))
+                .then(Commands.literal("cap")
+                        .then(Commands.argument("perPlayer", IntegerArgumentType.integer(0))
+                                .executes(context -> wildCap(context.getSource(), IntegerArgumentType.getInteger(context, "perPlayer"), -1))
+                                .then(Commands.argument("perLevel", IntegerArgumentType.integer(0))
+                                        .executes(context -> wildCap(context.getSource(), IntegerArgumentType.getInteger(context, "perPlayer"),
+                                                IntegerArgumentType.getInteger(context, "perLevel"))))))
+                .then(Commands.literal("distance")
+                        .then(Commands.argument("min", IntegerArgumentType.integer(1, WildSpawnSettings.MAX_DISTANCE))
+                                .then(Commands.argument("max", IntegerArgumentType.integer(1, WildSpawnSettings.MAX_DISTANCE))
+                                        .executes(context -> wildDistance(context.getSource(), IntegerArgumentType.getInteger(context, "min"),
+                                                IntegerArgumentType.getInteger(context, "max"))))))
+                .then(Commands.literal("try").executes(context -> wildTry(context.getSource())))
+                .then(Commands.literal("clear").executes(context -> wildClear(context.getSource())))
+                .then(Commands.literal("debug")
+                        .then(Commands.literal("on").executes(context -> wildDebug(context.getSource(), true)))
+                        .then(Commands.literal("off").executes(context -> wildDebug(context.getSource(), false))));
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, Identifier> speciesArgument() {
@@ -161,5 +193,78 @@ public final class DigiCubeCommands {
                 .filter(DigimonEntity.class::isInstance).map(DigimonEntity.class::cast).toList();
         if (digimon.isEmpty()) source.sendFailure(Component.translatable("commands.digicube.targets.none"));
         return digimon;
+    }
+
+    // --- wild spawner ------------------------------------------------------------------
+
+    private static WildSpawnSettings settings(CommandSourceStack source) {
+        return WildSpawnSettings.get(source.getServer());
+    }
+
+    private static Component onOff(boolean value) {
+        return Component.translatable(value ? "commands.digicube.wild.on" : "commands.digicube.wild.off");
+    }
+
+    private static int wildStatus(CommandSourceStack source) {
+        WildSpawnSettings settings = settings(source);
+        ServerLevel level = source.getLevel();
+        int wild = WildSpawner.wild(level).size();
+        int cap = settings.cap(level.players().size());
+        Component last = settings.lastAttempt(level.dimension()).map(SpawnAttempt::describe)
+                .orElseGet(() -> Component.translatable("commands.digicube.wild.no_attempt"));
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.status.settings",
+                onOff(settings.enabled()), settings.intervalTicks(), settings.maxPerPlayer(), settings.maxPerLevel(),
+                settings.minDistance(), settings.maxDistance(), onOff(settings.debug())), false);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.status.level", wild, cap, last), false);
+        return wild;
+    }
+
+    private static int wildEnabled(CommandSourceStack source, boolean enabled) {
+        settings(source).setEnabled(enabled);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.toggled", onOff(enabled)), true);
+        return 1;
+    }
+
+    private static int wildInterval(CommandSourceStack source, int ticks) {
+        int applied = settings(source).setIntervalTicks(ticks);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.interval", applied), true);
+        return applied;
+    }
+
+    private static int wildCap(CommandSourceStack source, int perPlayer, int perLevel) {
+        WildSpawnSettings settings = settings(source);
+        settings.setCaps(perPlayer, perLevel < 0 ? settings.maxPerLevel() : perLevel);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.cap", settings.maxPerPlayer(), settings.maxPerLevel()), true);
+        return settings.maxPerLevel();
+    }
+
+    private static int wildDistance(CommandSourceStack source, int min, int max) {
+        WildSpawnSettings settings = settings(source);
+        settings.setDistance(min, max);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.distance", settings.minDistance(), settings.maxDistance()), true);
+        return settings.maxDistance();
+    }
+
+    private static int wildTry(CommandSourceStack source) {
+        SpawnAttempt attempt = WildSpawner.attempt(source.getLevel(), settings(source));
+        Component report = Component.translatable("commands.digicube.wild.attempt", attempt.describe());
+        if (!attempt.succeeded()) {
+            source.sendFailure(report);
+            return 0;
+        }
+        source.sendSuccess(() -> report, true);
+        return 1;
+    }
+
+    private static int wildClear(CommandSourceStack source) {
+        int removed = WildSpawner.clear(source.getLevel());
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.clear", removed), true);
+        return removed;
+    }
+
+    private static int wildDebug(CommandSourceStack source, boolean debug) {
+        settings(source).setDebug(debug);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.wild.debug", onOff(debug)), true);
+        return 1;
     }
 }

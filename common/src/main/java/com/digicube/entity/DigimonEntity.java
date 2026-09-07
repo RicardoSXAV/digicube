@@ -647,7 +647,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return super.considersEntityAsAlly(other);
     }
 
-    // --- wild Digimon: defeat and the XP it yields ------------------------------------
+    // --- wild Digimon: persistence, defeat and the XP it yields ------------------------
+
+    /** Partners persist through {@link #setOwner}; wild Digimon despawn like any animal. */
+    @Override
+    public boolean removeWhenFarAway(double distanceToClosestPlayer) {
+        return !isOwned();
+    }
 
     /** Vanilla orbs for the tamer: a small taste of the yield the partners split. */
     @Override
@@ -1316,7 +1322,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 .orElseGet(super::getTypeName);
     }
 
-    /** Wild Digimon flee when hurt; partners stand and fight. */
+    /**
+     * Wild Digimon are neutral: they never start a fight, and when hurt they retaliate
+     * through {@link HurtByTargetGoal}. Only a wild species with no attacks flees instead.
+     * Partners never panic.
+     */
     private static class WildPanicGoal extends PanicGoal {
 
         private final DigimonEntity digimon;
@@ -1328,7 +1338,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
         @Override
         protected boolean shouldPanic() {
-            return !digimon.isOwned() && super.shouldPanic();
+            return !digimon.isOwned() && !digimon.hasAttacks() && super.shouldPanic();
         }
     }
 }

@@ -1,0 +1,59 @@
+{
+  "dimension": "minecraft:overworld",
+  "entries": [
+    {
+      "species": "koromon",
+      "weight": 30,
+      "level": [1, 4],
+      "pack": [1, 3],
+      "biomes": ["minecraft:plains", "minecraft:meadow", "#minecraft:is_forest"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "tsunomon",
+      "weight": 30,
+      "level": [1, 4],
+      "pack": [1, 3],
+      "biomes": ["#minecraft:is_taiga", "minecraft:snowy_plains"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "agumon",
+      "weight": 14,
+      "level": [4, 9],
+      "pack": [1, 2],
+      "biomes": ["#minecraft:is_savanna", "minecraft:desert", "minecraft:plains"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "gabumon",
+      "weight": 14,
+      "level": [4, 9],
+      "pack": [1, 2],
+      "biomes": ["#minecraft:is_taiga", "minecraft:snowy_plains", "#minecraft:is_forest"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "gomamon",
+      "weight": 16,
+      "level": [3, 8],
+      "pack": [1, 3],
+      "biomes": ["#minecraft:is_ocean", "#minecraft:is_river", "#minecraft:is_beach"],
+      "placement": "water",
+      "time": "any"
+    },
+    {
+      "species": "greymon",
+      "weight": 3,
+      "level": [14, 20],
+      "pack": [1, 1],
+      "biomes": ["#minecraft:is_badlands", "#minecraft:is_savanna", "minecraft:desert"],
+      "placement": "land",
+      "time": "any"
+    }
+  ]
+}

@@ -105,3 +105,16 @@ tasks.register('progressionTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('progressionTest') }
+
+// Validates the bundled wild spawn tables, their filters, the weighted pick and the settings codec.
+tasks.register('spawnTableTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.spawn.SpawnTableRegressionTest'
+    workingDir = layout.buildDirectory.dir('spawn-table-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('spawnTableTest') }

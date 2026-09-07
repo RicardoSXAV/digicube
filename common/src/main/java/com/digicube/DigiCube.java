@@ -6,6 +6,7 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.platform.Services;
 import com.digicube.registry.DCEntityTypes;
 import com.digicube.registry.DCItems;
+import com.digicube.spawn.SpawnTables;
 
 /**
  * Shared entry point. Both loader modules call {@link #init()} from their own
@@ -29,7 +30,10 @@ public final class DigiCube {
         DCEntityTypes.init();
         Services.PLATFORM.registerEntityAttributes(DCEntityTypes.DIGIMON, DigimonEntity.createAttributes());
         DigimonSpeciesBootstrap.registerBuiltIn();
+        // Spawn tables reference species, so they load second.
+        SpawnTables.registerBuiltIn();
 
-        Constants.LOG.info("{} ready with {} species.", Constants.MOD_NAME, DigimonSpeciesRegistry.size());
+        Constants.LOG.info("{} ready with {} species and {} wild spawn tables.",
+                Constants.MOD_NAME, DigimonSpeciesRegistry.size(), SpawnTables.size());
     }
 }
