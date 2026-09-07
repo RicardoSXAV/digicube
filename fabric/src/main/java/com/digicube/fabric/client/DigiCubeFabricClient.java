@@ -9,6 +9,7 @@ import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
 import com.digicube.fabric.client.model.BubbleBlowModel;
 import com.digicube.fabric.client.model.MegaFlameModel;
+import com.digicube.fabric.client.model.BlueBlasterModel;
 import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
 import com.digicube.fabric.client.model.PepperBreathModel;
@@ -36,6 +37,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(GreymonModel.LAYER, GreymonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);

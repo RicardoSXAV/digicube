@@ -1,6 +1,8 @@
 package com.digicube.fabric.client.render;
 
 import com.digicube.Constants;
+import com.digicube.fabric.client.model.BlueBlasterModel;
+import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
@@ -35,10 +37,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
     private final MegaFlameModel mouthFlame;
+    private final BlueBlasterModel blueBlaster;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
+        blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
         this.models = Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
@@ -52,6 +56,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
         super.submit(state, poseStack, collector, cameraState);
+        if (state.blueBlaster.length > 0.05F && state.attackDefinition != null) {
+            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
+            var frame = state.attackDefinition.motion().sample(tick);
+            var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
+            poseStack.pushPose();
+            poseStack.translate(mouth.x, mouth.y, mouth.z);
+            BlueBlasterRenderer.submit(blueBlaster, state.blueBlaster, poseStack, collector);
+            poseStack.popPose();
+        }
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
                 && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_SHOT) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
@@ -97,6 +110,30 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }
+        state.blueBlaster.length = 0;
+        if (entity.isAlive() && !state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
+                && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_STREAM) {
+            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
+            var motion = state.attackDefinition.motion();
+            if (tick >= motion.activeFrom() && tick < motion.activeUntil() + 1) {
+                var frame = motion.sample(tick);
+                var flame = state.blueBlaster;
+                flame.ageInTicks = tick - motion.activeFrom();
+                flame.yaw = state.bodyRot;
+                flame.pitch = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
+                flame.length = (float) entity.flameStream(state.attackDefinition, tick,
+                        state.attackAimPitch, state.bodyRot).length();
+                flame.outlineColor = state.outlineColor;
+            }
+        }
+    }
+
+    @Override
+    protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
+        AABB bounds = super.getBoundingBoxForCulling(entity);
+        var attack = entity.getAnimatingAttack();
+        return attack != null && attack.kind() == DigimonAttack.Kind.FLAME_STREAM
+                ? bounds.inflate(attack.range()) : bounds;
     }
 
     @Override

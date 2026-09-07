@@ -23,8 +23,14 @@ public final class SpeciesRegressionTest {
             var gabumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gabumon"));
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
-            check(gabumon.attacks().isEmpty() && gabumon.evolutions().isEmpty(),
-                    "Gabumon model release has no unauthored attacks or evolutions");
+            check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
+                            && gabumon.evolutions().isEmpty(), "Gabumon prioritizes fueled breath, then horn contact");
+            check(DigimonSpeciesBootstrap.BLUE_BLASTER.cooldownTicks() == 0
+                    && DigimonSpeciesBootstrap.BLUE_BLASTER.fuel().capacityTicks() == 80
+                    && DigimonSpeciesBootstrap.HORN_ATTACK.knockback() == 0,
+                    "Blue Blaster uses fuel and Horn Attack has no impulse");
+            FuelRegressionTest.run();
+            com.digicube.entity.FlameStreamRegressionTest.run();
             check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
                     && gabumon.body().dimensions().height() == 1.45F && gabumon.body().mount().isEmpty(),
                     "Gabumon uses its own non-rideable dimensions");

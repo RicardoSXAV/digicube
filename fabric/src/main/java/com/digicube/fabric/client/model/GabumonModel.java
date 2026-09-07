@@ -432,6 +432,18 @@ public class GabumonModel extends EntityModel<DigimonRenderState> {
     @Override
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
+        if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
+            var attack = this.animations.get(state.attackAnimationName);
+            if (attack != null) {
+                attack.apply(state.attackAnimation.getTimeInMillis(state.ageInTicks), 1.0F);
+                if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
+                    float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
+                    this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(tick).aimWeight() * Mth.DEG_TO_RAD;
+                }
+                return;
+            }
+        }
+
         float motion = Mth.clamp(state.walkAnimationSpeed * 2.5F, 0.0F, 1.0F);
         float running = Mth.clamp(state.runAnimationAmount, 0.0F, 1.0F);
         this.animations.get("walk").applyWalk(state.walkAnimationPos, motion * (1.0F - running), 2.5F, 1.0F);

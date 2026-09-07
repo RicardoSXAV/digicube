@@ -298,9 +298,9 @@ from 1.15× to 1.65× while his owner sprints, with a short visual walk/run blen
 The server controls this state; another player's sprint does not trigger it.
 Other species retain their existing follow behavior. Gabumon is a [Data Rookie](https://digimon.net/reference_en/detail.php?directory_name=gabumon)
 with starter stats matching Agumon. His model scale is 0.6, with a 0.95×1.45-block
-collision box. This release adds the model and locomotion; attacks, evolution
-branches and a dedicated party icon are not authored yet. The Digivice uses its
-existing fallback icon. Dedicated-server partner behavior should be checked too.
+collision box. His approved 32×32 party icon appears in the Digivice and party HUD;
+its source is `../harness/art/pixel_sprites/gabumon/sprite.json` (face v3).
+Evolution branches are not authored yet. Dedicated-server partner behavior should be checked too.
 
 The source is `../harness/digimon/gabumon_locomotion.py`. Approved idle, walk and run
 files live in `../harness/out/gabumon_locomotion/`; previous revisions are retained.
@@ -330,6 +330,63 @@ The optional species `locomotion` object supplies `follow_start_distance`,
 `follow_stop_distance`, `walk_speed` and `run_speed`. Speeds are navigation modifiers;
 equal values disable sprint-following. Omitting the object preserves the original
 10/3-block distances and 1.15× walking speed.
+
+#### Gabumon's attacks
+
+Gabumon prioritizes **Blue Blaster**: a half-second inhale followed by up to four
+seconds of continuous icy-blue flame, with an eight-block range. A narrow mouth jet
+opens into overlapping blue flame tongues that travel outward, expand, slow and
+break apart. Gabumon plants a staggered stance and aims his body and head at the
+target; yaw and pitch have turn limits. Living-entity yaw is used consistently by
+the model, flame renderer and damage geometry, including east/west headings.
+Individual tongues stop at terrain without stretching the whole plume. The damage
+volume widens from the mouth with the flame. Damage pulses every half second at 0.4× attack power;
+there is no burning, freezing status, terrain damage or hit knockback.
+
+Blue Blaster uses an individual fuel tank instead of a cooldown. Fuel drains only
+while emitting and refills while resting or using the horn. An exhausted tank needs
+six seconds to refill completely before firing again. An interrupted breath can
+resume with its remaining fuel; death, lost targets, obstructed shots and targets
+leaving range stop the stream. Fuel and the exhausted-tank lock survive saving,
+recalling and redeploying. The long attack timeline is synced for players who begin
+tracking Gabumon halfway through a breath.
+
+**Horn Attack** is the short-range fallback: brace, lower the horn, drive up to
+0.95 blocks, then recover. Its starting range is 0.65–2.3 blocks, cooldown is
+26 ticks (1.3 seconds), and animation lasts 22 ticks. The exported horn segment
+checks contact on ticks 7–12 and hits once per use at 0.7× attack power. Its damage
+type suppresses vanilla hurt knockback as well as the extra impulse Great Antler
+uses. Movement respects walls and unsupported drops.
+
+Use `/digicube give gabumon`, deploy him, and hit a nearby hostile mob. Watch the
+continuous blue breath, then horn strikes during recharge. Fight targets on every
+side of Gabumon, including east/west and above/below him. Also try a moving target,
+cover, allies in the stream, and recalling/redeploying during recharge. Existing
+Gabumon partners gain the attacks automatically. Dedicated-server combat is a manual
+check; the dev server's EULA must be accepted before it can open a world.
+
+The attack source is `../harness/digimon/gabumon_attacks.py`; flame geometry, pixel
+paint and flow animation are in `../harness/digimon/blue_blaster.py`. Through Blender
+MCP, run `../harness/blender/launch_gabumon_attacks.py`. It launches the reproducible
+`build_gabumon_attacks.py` export in a background Blender process, preserving the
+interactive scene and the approved idle/walk/run files. Copy `GabumonModel.java`,
+`GabumonAnimations.java` and both attack-motion JSON files from `out/gabumon_attacks/`,
+plus `BlueBlasterModel.java`, `BlueBlasterAnimations.java` and `blue_blaster.png` from
+`out/blue_blaster/`, to their corresponding mod model, motion and projectile-texture
+folders. Use this combined exporter for future Gabumon releases so attacks remain
+included alongside the approved locomotion.
+
+`build_blue_blaster.py` exports the flame alone; `preview_blue_blaster_v2.py` renders
+the current flame and aimed animation against a moving practice target. The older
+`preview_gabumon_attacks.py` retains the Horn Attack preview. Set `GABUMON_SCRIPT` to
+the desired script before running the launcher. Source references and the limits
+of the art-directed flow approximation are in `../harness/digimon/blue_blaster_research.md`.
+`tools/verify_gabumon_attacks.init.gradle` adds the
+`:fabric:verifyGabumonAttacks` task: compiled-model mouth/horn alignment at fractional
+ticks and varied aim, planted soles, usable horn range, idle reset and valid flame
+poses. It also verifies the actual flame renderer transform across 150 headings/pitches,
+target alignment at varied heights/ranges, and clipping individual tongues. Standard
+`build` includes common-side cardinal aim, plume volume, transport and fuel regressions.
 
 ### Greymon and riding
 

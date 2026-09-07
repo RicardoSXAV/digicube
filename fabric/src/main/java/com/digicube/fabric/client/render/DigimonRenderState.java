@@ -10,6 +10,7 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
     public final MegaFlameRenderState mouthFlame = new MegaFlameRenderState();
+    public final BlueBlasterRenderState blueBlaster = new BlueBlasterRenderState();
 
     public Identifier species = DigimonEntity.DEFAULT_SPECIES;
     public float modelScale = 0.75F;

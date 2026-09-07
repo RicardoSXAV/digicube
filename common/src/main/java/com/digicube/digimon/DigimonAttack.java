@@ -24,6 +24,8 @@ import java.util.Objects;
  * @param range          blocks; melee uses the vanilla reach test instead
  * @param alternateSides whether consecutive uses mirror the animation (left claw, right claw)
  * @param motion         optional Blender-exported origin, contact and movement profile
+ * @param fuel           fuel timing for a sustained attack, otherwise null
+ * @param knockback      extra impulse for horn contact; zero also suppresses vanilla hurt knockback
  */
 public record DigimonAttack(
         Identifier id,
@@ -34,7 +36,9 @@ public record DigimonAttack(
         int hitTick,
         double range,
         boolean alternateSides,
-        AttackMotion motion
+        AttackMotion motion,
+        AttackFuel fuel,
+        double knockback
 ) {
 
     public DigimonAttack {
@@ -43,13 +47,27 @@ public record DigimonAttack(
         if (hitTick < 0 || hitTick >= durationTicks) {
             throw new IllegalArgumentException(id + ": hitTick must lie inside the animation");
         }
-        if (cooldownTicks < durationTicks || power <= 0 || range < 0) {
+        if ((fuel == null ? cooldownTicks < durationTicks : cooldownTicks != 0)
+                || !Float.isFinite(power) || power <= 0 || !Double.isFinite(range) || range < 0
+                || !Double.isFinite(knockback) || knockback < 0) {
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
-        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM)
+        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
+        if ((kind == Kind.FLAME_STREAM) != (fuel != null)
+                || fuel != null && (motion.activeFrom() != hitTick
+                || motion.activeUntil() - motion.activeFrom() + 1 != fuel.capacityTicks())) {
+            throw new IllegalArgumentException(id + ": fuel must match the sustained motion interval");
+        }
+    }
+
+    /** Authored one-shot moves retain their original impulse. */
+    public DigimonAttack(Identifier id, Kind kind, float power, int cooldownTicks, int durationTicks,
+                         int hitTick, double range, boolean alternateSides, AttackMotion motion) {
+        this(id, kind, power, cooldownTicks, durationTicks, hitTick, range, alternateSides, motion,
+                null, kind == Kind.HORN_RAM ? 1.1 : 0.0);
     }
 
     /** Existing moves without authored contact trajectories. */
@@ -69,7 +87,9 @@ public record DigimonAttack(
         /** A large animated flame shot with an impact burst. */
         FLAME_SHOT,
         /** Collision-safe forward movement and swept contact along the authored horn. */
-        HORN_RAM
+        HORN_RAM,
+        /** Continuous non-burning flame, paid for with a per-entity fuel reserve. */
+        FLAME_STREAM
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -78,7 +98,7 @@ public record DigimonAttack(
     }
 
     public boolean isRanged() {
-        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT;
+        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT || kind == Kind.FLAME_STREAM;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */

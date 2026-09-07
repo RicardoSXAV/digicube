@@ -5,7 +5,7 @@
   "base_attack": 6,
   "base_defence": 4,
   "base_speed": 0.30,
-  "attacks": [],
+  "attacks": ["blue_blaster", "horn_attack"],
   "evolutions": [],
   "locomotion": {
     "follow_start_distance": 4.0,

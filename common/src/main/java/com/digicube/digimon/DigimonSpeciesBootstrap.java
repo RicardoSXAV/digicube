@@ -36,10 +36,22 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("great_antler"), DigimonAttack.Kind.HORN_RAM,
             1.15F, 50, 36, 11, 6.2, false, AttackMotion.load(Constants.id("great_antler")));
 
+    /** Four seconds of continuous blue flame, then six seconds to refill an empty tank. */
+    public static final DigimonAttack BLUE_BLASTER = new DigimonAttack(
+            Constants.id("blue_blaster"), DigimonAttack.Kind.FLAME_STREAM,
+            0.4F, 0, 100, 10, 8.0, false, AttackMotion.load(Constants.id("blue_blaster")),
+            new AttackFuel(80, 120, 10), 0.0);
+
+    /** A quick horn thrust, with no vanilla hurt impulse or extra knockback. */
+    public static final DigimonAttack HORN_ATTACK = new DigimonAttack(
+            Constants.id("horn_attack"), DigimonAttack.Kind.HORN_RAM,
+            0.7F, 26, 22, 7, 2.3, false, AttackMotion.load(Constants.id("horn_attack")), null, 0.0);
+
     public static void registerBuiltIn() {
         var species = BundledSpeciesLoader.load(Map.of(
                 PEPPER_BREATH.id(), PEPPER_BREATH, CLAW.id(), CLAW, BUBBLE_BLOW.id(), BUBBLE_BLOW,
-                MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER));
+                MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER,
+                BLUE_BLASTER.id(), BLUE_BLASTER, HORN_ATTACK.id(), HORN_ATTACK));
         species.forEach(DigimonSpeciesRegistry::register);
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());
