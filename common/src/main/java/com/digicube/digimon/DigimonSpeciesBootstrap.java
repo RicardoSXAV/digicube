@@ -47,11 +47,22 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("horn_attack"), DigimonAttack.Kind.HORN_RAM,
             0.7F, 26, 22, 7, 2.3, false, AttackMotion.load(Constants.id("horn_attack")), null, 0.0);
 
+    /** Gomamon gathers a homing school into a wave: modest damage, substantial displacement. */
+    public static final DigimonAttack MARCHING_FISHES = new DigimonAttack(
+            Constants.id("marching_fishes"), DigimonAttack.Kind.WATER_WAVE,
+            0.55F, 90, 32, 14, 11.0, false, AttackMotion.load(Constants.id("marching_fishes")), null, 1.35);
+
+    /** A quick alternating paw rake, with enough recovery for a clean planted pose. */
+    public static final DigimonAttack CLAW_ATTACK = new DigimonAttack(
+            Constants.id("claw_attack"), DigimonAttack.Kind.MELEE,
+            0.65F, 22, 16, 6, 0.0, true);
+
     public static void registerBuiltIn() {
         var species = BundledSpeciesLoader.load(Map.of(
                 PEPPER_BREATH.id(), PEPPER_BREATH, CLAW.id(), CLAW, BUBBLE_BLOW.id(), BUBBLE_BLOW,
                 MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER,
-                BLUE_BLASTER.id(), BLUE_BLASTER, HORN_ATTACK.id(), HORN_ATTACK));
+                BLUE_BLASTER.id(), BLUE_BLASTER, HORN_ATTACK.id(), HORN_ATTACK,
+                MARCHING_FISHES.id(), MARCHING_FISHES, CLAW_ATTACK.id(), CLAW_ATTACK));
         species.forEach(DigimonSpeciesRegistry::register);
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());

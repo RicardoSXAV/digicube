@@ -5,7 +5,10 @@
   "base_attack": 5,
   "base_defence": 5,
   "base_speed": 0.055,
-  "attacks": [],
+  "attacks": [
+    "digicube:marching_fishes",
+    "digicube:claw_attack"
+  ],
   "evolutions": [],
   "locomotion": {
     "follow_start_distance": 3.5,

@@ -52,7 +52,7 @@ public record DigimonAttack(
                 || !Double.isFinite(knockback) || knockback < 0) {
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
-        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM)
+        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
@@ -89,7 +89,9 @@ public record DigimonAttack(
         /** Collision-safe forward movement and swept contact along the authored horn. */
         HORN_RAM,
         /** Continuous non-burning flame, paid for with a per-entity fuel reserve. */
-        FLAME_STREAM
+        FLAME_STREAM,
+        /** A broad homing wave carrying fish, with a single low-damage knockback impact. */
+        WATER_WAVE
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -98,7 +100,8 @@ public record DigimonAttack(
     }
 
     public boolean isRanged() {
-        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT || kind == Kind.FLAME_STREAM;
+        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
+                || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */

@@ -590,7 +590,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             case MELEE -> isWithinMeleeAttackRange(target);
             case FIREBALL, BUBBLES -> distanceToSqr(target) <= attack.range() * attack.range()
                     && getSensing().hasLineOfSight(target);
-            case FLAME_SHOT, HORN_RAM, FLAME_STREAM -> distanceToSqr(target) <= attack.range() * attack.range()
+            case FLAME_SHOT, HORN_RAM, FLAME_STREAM, WATER_WAVE -> distanceToSqr(target) <= attack.range() * attack.range()
                     && distanceToSqr(target) >= attack.motion().minimumRange() * attack.motion().minimumRange()
                     && getSensing().hasLineOfSight(target) && (attack.isRanged() || onGround());
         };
@@ -601,6 +601,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * @return minimum usable distance in blocks, or zero for ordinary melee
      */
     public double minimumAttackSpacing() {
+        if (attacks().stream().anyMatch(a -> a.kind() == DigimonAttack.Kind.MELEE)) return 0.0;
         return attacks().stream().filter(a -> a.motion() != null)
                 .mapToDouble(a -> a.motion().minimumRange()).min().orElse(0.0);
     }
@@ -634,7 +635,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         } else if (attack.motion() != null) {
             aimAuthoredAttack();
             level().playSound(null, getX(), getY(), getZ(),
-                    attack.fuel() != null ? SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE : SoundEvents.RAVAGER_AMBIENT,
+                    attack.fuel() != null || attack.kind() == DigimonAttack.Kind.WATER_WAVE
+                            ? SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE : SoundEvents.RAVAGER_AMBIENT,
                     SoundSource.NEUTRAL, 0.65F, attack.fuel() != null ? 1.4F : 0.72F);
         }
         if (attack.fuel() != null) {
@@ -777,6 +779,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             Vec3 origin = authoredPoint(release.mouth());
             authoredAimPoint = activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT
                     ? PepperBreathEntity.predictImpactPoint(attackTarget, origin, MegaFlameEntity.SPEED, MegaFlameEntity.MAX_AIM_LEAD)
+                    : activeAttack.kind() == DigimonAttack.Kind.WATER_WAVE
+                    ? MarchingFishesEntity.aimPoint(attackTarget, origin)
                     : attackTarget.getBoundingBox().getCenter();
             Vec3 direction = authoredAimPoint.subtract(position());
             if (direction.horizontalDistanceSqr() > 1.0E-8) {
@@ -910,7 +914,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         switch (attack.kind()) {
             case MELEE -> {
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.NEUTRAL, 0.8F, 1.1F);
-                if (target == null || !target.isAlive() || !isWithinMeleeAttackRange(target)) {
+                if (target == null || !target.isAlive() || !canAttack(target) || isAllyOf(target)
+                        || !isWithinMeleeAttackRange(target) || !getSensing().hasLineOfSight(target)) {
                     return;
                 }
                 if (target.hurtServer(level, damageSources().mobAttack(this), damageAgainst(attack, target))) {
@@ -963,6 +968,24 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (obstruction.getType() != HitResult.Type.MISS) flame.burst(level);
                 level.playSound(null, mouth.x, mouth.y, mouth.z, SoundEvents.BLAZE_SHOOT,
                         SoundSource.NEUTRAL, 1.4F, 0.65F);
+            }
+            case WATER_WAVE -> {
+                AttackMotion.Frame frame = attack.motion().sample(attackTick);
+                Vec3 origin = authoredPoint(frame.mouth());
+                HitResult obstruction = level.clip(new ClipContext(authoredPoint(frame.head()), origin,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+                if (obstruction.getType() != HitResult.Type.MISS) origin = obstruction.getLocation();
+                Vec3 aim = authoredAimPoint != null ? authoredAimPoint : origin.add(getViewVector(1).scale(8));
+                Vec3 direction = aim.subtract(origin);
+                MarchingFishesEntity wave = new MarchingFishesEntity(level, this, origin,
+                        damageAgainst(attack, null), attack.knockback(), target);
+                wave.shoot(direction.x, direction.y, direction.z, MarchingFishesEntity.SPEED, 0.0F);
+                level.addFreshEntity(wave);
+                if (obstruction.getType() != HitResult.Type.MISS) wave.splash(level, false);
+                level.playSound(null, origin.x, origin.y, origin.z, SoundEvents.PLAYER_SPLASH_HIGH_SPEED,
+                        SoundSource.NEUTRAL, 0.85F, 1.25F);
+                level.sendParticles(ParticleTypes.SPLASH, origin.x, origin.y, origin.z,
+                        18, 0.5, 0.15, 0.3, 0.08);
             }
             case HORN_RAM, FLAME_STREAM -> { /* Continuous contact is evaluated by the timeline. */ }
         }

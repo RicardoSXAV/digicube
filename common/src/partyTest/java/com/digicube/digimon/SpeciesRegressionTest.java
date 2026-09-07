@@ -24,8 +24,10 @@ public final class SpeciesRegressionTest {
             check(gomamon.locomotion().canSwim() && gomamon.locomotion().swimSpeed() == .46
                             && !gomamon.locomotion().canRun() && gomamon.baseSpeed() < .06F,
                     "Gomamon crawls on land and has independently configured fast swimming");
-            check(gomamon.attacks().isEmpty() && gomamon.body().mount().isEmpty(),
-                    "Gomamon enables only its authored locomotion and is not rideable");
+            check(gomamon.attacks().equals(List.of(DigimonSpeciesBootstrap.MARCHING_FISHES, DigimonSpeciesBootstrap.CLAW_ATTACK))
+                            && gomamon.body().mount().isEmpty(),
+                    "Gomamon prioritizes the fish wave, then alternating claws, and is not rideable");
+            com.digicube.entity.MarchingFishesRegressionTest.run();
             var koromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("koromon"));
             var tsunomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tsunomon"));
             var gabumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gabumon"));

@@ -11,6 +11,8 @@ import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
 import com.digicube.fabric.client.model.BubbleBlowModel;
 import com.digicube.fabric.client.model.MegaFlameModel;
+import com.digicube.fabric.client.model.MarchingFishesModel;
+import com.digicube.fabric.client.render.MarchingFishesRenderer;
 import com.digicube.fabric.client.model.BlueBlasterModel;
 import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
@@ -41,12 +43,14 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(GreymonModel.LAYER, GreymonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(MarchingFishesModel.LAYER, MarchingFishesModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.MARCHING_FISHES, MarchingFishesRenderer::new);
 
         Constants.LOG.info("DigiCube client initialised.");
     }

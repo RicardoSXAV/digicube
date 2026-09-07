@@ -445,12 +445,47 @@ multiplier `0.55`. Missing swim speed keeps the existing land behavior.
 Authoring source: `../harness/digimon/gomamon_swim.py`. The approved native model and
 walk, glide and swim files are in `../harness/out/gomamon_swim/`, including the review
 GIFs. Export the saved Blender files with
-`../harness/blender/export_gomamon_release.py`; it preserves native faces and UVs.
+`../harness/blender/build_gomamon_attacks.py`; it includes the native locomotion
+export and preserves native faces and UVs while adding the attack clips.
 Run `gradlew.bat --init-script ../harness/tools/gomamon-verification.gradle build
 :fabric:verifyGomamon` to check native-to-compiled poses, transitions and idle reset.
 In game, check following on dry ground, diving into deep water, turning, stopping,
 surfacing and returning up a bank. Dedicated-server aquatic movement also needs a
 manual check after the dev server's EULA is accepted.
+
+#### Gomamon's attacks
+
+**Marching Fishes** sends a curling turquoise wave containing five original red,
+yellow, pink, blue and green fish. Their tails and fins swim independently inside
+the translucent crest; a broken foam lip, spray and wake follow the wave. On impact
+the fish scatter and the water collapses into a fading splash. Gomamon gathers with
+both paws, throws on tick 14, and settles over a 32-tick performance. The move has an
+11-block starting range and a 90-tick cooldown. It deals 0.55× attack damage with
+1.35 knockback, applying damage once to visible nearby opponents.
+
+The full 2.2×1.25-block wave sweeps against enemies and block collision shapes. It
+leads moving targets, turns by up to five degrees per tick, and expires after two
+seconds of flight. Walls, its tamer and allies are protected; it does not place water,
+ignite entities or alter terrain. Terrain contact produces a harmless splash.
+
+**Claw Attack** is the close-range fallback: lift, rake inward and recover, alternating
+paws on successive uses. It hits on tick 6 of a 16-tick animation, has a 22-tick
+cooldown, and deals 0.65× attack damage. Attack entry and recovery blend with his
+existing walk and swim poses. Existing Gomamon partners gain both attacks.
+
+Use `/digicube give gomamon`, deploy him, and hit a nearby hostile mob. Try moving
+targets at 4–10 blocks, then close combat during the wave cooldown. Also check water,
+walls and corners, small mobs, allies near the wave, and recalling/redeploying during
+cooldown. Dedicated-server combat remains a manual check after accepting its EULA.
+
+Attack sources: `../harness/digimon/gomamon_attacks.py` and
+`../harness/digimon/marching_fishes.py`. Rebuild with Blender MCP using
+`blender/build_gomamon_attacks.py` and `blender/build_marching_fishes.py`; inspect
+their saved scenes and full-motion filmstrips under `out/gomamon_attacks/` and
+`out/marching_fishes/`. `blender/preview_gomamon_attacks.py` creates the combined scene.
+Run `gradlew.bat --init-script ../harness/tools/verify_gomamon_attacks.init.gradle
+:fabric:verifyGomamonAttacks` to compare compiled locomotion, attack curves, blends
+and reset poses against Blender. `build` also checks wave steering and collision.
 
 ### Greymon and riding
 
