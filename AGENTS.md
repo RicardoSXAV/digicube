@@ -79,7 +79,11 @@ digicube/
 │       ├── java/com/digicube/
 │       │   ├── Constants.java          <- MOD_ID, LOG, id() helper
 │       │   ├── DigiCube.java           <- shared entry point
-│       │   ├── digimon/                <- the domain model (species, stages, evolution)
+│       │   ├── digimon/                <- the domain model (species, stages, evolution, progression)
+│       │   ├── entity/                 <- DigimonEntity, projectiles, AI goals
+│       │   ├── party/                  <- Digivice collection, party slots, sync payloads
+│       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
+│       │   ├── command/                <- /digicube commands
 │       │   ├── registry/               <- DCItems, DCBlocks, DCEntityTypes, ...
 │       │   ├── platform/               <- ServiceLoader bridge to loader features
 │       │   └── mixin/                  <- cross-loader mixins (last resort)
@@ -107,6 +111,11 @@ digicube/
 `buildSrc/src/main/groovy/multiloader-loader.gradle` feeds `common`'s *source files*
 into the Fabric compile task, so `fabric/build/libs/digicube-fabric-26.2.jar` is a
 single standalone jar. That is why there is no "common jar" to ship.
+
+**Design documents live outside the repository.** Mechanics designs (balance tables,
+spawn rules, research) sit in `../design/`, a sibling of `digicube/` like `../harness`,
+and are never committed. Read the relevant one before implementing a feature and update
+it when a decision changes.
 
 ---
 
@@ -278,12 +287,27 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   hits before `super.tick()`, and bend a few degrees per tick toward the target while it
   stays ahead. Tune those constants before touching speed or hitbox size.
 
+- Progression: every balance number of levels and XP (the curve, stage yields, the
+  level-gap multiplier, stat scaling and the damage-proportional split) lives in
+  `Progression`, next to the attribute triangle, and `:common:progressionTest` asserts
+  the tables in `../design/wild-spawns-and-progression.md`. Never put a balance
+  constant anywhere else. `DigimonEntity` holds `level` and `xp`; a wild Digimon's
+  `DamageLedger` records the health it lost to each partner, and `ExperienceAward`
+  splits the yield at the end of `hurtServer` on the killing blow (vanilla calls `die`
+  from inside `hurtServer`, before the last hit could be recorded).
+- Wild spawning is data too: `data/digicube/spawn_tables.json` lists one
+  `data/digicube/spawn_table/<dimension>.json` per dimension, loaded and validated at
+  startup by `BundledSpawnTableLoader` and covered by `:common:spawnTableTest`.
+  `WildSpawner.tick` is loader-neutral and runs from the loader's end-of-level-tick
+  hook; its settings are the `digicube:wild` saved data edited with `/digicube wild`.
+  Wild Digimon are neutral: they only retaliate, and only attack-less species flee.
+
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at
 startup. Add species as data; do not add species constructors to
 `DigimonSpeciesBootstrap`. Attack ids reference shared moves in the bootstrap, in
 priority order. The next architectural step is datapack reload support plus server
-catalog synchronization; the current classpath loader does not process `/reload`.
+catalog synchronization; the current classpath loaders do not process `/reload`.
 
 ---
 

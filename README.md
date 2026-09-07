@@ -574,6 +574,66 @@ against the exported mouth and horn markers at fractional ticks, checks the atta
 order/cooldowns/range, flame clips, idle reset and the rider seat during late attack
 events. `tools/verify_greymon.init.gradle` retains the approved walk and mount checks.
 
+### Wild Digimon, levels and XP
+
+Every Digimon has a level (1–50) and XP, and species base stats now reach the
+entity: max health is `base_health × (1 + 0.04 × (level − 1))` and attack is
+`base_attack × (1 + 0.03 × (level − 1))`, so a Koromon and a Greymon finally differ
+in health and damage. Partners saved before this change load at level 1. The
+design, balance tables and the multiplayer research behind them are in
+[../design/wild-spawns-and-progression.md](../design/wild-spawns-and-progression.md),
+kept beside the repository like the harness;
+every constant lives in `Progression` and `:common:progressionTest` reproduces the tables.
+
+XP comes only from defeating wild (unowned) Digimon. A wild Digimon keeps a ledger
+of the health it lost to each partner. When it dies, its yield
+(`stageYield × (level + 4) / 2`, times a level-gap multiplier between 0.25 and 1.5
+for each partner) is split in proportion to the damage each partner dealt, never
+below 1 XP per contributor. Contributors must be alive, within 64 blocks and have
+hit within the last 60 seconds. The tamer's own hits earn no XP. A level-up plays
+the vanilla level-up sound and a burst of green particles, heals the health gained
+and tells the owner in chat. Wild Digimon also drop a few vanilla orbs for the
+tamer whose partner hit them.
+
+Wild Digimon spawn on their own: once every 20 seconds per dimension, 24 to 48
+blocks from a random player, from `data/digicube/spawn_table/overworld.json`. Each
+entry names a species, a weight, a level range, a pack size, biomes (ids or
+`#tags`), `land` or `water` placement and `any`, `day` or `night`. Tables are listed
+in `data/digicube/spawn_tables.json` and validated at startup. At most 4 wild Digimon
+per player and 24 per dimension exist at once; spawning respects the `spawn_mobs`
+game rule and wild Digimon despawn like animals. They are neutral: they never start
+a fight, a species with attacks retaliates when hurt, and a species without attacks
+flees. Garurumon is not in the table until it has attacks. Wild Digimon carry a
+`Lv 7 Koromon` nameplate; the party HUD shows `Lv7` beside each icon and the
+Digivice card and tooltip show level and XP progress.
+
+Operator commands:
+
+```
+/digicube spawn koromon 3          wild level-3 Koromon at your feet; it stays put
+/digicube give agumon 5            level-5 Agumon partner; or /digicube give agumon <player> <level>
+/digicube level @e[type=digicube:digimon,distance=..5] 12
+/digicube xp @e[type=digicube:digimon,distance=..5] 100
+/digicube wild status              settings, wild count, cap and the last attempt's outcome
+/digicube wild on|off              toggle spawning; saved per world
+/digicube wild interval 200        one attempt every 200 ticks (minimum 20)
+/digicube wild cap 4 24            per player, per dimension
+/digicube wild distance 24 48      the spawn ring around the anchor player
+/digicube wild try                 force one attempt and report why it did or did not spawn
+/digicube wild clear               remove every wild Digimon in this dimension
+/digicube wild debug on|off        log every attempt
+```
+
+To test: `/digicube give agumon`, then `/digicube spawn koromon 3` and hit the
+Koromon once so Agumon joins in. A few Koromon should level Agumon, with the sound,
+particles and chat line; the HUD level and the Digivice tooltip follow. Walk through
+plains, forest, taiga, savanna and along a coast for natural spawns, and run
+`/digicube wild status` when nothing appears: it names the failing step. Levels must
+survive a save and reload and a Digivice recall. On a dedicated server, two players'
+partners hitting the same wild Digimon should split its XP by damage dealt; that
+remains a manual check after the server EULA is accepted. `:common:progressionTest`
+and `:common:spawnTableTest` run as part of `build`.
+
 ## 4. How the project is organised
 
 ```
@@ -617,15 +677,17 @@ Working:
   through DigiCube, Tools & Utilities and Search Items
 - Persistent Digivice collection, three active party slots, and a matching pixel-icon HUD
 - Digimon domain model: species, stages, attributes with a damage triangle, evolution branches
-- Five species (Koromon, Tsunomon, Agumon, Gabumon, Greymon), loaded from bundled JSON sheets
+- Seven species (Koromon, Tsunomon, Agumon, Gabumon, Garurumon, Gomamon, Greymon), loaded from bundled JSON sheets
 - Owned partner entities that follow their tamers and join combat
+- Levels and XP: species stats scale with level, and defeating wild Digimon splits XP by damage dealt
+- Neutral wild Digimon spawning from bundled spawn tables, controlled with `/digicube wild`
 - Harness-authored models and animations rendered with Minecraft's native model API
 - A working mixin, as proof the pipeline runs
 - CI that builds on every push
 
 Not built yet, roughly in the order it should be tackled:
 
-1. **Datapack species reload and synchronization**, extending the bundled JSON loader.
-2. **Raising and training** — individual levels, bond and training progression for partners.
-3. **The evolution engine** — evaluating `Evolution` branches and swapping species at runtime.
-4. **Taming and DigiEggs**, beyond the existing spawn/give commands.
+1. **Datapack reload and synchronization** for species and spawn tables, extending the bundled JSON loaders.
+2. **Raising and training** — bond, weight and training progression for partners, on top of levels.
+3. **The evolution engine** — evaluating `Evolution` branches (`min_level` is now meaningful) and swapping species at runtime.
+4. **Taming and DigiEggs**, beyond the existing spawn/give commands and wild spawns.
