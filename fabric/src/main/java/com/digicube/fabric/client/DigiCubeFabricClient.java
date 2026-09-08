@@ -2,6 +2,7 @@ package com.digicube.fabric.client;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.party.PartyClient;
+import com.digicube.fabric.client.starter.StarterClient;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
@@ -34,6 +35,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         new PartyClient().init();
+        new StarterClient().init();
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);

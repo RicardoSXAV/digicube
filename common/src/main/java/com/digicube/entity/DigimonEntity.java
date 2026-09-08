@@ -180,6 +180,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private float swimBank;
     private float landWaterMalus;
     private float landWaterBorderMalus;
+    /** Client only: a preview drawn inside a screen, never in the level. Transient, never saved or synced. */
+    private boolean guiPreview;
 
     public DigimonEntity(EntityType<? extends DigimonEntity> type, Level level) {
         super(type, level);
@@ -662,10 +664,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return getSpecies().map(species -> Progression.stageYield(species.stage()) / 2).orElse(0);
     }
 
-    /** Wild Digimon always show a nameplate; the renderer prefixes it with the level. */
+    /** Wild Digimon always show a nameplate; the renderer prefixes it with the level. GUI previews show none. */
     @Override
     public boolean shouldShowName() {
-        return !isOwned() || super.shouldShowName();
+        return !guiPreview && (!isOwned() || super.shouldShowName());
+    }
+
+    /** Marks this entity as a screen preview: no nameplate, no shadow. It must never be added to a level. */
+    public void markGuiPreview() {
+        guiPreview = true;
+    }
+
+    public boolean isGuiPreview() {
+        return guiPreview;
     }
 
     /**

@@ -116,6 +116,11 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
         state.swimBank = entity.getSwimBank(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
+        if (entity.isGuiPreview()) {
+            // A screen preview: no nameplate, no shadow, and nothing of the level around it.
+            state.nameTag = null;
+            state.shadowRadius = 0;
+        }
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
         state.attackDefinition = entity.getAnimatingAttack();
