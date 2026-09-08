@@ -4,6 +4,15 @@ Rules and conventions for anyone (human or AI) writing code in this repository.
 Read this before touching anything. If a rule here conflicts with a habit from
 another Minecraft project, **this file wins**.
 
+For Blender/model/animation work, first read
+[the shared Blender session instructions](C:/Users/Administrador/Desktop/Coding/harness/BLENDER_SESSIONS.md).
+Claim a task-owned session with the canonical harness `tools/blender_slots.py`;
+it atomically assigns `blender_a` on 9877 or `blender_b` on 9878 using the current
+Codex task ID. Use only that connection and its ownership guards, then save and
+release it before handing work back. Never use the old shared `blender:9876`
+connection or another task's slot. Use the canonical harness paths even from a
+Git worktree so all chats coordinate through the same reservation registry.
+
 ---
 
 ## 1. What this project is
