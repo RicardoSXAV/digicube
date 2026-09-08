@@ -83,6 +83,7 @@ digicube/
 │       │   ├── entity/                 <- DigimonEntity, projectiles, AI goals
 │       │   ├── party/                  <- Digivice collection, party slots, sync payloads
 │       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
+│       │   ├── starter/                <- first-partner prompt: starter set, saved data, flow, payloads
 │       │   ├── command/                <- /digicube commands
 │       │   ├── registry/               <- DCItems, DCBlocks, DCEntityTypes, ...
 │       │   ├── platform/               <- ServiceLoader bridge to loader features
@@ -99,6 +100,8 @@ digicube/
         ├── java/com/digicube/fabric/
         │   ├── DigiCubeFabric.java              <- main entry point
         │   ├── client/DigiCubeFabricClient.java <- client-only entry point
+        │   ├── client/gui/                      <- the DigiCube GUI language: DigiTheme, DigiPanels, DigimonPreview
+        │   ├── client/starter/                  <- the Partner Link screen and its client gate
         │   ├── platform/FabricPlatformHelper.java
         │   └── mixin/                           <- Fabric-only mixins
         └── resources/
@@ -301,6 +304,22 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `WildSpawner.tick` is loader-neutral and runs from the loader's end-of-level-tick
   hook; its settings are the `digicube:wild` saved data edited with `/digicube wild`.
   Wild Digimon are neutral: they only retaliate, and only attack-less species flee.
+- The first partner is a prompt, not a command: `StarterFlow` (common) decides
+  eligibility (not a spectator, no `digicube:starters` record, no owned Digimon), writes
+  the record first and then grants through `PartyManager.give`; the candidates and their
+  level are `data/digicube/starters.json`, loaded by `StarterSet`. Common code sends
+  payloads through `Services.PLATFORM.sendToPlayer`, so a command can open the prompt
+  without a loader import. The Fabric adapter only registers payloads and join/leave
+  hooks. `:common:starterTest` covers the rules; the `/digicube` root has no permission
+  requirement, each operator subcommand carries its own.
+- Screens follow the DigiCube GUI language in `fabric/.../client/gui/`: `DigiTheme`
+  holds every colour and knob, `DigiPanels` draws chamfered frames, brackets, the data
+  grid, data squares, platforms and buttons with `fill` only, and `DigimonPreview` draws
+  a client-side `DigimonEntity` (never added to the level, never ticked; the screen bumps
+  its `tickCount`, `markGuiPreview()` hides nameplate and shadow) through
+  `GuiGraphicsExtractor.entity`. Widgets extend `AbstractButton` for focus and narration;
+  screens do not pause; layouts are integer GUI units validated at 320 × 240. The
+  Digivice screen and party HUD keep `PartyGraphics` until the language is approved.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at

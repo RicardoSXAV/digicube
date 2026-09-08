@@ -634,6 +634,49 @@ partners hitting the same wild Digimon should split its XP by damage dealt; that
 remains a manual check after the server EULA is accepted. `:common:progressionTest`
 and `:common:spawnTableTest` run as part of `build`.
 
+### Choosing your first partner
+
+A player who enters a world for the first time is asked to choose a partner about a
+second after the terrain appears: the **Partner Link** panel opens in the middle of a
+still-visible world. One viewport shows a living 3D model on a lit platform, turning
+slowly, with its name and kind beside it; a strip of icon tiles underneath lists the
+candidates (Agumon, Gabumon, Gomamon), and pages with arrows once there are more than
+six. Hover a tile to preview it, click it (or press **1**, **2**, **3**) to select, then
+press **Link with …** (or Enter) to confirm. Hovering the viewport makes the Digimon
+face you and follow the cursor. The partner joins the party at level 1 through the
+normal deployment, the HUD tile fills and chat says who your partner is. **Esc** or the
+corner cross puts the choice off: chat shows a clickable `/digicube starter` that
+reopens the prompt, and it returns on the next join anyway. Server answers, such as a
+refused choice, appear in amber under the panel. The world keeps running behind the
+panel; Tab and the arrow keys move between tiles, and the vanilla narrator reads them.
+
+The prompt is shown to survival, adventure and creative players who have no starter
+record in this world and own no Digimon at all, so existing worlds where partners came
+from `/digicube give` stay quiet. Spectators are skipped. One starter per player per
+world; the choice is validated server-side and stored in the `digicube:starters` saved
+data. The candidates and their level come from `data/digicube/starters.json`.
+
+The screen is also the pilot of the DigiCube GUI language, drawn entirely with
+primitives from `fabric/.../client/gui/DigiTheme` (colours and knobs) and `DigiPanels`
+(chamfered frames, corner brackets, the green data grid, breathing blue data squares,
+platforms, buttons). The design, the layout rules and what to judge in game are in
+[../design/starter-selection-and-gui-language.md](../design/starter-selection-and-gui-language.md),
+kept beside the repository. The Digivice screen keeps its old look until this one is
+approved.
+
+```
+/digicube starter                  reopen the choice while still eligible (everyone)
+/digicube starter open [player]    operator: offer it even to a player who already has partners
+/digicube starter reset <player>   operator: forget the choice so it can be made again
+/digicube starter list             operator: who chose what
+```
+
+To test: create a new world and wait a second; the screen should appear once. In an
+existing dev world run `/digicube starter open` to force it. Try Esc and the chat
+link, keyboard-only selection, a resize while it is open, and choosing while a mob is
+nearby. On a dedicated server each player gets their own prompt. `:common:starterTest`
+runs as part of `build`.
+
 ## 4. How the project is organised
 
 ```
@@ -681,6 +724,7 @@ Working:
 - Owned partner entities that follow their tamers and join combat
 - Levels and XP: species stats scale with level, and defeating wild Digimon splits XP by damage dealt
 - Neutral wild Digimon spawning from bundled spawn tables, controlled with `/digicube wild`
+- A first-partner prompt on entering a world, and the Partner Link screen that pilots the DigiCube GUI language
 - Harness-authored models and animations rendered with Minecraft's native model API
 - A working mixin, as proof the pipeline runs
 - CI that builds on every push
