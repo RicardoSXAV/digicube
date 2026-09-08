@@ -4,6 +4,7 @@ import com.digicube.DigiCube;
 import com.digicube.command.DigiCubeCommands;
 import com.digicube.fabric.party.FabricPartyNetworking;
 import com.digicube.fabric.registry.DCCreativeTabs;
+import com.digicube.fabric.starter.FabricStarterNetworking;
 import com.digicube.spawn.WildSpawner;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -22,6 +23,7 @@ public class DigiCubeFabric implements ModInitializer {
         DigiCube.init();
         DCCreativeTabs.init();
         FabricPartyNetworking.init();
+        FabricStarterNetworking.init();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 DigiCubeCommands.register(dispatcher));

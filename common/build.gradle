@@ -118,3 +118,16 @@ tasks.register('spawnTableTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('spawnTableTest') }
+
+// Covers the starter set, its saved data, the eligibility and choice rules and the payloads.
+tasks.register('starterTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.starter.StarterRegressionTest'
+    workingDir = layout.buildDirectory.dir('starter-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('starterTest') }

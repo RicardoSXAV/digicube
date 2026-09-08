@@ -7,6 +7,7 @@ import com.digicube.platform.Services;
 import com.digicube.registry.DCEntityTypes;
 import com.digicube.registry.DCItems;
 import com.digicube.spawn.SpawnTables;
+import com.digicube.starter.StarterSet;
 
 /**
  * Shared entry point. Both loader modules call {@link #init()} from their own
@@ -32,6 +33,8 @@ public final class DigiCube {
         DigimonSpeciesBootstrap.registerBuiltIn();
         // Spawn tables reference species, so they load second.
         SpawnTables.registerBuiltIn();
+        // So does the starter set.
+        StarterSet.registerBuiltIn();
 
         Constants.LOG.info("{} ready with {} species and {} wild spawn tables.",
                 Constants.MOD_NAME, DigimonSpeciesRegistry.size(), SpawnTables.size());

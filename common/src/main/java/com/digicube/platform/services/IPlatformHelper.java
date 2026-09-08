@@ -1,5 +1,7 @@
 package com.digicube.platform.services;
 
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -33,4 +35,10 @@ public interface IPlatformHelper {
      * Vanilla keeps these in an immutable map, so each loader exposes its own hook.
      */
     void registerEntityAttributes(EntityType<? extends LivingEntity> type, AttributeSupplier.Builder attributes);
+
+    /**
+     * Sends a custom payload to one player, if that client registered its channel. Each
+     * loader owns the transport; common code only builds payload records.
+     */
+    void sendToPlayer(ServerPlayer player, CustomPacketPayload payload);
 }

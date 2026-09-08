@@ -1,0 +1,8 @@
+{
+  "level": 1,
+  "starters": [
+    "digicube:agumon",
+    "digicube:gabumon",
+    "digicube:gomamon"
+  ]
+}

@@ -11,11 +11,14 @@ import com.digicube.registry.DCEntityTypes;
 import com.digicube.spawn.SpawnAttempt;
 import com.digicube.spawn.WildSpawnSettings;
 import com.digicube.spawn.WildSpawner;
+import com.digicube.starter.StarterFlow;
+import com.digicube.starter.StarterSavedData;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -32,12 +35,17 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
- * DigiCube's operator commands. Loader modules hand us their dispatcher; everything
- * else is plain Brigadier and stays here.
+ * DigiCube's commands. Loader modules hand us their dispatcher; everything else is
+ * plain Brigadier and stays here. Everything but {@code starter} needs operator rights.
  *
  * <pre>
+ * /digicube starter                          reopen the first-partner choice while still eligible (everyone)
+ * /digicube starter open [player]            operator: offer it even to a player who already has partners
+ * /digicube starter reset &lt;player&gt;          operator: forget the choice so it can be made again
+ * /digicube starter list                     operator: who chose what
  * /digicube spawn &lt;species&gt; [level]            wild Digimon at the caller's feet; it stays put
  * /digicube give &lt;species&gt; [player [level]]   partner for a player, default the caller
  * /digicube level &lt;targets&gt; &lt;level&gt;         set the level, reset XP, restore full health
@@ -50,14 +58,17 @@ public final class DigiCubeCommands {
     private DigiCubeCommands() {}
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        // The root is open so /digicube starter works for everyone; a child cannot loosen
+        // a parent's requirement, so each operator branch carries its own.
         dispatcher.register(Commands.literal("digicube")
-                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.literal("spawn")
+                        .requires(operator())
                         .then(speciesArgument()
                                 .executes(context -> spawn(context, Progression.MIN_LEVEL))
                                 .then(levelArgument()
                                         .executes(context -> spawn(context, IntegerArgumentType.getInteger(context, "level"))))))
                 .then(Commands.literal("give")
+                        .requires(operator())
                         .then(speciesArgument()
                                 .executes(context -> give(context, context.getSource().getPlayerOrException(), Progression.MIN_LEVEL))
                                 .then(Commands.argument("player", EntityArgument.player())
@@ -66,20 +77,45 @@ public final class DigiCubeCommands {
                                                 .executes(context -> give(context, EntityArgument.getPlayer(context, "player"),
                                                         IntegerArgumentType.getInteger(context, "level")))))))
                 .then(Commands.literal("level")
+                        .requires(operator())
                         .then(Commands.argument("targets", EntityArgument.entities())
                                 .then(levelArgument()
                                         .executes(context -> level(context.getSource(), EntityArgument.getEntities(context, "targets"),
                                                 IntegerArgumentType.getInteger(context, "level"))))))
                 .then(Commands.literal("xp")
+                        .requires(operator())
                         .then(Commands.argument("targets", EntityArgument.entities())
                                 .then(Commands.argument("amount", IntegerArgumentType.integer(1))
                                         .executes(context -> xp(context.getSource(), EntityArgument.getEntities(context, "targets"),
                                                 IntegerArgumentType.getInteger(context, "amount"))))))
-                .then(wild()));
+                .then(wild())
+                .then(starter()));
+    }
+
+    private static Predicate<CommandSourceStack> operator() {
+        return Commands.hasPermission(Commands.LEVEL_GAMEMASTERS);
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> starter() {
+        return Commands.literal("starter")
+                .executes(context -> starterSelf(context.getSource()))
+                .then(Commands.literal("open")
+                        .requires(operator())
+                        .executes(context -> starterOpen(context.getSource(), context.getSource().getPlayerOrException()))
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(context -> starterOpen(context.getSource(), EntityArgument.getPlayer(context, "player")))))
+                .then(Commands.literal("reset")
+                        .requires(operator())
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(context -> starterReset(context.getSource(), EntityArgument.getPlayer(context, "player")))))
+                .then(Commands.literal("list")
+                        .requires(operator())
+                        .executes(context -> starterList(context.getSource())));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> wild() {
         return Commands.literal("wild")
+                .requires(operator())
                 .then(Commands.literal("status").executes(context -> wildStatus(context.getSource())))
                 .then(Commands.literal("on").executes(context -> wildEnabled(context.getSource(), true)))
                 .then(Commands.literal("off").executes(context -> wildEnabled(context.getSource(), false)))
@@ -193,6 +229,50 @@ public final class DigiCubeCommands {
                 .filter(DigimonEntity.class::isInstance).map(DigimonEntity.class::cast).toList();
         if (digimon.isEmpty()) source.sendFailure(Component.translatable("commands.digicube.targets.none"));
         return digimon;
+    }
+
+    // --- first partner -----------------------------------------------------------------
+
+    /** Anyone: reopen the prompt while still eligible, otherwise say why not. */
+    private static int starterSelf(CommandSourceStack source) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        StarterFlow.Eligibility eligibility = StarterFlow.offer(source.getServer(), player, false);
+        if (eligibility.eligible()) return 1;
+        source.sendFailure(Component.translatable(eligibility.translationKey()));
+        return 0;
+    }
+
+    /** Operator: offer regardless of owned partners; refused only by an existing record. */
+    private static int starterOpen(CommandSourceStack source, ServerPlayer player) {
+        StarterFlow.Eligibility eligibility = StarterFlow.offer(source.getServer(), player, true);
+        if (!eligibility.eligible()) {
+            source.sendFailure(Component.translatable(eligibility.translationKey()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("commands.digicube.starter.opened", player.getDisplayName()), true);
+        return 1;
+    }
+
+    private static int starterReset(CommandSourceStack source, ServerPlayer player) {
+        StarterSavedData.get(source.getServer()).reset(player.getUUID());
+        source.sendSuccess(() -> Component.translatable("commands.digicube.starter.reset", player.getDisplayName()), true);
+        return 1;
+    }
+
+    private static int starterList(CommandSourceStack source) {
+        List<StarterSavedData.StarterRecord> records = StarterSavedData.get(source.getServer()).records();
+        if (records.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable("commands.digicube.starter.list_empty"), false);
+            return 0;
+        }
+        for (StarterSavedData.StarterRecord record : records) {
+            ServerPlayer online = source.getServer().getPlayerList().getPlayer(record.player());
+            Component name = online != null ? online.getDisplayName() : Component.literal(record.player().toString());
+            Component species = DigimonSpeciesRegistry.get(record.species()).map(DigimonSpecies::translationKey)
+                    .map(Component::translatable).orElseGet(() -> Component.literal(record.species().toString()));
+            source.sendSuccess(() -> Component.translatable("commands.digicube.starter.list", name, species), false);
+        }
+        return records.size();
     }
 
     // --- wild spawner ------------------------------------------------------------------
