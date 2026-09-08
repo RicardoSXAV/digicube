@@ -1,6 +1,8 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
+import net.minecraft.resources.Identifier;
+
 import java.util.Map;
 
 /**
@@ -57,14 +59,24 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("claw_attack"), DigimonAttack.Kind.MELEE,
             0.65F, 22, 16, 6, 0.0, true);
 
-    public static void registerBuiltIn() {
-        var species = BundledSpeciesLoader.load(Map.of(
+    /** The shared moves species sheets may reference, by id. */
+    public static Map<Identifier, DigimonAttack> attacks() {
+        return Map.of(
                 PEPPER_BREATH.id(), PEPPER_BREATH, CLAW.id(), CLAW, BUBBLE_BLOW.id(), BUBBLE_BLOW,
                 MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER,
                 BLUE_BLASTER.id(), BLUE_BLASTER, HORN_ATTACK.id(), HORN_ATTACK,
-                MARCHING_FISHES.id(), MARCHING_FISHES, CLAW_ATTACK.id(), CLAW_ATTACK));
+                MARCHING_FISHES.id(), MARCHING_FISHES, CLAW_ATTACK.id(), CLAW_ATTACK);
+    }
+
+    public static void registerBuiltIn() {
+        var species = BundledSpeciesLoader.load(attacks());
         species.forEach(DigimonSpeciesRegistry::register);
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());
+    }
+
+    /** One species as its bundled sheet defines it, ignoring any runtime tuning. */
+    public static DigimonSpecies bundled(Identifier id) {
+        return BundledSpeciesLoader.loadOne(id, attacks());
     }
 }

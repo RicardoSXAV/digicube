@@ -17,13 +17,20 @@ public final class SpeciesRegressionTest {
         try {
             SharedConstants.tryDetectVersion();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 7, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 8, "all bundled species loaded");
+            var tentomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tentomon"));
+            check(tentomon.locomotion().canFly() && !tentomon.locomotion().canSwim()
+                    && tentomon.stage() == DigimonStage.CHILD && tentomon.attribute() == DigimonAttribute.VACCINE,
+                    "Tentomon is a bipedal vaccine rookie with opt-in flight");
+            check(tentomon.attacks().isEmpty() && tentomon.body().mount().isEmpty(),
+                    "Tentomon only exposes approved locomotion, without unauthored attacks or a rider");
+            check(!DigimonLocomotion.DEFAULT.canFly(), "flight is not implicitly granted to other rookies");
             var gomamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gomamon"));
             check(gomamon.stage() == DigimonStage.CHILD && gomamon.attribute() == DigimonAttribute.VACCINE,
                     "Gomamon is a vaccine rookie");
             check(gomamon.locomotion().canSwim() && gomamon.locomotion().swimSpeed() == .46
-                            && !gomamon.locomotion().canRun() && gomamon.baseSpeed() < .06F,
-                    "Gomamon crawls on land and has independently configured fast swimming");
+                            && !gomamon.locomotion().canRun() && gomamon.baseSpeed() == .08F && gomamon.locomotion().followSpeed(false) == 1.3,
+                    "Gomamon walks on land and has independently configured fast swimming");
             check(gomamon.attacks().equals(List.of(DigimonSpeciesBootstrap.MARCHING_FISHES, DigimonSpeciesBootstrap.CLAW_ATTACK))
                             && gomamon.body().mount().isEmpty(),
                     "Gomamon prioritizes the fish wave, then alternating claws, and is not rideable");

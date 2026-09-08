@@ -4,7 +4,12 @@ import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
 import com.digicube.digimon.AttackMotion;
 import com.digicube.digimon.FuelReserve;
+import com.digicube.digimon.FlightReserve;
+import com.digicube.digimon.DigimonFlight;
+import com.digicube.entity.ai.DigimonFlightGoal;
+import com.digicube.entity.ai.FlightPhase;
 import com.digicube.registry.DCDamageTypes;
+import com.digicube.registry.DCEntityTypes;
 import com.digicube.digimon.DigimonBody;
 import com.digicube.digimon.DigimonLocomotion;
 import com.digicube.digimon.DamageLedger;
@@ -14,6 +19,8 @@ import com.digicube.digimon.Progression;
 import com.digicube.entity.ai.DigimonAttackGoal;
 import com.digicube.entity.ai.DigimonLookControl;
 import com.digicube.entity.ai.DigimonMoveControl;
+import com.digicube.entity.ai.DigimonAmphibiousNavigation;
+import com.digicube.entity.ai.DigimonGroundNavigation;
 import com.digicube.entity.ai.FollowOwnerGoal;
 import com.digicube.entity.ai.OwnerHurtByTargetGoal;
 import com.digicube.entity.ai.OwnerHurtTargetGoal;
@@ -37,6 +44,7 @@ import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityReference;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -57,6 +65,7 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.RandomSwimmingGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
@@ -133,6 +142,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Synched so nameplates and the HUD can show it; XP itself stays on the server. */
     private static final EntityDataAccessor<Integer> DATA_LEVEL =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_FLIGHT_PHASE =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Long> DATA_FLIGHT_START =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Long> DATA_FLIGHT_LOOP_START =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Float> DATA_FLIGHT_FUEL =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    private FlightReserve flightReserve;
+    private DigimonFlight flightDefinition;
+    private boolean needsFlightLanding;
+    private float previousFlightWalkAmount;
+    private float flightWalkAmount;
 
     // --- server-side combat state ---------------------------------------------------
     private DigimonAttack activeAttack;
@@ -202,6 +224,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             @Override public boolean canUse() { return !canSwim() && super.canUse(); }
         });
         this.goalSelector.addGoal(1, new RiderControlGoal());
+        this.goalSelector.addGoal(1, new DigimonFlightGoal(this));
         this.goalSelector.addGoal(1, new WildPanicGoal(this, 1.4));
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
         this.goalSelector.addGoal(3, new FollowOwnerGoal(this));
@@ -230,6 +253,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_SUSTAINED_ATTACK, "");
         builder.define(DATA_SUSTAINED_TICK, 0);
         builder.define(DATA_LEVEL, Progression.MIN_LEVEL);
+        builder.define(DATA_FLIGHT_PHASE, FlightPhase.GROUNDED.ordinal());
+        builder.define(DATA_FLIGHT_START, 0L);
+        builder.define(DATA_FLIGHT_LOOP_START, 0L);
+        builder.define(DATA_FLIGHT_FUEL, 1.0F);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -261,6 +288,57 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * @return whether this species is adapted to sustained swimming
      */
     public boolean canSwim() { return getLocomotion().canSwim(); }
+
+    public boolean canFly() { return getLocomotion().canFly(); }
+    public FlightPhase getFlightPhase() { return FlightPhase.byId(entityData.get(DATA_FLIGHT_PHASE)); }
+    public float getFlightPhaseTime(float partialTick) {
+        return Math.max(0, level().getGameTime() - entityData.get(DATA_FLIGHT_START) + partialTick);
+    }
+    public float getFlightLoopTime(float partialTick) {
+        return Math.max(0, level().getGameTime() - entityData.get(DATA_FLIGHT_LOOP_START) + partialTick);
+    }
+    public float getFlightFuel() { return entityData.get(DATA_FLIGHT_FUEL); }
+    public float getFlightWalkAmount(float partialTick) {
+        return Mth.lerp(partialTick, previousFlightWalkAmount, flightWalkAmount);
+    }
+    public boolean isFlyingMovement() {
+        FlightPhase phase = getFlightPhase();
+        return canFly() && isAlive() && phase.airborne()
+                && (phase != FlightPhase.TAKEOFF || getFlightPhaseTime(0) >= 13);
+    }
+    public boolean needsFlightLanding() { return needsFlightLanding; }
+    public void clearFlightLandingRequest() { needsFlightLanding = false; }
+    public void setFlightPhase(FlightPhase phase) {
+        if (level().isClientSide() || phase == getFlightPhase()) return;
+        entityData.set(DATA_FLIGHT_START, level().getGameTime());
+        if (phase == FlightPhase.FLYING || phase == FlightPhase.APPROACH && getFlightPhase() == FlightPhase.GROUNDED) {
+            entityData.set(DATA_FLIGHT_LOOP_START, level().getGameTime());
+        }
+        entityData.set(DATA_FLIGHT_PHASE, phase.ordinal());
+    }
+    public FlightReserve flightReserve() {
+        DigimonFlight definition = getLocomotion().flight();
+        if (definition == null) return flightReserve;
+        if (flightReserve == null || !definition.equals(flightDefinition)) {
+            FlightReserve old = flightReserve;
+            flightReserve = new FlightReserve(definition);
+            if (old != null) flightReserve.restore(old.fraction() * definition.capacityTicks(), old.restRemaining());
+            flightDefinition = definition;
+        }
+        return flightReserve;
+    }
+    /** Only the flight goal swaps these, and restores the exact previous ground/swim controllers. */
+    public void useFlightNavigation(PathNavigation navigation, MoveControl<?> control) {
+        this.navigation = navigation;
+        this.moveControl = control;
+    }
+
+    @Override public void travel(Vec3 input) {
+        if (isFlyingMovement() && !isInWater() && !isInLava()) {
+            move(MoverType.SELF, getDeltaMovement());
+            resetFallDistance();
+        } else super.travel(input);
+    }
 
     /**
      * Keep the walking pose in very shallow water at the shore.
@@ -332,6 +410,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         setDeltaMovement(getDeltaMovement().scale(DigimonMoveControl.WATER_DRAG));
     }
 
+    /** Server. Re-reads the species sheet after it was tuned at runtime: speed and move control. */
+    public void refreshSpeciesData() {
+        configureSpeciesMovement();
+    }
+
     private void configureSpeciesMovement() {
         getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(getSpecies().map(DigimonSpecies::baseSpeed).orElse(.3F));
         if (canSwim() && !(this.moveControl instanceof DigimonMoveControl)) {
@@ -346,16 +429,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             landWaterMalus = getPathfindingMalus(PathType.WATER);
             landWaterBorderMalus = getPathfindingMalus(PathType.WATER_BORDER);
             getNavigation().stop();
-            this.navigation = new AmphibiousPathNavigation(this, level());
+            this.navigation = new DigimonAmphibiousNavigation(this, level());
             setPathfindingMalus(PathType.WATER, 0);
             setPathfindingMalus(PathType.WATER_BORDER, 0);
         } else if (!canSwim() && amphibious) {
             getNavigation().stop();
-            this.navigation = super.createNavigation(level());
+            this.navigation = createNavigation(level());
             setPathfindingMalus(PathType.WATER, landWaterMalus);
             setPathfindingMalus(PathType.WATER_BORDER, landWaterBorderMalus);
             setXRot(0);
         }
+    }
+
+    /** Land navigation that also counts the steering target as node arrival, for bodies wider than a block. */
+    @Override
+    protected PathNavigation createNavigation(Level level) {
+        return new DigimonGroundNavigation(this, level);
     }
 
     // --- progression: level, XP and the stats they scale ------------------------------
@@ -390,6 +479,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public void initializeAs(DigimonSpecies species, int level) {
         setSpecies(species.id());
         resetToLevel(level);
+    }
+
+    /**
+     * Server. Places a wild Digimon of the species at {@code position}, as a command or the
+     * developer panel does. It is persistent, so it stays put instead of despawning like a
+     * natural spawn.
+     * @return the entity, or null when the entity type could not be created
+     */
+    public static DigimonEntity spawnWild(ServerLevel level, DigimonSpecies species, int digimonLevel, Vec3 position) {
+        DigimonEntity digimon = DCEntityTypes.DIGIMON.create(level, EntitySpawnReason.COMMAND);
+        if (digimon == null) return null;
+        digimon.initializeAs(species, digimonLevel);
+        digimon.setPos(position.x, position.y, position.z);
+        digimon.setPersistenceRequired();
+        level.addFreshEntity(digimon);
+        return digimon;
     }
 
     /**
@@ -452,12 +557,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected EntityDimensions getDefaultDimensions(Pose pose) {
         // LivingEntity asks for dimensions during construction, before entity data exists.
-        return this.entityData == null ? super.getDefaultDimensions(pose) : getBody().dimensions();
+        if (this.entityData == null) return super.getDefaultDimensions(pose);
+        var body = getBody().dimensions();
+        if (canFly() && getFlightPhase() != FlightPhase.GROUNDED) {
+            var flight = getLocomotion().flight();
+            return EntityDimensions.scalable(Math.max(body.width(), flight.clearanceWidth()),
+                    Math.max(body.height(), flight.clearanceHeight())).withEyeHeight(body.eyeHeight());
+        }
+        return body;
     }
 
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
         super.onSyncedDataUpdated(accessor);
+        if (DATA_FLIGHT_PHASE.equals(accessor)) refreshDimensions();
         if (level().isClientSide() && (DATA_SUSTAINED_ATTACK.equals(accessor) || DATA_SUSTAINED_TICK.equals(accessor))) {
             syncSustainedAnimation();
         }
@@ -732,7 +845,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * claws whenever it is ready and the target is in sight.
      */
     public DigimonAttack chooseAttack(LivingEntity target) {
-        if (isVehicle() || isAttacking() || target == null || !target.isAlive() || !canAttack(target)) return null;
+        if (getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || isAttacking() || target == null || !target.isAlive() || !canAttack(target)) return null;
         for (DigimonAttack attack : attacks()) {
             if (isAttackReady(attack) && inRange(attack, target)) {
                 return attack;
@@ -764,7 +877,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Server only. Begins the attack timeline and tells clients to animate it. */
     public void startAttack(DigimonAttack attack, LivingEntity target) {
-        if (level().isClientSide() || isVehicle() || activeAttack != null || target == null
+        if (level().isClientSide() || getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || activeAttack != null || target == null
                 || !target.isAlive() || !canAttack(target) || !isAttackReady(attack) || !inRange(attack, target)) return;
         List<DigimonAttack> attacks = attacks();
         int index = attacks.indexOf(attack);
@@ -804,6 +917,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected void customServerAiStep(ServerLevel level) {
         super.customServerAiStep(level);
+        if (canFly()) {
+            if (getFlightPhase() == FlightPhase.GROUNDED && onGround() && !isInWater() && !isInLava()) flightReserve().rest();
+            entityData.set(DATA_FLIGHT_FUEL, flightReserve().fraction());
+        }
         attackFuel.values().forEach(FuelReserve::tickRecharge);
         if (activeAttack == null) {
             return;
@@ -1218,7 +1335,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
         previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
         super.tick();
-        if (!level().isClientSide() && !isAlive()) cancelAttack();
+        if (!level().isClientSide() && !isAlive()) {
+            cancelAttack();
+            if (getFlightPhase() != FlightPhase.GROUNDED) {
+                setNoGravity(false);
+                setFlightPhase(FlightPhase.GROUNDED);
+            }
+        }
         if (level().isClientSide()) {
             previousRunAnimationAmount = runAnimationAmount;
             runAnimationAmount = Mth.approach(runAnimationAmount, isRunningToOwner() ? 1.0F : 0.0F, 0.2F);
@@ -1226,6 +1349,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             previousSwimAnimationPhase = swimAnimationPhase;
             previousSwimMotionAmount = swimMotionAmount;
             previousGroundAnimationPhase = groundAnimationPhase;
+            previousFlightWalkAmount = flightWalkAmount;
             previousSwimBank = swimBank;
             float target = isSwimmingMovement() ? 1 : 0;
             swimAnimationAmount = Mth.approach(swimAnimationAmount, target, target > swimAnimationAmount ? .08F : .10F);
@@ -1235,6 +1359,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             double horizontalTravel = Math.sqrt(dx * dx + dz * dz);
             double travelled = Math.sqrt(dx * dx + dy * dy + dz * dz);
             double speed = Math.max(travelled, getDeltaMovement().length());
+            if (canFly()) {
+                double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());
+                float wanted = getFlightPhase() == FlightPhase.GROUNDED && onGround()
+                        ? (float) Mth.clamp(groundSpeed / .021, 0, 1) : 0;
+                flightWalkAmount = Mth.approach(flightWalkAmount, wanted, .125F);
+                if (getFlightPhase() == FlightPhase.GROUNDED && groundSpeed < 1) {
+                    // Native cycle: 6 px of planted travel over 62% of a second.
+                    double stride = (6.0 / .62 / 16) * getBody().modelScale();
+                    groundAnimationPhase += (float) Math.min(2.5, groundSpeed * 20 / stride / Math.max(.25F, flightWalkAmount));
+                }
+            }
             float motion = canSwim() ? (float) Mth.clamp(speed / (getLocomotion().swimSpeed() * .7), 0, 1) : 0;
             swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, motion);
             swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimMotionAmount, .45F, 1.0F);
@@ -1242,7 +1377,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 // Remote entities can move through position interpolation between
                 // velocity packets; keep the paws moving with that displacement too.
                 double groundSpeed = Math.max(horizontalTravel, Math.sqrt(getDeltaMovement().horizontalDistanceSqr()));
-                groundAnimationPhase += .55F * (float) Mth.clamp(groundSpeed / .025, 0, 1);
+                // Cadence keeps following travel up to 1.65x the native clip, so the paws
+                // still plant about every three blocks at full walking pace.
+                groundAnimationPhase += .55F * (float) Mth.clamp(groundSpeed / .025, 0, 3);
             }
             swimBank = Mth.lerp(.15F, swimBank, Mth.clamp(-Mth.wrapDegrees(getYRot() - yRotO) * 2.0F, -12, 12));
         }
@@ -1295,6 +1432,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             tank.putInt("Charge", reserve.savedCharge());
             tank.putBoolean("Recharging", reserve.isRecharging());
         });
+        if (canFly()) {
+            ValueOutput flight = output.child("Flight");
+            flight.putDouble("Charge", flightReserve().charge());
+            flight.putInt("RestTicks", flightReserve().restRemaining());
+            flight.putBoolean("Airborne", getFlightPhase().airborne() && !onGround());
+        }
     }
 
     @Override
@@ -1322,6 +1465,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 ValueInput tank = fuel.childOrEmpty(attack.id().toString());
                 reserve.restore(tank.getIntOr("Charge", reserve.savedCharge()), tank.getBooleanOr("Recharging", false));
             }
+        }
+        if (canFly()) {
+            ValueInput flight = input.childOrEmpty("Flight");
+            flightReserve().restore(flight.getDoubleOr("Charge", flightReserve().charge()), flight.getIntOr("RestTicks", 0));
+            needsFlightLanding = flight.getBooleanOr("Airborne", false);
+            // Flight must earn its controls again after loading; never persist a gravity-free ground entity.
+            setNoGravity(false);
+            entityData.set(DATA_FLIGHT_FUEL, flightReserve().fraction());
         }
     }
 

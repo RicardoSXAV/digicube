@@ -7,6 +7,7 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
+import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
@@ -36,6 +37,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
             Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
+            Constants.id("tentomon"), Constants.id("textures/entity/digimon/tentomon.png"),
             Constants.id("garurumon"), Constants.id("textures/entity/digimon/garurumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
@@ -53,6 +55,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
+                Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
                 Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
@@ -114,6 +117,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.swimAnimationPhase = entity.getSwimAnimationPhase(partialTick);
         state.swimMotionAmount = entity.getSwimMotionAmount(partialTick);
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
+        state.flightPhase = entity.getFlightPhase();
+        state.flightPhaseTime = entity.getFlightPhaseTime(partialTick);
+        state.flightLoopTime = entity.getFlightLoopTime(partialTick);
+        state.flightWalkAmount = entity.getFlightWalkAmount(partialTick);
         state.swimBank = entity.getSwimBank(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         if (entity.isGuiPreview()) {
@@ -125,7 +132,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.attackAnimationName = entity.getAttackAnimationName();
         state.attackDefinition = entity.getAnimatingAttack();
         state.attackAimPitch = entity.getAttackAimPitch(partialTick);
-        if ((entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
+        if (entity.isFlyingMovement() || (entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
                 || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
             // Swimming, riding and committed attacks turn the entire creature.
             // Keep its rendered body aligned with the server's steering direction.
@@ -154,6 +161,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
         AABB bounds = super.getBoundingBoxForCulling(entity);
         if (entity.canSwim()) bounds = bounds.inflate(entity.getBody().modelScale());
+        if (entity.canFly()) bounds = bounds.inflate(2 * entity.getBody().modelScale());
         if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel) {
             bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
         }

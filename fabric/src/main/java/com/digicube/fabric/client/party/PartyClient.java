@@ -64,6 +64,12 @@ public final class PartyClient {
         int x = right - (tile + gap) * PartyRoster.PARTY_SIZE + gap;
         int y = graphics.guiHeight() - 27;
         boolean vertical = x < 4;
+        var flightFuel = new java.util.HashMap<java.util.UUID, Float>();
+        if (client.level != null) for (var entity : client.level.entitiesForRendering()) {
+            if (entity instanceof com.digicube.entity.DigimonEntity digimon && digimon.canFly()) {
+                flightFuel.put(entity.getUUID(), digimon.getFlightFuel());
+            }
+        }
         // At high GUI scales, a vertical strip preserves the offhand, armor and hearts.
         if (vertical) { x = 4; y = graphics.guiHeight() - 108; }
         for (int slot = 0; slot < PartyRoster.PARTY_SIZE; slot++) {
@@ -76,6 +82,11 @@ public final class PartyClient {
             if (member != null) {
                 PartyGraphics.icon(graphics, member, sx + 1, sy, 22);
                 PartyGraphics.health(graphics, member, sx + 3, sy + tile - 4, tile - 6);
+                Float fuel = flightFuel.get(member.id());
+                if (fuel != null) {
+                    graphics.fill(sx + 3, sy + tile - 2, sx + tile - 3, sy + tile - 1, PartyGraphics.INK);
+                    graphics.fill(sx + 3, sy + tile - 2, sx + 3 + Math.round((tile - 6) * fuel), sy + tile - 1, 0xFF79BFFF);
+                }
                 if (!member.deployed()) graphics.fill(sx + tile - 5, sy + 3, sx + tile - 3, sy + 5, PartyGraphics.ORANGE);
                 // The level sits beside the tile: above it along the hotbar, to its right in the vertical strip.
                 String level = Component.translatable("gui.digicube.party.level", member.level()).getString();

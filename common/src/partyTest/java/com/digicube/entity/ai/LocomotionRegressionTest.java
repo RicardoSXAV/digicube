@@ -12,6 +12,7 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -21,6 +22,8 @@ import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -39,8 +42,9 @@ public final class LocomotionRegressionTest {
             DigimonSpeciesBootstrap.registerBuiltIn();
             checkGroundAndWater();
             checkFollowWithoutAttacks();
+            checkNodeArrival();
             if (!FAILURES.isEmpty()) throw new AssertionError(String.join("; ", FAILURES));
-            Constants.LOG.info("Locomotion regression checks passed: slow ground movement, stopping, fast swimming, pitch and following without attacks.");
+            Constants.LOG.info("Locomotion regression checks passed: ground movement, stopping, fast swimming, pitch, following without attacks and wide-body node arrival.");
         } finally {
             Util.shutdownExecutors();
         }
@@ -55,7 +59,7 @@ public final class LocomotionRegressionTest {
         // input. Exercise that real vector calculation, starting from rest.
         mob.moveRelative(mob.getSpeed(), new Vec3(mob.xxa * .98, 0, mob.zza * .98));
         double firstStep = mob.getDeltaMovement().horizontalDistance();
-        check(firstStep > .02 && firstStep < .04, "ground acceleration must be a slow walk, not speed squared: " + firstStep);
+        check(firstStep > .09 && firstStep < .11, "ground acceleration must be a walk just under Agumon, not speed squared: " + firstStep);
         check(firstStep > .003, "ground movement must exceed Minecraft's per-tick velocity cutoff");
         control.tick();
         mob.setDeltaMovement(Vec3.ZERO);
@@ -121,6 +125,34 @@ public final class LocomotionRegressionTest {
         var singleton = unsafeClass.getDeclaredField("theUnsafe");
         singleton.setAccessible(true);
         return type.cast(unsafeClass.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type));
+    }
+
+    private static void checkNodeArrival() throws Exception {
+        // Vanilla steers a 1.1-wide body to a block corner but only counts the block centre as reached.
+        var node = new Node(0, 0, 0);
+        var corner = new Vec3(1.0, 0, 1.0);
+        var overshoot = new Vec3(1.1, 0, 1.1);
+        check(!SteeringArrival.reached(overshoot, new Vec3(0.5, 0, 0.5), node, .55F, 1)
+                        && SteeringArrival.reached(overshoot, corner, node, .55F, 1),
+                "a wide body just past its steering corner counts the node as reached");
+        check(!SteeringArrival.reached(new Vec3(1.6, 0, 1.0), corner, node, .55F, 1)
+                        && !SteeringArrival.reached(new Vec3(1.0, 1.2, 1.0), corner, node, .55F, 1),
+                "arrival still needs the steering target horizontally and the node vertically");
+        var mob = fixture(0);
+        var dimensions = Entity.class.getDeclaredField("dimensions");
+        dimensions.setAccessible(true);
+        dimensions.set(mob, EntityDimensions.fixed(1.1F, 1.15F));
+        var position = Entity.class.getDeclaredField("position");
+        position.setAccessible(true);
+        var path = new Path(List.of(new Node(0, 0, 0), new Node(1, 0, 0)), new BlockPos(1, 0, 0), true);
+        position.set(mob, overshoot);
+        SteeringArrival.advance(path, mob, 1, .55F, 1);
+        check(path.getNextNodeIndex() == 0, "a node vanilla already advanced past is left alone");
+        SteeringArrival.advance(path, mob, 0, .55F, 1);
+        check(path.getNextNodeIndex() == 1, "the corner Gomamon was steered to finishes the node");
+        position.set(mob, new Vec3(0.4, 0, 1.05));
+        SteeringArrival.advance(path, mob, 1, .55F, 1);
+        check(path.getNextNodeIndex() == 1 && !path.isDone(), "a node still ahead is not skipped");
     }
 
     private static FixtureDigimon fixture(double z) throws Exception {

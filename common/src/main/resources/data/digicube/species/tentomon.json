@@ -1,0 +1,36 @@
+{
+  "stage": "child",
+  "attribute": "vaccine",
+  "base_health": 20,
+  "base_attack": 5,
+  "base_defence": 6,
+  "base_speed": 0.10,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 2.0,
+    "walk_speed": 1.0,
+    "run_speed": 1.0,
+    "flight": {
+      "speed": 0.38,
+      "capacity_ticks": 240,
+      "recharge_ticks": 400,
+      "rest_ticks": 60,
+      "restart_fraction": 0.4,
+      "landing_reserve_ticks": 48,
+      "minimum_flight_ticks": 40,
+      "start_distance": 10.0,
+      "stop_distance": 3.5,
+      "cruise_height": 1.5,
+      "clearance_width": 2.1,
+      "clearance_height": 2.35
+    }
+  },
+  "body": {
+    "model_scale": 0.6,
+    "width": 1.1,
+    "height": 1.5,
+    "eye_height": 0.92
+  }
+}

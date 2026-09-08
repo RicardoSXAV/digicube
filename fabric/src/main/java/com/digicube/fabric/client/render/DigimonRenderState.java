@@ -7,6 +7,10 @@ import net.minecraft.world.entity.AnimationState;
 
 /** Per-frame snapshot of a {@link DigimonEntity} that the model and renderer read from. */
 public class DigimonRenderState extends LivingEntityRenderState {
+    public com.digicube.entity.ai.FlightPhase flightPhase = com.digicube.entity.ai.FlightPhase.GROUNDED;
+    public float flightPhaseTime;
+    public float flightLoopTime;
+    public float flightWalkAmount;
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
     public final MegaFlameRenderState mouthFlame = new MegaFlameRenderState();

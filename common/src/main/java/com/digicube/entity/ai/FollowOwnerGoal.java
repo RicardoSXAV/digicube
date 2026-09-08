@@ -93,7 +93,9 @@ public final class FollowOwnerGoal extends Goal {
             return;
         }
         ticksUntilPathRecalc = adjustedTickDelay(running ? 5 : 10);
-        if (!mob.isSwimmingMovement() && mob.distanceToSqr(owner) >= TELEPORT_DISTANCE * TELEPORT_DISTANCE
+        if (!mob.isSwimmingMovement() && !(mob.canFly() && mob.flightReserve().ready()
+                && mob.distanceToSqr(owner) < 32 * 32)
+                && mob.distanceToSqr(owner) >= TELEPORT_DISTANCE * TELEPORT_DISTANCE
                 && teleportNearOwner()) return;
         // A swimmer catches up through the water. If vanilla cannot teleport to
         // a submerged owner, keep navigating instead of becoming stuck far away.

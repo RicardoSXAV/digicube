@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,6 +34,11 @@ public final class DigimonSpeciesRegistry {
         }
     }
 
+    /** Swaps a species for a tuned or reloaded copy of itself. Developer tooling only. */
+    public static void replace(DigimonSpecies species) {
+        SPECIES.put(species.id(), species);
+    }
+
     public static Optional<DigimonSpecies> get(Identifier id) {
         return Optional.ofNullable(SPECIES.get(id));
     }
@@ -47,6 +53,25 @@ public final class DigimonSpeciesRegistry {
             throw new IllegalArgumentException("Unknown Digimon species: " + id);
         }
         return species;
+    }
+
+    /**
+     * Looks a species up the way a person types it: {@code agumon} is shorthand for
+     * {@code digicube:agumon}. An id parsed from a bare name lands in the {@code minecraft}
+     * namespace, so that namespace is treated as "none given".
+     */
+    public static Optional<DigimonSpecies> resolve(Identifier id) {
+        Optional<DigimonSpecies> species = get(id);
+        if (species.isEmpty() && Identifier.DEFAULT_NAMESPACE.equals(id.getNamespace())) {
+            species = get(Constants.id(id.getPath()));
+        }
+        return species;
+    }
+
+    /** {@link #resolve(Identifier)} for raw text; an unparseable string resolves to nothing. */
+    public static Optional<DigimonSpecies> resolve(String text) {
+        Identifier id = Identifier.tryParse(text.trim().toLowerCase(Locale.ROOT));
+        return id == null ? Optional.empty() : resolve(id);
     }
 
     public static Collection<DigimonSpecies> all() {

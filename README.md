@@ -428,8 +428,8 @@ must be accepted before it can open a world.
 
 ### Gomamon on land and in water
 
-Use `/digicube give gomamon`, deploy him from the party, and walk away to see his
-slow seal shuffle, driven by his rear paws. Enter deeper water and swim away: he
+Use `/digicube give gomamon`, deploy him from the party, and walk away to see his seal
+shuffle, a step slower than Agumon, driven by his rear paws. Enter deeper water and swim away: he
 switches to fast three-dimensional swimming, with gradual dives, turns and stops.
 He keeps swimming to catch a distant owner instead of teleporting out of the water.
 Use `/digicube spawn gomamon` for a wild one. He is not rideable.
@@ -439,8 +439,12 @@ a streamlined glide and delayed motion through the hips and tail. Stroke intensi
 and cadence ease with speed; entering and leaving water blends with the approved
 walk. The cuboid model, pixel texture and head-surface cleanup are preserved.
 Aquatic movement is enabled by species data through `locomotion.swim_speed` (blocks
-per tick); Gomamon uses `0.46`, versus a ground base speed of `0.055` and follow
-multiplier `0.55`. Missing swim speed keeps the existing land behavior.
+per tick); Gomamon uses `0.46`. On land the aquatic move control applies his base speed
+`0.08` and follow multiplier `1.3` once, unlike the squared pace of vanilla walkers, which
+puts him just under Agumon's walk. Missing swim speed keeps the existing land behavior.
+Vanilla steers bodies wider than a block to a block corner but only counts the block centre
+as reached, which left Gomamon spinning at the end of a path; Digimon navigation also
+accepts the steering target as arrival.
 
 Authoring source: `../harness/digimon/gomamon_swim.py`. The approved native model and
 walk, glide and swim files are in `../harness/out/gomamon_swim/`, including the review
@@ -486,6 +490,37 @@ their saved scenes and full-motion filmstrips under `out/gomamon_attacks/` and
 Run `gradlew.bat --init-script ../harness/tools/verify_gomamon_attacks.init.gradle
 :fabric:verifyGomamonAttacks` to compare compiled locomotion, attack curves, blends
 and reset poses against Blender. `build` also checks wave steering and collision.
+
+### Tentomon: biped walking and short flights
+
+Use `/digicube give tentomon` and deploy him from the Digivice. He walks on his two
+rear legs, keeping both pairs of arms free. Sprint away or get about 10 blocks ahead
+to see him open his shell and fly to catch up. Nearby danger can trigger an escape
+flight too. `/digicube spawn tentomon` creates a wild one for testing.
+
+Flight has a separate fuel reserve: up to 12 seconds, with the last 2.4 seconds
+reserved for landing. He needs at least 40% fuel and three seconds of rest before
+another takeoff. A fully empty tank refills in 20 seconds on dry ground. Recall and
+reload preserve fuel. A blue line beneath his party health bar shows the reserve
+while he is tracked nearby. The settings live in `species/tentomon.json` under
+`locomotion.flight`, and can be reused by other flying species.
+
+He checks space for the open shell, uses flying pathfinding, and looks for a dry,
+supported landing. With no fuel he descends; he cannot hover forever. Flight also
+ends when leashed or entering water. Try low ceilings, changing direction, an
+obstacle between him and his owner, depletion/recovery, and recalling/redeploying
+mid-flight. Real-world navigation and dedicated-server behavior need manual testing;
+the current dev server requires EULA acceptance before it can open a world.
+
+The approved sources are in `../harness/out/tentomon_biped_locomotion/`. Reproduce
+the installed mesh, packed atlas and saved animation curves with Blender MCP using
+`../harness/blender/export_tentomon_release.py`. Run the compiled comparison with
+`gradlew.bat --init-script ../harness/tools/verify_tentomon.init.gradle :fabric:verifyTentomonExport`.
+`build` also runs the fuel, decision and steering regression suite. The full design
+is in [../design/rookie-flight.md](../design/rookie-flight.md).
+
+Tentomon currently has his approved idle and locomotion. His attacks will be added
+after authoring; he is not yet in the starter or natural spawn tables.
 
 ### Greymon and riding
 
@@ -720,7 +755,7 @@ Working:
   through DigiCube, Tools & Utilities and Search Items
 - Persistent Digivice collection, three active party slots, and a matching pixel-icon HUD
 - Digimon domain model: species, stages, attributes with a damage triangle, evolution branches
-- Seven species (Koromon, Tsunomon, Agumon, Gabumon, Garurumon, Gomamon, Greymon), loaded from bundled JSON sheets
+- Eight species (Koromon, Tsunomon, Agumon, Gabumon, Garurumon, Gomamon, Greymon, Tentomon), loaded from bundled JSON sheets
 - Owned partner entities that follow their tamers and join combat
 - Levels and XP: species stats scale with level, and defeating wild Digimon splits XP by damage dealt
 - Neutral wild Digimon spawning from bundled spawn tables, controlled with `/digicube wild`

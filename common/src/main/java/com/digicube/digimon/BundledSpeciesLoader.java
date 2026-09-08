@@ -50,6 +50,14 @@ public final class BundledSpeciesLoader {
     }
 
     /**
+     * Parse one bundled sheet on its own, as the developer panel does to undo tuning.
+     * Evolution targets are not cross-checked here; the full catalog did that at startup.
+     */
+    public static DigimonSpecies loadOne(Identifier id, Map<Identifier, DigimonAttack> attacks) {
+        return parse(id, read("/data/" + id.getNamespace() + "/species/" + id.getPath() + ".json"), attacks);
+    }
+
+    /**
      * Decode a species sheet. Unqualified references use the mod namespace.
      * @param id species identifier from its resource path
      * @param json species data
@@ -95,7 +103,18 @@ public final class BundledSpeciesLoader {
         return new DigimonLocomotion(GsonHelper.getAsFloat(json, "follow_start_distance"),
                 GsonHelper.getAsFloat(json, "follow_stop_distance"),
                 GsonHelper.getAsDouble(json, "walk_speed"), GsonHelper.getAsDouble(json, "run_speed"),
-                GsonHelper.getAsDouble(json, "swim_speed", 0));
+                GsonHelper.getAsDouble(json, "swim_speed", 0),
+                json.has("flight") ? flight(GsonHelper.getAsJsonObject(json, "flight")) : null);
+    }
+
+    private static DigimonFlight flight(JsonObject json) {
+        return new DigimonFlight(GsonHelper.getAsDouble(json, "speed"),
+                GsonHelper.getAsInt(json, "capacity_ticks"), GsonHelper.getAsInt(json, "recharge_ticks"),
+                GsonHelper.getAsInt(json, "rest_ticks"), GsonHelper.getAsDouble(json, "restart_fraction"),
+                GsonHelper.getAsInt(json, "landing_reserve_ticks"), GsonHelper.getAsInt(json, "minimum_flight_ticks"),
+                GsonHelper.getAsDouble(json, "start_distance"), GsonHelper.getAsDouble(json, "stop_distance"),
+                GsonHelper.getAsDouble(json, "cruise_height"), GsonHelper.getAsFloat(json, "clearance_width"),
+                GsonHelper.getAsFloat(json, "clearance_height"));
     }
 
     private static DigimonBody body(JsonObject json) {

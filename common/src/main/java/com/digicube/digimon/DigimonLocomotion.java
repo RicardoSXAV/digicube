@@ -7,9 +7,15 @@ package com.digicube.digimon;
  * @param walkSpeed navigation modifier while the owner walks
  * @param runSpeed navigation modifier while the owner sprints
  * @param swimSpeed target water speed in blocks per tick; zero disables aquatic locomotion
+ * @param flight optional burst-flight settings; null retains ground/aquatic movement
  */
 public record DigimonLocomotion(float followStartDistance, float followStopDistance,
-                               double walkSpeed, double runSpeed, double swimSpeed) {
+                               double walkSpeed, double runSpeed, double swimSpeed, DigimonFlight flight) {
+    public DigimonLocomotion(float start, float stop, double walk, double run, double swim) {
+        this(start, stop, walk, run, swim, null);
+    }
+
+    public boolean canFly() { return flight != null; }
     /** Original follow behavior, used by species without locomotion data. */
     public static final DigimonLocomotion DEFAULT = new DigimonLocomotion(10, 3, 1.15, 1.15, 0);
 
