@@ -131,3 +131,25 @@ tasks.register('starterTest', JavaExec) {
     }
 }
 tasks.named('check') { dependsOn tasks.named('starterTest') }
+
+tasks.register('devTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.dev.DevRegressionTest'
+    workingDir = layout.buildDirectory.dir('dev-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('devTest') }
+
+tasks.register('flightTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.entity.ai.FlightRegressionTest'
+    workingDir = layout.buildDirectory.dir('flight-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('flightTest') }

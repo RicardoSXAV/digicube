@@ -1,6 +1,5 @@
 package com.digicube.command;
 
-import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.Progression;
@@ -30,7 +29,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,6 +48,7 @@ import java.util.function.Predicate;
  * /digicube give &lt;species&gt; [player [level]]   partner for a player, default the caller
  * /digicube level &lt;targets&gt; &lt;level&gt;         set the level, reset XP, restore full health
  * /digicube xp &lt;targets&gt; &lt;amount&gt;           grant XP through the normal path, level-ups included
+ * /digicube heal [player]                    full health for every Digimon the player owns, reserve included
  * /digicube wild status|on|off|interval|cap|distance|try|clear|debug
  * </pre>
  */
@@ -88,6 +87,11 @@ public final class DigiCubeCommands {
                                 .then(Commands.argument("amount", IntegerArgumentType.integer(1))
                                         .executes(context -> xp(context.getSource(), EntityArgument.getEntities(context, "targets"),
                                                 IntegerArgumentType.getInteger(context, "amount"))))))
+                .then(Commands.literal("heal")
+                        .requires(operator())
+                        .executes(context -> heal(context.getSource(), context.getSource().getPlayerOrException()))
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(context -> heal(context.getSource(), EntityArgument.getPlayer(context, "player")))))
                 .then(wild())
                 .then(starter()));
     }
@@ -156,14 +160,11 @@ public final class DigiCubeCommands {
         CommandSourceStack source = context.getSource();
         DigimonSpecies species = resolveSpecies(source, IdentifierArgument.getId(context, "species"));
         if (species == null) return 0;
-        DigimonEntity digimon = create(source, source.getLevel());
-        if (digimon == null) return 0;
-        Vec3 position = source.getPosition();
-        digimon.initializeAs(species, level);
-        digimon.setPos(position.x, position.y, position.z);
-        // A test spawn stays where the operator put it instead of despawning like a natural one.
-        digimon.setPersistenceRequired();
-        source.getLevel().addFreshEntity(digimon);
+        DigimonEntity digimon = DigimonEntity.spawnWild(source.getLevel(), species, level, source.getPosition());
+        if (digimon == null) {
+            source.sendFailure(Component.translatable("commands.digicube.spawn.failed"));
+            return 0;
+        }
         source.sendSuccess(() -> Component.translatable("commands.digicube.spawn.success",
                 Component.translatable(species.translationKey()), digimon.getLevel()), true);
         return 1;
@@ -195,12 +196,21 @@ public final class DigiCubeCommands {
      * @return the species, or null after reporting the failure
      */
     private static DigimonSpecies resolveSpecies(CommandSourceStack source, Identifier speciesId) {
-        Optional<DigimonSpecies> species = DigimonSpeciesRegistry.get(speciesId);
-        if (species.isEmpty() && Identifier.DEFAULT_NAMESPACE.equals(speciesId.getNamespace())) {
-            species = DigimonSpeciesRegistry.get(Constants.id(speciesId.getPath()));
-        }
+        Optional<DigimonSpecies> species = DigimonSpeciesRegistry.resolve(speciesId);
         if (species.isEmpty()) source.sendFailure(Component.translatable("commands.digicube.spawn.unknown", speciesId.toString()));
         return species.orElse(null);
+    }
+
+    // --- healing -----------------------------------------------------------------------
+
+    private static int heal(CommandSourceStack source, ServerPlayer player) {
+        int healed = PartyManager.healAll(player);
+        if (healed == 0) {
+            source.sendFailure(Component.translatable("commands.digicube.targets.none"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("commands.digicube.heal.success", healed, player.getDisplayName()), true);
+        return healed;
     }
 
     // --- progression -------------------------------------------------------------------

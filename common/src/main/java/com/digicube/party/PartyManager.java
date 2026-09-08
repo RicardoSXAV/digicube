@@ -67,6 +67,39 @@ public final class PartyManager {
         data.setDirty();
     }
 
+    /**
+     * Restores every Digimon a player owns to full health: deployed ones on the entity,
+     * reserve ones in their saved data. A defeated partner comes back to life this way and
+     * waits in reserve until it is selected again.
+     * @return how many partners were healed
+     */
+    public static int healAll(ServerPlayer owner) {
+        PartySavedData data = PartySavedData.get(owner.level().getServer());
+        return healAll(data, owner.getUUID());
+    }
+
+    /** The roster-level part of {@link #healAll(ServerPlayer)}, testable without a server. */
+    static int healAll(PartySavedData data, UUID owner) {
+        List<PartyMember> owned = data.roster().owned(owner);
+        for (PartyMember member : owned) {
+            DigimonEntity live = data.live.get(member.id());
+            if (live != null) {
+                live.setHealth(live.getMaxHealth());
+                capture(data, member, live);
+                continue;
+            }
+            CompoundTag tag = member.entityData();
+            tag.putFloat("Health", member.maxHealth());
+            member.capture(member.species(), member.nickname(), member.maxHealth(), member.maxHealth(),
+                    member.level(), member.xp(), tag);
+        }
+        if (!owned.isEmpty()) {
+            data.session(owner).sync.invalidate();
+            data.setDirty();
+        }
+        return owned.size();
+    }
+
     /** A partner gained XP or a level: its owner's HUD and Digivice need a fresh snapshot. */
     public static void progressChanged(DigimonEntity entity) {
         if (!entity.isOwned() || !(entity.level() instanceof ServerLevel level)) return;

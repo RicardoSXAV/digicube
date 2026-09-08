@@ -84,6 +84,7 @@ digicube/
 │       │   ├── party/                  <- Digivice collection, party slots, sync payloads
 │       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
 │       │   ├── starter/                <- first-partner prompt: starter set, saved data, flow, payloads
+│       │   ├── dev/                    <- developer panel: action registry, readout, payloads, gate
 │       │   ├── command/                <- /digicube commands
 │       │   ├── registry/               <- DCItems, DCBlocks, DCEntityTypes, ...
 │       │   ├── platform/               <- ServiceLoader bridge to loader features
@@ -102,6 +103,8 @@ digicube/
         │   ├── client/DigiCubeFabricClient.java <- client-only entry point
         │   ├── client/gui/                      <- the DigiCube GUI language: DigiTheme, DigiPanels, DigimonPreview
         │   ├── client/starter/                  <- the Partner Link screen and its client gate
+        │   ├── client/dev/                      <- the F6 developer panel (dev environment only)
+        │   ├── dev/FabricDevNetworking.java     <- developer panel transport
         │   ├── platform/FabricPlatformHelper.java
         │   └── mixin/                           <- Fabric-only mixins
         └── resources/
@@ -320,6 +323,24 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `GuiGraphicsExtractor.entity`. Widgets extend `AbstractButton` for focus and narration;
   screens do not pause; layouts are integer GUI units validated at 320 × 240. The
   Digivice screen and party HUD keep `PartyGraphics` until the language is approved.
+- The developer panel (F6 shows it as a passive overlay on the left, F7 focuses it, in a
+  dev run only) is tooling, not a player feature, and not a command front-end: it exists
+  so the developer can test and tune values in play and write them back into the
+  repository. `DevPanel.handle` (common) admits only an operator in a development
+  environment; `DevActions` is the registry of tools, each a `(server, player, args) ->
+  reply` lambda; `DevState.capture` builds the readout tag. The two payloads
+  (`DevActionPayload`: action id + argument tag, `DevStatePayload`: state tag + reply)
+  never change when a tool is added. `DevPanelView` (fabric) lays out and draws the panel
+  in panel units, scaled by `DevClient.SCALE`, for both the overlay and `DevPanelScreen`,
+  which only adds widgets on the rows the layout gives it. To add a tool: register an
+  action in `DevActions`, give it a row in `DevPanelView.layout`/`draw` and a control in
+  `DevPanelScreen.init`/`place`, and if it needs numbers on screen, add keys to
+  `DevState` (add keys, never rename them). Tuning: `SpeciesTuning` swaps a species for
+  a validated copy at runtime and refreshes its live entities; `SpeciesSheetWriter` edits
+  the numbers in place in the sheet under `common/src/main/resources`, found by walking
+  up from the game directory (`IPlatformHelper.gameDirectory`). `:common:devTest` covers
+  both. The panel is deliberately plain, with vanilla widgets and flat fills, outside
+  the GUI language.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at

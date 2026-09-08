@@ -1,6 +1,9 @@
 package com.digicube.party;
 
 import com.digicube.Constants;
+import com.digicube.dev.DevActionPayload;
+import com.digicube.dev.DevActions;
+import com.digicube.dev.DevStatePayload;
 import io.netty.buffer.Unpooled;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.RegistryAccess;
@@ -103,6 +106,13 @@ public final class PartyRegressionTest {
         dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), dead.entityData());
         roster.add(dead);
         check(!dead.active() && !roster.select(owner, dead.id(), 0), "party storage cannot resurrect dead partners");
+        int healed = PartyManager.healAll(data, owner);
+        check(healed == roster.owned(owner).size(), "heal touches every owned partner");
+        check(reserve.health() == 20 && reserve.entityData().getFloatOr("Health", 0) == 20, "reserve partners heal in their saved data");
+        check(dead.health() == 20 && !dead.defeated() && !dead.active(), "a defeated partner revives into reserve");
+        check(reserve.entityData().getStringOr("FutureTrainingData", "").equals("retained"), "heal keeps the rest of the saved data");
+        check(roster.select(owner, dead.id(), -1), "a revived partner is selectable again");
+        check(PartyManager.healAll(data, other) == 1 && PartyManager.healAll(data, UUID.randomUUID()) == 0, "heal is scoped to one owner");
         PartyMember malformed = member(owner);
         malformed.setSlot(99);
         PartyMember duplicateSlot = member(owner);
@@ -122,6 +132,18 @@ public final class PartyRegressionTest {
             PartyActionPayload action = new PartyActionPayload(PartyActionPayload.SELECT, first.id(), -1);
             PartyActionPayload.STREAM_CODEC.encode(buffer, action);
             check(PartyActionPayload.STREAM_CODEC.decode(buffer).equals(action), "recall action round-trip");
+            buffer.clear();
+            CompoundTag devArgs = new CompoundTag();
+            devArgs.putString(DevActions.SPECIES_ARG, "agumon");
+            devArgs.putInt(DevActions.LEVEL_ARG, 7);
+            DevActionPayload devAction = new DevActionPayload(DevActions.SPAWN, devArgs);
+            DevActionPayload.STREAM_CODEC.encode(buffer, devAction);
+            check(DevActionPayload.STREAM_CODEC.decode(buffer).equals(devAction), "dev action round-trip");
+            buffer.clear();
+            DevStatePayload devState = new DevStatePayload(devArgs, "Spawned wild agumon Lv 7");
+            DevStatePayload.STREAM_CODEC.encode(buffer, devState);
+            check(DevStatePayload.STREAM_CODEC.decode(buffer).equals(devState), "dev state round-trip");
+            check(new DevStatePayload(devArgs, "x".repeat(400)).reply().length() == DevStatePayload.MAX_REPLY_LENGTH, "dev reply is bounded");
             buffer.clear();
             buffer.writeBoolean(false);
             buffer.writeVarInt(0);

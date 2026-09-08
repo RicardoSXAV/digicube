@@ -6,6 +6,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 
+import java.nio.file.Path;
+
 /**
  * Things every mod loader can do, but each does differently.
  *
@@ -41,4 +43,10 @@ public interface IPlatformHelper {
      * loader owns the transport; common code only builds payload records.
      */
     void sendToPlayer(ServerPlayer player, CustomPacketPayload payload);
+
+    /**
+     * The directory the game runs in ({@code .minecraft}, or {@code fabric/runs/client} in a
+     * dev run). The developer panel walks up from it to find the repository.
+     */
+    Path gameDirectory();
 }

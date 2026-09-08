@@ -10,6 +10,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 
+import java.nio.file.Path;
+
 /** Fabric implementation of {@link IPlatformHelper}. Wired up via META-INF/services. */
 public class FabricPlatformHelper implements IPlatformHelper {
 
@@ -36,5 +38,10 @@ public class FabricPlatformHelper implements IPlatformHelper {
     @Override
     public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
         if (ServerPlayNetworking.canSend(player, payload.type())) ServerPlayNetworking.send(player, payload);
+    }
+
+    @Override
+    public Path gameDirectory() {
+        return FabricLoader.getInstance().getGameDir();
     }
 }
