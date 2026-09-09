@@ -12,6 +12,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,8 +23,10 @@ import java.util.UUID;
  * Who chose which first partner, saved per world in the overworld's data storage like the
  * party roster. One record per player; the record is written before the partner exists,
  * so a crash in between leaves a record and no partner, which {@code /digicube starter
- * reset} repairs. The set of players currently shown the prompt is kept here too, but it
- * is connection-local and never saved.
+ * reset} repairs. The players who were handed their Digivice on a first join are saved
+ * here too, so the item is given exactly once per player per world. The set of players
+ * currently shown the prompt is kept here as well, but it is connection-local and never
+ * saved.
  */
 public final class StarterSavedData extends SavedData {
 
@@ -36,19 +39,22 @@ public final class StarterSavedData extends SavedData {
     }
 
     public static final Codec<StarterSavedData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            StarterRecord.CODEC.listOf().optionalFieldOf("records", List.of()).forGetter(StarterSavedData::records)
+            StarterRecord.CODEC.listOf().optionalFieldOf("records", List.of()).forGetter(StarterSavedData::records),
+            UUIDUtil.CODEC.listOf().optionalFieldOf("digivices", List.of()).forGetter(StarterSavedData::digivices)
     ).apply(instance, StarterSavedData::new));
     public static final SavedDataType<StarterSavedData> TYPE = new SavedDataType<>(
             Constants.id("starters"), StarterSavedData::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 
     private final Map<UUID, Identifier> records = new LinkedHashMap<>();
+    private final Set<UUID> digivices = new LinkedHashSet<>();
     private final Set<UUID> offered = new HashSet<>();
 
     public StarterSavedData() {}
 
-    private StarterSavedData(List<StarterRecord> records) {
+    private StarterSavedData(List<StarterRecord> records, List<UUID> digivices) {
         // A duplicated player in a hand-edited file keeps its first entry.
         for (StarterRecord record : records) this.records.putIfAbsent(record.player(), record.species());
+        this.digivices.addAll(digivices);
     }
 
     public static StarterSavedData get(MinecraftServer server) {
@@ -78,6 +84,22 @@ public final class StarterSavedData extends SavedData {
         if (records.remove(player) == null) return false;
         setDirty();
         return true;
+    }
+
+    // --- the Digivice handed on first join ------------------------------------------------
+
+    /** Every player who received a Digivice, in the order they did. */
+    public List<UUID> digivices() {
+        return List.copyOf(digivices);
+    }
+
+    public boolean hasDigivice(UUID player) {
+        return digivices.contains(player);
+    }
+
+    /** Remembers that the player was handed a Digivice; a second mark changes nothing. */
+    public void markDigivice(UUID player) {
+        if (digivices.add(player)) setDirty();
     }
 
     // --- prompt bookkeeping, per connection, never saved -------------------------------

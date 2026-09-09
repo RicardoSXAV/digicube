@@ -105,13 +105,19 @@ public final class StarterRegressionTest {
         check(data.records().size() == 2 && data.records().getFirst().player().equals(first), "records keep their order");
         data.markOffered(first);
         check(data.isOffered(first) && !data.isOffered(second), "the offer set is per player");
+        check(!data.hasDigivice(first) && data.digivices().isEmpty(), "nobody holds a Digivice at first");
+        data.markDigivice(first);
+        data.markDigivice(first);
+        check(data.hasDigivice(first) && !data.hasDigivice(second) && data.digivices().equals(List.of(first)), "a Digivice is marked once per player");
 
         var encoded = StarterSavedData.CODEC.encodeStart(NbtOps.INSTANCE, data).getOrThrow();
         StarterSavedData decoded = StarterSavedData.CODEC.parse(NbtOps.INSTANCE, encoded).getOrThrow();
         check(decoded.records().equals(data.records()), "records round-trip through the codec");
+        check(decoded.digivices().equals(List.of(first)), "handed Digivices round-trip through the codec");
         check(!decoded.isOffered(first), "the offer set is not saved");
         StarterSavedData empty = StarterSavedData.CODEC.parse(NbtOps.INSTANCE, new CompoundTag()).getOrThrow();
         check(empty.records().isEmpty(), "an empty document loads as no records");
+        check(empty.digivices().isEmpty(), "a document from before the Digivice hand-out loads as nobody holding one");
 
         check(data.reset(first) && !data.hasRecord(first) && !data.reset(first), "reset removes a record once");
         data.clearOffered(first);
@@ -119,6 +125,9 @@ public final class StarterRegressionTest {
     }
 
     private static void checkEligibility() {
+        check(StarterFlow.needsDigivice(false, false), "a new player is handed a Digivice");
+        check(!StarterFlow.needsDigivice(true, false), "spectators wait for their Digivice");
+        check(!StarterFlow.needsDigivice(false, true), "one Digivice per player per world");
         check(StarterFlow.eligibility(false, false, 0) == StarterFlow.Eligibility.ELIGIBLE, "a new player is eligible");
         check(StarterFlow.eligibility(true, false, 0) == StarterFlow.Eligibility.SPECTATOR, "spectators are skipped");
         check(StarterFlow.eligibility(false, true, 0) == StarterFlow.Eligibility.ALREADY_CHOSEN, "one starter per player");

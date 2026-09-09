@@ -8,6 +8,7 @@ import com.digicube.party.PartyManager;
 import com.digicube.party.PartySavedData;
 import com.digicube.platform.Services;
 import com.digicube.registry.DCEntityTypes;
+import com.digicube.registry.DCItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -16,6 +17,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -99,11 +101,42 @@ public final class StarterFlow {
     }
 
     /**
-     * Shows the prompt if the player is eligible.
+     * Whether a joining player is handed a Digivice. Spectators wait until they play for
+     * real; everyone else receives exactly one per world, including tamers who predate the
+     * prompt.
+     */
+    public static boolean needsDigivice(boolean spectator, boolean handed) {
+        return !spectator && !handed;
+    }
+
+    /**
+     * Hands the Digivice to a player who never received one in this world. The mark is
+     * written first so a crash in between can only lose a Digivice (a spare comes from
+     * {@code /give}), never hand out two. The item lands in the first free slot, which on
+     * a fresh player is the first hotbar slot, or drops at their feet when the inventory
+     * is full.
+     * @return whether a Digivice was handed over
+     */
+    public static boolean handDigivice(MinecraftServer server, ServerPlayer player) {
+        StarterSavedData data = StarterSavedData.get(server);
+        UUID id = player.getUUID();
+        if (!needsDigivice(player.isSpectator(), data.hasDigivice(id))) return false;
+        data.markDigivice(id);
+        ItemStack digivice = new ItemStack(DCItems.DIGIVICE);
+        if (!player.getInventory().add(digivice)) player.drop(digivice, false);
+        player.sendSystemMessage(Component.translatable("digimon.digicube.digivice.received"));
+        Constants.LOG.debug("Handed a Digivice to {}", player.getGameProfile().name());
+        return true;
+    }
+
+    /**
+     * Hands the Digivice if it is still owed, then shows the prompt if the player is
+     * eligible.
      * @param force ignore owned partners (operator use, for players who predate the prompt)
      * @return the eligibility, so commands can explain a refusal
      */
     public static Eligibility offer(MinecraftServer server, ServerPlayer player, boolean force) {
+        handDigivice(server, player);
         StarterSavedData data = StarterSavedData.get(server);
         UUID id = player.getUUID();
         int owned = force ? 0 : PartySavedData.get(server).roster().owned(id).size();

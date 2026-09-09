@@ -323,6 +323,9 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `WildSpawner.tick` is loader-neutral and runs from the loader's end-of-level-tick
   hook; its settings are the `digicube:wild` saved data edited with `/digicube wild`.
   Wild Digimon are neutral: they only retaliate, and only attack-less species flee.
+- The Digivice is handed out, never crafted: `StarterFlow.handDigivice` (common) runs first
+  on every join and gives one to any non-spectator the `digicube:starters` data has not
+  marked yet, so it is one per player per world and legacy tamers get theirs too.
 - The first partner is a prompt, not a command: `StarterFlow` (common) decides
   eligibility (not a spectator, no `digicube:starters` record, no owned Digimon), writes
   the record first and then grants through `PartyManager.give`; the candidates and their
