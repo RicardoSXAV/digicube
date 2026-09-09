@@ -7,6 +7,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import java.util.function.BiFunction;
 
 /**
  * Shared render/damage geometry: a continuous mouth-attached jet clipped against solid terrain.
@@ -45,14 +46,25 @@ public record FlameStream(Vec3 origin, Vec3 end, double radius) {
      * @param yaw body yaw @param previousPitch starting guess
      * @return additional head pitch, constrained to the authored neck's useful range */
     public static float aimPitch(AttackMotion.Frame frame, Vec3 feet, Vec3 target, float yaw, float previousPitch) {
-        float pitch = previousPitch;
-        for (int i = 0; i < 8; i++) {
-            Vec3 mouth = feet.add(frame.aimedMouth(pitch).yRot(-yaw * Mth.DEG_TO_RAD));
-            Vec3 aim = target.subtract(mouth);
-            pitch = Mth.clamp((float) Math.toDegrees(Math.atan2(-aim.y, aim.horizontalDistance()))
-                    - frame.headPitch(), -55, 60);
+        if (frame.aimWeight() < .001F) return previousPitch;
+        float previous = Mth.clamp(previousPitch, -55, 60);
+        if (Math.abs(pitchError(frame, feet, target, yaw, previous)) < .001F) return previous;
+        // Repeatedly aiming from the newly rotated mouth oscillates at close range
+        // on a long snout. Bracket the angular error instead of chasing that offset.
+        float low = -55, high = 60;
+        for (int i = 0; i < 16; i++) {
+            float pitch = (low + high) * .5F;
+            if (pitchError(frame, feet, target, yaw, pitch) > 0) low = pitch;
+            else high = pitch;
         }
-        return pitch;
+        return (low + high) * .5F;
+    }
+
+    private static float pitchError(AttackMotion.Frame frame, Vec3 feet, Vec3 target, float yaw, float pitch) {
+        Vec3 mouth = feet.add(frame.aimedMouth(pitch).yRot(-yaw * Mth.DEG_TO_RAD));
+        Vec3 aim = target.subtract(mouth);
+        double forward = aim.dot(Vec3.directionFromRotation(0, yaw));
+        return (float) Math.toDegrees(Math.atan2(-aim.y, forward)) - frame.headPitch() - pitch * frame.aimWeight();
     }
 
     /** @param target victim bounds @return whether the jet's volume touches the victim */
@@ -81,7 +93,16 @@ public record FlameStream(Vec3 origin, Vec3 end, double radius) {
      */
     public static FlameStream trace(Entity emitter, Vec3 head, Vec3 mouth, Vec3 direction,
                                     double reach, double radius) {
-        if (clip(emitter, head, mouth).getType() != HitResult.Type.MISS) {
+        return trace(head, mouth, direction, reach, radius, (from, to) -> {
+            HitResult hit = clip(emitter, from, to);
+            return hit.getType() == HitResult.Type.MISS ? to : hit.getLocation();
+        });
+    }
+
+    /** Collision adapter also allows terrain regressions without launching Minecraft. */
+    public static FlameStream trace(Vec3 head, Vec3 mouth, Vec3 direction, double reach, double radius,
+                                    BiFunction<Vec3, Vec3, Vec3> clip) {
+        if (clip.apply(head, mouth).distanceToSqr(mouth) > 1.0E-8) {
             return new FlameStream(mouth, mouth, radius);
         }
         Vec3 side = direction.cross(new Vec3(0, 1, 0));
@@ -96,9 +117,9 @@ public record FlameStream(Vec3 origin, Vec3 end, double radius) {
             Vec3 radial = edge < 0 ? Vec3.ZERO : side.scale(Math.cos(angle)).add(up.scale(Math.sin(angle)));
             Vec3 start = mouth.add(radial.scale(radius));
             Vec3 finish = mouth.add(direction.scale(reach)).add(radial.scale(radius + 0.07 * reach));
-            HitResult hit = clip(emitter, start, finish);
-            if (hit.getType() != HitResult.Type.MISS) {
-                double fraction = start.distanceTo(hit.getLocation()) / start.distanceTo(finish);
+            Vec3 hit = clip.apply(start, finish);
+            if (hit.distanceToSqr(finish) > 1.0E-8) {
+                double fraction = start.distanceTo(hit) / start.distanceTo(finish);
                 length = Math.min(length, Math.max(0, reach * fraction - 0.03));
             }
         }

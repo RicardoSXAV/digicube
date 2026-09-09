@@ -26,6 +26,7 @@ public class DigiCubeFabric implements ModInitializer {
         FabricPartyNetworking.init();
         FabricStarterNetworking.init();
         FabricDevNetworking.init();
+        FabricAerialNetworking.init();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 DigiCubeCommands.register(dispatcher));

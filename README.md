@@ -403,7 +403,7 @@ Use `/digicube give garurumon`, then right-click your partner to mount. **WASD**
 steers and **Shift** dismounts. It runs at the same fast follow pace whether the
 owner walks or sprints, and has ridden speed 0.5 with one-block stepping. Wild
 Garurumon can be created with `/digicube spawn garurumon`; only an owner can ride.
-Attack animations are reserved for a later pass.
+He uses Freeze Fang and Howling Blaster while unmounted; existing partners gain them automatically.
 
 Model scale is 1.0: its back is about 2.1 blocks high, with a 1.9 × 2.8-block body
 box. The rider sits between the shoulder and hip plumes, 2.1875 blocks above the
@@ -425,6 +425,61 @@ moving rider seat. In game, check walking away from Garurumon, mounting, steerin
 stopping, one-block rises and dismounting, including armor and another player's
 view. Dedicated-server mounting still needs a manual test; the dev server's EULA
 must be accepted before it can open a world.
+
+#### Garurumon's attacks
+
+**Freeze Fang** crouches, lunges and snaps the real jaw. A successful hit applies
+an **8-second Ice Mark**. Its cooldown is 1.4 seconds, matching the full animation, with no knockback that
+would push the marked enemy away from the combo.
+Marked living mobs show a crisp snowflake medallion above their heads (above a name
+when present). It disappears when the mark expires or is consumed, respects terrain
+occlusion and F1, and is synchronized to observing players.
+
+**Howling Blaster** uses Gabumon's fuel mechanics with a larger, brighter blue ice
+flame: a four-second tank and eight-second empty-to-full refill. Landing **one second**
+of flame contact on a marked target freezes it for up to **3 seconds** and consumes the mark.
+Garurumon stops emitting, finishes his exhale, then closes for another bite. That bite
+deals **50% bonus damage** and shatters the ice on a successful hit. A seven-second
+freeze-resistance timer starts with the freeze and remains after shattering, preventing
+repeated stun-locks. Misses and blocked flames spend
+fuel without advancing the freeze. Separate targets, casters and casts keep separate
+contact counts. Neither attack burns terrain or damages allies.
+
+The move pair follows **bite → mark → breath → freeze → shattering bite**.
+Garurumon approaches reachable prey to start the combo, backs up only when needed to
+clear his muzzle, and pursues frozen prey for the follow-up. A conversion needs at least
+28 fuel ticks available (20 contact plus a travel/miss allowance), so a clean freeze
+uses roughly a quarter tank. He keeps biting during freeze resistance and refills
+during exhale/bite animations. Unmarked ranged damage remains a fallback for enemies
+he cannot approach. Positioning changes with the combo phase, including an immediate
+replan when a mark is applied or a target freezes.
+
+All Digimon now check actual attack geometry before committing. Horns and bites
+rehearse the exported contact path, including body clearance and ground support;
+shots check the mouth's line of fire. Breath aims at a clear point inside the upper
+body and includes the moving mouth and aim blend. When an attack cannot connect,
+navigation searches for a reachable firing/striking position, including stepping
+down to the target's level. Existing attack timing, hitboxes and turn limits remain
+in force, so quick targets can still dodge.
+
+Try `/digicube give garurumon`, deploy him, then hit a sturdy enemy. Watch the bite,
+the snowflake badge on its target, repositioning, sustained breath and brief freeze.
+Repeat against cows on level ground and one block below, then compare Gabumon,
+Greymon, Agumon and Gomamon. Watch for stepping down or choosing a clear ranged shot.
+Also try cover, a moving target, an enemy very close to his chest, and recalling
+or mounting during emission. Mounting always cancels combat. Existing partners gain
+both moves. Full dedicated-server combat remains a manual check after EULA acceptance.
+
+The reproducible Blender source is `../harness/blender/build_garurumon_attacks.py`.
+Claim a task-owned Blender session, run that script and `build_howling_blaster.py`,
+then install with `../harness/tools/install_garurumon_attacks.py`. This preserves the
+approved native model and gallop and adds the separate generated attack holder.
+Saved clips, complete previews and verification reports are in
+`../harness/out/garurumon_attacks/`. The compiled attack check is
+`gradlew.bat --init-script ../harness/tools/verify_garurumon_attacks.init.gradle :fabric:verifyGarurumonAttacks`.
+The badge's editable pixel grid is `../harness/art/pixel_sprites/ice_mark_badge/sprite.json`;
+render it with `../harness/tools/render_pixel_sprites.py`, then copy its native PNG to
+`assets/digicube/textures/entity/status/`. Source grids and enlarged previews stay in the harness.
 
 ### Gomamon on land and in water
 
@@ -490,6 +545,28 @@ their saved scenes and full-motion filmstrips under `out/gomamon_attacks/` and
 Run `gradlew.bat --init-script ../harness/tools/verify_gomamon_attacks.init.gradle
 :fabric:verifyGomamonAttacks` to compare compiled locomotion, attack curves, blends
 and reset poses against Blender. `build` also checks wave steering and collision.
+
+### Ikkakumon: standing mount and fast swimming
+
+Use `/digicube give ikkakumon`, then right-click your partner to mount. The rider
+stands on the broad back, slightly to one side so the horn leaves the crosshair
+clear. **WASD** steers; in water, look up/down while moving to ascend/dive.
+**Shift** dismounts. `/digicube spawn ikkakumon` creates a wild Ikkakumon.
+
+The approved cuboid model, painted atlas, paired push/glide walk, water idle, swim
+and finished 32×32 party sprite come from the harness. The model retains its
+2.75-block fur crown and 3.88-block horn tip. Attacks are deferred until authored.
+Walking responds to travel but is capped at one push/glide cycle per second, keeping
+the approved ground speed without frantic leg motion. A sampled amplitude table
+keeps the feet above the floor during slow movement. Swimming has an independent cruise speed, and
+the standing attachment rises gradually with the water posture.
+
+The editable native file, rider-eye views and playback previews are in
+`../harness/out/ikkakumon_release`. Reproduce the asset export with
+`../harness/blender/export_ikkakumon_release.py` through a reserved Blender MCP
+session, then install with `../harness/tools/install_ikkakumon_release.py`.
+`gradlew.bat -I ../harness/tools/verify_ikkakumon.init.gradle :fabric:verifyIkkakumonExport`
+checks the compiled poses against Blender, including partial walks and water blends.
 
 ### Tentomon: biped walking and short flights
 
@@ -638,7 +715,7 @@ in `data/digicube/spawn_tables.json` and validated at startup. At most 4 wild Di
 per player and 24 per dimension exist at once; spawning respects the `spawn_mobs`
 game rule and wild Digimon despawn like animals. They are neutral: they never start
 a fight, a species with attacks retaliates when hurt, and a species without attacks
-flees. Garurumon is not in the table until it has attacks. Wild Digimon carry a
+flees. Garurumon is not in the bundled spawn table yet. Wild Digimon carry a
 `Lv 7 Koromon` nameplate; the party HUD shows `Lv7` beside each icon and the
 Digivice card and tooltip show level and XP progress.
 
@@ -770,3 +847,26 @@ Not built yet, roughly in the order it should be tackled:
 2. **Raising and training** — bond, weight and training progression for partners, on top of levels.
 3. **The evolution engine** — evaluating `Evolution` branches (`min_level` is now meaningful) and swapping species at runtime.
 4. **Taming and DigiEggs**, beyond the existing spawn/give commands and wild spawns.
+
+### Kabuterimon: flying partner
+
+`/digicube give kabuterimon` adds the blue adult partner with the approved native
+model. Right-click your partner to ride. Space launches/climbs; normal movement
+and mouse look steer. Hold forward and look down to dive: sustained steep descents
+build speed, which carries through a smooth pull-up. Climbs and hard turns spend
+that momentum. Approaching the ground brakes and lands automatically, with more
+braking distance at higher descent speeds. Releasing movement hovers. Shift dismounts as usual.
+A single stamina bar shows the available flight reserve. There are no additional
+flight keys or potion effects.
+
+The rider is centered behind the horn. Flying uses a forward body lean, tucked
+legs, swept arms, turn banking and a dive angle that follows actual movement, with continuous native takeoff/flight/landing
+clips. The reusable flight profile lives in the species sheet; future aerial
+species supply the same native clip/presentation contract without new physics.
+Source, packed Blender scenes, multi-angle reviews and real-client previews are in
+`../harness/out/kabuterimon_release/README.md`.
+
+The dive revision has passed deterministic handling and compiled pose checks;
+its in-game feel awaits manual review. Try gaining altitude, diving with W, then
+leveling the view while holding W to carry speed. `body.mount.flight.dive` supplies
+the reusable terminal speed, dive acceleration and momentum-loss settings.

@@ -6,6 +6,7 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.platform.Services;
 import com.digicube.registry.DCEntityTypes;
 import com.digicube.registry.DCItems;
+import com.digicube.registry.DCEffects;
 import com.digicube.spawn.SpawnTables;
 import com.digicube.starter.StarterSet;
 
@@ -22,6 +23,7 @@ public final class DigiCube {
     private DigiCube() {}
 
     public static void init() {
+        DCEffects.init();
         Constants.LOG.info("Starting {} on {} ({} environment).",
                 Constants.MOD_NAME,
                 Services.PLATFORM.getPlatformName(),

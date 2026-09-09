@@ -43,6 +43,9 @@ public final class LocomotionRegressionTest {
             checkGroundAndWater();
             checkFollowWithoutAttacks();
             checkNodeArrival();
+            AquaticRidingRegressionTest.run();
+            AerialRidingRegressionTest.run();
+            CombatPressureRegressionTest.run();
             if (!FAILURES.isEmpty()) throw new AssertionError(String.join("; ", FAILURES));
             Constants.LOG.info("Locomotion regression checks passed: ground movement, stopping, fast swimming, pitch, following without attacks and wide-body node arrival.");
         } finally {

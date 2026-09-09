@@ -11,6 +11,9 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float flightPhaseTime;
     public float flightLoopTime;
     public float flightWalkAmount;
+    public float aerialBank;
+    public float aerialPitch;
+    public float flightGroundDistance=3;
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
     public final MegaFlameRenderState mouthFlame = new MegaFlameRenderState();
@@ -33,6 +36,8 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float swimMotionAmount;
     /** Slow land-cycle clock for aquatic species. */
     public float groundAnimationPhase;
+    public float groundAnimationAmount;
+    public net.minecraft.world.phys.Vec3 mountAnchor = net.minecraft.world.phys.Vec3.ZERO;
     /** Smoothed bank into a swimming turn, in degrees. */
     public float swimBank;
 

@@ -279,6 +279,7 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
         this.tailTip = root.getChild("body").getChild("pelvis").getChild("tail_00").getChild("tail_01").getChild("tail_02").getChild("tail_03").getChild("tail_04").getChild("tail_05").getChild("tail_06").getChild("tail_07").getChild("tail_08").getChild("tail_09").getChild("tail_10").getChild("tail_11").getChild("tail_tip");
         this.riderSeat = root.getChild("body").getChild("rider_seat");
         GarurumonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        GarurumonAttackAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
     }
 
     /**
@@ -292,6 +293,17 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
     @Override
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
+        if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
+            var attack = this.animations.get(state.attackAnimationName);
+            if (attack != null) {
+                long time = state.attackAnimation.getTimeInMillis(state.ageInTicks);
+                attack.apply(time, 1.0F);
+                if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
+                    this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(time / 50.0F).aimWeight() * Mth.DEG_TO_RAD;
+                }
+                return;
+            }
+        }
         float motion = Mth.clamp(state.walkAnimationSpeed * 3.0F, 0.0F, 1.0F);
         this.animations.get("run").applyWalk(state.walkAnimationPos, motion, 0.828235294F, 1.0F);
         if (motion > 0.0F && motion < 1.0F) keepTransitionFeetAboveGround();

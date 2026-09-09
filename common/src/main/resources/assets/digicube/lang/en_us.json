@@ -1,4 +1,5 @@
 {
+  "digimon.digicube.kabuterimon": "Kabuterimon",
   "creative_tab.digicube.main": "DigiCube",
   "item.digicube.digivice": "Digivice",
 
@@ -125,6 +126,7 @@
   "digimon.digicube.tsunomon": "Tsunomon",
   "digimon.digicube.gabumon": "Gabumon",
   "digimon.digicube.gomamon": "Gomamon",
+  "digimon.digicube.ikkakumon": "Ikkakumon",
   "digimon.digicube.tentomon": "Tentomon",
   "digimon.digicube.garurumon": "Garurumon",
   "digimon.digicube.agumon": "Agumon",
@@ -145,5 +147,9 @@
   "digicube.attribute.virus": "Virus",
   "digicube.attribute.free": "Free",
   "digicube.attribute.variable": "Variable",
-  "digicube.attribute.unknown": "Unknown"
+  "digicube.attribute.unknown": "Unknown",
+
+  "effect.digicube.ice_mark": "Ice Mark",
+  "effect.digicube.frozen": "Frozen",
+  "effect.digicube.frost_resistance": "Frost Resistance"
 }

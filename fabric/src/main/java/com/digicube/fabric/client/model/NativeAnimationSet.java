@@ -17,6 +17,8 @@ public final class NativeAnimationSet {
     private record Visibility(ModelPart part, float[] times, boolean[] shown) {}
     private record Clip(float length, boolean loop, Track[] tracks, Visibility[] visibility) {}
     private final Map<String, Clip> clips = new HashMap<>();
+    private record BlendPoint(float value, String clip) {}
+    private final Map<String, BlendPoint[]> blends = new HashMap<>();
     private final ModelPart[] membranes;
 
     public NativeAnimationSet(ModelPart root, Identifier resource) {
@@ -68,11 +70,38 @@ public final class NativeAnimationSet {
                 clips.put(entry.getKey(), new Clip(length, clip.get("loop").getAsBoolean(),
                         tracks.toArray(Track[]::new), visibility.toArray(Visibility[]::new)));
             }
+            if (data.has("blends")) for (var entry : data.getAsJsonObject("blends").entrySet()) {
+                var points = entry.getValue().getAsJsonArray();
+                if (points.size() < 2) throw new IllegalArgumentException("Native blend needs two points");
+                var values = new BlendPoint[points.size()];
+                for (int i=0; i<values.length; i++) {
+                    var point = points.get(i).getAsJsonArray();
+                    values[i] = new BlendPoint(point.get(0).getAsFloat(), point.get(1).getAsString());
+                    if (!Float.isFinite(values[i].value) || !clips.containsKey(values[i].clip)
+                            || i>0 && values[i].value<=values[i-1].value) {
+                        throw new IllegalArgumentException("Invalid native blend points");
+                    }
+                }
+                blends.put(entry.getKey(), values);
+            }
         } catch (IOException e) { throw new IllegalStateException("Cannot load native animations " + resource, e); }
     }
 
     /** Model instances are shared between creatures. Reset visibility on every rendered pose. */
     public void hideMembranes() { for (ModelPart part : membranes) part.visible = false; }
+
+    /** Interpolate authored amplitude samples, with denser points around sensitive joint bends. */
+    public void blend(String name, float value, float tick, float weight) {
+        if (weight <= 0) return;
+        var points = blends.get(name);
+        if (points == null) throw new IllegalArgumentException("Missing native blend " + name);
+        int lower=0;
+        while (lower+2<points.length && points[lower+1].value<=value) lower++;
+        var a=points[lower];var b=points[lower+1];
+        float mix=Math.clamp((value-a.value)/(b.value-a.value),0,1);
+        apply(a.clip,tick,(1-mix)*weight);
+        apply(b.clip,tick,mix*weight);
+    }
 
     /** Add a weighted delta from rest. Clocks are fractional server ticks, independent of game frame rate. */
     public void apply(String name, float tick, float weight) {

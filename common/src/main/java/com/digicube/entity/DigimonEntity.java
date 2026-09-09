@@ -4,6 +4,10 @@ import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
 import com.digicube.digimon.AttackMotion;
 import com.digicube.digimon.FuelReserve;
+import com.digicube.digimon.IceCombo;
+import com.digicube.digimon.IceExposure;
+import com.digicube.registry.DCEffects;
+import net.minecraft.world.effect.MobEffectInstance;
 import com.digicube.digimon.FlightReserve;
 import com.digicube.digimon.DigimonFlight;
 import com.digicube.entity.ai.DigimonFlightGoal;
@@ -153,12 +157,29 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private FlightReserve flightReserve;
     private DigimonFlight flightDefinition;
     private boolean needsFlightLanding;
+    private com.digicube.entity.ai.AerialRiding aerialRiding;
+    public com.digicube.digimon.AerialMount aerialMount() { return getBody().mount().map(DigimonBody.Mount::flight).orElse(null); }
+    public com.digicube.entity.ai.AerialRiding aerialRiding() {
+        if (aerialRiding==null) aerialRiding=new com.digicube.entity.ai.AerialRiding(this);
+        return aerialRiding;
+    }
+    public void requestFlightLanding() { needsFlightLanding=true; }
+    public int flightLiftTick() { return aerialMount()==null ? 13 : aerialMount().liftTick(); }
+    public int flightTakeoffTicks() { return aerialMount()==null ? 32 : aerialMount().takeoffTicks(); }
+    public int flightLandingTicks() { return aerialMount()==null ? 32 : aerialMount().landingTicks(); }
+    public int flightLoopTicks() { return aerialMount()==null ? 40 : aerialMount().wingLoopTicks(); }
     private float previousFlightWalkAmount;
+    private float aerialBank,previousAerialBank,aerialPitch,previousAerialPitch;
+    public float getAerialBank(float partial) { return Mth.lerp(partial,previousAerialBank,aerialBank); }
+    public float getAerialPitch(float partial) { return Mth.lerp(partial,previousAerialPitch,aerialPitch); }
     private float flightWalkAmount;
 
     // --- server-side combat state ---------------------------------------------------
     private DigimonAttack activeAttack;
     private LivingEntity attackTarget;
+    private int comboPathTargetId = -1;
+    private int comboPathCheckTick;
+    private boolean comboPathReachable;
     private int attackTick;
     private boolean attackMirrored;
     private boolean nextAttackMirrored;
@@ -171,6 +192,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Attack id -> {@link #tickCount} at which it may be used again. */
     private final Map<Identifier, Integer> cooldownUntil = new HashMap<>();
     private final Map<Identifier, FuelReserve> attackFuel = new HashMap<>();
+    private final IceExposure iceExposure = new IceExposure();
     private long partyGeneration;
 
     // --- server-side progression state ------------------------------------------------
@@ -199,6 +221,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private float previousGroundAnimationPhase;
     private float groundAnimationPhase;
     private float previousSwimBank;
+    private float groundAnimationAmount;
+    private float previousGroundAnimationAmount;
+    private float mountWaterAmount;
+    private float previousMountWaterAmount;
     private float swimBank;
     private float landWaterMalus;
     private float landWaterBorderMalus;
@@ -304,7 +330,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public boolean isFlyingMovement() {
         FlightPhase phase = getFlightPhase();
         return canFly() && isAlive() && phase.airborne()
-                && (phase != FlightPhase.TAKEOFF || getFlightPhaseTime(0) >= 13);
+                && (phase != FlightPhase.TAKEOFF || getFlightPhaseTime(0) >= flightLiftTick());
     }
     public boolean needsFlightLanding() { return needsFlightLanding; }
     public void clearFlightLandingRequest() { needsFlightLanding = false; }
@@ -335,6 +361,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override public void travel(Vec3 input) {
         if (isFlyingMovement() && !isInWater() && !isInLava()) {
+            if (aerialMount()!=null && getControllingPassenger() instanceof Player rider) {
+                setDeltaMovement(aerialRiding().velocity(rider));
+            }
             move(MoverType.SELF, getDeltaMovement());
             resetFallDistance();
         } else super.travel(input);
@@ -346,6 +375,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     public boolean isSwimmingMovement() {
         return canSwim() && isInWater() && getFluidHeight(FluidTags.WATER) > getBbHeight() * 0.35;
+    }
+
+    public float getGroundAnimationAmount(float partialTick) {
+        return Mth.lerp(partialTick, previousGroundAnimationAmount, groundAnimationAmount);
+    }
+
+    /** Physical local attachment, including the gradual buoyancy change on both sides. */
+    public Vec3 getMountAnchor(float partialTick) {
+        return getBody().mount().map(m -> m.position(Mth.lerp(partialTick, previousMountWaterAmount, mountWaterAmount)))
+                .orElse(Vec3.ZERO);
     }
 
     /**
@@ -621,19 +660,29 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected void tickRidden(Player player, Vec3 input) {
         super.tickRidden(player, input);
+        if (aerialMount()!=null && getFlightPhase()!=FlightPhase.GROUNDED) {
+            aerialRiding().steer(player);
+            return;
+        }
         setYRot(player.getYRot());
-        setXRot(player.getXRot() * 0.35F);
+        setXRot(player.getXRot() * (canSwim() && isInWater() ? 0.7F : 0.35F));
         yBodyRot = getYRot();
         yHeadRot = getYRot();
     }
 
     @Override
     protected Vec3 getRiddenInput(Player player, Vec3 input) {
+        if (canSwim() && isInWater()) {
+            float forward = player.zza > 0 ? player.zza : player.zza * .25F;
+            float pitch = Mth.clamp(player.getXRot() * .7F, -60, 60) * Mth.DEG_TO_RAD;
+            return new Vec3(player.xxa * .5F, -Mth.sin(pitch) * forward, Mth.cos(pitch) * forward);
+        }
         return new Vec3(player.xxa * 0.5F, 0.0, player.zza > 0.0F ? player.zza : player.zza * 0.25F);
     }
 
     @Override
     protected float getRiddenSpeed(Player player) {
+        if (canSwim() && isInWater()) return (float) (getLocomotion().swimSpeed() * (1 - DigimonMoveControl.WATER_DRAG));
         return getBody().mount().map(DigimonBody.Mount::speed).orElseGet(() -> super.getRiddenSpeed(player));
     }
 
@@ -645,12 +694,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float scale) {
         return getBody().mount()
-                .map(mount -> mount.seat().scale(scale).yRot(-getYRot() * Mth.DEG_TO_RAD))
+                .map(mount -> {
+                    Vec3 point = mount.position(mountWaterAmount).scale(scale).yRot(-getYRot() * Mth.DEG_TO_RAD);
+                    // Vanilla subtracts the player's 0.6-block vehicle attachment.
+                    // Cancel that for a standing mount whose data describes the feet.
+                    return mount.standing() ? point.add(passenger.getVehicleAttachmentPoint(this)) : point;
+                })
                 .orElseGet(() -> super.getPassengerAttachmentPoint(passenger, dimensions, scale));
     }
 
     @Override
     public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
+        if (aerialMount()!=null && !onGround() && !level().isClientSide()) {
+            requestFlightLanding();
+        }
         if (getBody().mount().isPresent()) {
             // Search beside the feet, so leaving a tall mount does not drop the tamer
             // from its shoulders. Vanilla checks floor, dangerous blocks and clearance.
@@ -840,12 +897,27 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     /**
-     * The first attack in species order that is off cooldown and can reach {@code target}
-     * right now, or null. Species order is priority order, so Pepper Breath wins over the
-     * claws whenever it is ready and the target is in sight.
+     * Frost-capable move sets plan mark then breath using fuel and target status.
+     * Other move sets retain their authored species order.
      */
     public DigimonAttack chooseAttack(LivingEntity target) {
-        if (getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || isAttacking() || target == null || !target.isAlive() || !canAttack(target)) return null;
+        if (getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || isAttacking() || hasEffect(DCEffects.FROZEN)
+                || target == null || !target.isAlive() || !canAttack(target)) return null;
+        DigimonAttack bite = attacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_BITE).findFirst().orElse(null);
+        DigimonAttack breath = attacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_STREAM).findFirst().orElse(null);
+        if (bite != null && breath != null) {
+            boolean resistant = target.hasEffect(DCEffects.FROST_RESISTANCE)
+                    || !target.canBeAffected(new MobEffectInstance(DCEffects.FROZEN, IceCombo.FREEZE_TICKS));
+            boolean approach = canApproachForBite(target);
+            return switch (IceCombo.choose(isAttackReady(bite), inRange(bite, target),
+                    isAttackReady(breath), inRange(breath, target), target.hasEffect(DCEffects.ICE_MARK),
+                    target.hasEffect(DCEffects.FROZEN), resistant,
+                    fuelFor(breath).availableTicks() >= IceCombo.comboFuelTicks(breath.fuel()), approach)) {
+                case BITE -> bite;
+                case BREATH -> breath;
+                case APPROACH -> null;
+            };
+        }
         for (DigimonAttack attack : attacks()) {
             if (isAttackReady(attack) && inRange(attack, target)) {
                 return attack;
@@ -854,15 +926,89 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return null;
     }
 
+    /** Navigation must prepare the same combo phase as attack selection, rather than backing away from frozen prey. */
+    public List<DigimonAttack> positioningAttacks(LivingEntity target) {
+        var moves = attacks();
+        var bite = moves.stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_BITE).findFirst().orElse(null);
+        var breath = moves.stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_STREAM).findFirst().orElse(null);
+        if (bite == null || breath == null) return moves;
+        if (target.hasEffect(DCEffects.FROZEN)) return List.of(bite);
+        if (target.hasEffect(DCEffects.ICE_MARK) && !target.hasEffect(DCEffects.FROST_RESISTANCE)
+                && isAttackReady(breath) && fuelFor(breath).availableTicks() >= IceCombo.comboFuelTicks(breath.fuel())) {
+            return List.of(breath, bite);
+        }
+        if (canApproachForBite(target)) return List.of(bite);
+        return moves;
+    }
+
+    /** Plan a bite against reachable prey before spending unmarked flame, even outside current fang range. */
+    private boolean canApproachForBite(LivingEntity target) {
+        if (distanceToSqr(target) > 16 * 16 || Math.abs(target.getY() - getY()) > 2) return false;
+        if (comboPathTargetId != target.getId() || tickCount >= comboPathCheckTick) {
+            comboPathTargetId = target.getId();
+            comboPathCheckTick = tickCount + 20;
+            var path = getNavigation().createPath(target, 0);
+            comboPathReachable = path != null && path.canReach();
+        }
+        return comboPathReachable;
+    }
+
     private boolean inRange(DigimonAttack attack, LivingEntity target) {
-        return switch (attack.kind()) {
-            case MELEE -> isWithinMeleeAttackRange(target);
-            case FIREBALL, BUBBLES -> distanceToSqr(target) <= attack.range() * attack.range()
-                    && getSensing().hasLineOfSight(target);
-            case FLAME_SHOT, HORN_RAM, FLAME_STREAM, WATER_WAVE -> distanceToSqr(target) <= attack.range() * attack.range()
-                    && distanceToSqr(target) >= attack.motion().minimumRange() * attack.motion().minimumRange()
-                    && getSensing().hasLineOfSight(target) && (attack.isRanged() || onGround());
-        };
+        return (attack.motion() == null || attack.isRanged() || onGround()) && canAttackFrom(attack, target, position());
+    }
+
+    /** Rehearse the move at a prospective foot position, including its real launch/contact geometry. */
+    public boolean canAttackFrom(DigimonAttack attack, LivingEntity target, Vec3 feet) {
+        double distance = feet.distanceToSqr(target.position());
+        if (attack.kind() == DigimonAttack.Kind.MELEE) {
+            // Prospective claw positions use a conservative margin inside vanilla mob reach.
+            // At the actual position and on impact, vanilla remains the authority.
+            return (feet.equals(position()) ? isWithinMeleeAttackRange(target)
+                    : getAttackBoundingBox(.6).move(feet.subtract(position())).intersects(target.getBoundingBox()))
+                    && clearAttackLine(feet.add(0, getEyeHeight(), 0), AttackGeometry.chest(target.getBoundingBox()));
+        }
+        if (distance > attack.range() * attack.range()) return false;
+        // A stream's authored minimum is a preferred stance, not a blind spot.
+        // Large enemies can remain inside the real jet while pressing into the body.
+        if (attack.motion() != null && attack.fuel() == null && feet.subtract(target.position()).horizontalDistanceSqr()
+                < attack.motion().minimumRange() * attack.motion().minimumRange()) return false;
+        if (attack.kind() == DigimonAttack.Kind.HORN_RAM || attack.kind() == DigimonAttack.Kind.FROST_BITE) {
+            return AttackGeometry.canContact(attack, feet, getBbWidth(), getBbHeight(), target.getBoundingBox(),
+                    this::clearAttackLine, box -> level().noCollision(this, box), this::hasChargeGround);
+        }
+        float yaw = AttackGeometry.yaw(feet, target.position());
+        if (attack.fuel() != null) {
+            return AttackGeometry.streamAim(attack, attack.hitTick(), feet, target.getBoundingBox(), yaw, this::clipAttackLine) != null;
+        }
+        Vec3 point = AttackGeometry.chest(target.getBoundingBox());
+        Vec3 mouth, head;
+        if (attack.motion() != null) {
+            var frame = attack.motion().sample(attack.hitTick());
+            float pitch = attack.kind() == DigimonAttack.Kind.FLAME_SHOT
+                    ? FlameStream.aimPitch(frame, feet, point, yaw, 0) : 0;
+            head = AttackGeometry.world(feet, frame.head(), yaw);
+            mouth = AttackGeometry.world(feet, frame.aimedMouth(pitch), yaw);
+        } else {
+            boolean bubbles = attack.kind() == DigimonAttack.Kind.BUBBLES;
+            head = feet.add(0, bubbles ? BUBBLE_MOUTH_HEIGHT : MOUTH_HEIGHT, 0);
+            mouth = head.add(Vec3.directionFromRotation(0, yaw).scale(bubbles ? BUBBLE_MOUTH_FORWARD : MOUTH_FORWARD));
+        }
+        return point.subtract(mouth).dot(Vec3.directionFromRotation(0, yaw)) > .05
+                && clearAttackLine(head, mouth) && clearAttackLine(mouth, point);
+    }
+
+    private Vec3 clipAttackLine(Vec3 from, Vec3 to) {
+        HitResult hit = level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+        return hit.getType() == HitResult.Type.MISS ? to : hit.getLocation();
+    }
+
+    private boolean clearAttackLine(Vec3 from, Vec3 to) {
+        return clipAttackLine(from, to).distanceToSqr(to) < 1.0E-8;
+    }
+
+    private boolean hasChargeGround(Vec3 feet) {
+        Vec3 probe = feet.add(0, .15, 0);
+        return !clearAttackLine(probe, probe.add(0, -1.25, 0));
     }
 
     /**
@@ -870,6 +1016,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * @return minimum usable distance in blocks, or zero for ordinary melee
      */
     public double minimumAttackSpacing() {
+        LivingEntity target = getTarget();
+        if (target != null && target.hasEffect(DCEffects.ICE_MARK) && !target.hasEffect(DCEffects.FROST_RESISTANCE)) {
+            for (DigimonAttack attack : attacks()) {
+                if (attack.kind() == DigimonAttack.Kind.FROST_STREAM && isAttackReady(attack)
+                        && fuelFor(attack).availableTicks() >= IceCombo.comboFuelTicks(attack.fuel())) {
+                    return attack.motion().minimumRange() + .2;
+                }
+            }
+        }
         if (attacks().stream().anyMatch(a -> a.kind() == DigimonAttack.Kind.MELEE)) return 0.0;
         return attacks().stream().filter(a -> a.motion() != null)
                 .mapToDouble(a -> a.motion().minimumRange()).min().orElse(0.0);
@@ -877,7 +1032,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Server only. Begins the attack timeline and tells clients to animate it. */
     public void startAttack(DigimonAttack attack, LivingEntity target) {
-        if (level().isClientSide() || getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || activeAttack != null || target == null
+        if (level().isClientSide() || hasEffect(DCEffects.FROZEN) || getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || activeAttack != null || target == null
                 || !target.isAlive() || !canAttack(target) || !isAttackReady(attack) || !inRange(attack, target)) return;
         List<DigimonAttack> attacks = attacks();
         int index = attacks.indexOf(attack);
@@ -891,6 +1046,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         bubbleAimPoint = null;
         authoredAimPoint = null;
         hornConnected = chargeBlocked = false;
+        iceExposure.clear();
         this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
         attackMirrored = attack.alternateSides() && nextAttackMirrored;
         if (attack.alternateSides()) {
@@ -918,7 +1074,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     protected void customServerAiStep(ServerLevel level) {
         super.customServerAiStep(level);
         if (canFly()) {
-            if (getFlightPhase() == FlightPhase.GROUNDED && onGround() && !isInWater() && !isInLava()) flightReserve().rest();
+            if (getFlightPhase() == FlightPhase.GROUNDED && onGround() && !isInWater() && !isInLava()
+                    && !(aerialMount()!=null && isVehicle())) flightReserve().rest();
             entityData.set(DATA_FLIGHT_FUEL, flightReserve().fraction());
         }
         attackFuel.values().forEach(FuelReserve::tickRecharge);
@@ -941,14 +1098,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             aimAuthoredAttack();
             getNavigation().stop();
             setDeltaMovement(0.0, getDeltaMovement().y, 0.0);
-            if (activeAttack.kind() == DigimonAttack.Kind.HORN_RAM) tickHornDrive(level);
+            if (activeAttack.kind() == DigimonAttack.Kind.HORN_RAM || activeAttack.kind() == DigimonAttack.Kind.FROST_BITE) tickHornDrive(level);
         } else if (attackTarget != null && attackTarget.isAlive()) {
             getLookControl().setLookAt(attackTarget, 30.0F, 30.0F);
         }
         if (activeAttack.kind() == DigimonAttack.Kind.FIREBALL) {
             tickFireballCharge(level);
         }
-        if (activeAttack.kind() == DigimonAttack.Kind.FLAME_STREAM) tickFlameStream(level);
+        if (activeAttack.fuel() != null) tickFlameStream(level);
+        if (activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && attackTick <= activeAttack.motion().activeUntil()) {
+            Vec3 fang = authoredPoint(activeAttack.motion().sample(attackTick).hornTip());
+            level.sendParticles(ParticleTypes.SNOWFLAKE, fang.x, fang.y, fang.z, 3, .16, .07, .13, .01);
+        }
         if (attackTick == activeAttack.hitTick()) {
             deliver(level, activeAttack);
         }
@@ -967,6 +1128,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     /** Interrupt combat before rider controls take over; the client also resets its pose. */
+    public void interruptAttack() {
+        if (!level().isClientSide()) cancelAttack();
+    }
+
+    /** Interrupt combat before rider controls take over; the client also resets its pose. */
     private void cancelAttack() {
         if (activeAttack == null) return;
         if (activeAttack.fuel() != null) {
@@ -974,6 +1140,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             this.entityData.set(DATA_SUSTAINED_ATTACK, "");
         }
         activeAttack = null;
+        iceExposure.clear();
         attackTarget = null;
         bubbleAimPoint = authoredAimPoint = null;
         level().broadcastEntityEvent(this, DigimonAnimationEvents.CANCEL);
@@ -992,6 +1159,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private void tickFlameStream(ServerLevel level) {
         AttackMotion motion = activeAttack.motion();
         if (attackTick < motion.activeFrom() || attackTick > motion.activeUntil()) return;
+        boolean frost = activeAttack.kind() == DigimonAttack.Kind.FROST_STREAM;
+        if (frost && attackTarget != null && attackTarget.hasEffect(DCEffects.FROZEN)) {
+            finishStream();
+            return;
+        }
+        if (frost && attackTarget != null && (!attackTarget.hasEffect(DCEffects.ICE_MARK)
+                || attackTarget.hasEffect(DCEffects.FROST_RESISTANCE)) && canApproachForBite(attackTarget)) {
+            finishStream();
+            return;
+        }
         if (!fuelFor(activeAttack).consume()) {
             finishStream();
             return;
@@ -1003,7 +1180,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             return;
         }
         int elapsed = attackTick - motion.activeFrom();
-        if (elapsed % activeAttack.fuel().damageIntervalTicks() == 0) {
+        boolean pulse = elapsed % activeAttack.fuel().damageIntervalTicks() == 0;
+        boolean frozeTarget = false;
+        if (pulse || frost) {
             for (Entity entity : level.getEntities(this, stream.bounds(),
                     e -> e instanceof LivingEntity living && living.isAlive() && canAttack(living) && !isAllyOf(living))) {
                 LivingEntity victim = (LivingEntity) entity;
@@ -1013,17 +1192,36 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                         .orElseGet(() -> victim.getBoundingBox().getCenter());
                 if (level.clip(new ClipContext(stream.origin(), contact, ClipContext.Block.COLLIDER,
                         ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
-                if (victim.hurtServer(level, DCDamageTypes.partnerAttack(this), damageAgainst(activeAttack, victim))) {
+                var source = DCDamageTypes.partnerAttack(this);
+                if (victim.isInvulnerableTo(level, source)) continue;
+                if (pulse && victim.hurtServer(level, source, damageAgainst(activeAttack, victim))) {
                     setLastHurtMob(victim);
                 }
+                if (frost && victim.isAlive() && iceExposure.touch(victim.getUUID(), elapsed,
+                        victim.hasEffect(DCEffects.ICE_MARK), victim.hasEffect(DCEffects.FROST_RESISTANCE)
+                                || victim.hasEffect(DCEffects.FROZEN), IceCombo.requiredContactTicks(activeAttack.fuel()))) {
+                    if (victim.addEffect(new MobEffectInstance(DCEffects.FROZEN, IceCombo.FREEZE_TICKS, 0, false, true), this)) {
+                        victim.removeEffect(DCEffects.ICE_MARK);
+                        victim.addEffect(new MobEffectInstance(DCEffects.FROST_RESISTANCE,
+                                IceCombo.RESISTANCE_TICKS, 0, false, false, true), this);
+                        if (victim instanceof DigimonEntity digimon) digimon.interruptAttack();
+                        frozeTarget |= victim == attackTarget;
+                        level.sendParticles(ParticleTypes.SNOWFLAKE, victim.getX(), victim.getY(.5), victim.getZ(),
+                                35, victim.getBbWidth() * .55, victim.getBbHeight() * .5, victim.getBbWidth() * .55, .06);
+                        level.playSound(null, victim.getX(), victim.getY(), victim.getZ(),
+                                SoundEvents.GLASS_BREAK, SoundSource.NEUTRAL, .8F, .65F);
+                    }
+                }
             }
-            level.playSound(null, stream.origin().x, stream.origin().y, stream.origin().z,
-                    SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE, SoundSource.NEUTRAL, 0.65F, 0.8F);
+            if (pulse) level.playSound(null, stream.origin().x, stream.origin().y, stream.origin().z,
+                    SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE, SoundSource.NEUTRAL, frost ? 1.0F : .65F, frost ? .55F : .8F);
         }
         if (elapsed % 3 == 0) {
             Vec3 end = stream.end();
-            level.sendParticles(ParticleTypes.SNOWFLAKE, end.x, end.y, end.z, 3, .18, .18, .18, .015);
+            level.sendParticles(ParticleTypes.SNOWFLAKE, end.x, end.y, end.z, frost ? 8 : 3,
+                    frost ? .45 : .18, frost ? .45 : .18, frost ? .45 : .18, frost ? .035 : .015);
         }
+        if (frozeTarget) finishStream();
     }
 
     /**
@@ -1045,7 +1243,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Face the aim during anticipation, then commit to that direction through the strike. */
     private void aimAuthoredAttack() {
-        boolean streaming = activeAttack.kind() == DigimonAttack.Kind.FLAME_STREAM;
+        boolean streaming = activeAttack.fuel() != null;
         if ((attackTick <= activeAttack.hitTick() || streaming && attackTick <= activeAttack.motion().activeUntil())
                 && attackTarget != null && attackTarget.isAlive()) {
             AttackMotion.Frame release = activeAttack.motion().sample(streaming ? attackTick : activeAttack.hitTick());
@@ -1063,16 +1261,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             }
             if (streaming) {
                 float previous = this.entityData.get(DATA_ATTACK_AIM_PITCH);
-                float desired = FlameStream.aimPitch(release, position(), authoredAimPoint, getYRot(), previous);
+                // Solve anticipation against the emission pose, before aimWeight has fully blended in.
+                double aimTick = Math.max(attackTick, activeAttack.hitTick());
+                var aim = AttackGeometry.streamAim(activeAttack, aimTick, position(), attackTarget.getBoundingBox(),
+                        getYRot(), this::clipAttackLine);
+                if (aim != null) authoredAimPoint = aim.target();
+                else authoredAimPoint = AttackGeometry.chest(attackTarget.getBoundingBox());
+                float desired = FlameStream.aimPitch(activeAttack.motion().sample(aimTick), position(), authoredAimPoint, getYRot(), previous);
                 this.entityData.set(DATA_ATTACK_AIM_PITCH, Mth.approach(previous, desired, 6));
             } else if (activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT) {
-                float pitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
-                // The mouth moves around the head pivot as it aims: solve that offset too.
-                for (int i = 0; i < 4; i++) {
-                    Vec3 aim = authoredAimPoint.subtract(authoredPoint(release.aimedMouth(pitch)));
-                    pitch = Mth.clamp((float) Math.toDegrees(Math.atan2(-aim.y, aim.horizontalDistance()))
-                            - release.headPitch(), -30.0F, 45.0F);
-                }
+                float pitch = FlameStream.aimPitch(release, position(), authoredAimPoint, getYRot(),
+                        this.entityData.get(DATA_ATTACK_AIM_PITCH));
                 this.entityData.set(DATA_ATTACK_AIM_PITCH, pitch);
             }
         }
@@ -1088,9 +1287,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             if (hornConnected) travel = 0;
             else if (attackTarget != null) {
                 // A no-knockback thrust must not push the victim through ordinary body collision either.
-                double clearance = attackTarget.position().subtract(before).horizontalDistance()
-                        - (getBbWidth() + attackTarget.getBbWidth()) * 0.5 - 0.08;
-                travel = Math.min(travel, Math.max(0, clearance));
+                travel = Math.min(travel, AttackGeometry.thrustClearance(before, attackTarget.getBoundingBox(), getBbWidth()));
             }
         }
         if (!chargeBlocked && travel > 0.0) {
@@ -1127,8 +1324,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                         ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
                 LivingEntity victim = (LivingEntity) entity;
                 float damage = damageAgainst(activeAttack, victim);
+                boolean shatter = activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && victim.hasEffect(DCEffects.FROZEN);
+                if (shatter) damage *= IceCombo.biteMultiplier(true);
                 var source = activeAttack.knockback() == 0 ? DCDamageTypes.partnerAttack(this) : damageSources().mobAttack(this);
                 if (victim.hurtServer(level, source, damage)) {
+                    if (shatter) {
+                        victim.removeEffect(DCEffects.FROZEN);
+                        level.sendParticles(ParticleTypes.SNOWFLAKE, end.x, end.y, end.z, 24, .3, .3, .3, .06);
+                        level.playSound(null, end.x, end.y, end.z, SoundEvents.GLASS_BREAK, SoundSource.NEUTRAL, .9F, .9F);
+                    }
+                    if (!shatter && activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && victim.isAlive()
+                            && !victim.hasEffect(DCEffects.FROST_RESISTANCE) && !victim.hasEffect(DCEffects.FROZEN)) {
+                        victim.addEffect(new MobEffectInstance(DCEffects.ICE_MARK, IceCombo.MARK_TICKS, 0, false, true), this);
+                    }
                     if (activeAttack.knockback() > 0) {
                         victim.knockback(activeAttack.knockback(), getX() - victim.getX(), getZ() - victim.getZ(), source, damage);
                     }
@@ -1260,7 +1468,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 level.sendParticles(ParticleTypes.SPLASH, origin.x, origin.y, origin.z,
                         18, 0.5, 0.15, 0.3, 0.08);
             }
-            case HORN_RAM, FLAME_STREAM -> { /* Continuous contact is evaluated by the timeline. */ }
+            case HORN_RAM, FROST_BITE, FLAME_STREAM, FROST_STREAM -> { /* Continuous contact is evaluated by the timeline. */ }
         }
     }
 
@@ -1333,7 +1541,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     public void tick() {
         if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
+        previousMountWaterAmount = mountWaterAmount;
+        mountWaterAmount = Mth.approach(mountWaterAmount, isSwimmingMovement() ? 1 : 0, .08F);
         previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
+        if (aerialMount()!=null) aerialRiding().serverTick();
+        if (!level().isClientSide() && aerialMount()!=null) entityData.set(DATA_FLIGHT_FUEL,flightReserve().fraction());
         super.tick();
         if (!level().isClientSide() && !isAlive()) {
             cancelAttack();
@@ -1343,12 +1555,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             }
         }
         if (level().isClientSide()) {
+            previousAerialBank=aerialBank;previousAerialPitch=aerialPitch;
+            aerialBank=Mth.lerp(.2F,aerialBank,Mth.clamp(-Mth.wrapDegrees(getYRot()-yRotO)*2,-18,18));
+            aerialPitch=Mth.lerp(.18F,aerialPitch,
+                    com.digicube.entity.ai.AerialHandling.flightPitch(getDeltaMovement()));
             previousRunAnimationAmount = runAnimationAmount;
             runAnimationAmount = Mth.approach(runAnimationAmount, isRunningToOwner() ? 1.0F : 0.0F, 0.2F);
             previousSwimAnimationAmount = swimAnimationAmount;
             previousSwimAnimationPhase = swimAnimationPhase;
             previousSwimMotionAmount = swimMotionAmount;
             previousGroundAnimationPhase = groundAnimationPhase;
+            previousGroundAnimationAmount = groundAnimationAmount;
             previousFlightWalkAmount = flightWalkAmount;
             previousSwimBank = swimBank;
             float target = isSwimmingMovement() ? 1 : 0;
@@ -1359,7 +1576,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             double horizontalTravel = Math.sqrt(dx * dx + dz * dz);
             double travelled = Math.sqrt(dx * dx + dy * dy + dz * dz);
             double speed = Math.max(travelled, getDeltaMovement().length());
-            if (canFly()) {
+            if (canFly() && getLocomotion().groundGait()==null) {
                 double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());
                 float wanted = getFlightPhase() == FlightPhase.GROUNDED && onGround()
                         ? (float) Mth.clamp(groundSpeed / .021, 0, 1) : 0;
@@ -1373,7 +1590,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             float motion = canSwim() ? (float) Mth.clamp(speed / (getLocomotion().swimSpeed() * .7), 0, 1) : 0;
             swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, motion);
             swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimMotionAmount, .45F, 1.0F);
-            if (canSwim() && onGround()) {
+            var gait = getLocomotion().groundGait();
+            if (gait != null) {
+                double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());
+                float wanted = onGround() && !isSwimmingMovement()
+                        ? (float) Mth.clamp(groundSpeed / gait.fullSpeed(getBody().modelScale()), 0, 1) : 0;
+                groundAnimationAmount = Mth.approach(groundAnimationAmount, wanted, .125F);
+                if (onGround() && groundSpeed < 1) {
+                    groundAnimationPhase += gait.advance(groundSpeed, groundAnimationAmount, getBody().modelScale());
+                }
+            } else if (canSwim() && onGround()) {
                 // Remote entities can move through position interpolation between
                 // velocity packets; keep the paws moving with that displacement too.
                 double groundSpeed = Math.max(horizontalTravel, Math.sqrt(getDeltaMovement().horizontalDistanceSqr()));

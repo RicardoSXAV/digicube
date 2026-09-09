@@ -288,7 +288,14 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
 - Attribute damage multipliers live in `DigimonAttribute.damageMultiplierAgainst`. Keep
   balance numbers there rather than scattered through combat code.
 - Attacks are data on the species too: `DigimonSpecies.attacks` is a list of
-  `DigimonAttack` in **priority order** (first ready + in range wins). Timing, power and
+  `DigimonAttack` in **fallback priority order** (first ready + in range wins for ordinary
+  move sets). Frost bite/stream pairs use `IceCombo` to choose from target mark,
+  resistance, fuel and range; they reposition to clear the muzzle before emission.
+  Readiness also requires a viable attack path: `AttackGeometry` checks authored
+  contact and launch clearance; `DigimonCombatPosition` finds reachable attack spots
+  when elevation or cover makes the current position unusable. Preserve these checks
+  when adding moves, and keep client/server mouth geometry identical.
+  Timing, power and
   cooldown live there; `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks
   the move. The client animation is looked up by the attack id path, so an attack named
   `digicube:claw` needs a harness animation called `claw` (plus `claw_mirrored` when it

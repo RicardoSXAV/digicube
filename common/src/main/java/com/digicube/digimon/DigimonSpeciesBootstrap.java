@@ -59,13 +59,22 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("claw_attack"), DigimonAttack.Kind.MELEE,
             0.65F, 22, 16, 6, 0.0, true);
 
+    /** Garurumon's quick icy bite sets up the subsequent sustained ice flame. */
+    public static final DigimonAttack FREEZE_FANG = new DigimonAttack(
+            Constants.id("freeze_fang"), DigimonAttack.Kind.FROST_BITE,
+            0.65F, 28, 28, 10, 3.3, false, AttackMotion.load(Constants.id("freeze_fang")), null, 0.0);
+
+    /** Champion ice jet: four-second tank, eight-second empty-to-full refill. */
+    public static final DigimonAttack HOWLING_BLASTER = new DigimonAttack(
+            Constants.id("howling_blaster"), DigimonAttack.Kind.FROST_STREAM,
+            0.30F, 0, 108, 12, 12.0, false, AttackMotion.load(Constants.id("howling_blaster")),
+            new AttackFuel(80, 160, 10), 0.0);
+
     /** The shared moves species sheets may reference, by id. */
     public static Map<Identifier, DigimonAttack> attacks() {
-        return Map.of(
-                PEPPER_BREATH.id(), PEPPER_BREATH, CLAW.id(), CLAW, BUBBLE_BLOW.id(), BUBBLE_BLOW,
-                MEGA_FLAME.id(), MEGA_FLAME, GREAT_ANTLER.id(), GREAT_ANTLER,
-                BLUE_BLASTER.id(), BLUE_BLASTER, HORN_ATTACK.id(), HORN_ATTACK,
-                MARCHING_FISHES.id(), MARCHING_FISHES, CLAW_ATTACK.id(), CLAW_ATTACK);
+        return java.util.stream.Stream.of(PEPPER_BREATH, CLAW, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
+                BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, FREEZE_FANG, HOWLING_BLASTER)
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));
     }
 
     public static void registerBuiltIn() {

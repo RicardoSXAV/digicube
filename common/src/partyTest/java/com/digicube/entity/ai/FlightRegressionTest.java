@@ -128,6 +128,7 @@ public final class FlightRegressionTest {
         @Override public boolean moveTo(double x,double y,double z,double speed){return true;}
     }
     private static final class Fixture extends DigimonEntity {
+        @Override public DigimonBody getBody() { return DigimonBody.DEFAULT; }
         FlightReserve reserve;FlightPhase phase;int clock,start,loop;Air air;Navigation nav;MoveControl<?> control;
         Fixture owner,threat;boolean ground,water,leash,ally,recover,sprint,noGravity;Vec3 lastMove;
         private Fixture(){super(null,null);}

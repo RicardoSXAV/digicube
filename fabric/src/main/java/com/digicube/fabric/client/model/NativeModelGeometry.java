@@ -65,11 +65,15 @@ public final class NativeModelGeometry {
                 builder.addBox(min[0], min[1], min[2], max[0]-min[0], max[1]-min[1], max[2]-min[2], Set.of(Direction.UP));
             }
             var pose = part.getAsJsonArray("pose");
+            if (pose.size() != 6 && pose.size() != 9) throw new IllegalArgumentException("Invalid native pose: " + path);
+            var transform = PartPose.offsetAndRotation(number(pose,0), number(pose,1), number(pose,2),
+                    number(pose,3), number(pose,4), number(pose,5));
+            if (pose.size() == 9) transform = new PartPose(number(pose,0), number(pose,1), number(pose,2),
+                    number(pose,3), number(pose,4), number(pose,5), number(pose,6), number(pose,7), number(pose,8));
             var parent = parts.get(parentPath);
             if (parent == null || parts.containsKey(path)) throw new IllegalArgumentException("Invalid model hierarchy: " + path);
             parts.put(path, parent.addOrReplaceChild(part.get("name").getAsString(), builder,
-                    PartPose.offsetAndRotation(number(pose,0), number(pose,1), number(pose,2),
-                            number(pose,3), number(pose,4), number(pose,5))));
+                    transform));
         }
         return LayerDefinition.create(mesh, data.get("texture_width").getAsInt(), data.get("texture_height").getAsInt());
     }

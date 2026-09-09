@@ -79,13 +79,14 @@ public final class SpeciesTuning {
         }
         DigimonLocomotion locomotion = new DigimonLocomotion(current.followStartDistance(), current.followStopDistance(),
                 values.getDoubleOr(WALK_SPEED, current.walkSpeed()), values.getDoubleOr(RUN_SPEED, current.runSpeed()),
-                values.getDoubleOr(SWIM_SPEED, current.swimSpeed()), flight);
+                values.getDoubleOr(SWIM_SPEED, current.swimSpeed()), flight, current.groundGait());
         DigimonBody body = species.body();
         Optional<DigimonBody.Mount> mount = body.mount();
         if (mount.isPresent() && values.contains(MOUNT_SPEED)) {
             DigimonBody.Mount ridden = mount.get();
             body = new DigimonBody(body.modelScale(), body.dimensions(), Optional.of(new DigimonBody.Mount(
-                    ridden.seat(), (float) values.getDoubleOr(MOUNT_SPEED, ridden.speed()), ridden.stepHeight())));
+                    ridden.seat(), (float) values.getDoubleOr(MOUNT_SPEED, ridden.speed()), ridden.stepHeight(),
+                    ridden.standing(), ridden.waterSeatOffset())));
         }
         return new DigimonSpecies(species.id(), species.stage(), species.attribute(), species.baseHealth(),
                 species.baseAttack(), species.baseDefence(), (float) base, species.evolutions(), species.attacks(),

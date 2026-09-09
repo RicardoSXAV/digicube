@@ -93,14 +93,17 @@ public final class DigimonFlightGoal extends Goal {
             mob.getNavigation().stop();
             mob.useFlightNavigation(groundNavigation, groundControl);
         }
-        mob.setNoGravity(false);
-        mob.setFlightPhase(FlightPhase.GROUNDED);
+        boolean handedToRider=mob.aerialMount()!=null && mob.getControllingPassenger()!=null && mob.getFlightPhase().airborne();
+        if (!handedToRider) {
+            mob.setNoGravity(false);
+            mob.setFlightPhase(FlightPhase.GROUNDED);
+        }
         mob.setSpeed(0);
         mob.setXxa(0);
         mob.setYya(0);
         mob.setZza(0);
         mob.setXRot(0);
-        if (mob.flightReserve() != null) mob.flightReserve().landed();
+        if (!handedToRider && mob.flightReserve() != null) mob.flightReserve().landed();
         mob.refreshSpeciesData();
         nextAttempt = mob.tickCount + 20;
         groundNavigation = null;
@@ -121,15 +124,15 @@ public final class DigimonFlightGoal extends Goal {
                 repath = 0;
                 return;
             }
-            if (elapsed >= FlightPhase.TRANSITION_TICKS) finished = true;
+            if (elapsed >= mob.flightLandingTicks()) finished = true;
             return;
         }
         if (phase == FlightPhase.TAKEOFF) {
-            if (elapsed >= 13) {
+            if (elapsed >= mob.flightLiftTick()) {
                 mob.setNoGravity(true);
                 mob.getMoveControl().setWantedPosition(departure.x, departure.y + data.cruiseHeight(), departure.z, .45);
             }
-            if (elapsed >= FlightPhase.TRANSITION_TICKS) mob.setFlightPhase(FlightPhase.FLYING);
+            if (elapsed >= mob.flightTakeoffTicks()) mob.setFlightPhase(FlightPhase.FLYING);
             return;
         }
         mob.setNoGravity(true);
@@ -174,7 +177,7 @@ public final class DigimonFlightGoal extends Goal {
                 mob.setDeltaMovement(0, -.02, 0);
                 mob.setNoGravity(false);
                 // Preserve wing phase while settling, then begin the authored close at the hover seam.
-                if (mob.getFlightLoopTime(0) % 40 < 1 || mob.flightReserve().exhausted()) {
+                if (mob.getFlightLoopTime(0) % mob.flightLoopTicks() < 1 || mob.flightReserve().exhausted()) {
                     mob.setFlightPhase(FlightPhase.LANDING);
                 }
                 return;

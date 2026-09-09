@@ -1,0 +1,35 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.10,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.3,
+    "run_speed": 1.3,
+    "swim_speed": 0.60,
+    "ground_gait": {
+      "cycle_ticks": 20,
+      "stride": 1.15,
+      "max_playback_rate": 1.0
+    }
+  },
+  "body": {
+    "model_scale": 1.0,
+    "width": 2.8,
+    "height": 2.75,
+    "eye_height": 2.3,
+    "mount": {
+      "seat": [0.52, 1.515, -0.735],
+      "standing": true,
+      "water_seat_offset": [0.0, 0.615, 0.115],
+      "speed": 0.13,
+      "step_height": 1.0
+    }
+  }
+}

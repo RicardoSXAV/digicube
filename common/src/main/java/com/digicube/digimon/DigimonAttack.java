@@ -7,9 +7,8 @@ import java.util.Objects;
 /**
  * One move a species can use in combat -- the shared, immutable definition.
  *
- * <p>A species lists its attacks in <b>priority order</b>: in a fight the entity walks the
- * list and uses the first attack that is off cooldown and in range, so put the big move
- * first and the basic one last (Agumon: Pepper Breath, then Claw).
+ * <p>Species order is the fallback priority for ready, reachable moves. A frost bite
+ * paired with a frost stream instead plans a combo from target status, fuel and range.
  *
  * <p>Timing is in ticks (20 per second). The animation on the client is looked up by
  * {@code id().getPath()} (plus {@code _mirrored} for the alternate side), so the harness
@@ -52,11 +51,12 @@ public record DigimonAttack(
                 || !Double.isFinite(knockback) || knockback < 0) {
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
-        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE)
+        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
+                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
-        if ((kind == Kind.FLAME_STREAM) != (fuel != null)
+        if ((kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM) != (fuel != null)
                 || fuel != null && (motion.activeFrom() != hitTick
                 || motion.activeUntil() - motion.activeFrom() + 1 != fuel.capacityTicks())) {
             throw new IllegalArgumentException(id + ": fuel must match the sustained motion interval");
@@ -91,7 +91,11 @@ public record DigimonAttack(
         /** Continuous non-burning flame, paid for with a per-entity fuel reserve. */
         FLAME_STREAM,
         /** A broad homing wave carrying fish, with a single low-damage knockback impact. */
-        WATER_WAVE
+        WATER_WAVE,
+        /** Swept fang contact and a collision-safe lunge that applies an ice mark. */
+        FROST_BITE,
+        /** Fueled ice flames which convert a mark after sustained contact. */
+        FROST_STREAM
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -101,7 +105,7 @@ public record DigimonAttack(
 
     public boolean isRanged() {
         return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
-                || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE;
+                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */

@@ -5,7 +5,7 @@
   "base_attack": 14,
   "base_defence": 10,
   "base_speed": 0.42,
-  "attacks": [],
+  "attacks": ["freeze_fang", "howling_blaster"],
   "evolutions": [],
   "locomotion": {
     "follow_start_distance": 5.0,

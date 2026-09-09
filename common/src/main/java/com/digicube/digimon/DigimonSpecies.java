@@ -44,6 +44,9 @@ public record DigimonSpecies(
         Objects.requireNonNull(attribute, "species attribute");
         Objects.requireNonNull(body, "species body");
         Objects.requireNonNull(locomotion, "species locomotion");
+        if (body.mount().map(m -> m.flight()!=null).orElse(false) && !locomotion.canFly()) {
+            throw new IllegalArgumentException("Aerial riding requires a flight reserve and locomotion definition");
+        }
         // Defensive copies: a species must stay immutable once registered.
         evolutions = List.copyOf(evolutions);
         attacks = List.copyOf(attacks);

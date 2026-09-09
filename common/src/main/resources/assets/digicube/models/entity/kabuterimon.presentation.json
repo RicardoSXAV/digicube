@@ -1,0 +1,27 @@
+{
+  "root_path": [
+    "kabuterimon"
+  ],
+  "body_path": [
+    "kabuterimon",
+    "body"
+  ],
+  "rider_path": [
+    "kabuterimon",
+    "body",
+    "neck",
+    "head"
+  ],
+  "rider_point": [
+    0.0,
+    -0.8050000667572021,
+    0.23999999463558197
+  ],
+  "culling_margin": 2.5,
+  "rider_leg_pitch": -1.2,
+  "rider_leg_splay": 0.42,
+  "landing_contact_tick": 18,
+  "approach_distance": 2,
+  "lift_tick": 10,
+  "takeoff_ticks": 28
+}

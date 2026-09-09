@@ -2,11 +2,13 @@ package com.digicube.fabric.client.render;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.model.BlueBlasterModel;
+import com.digicube.fabric.client.model.HowlingBlasterModel;
 import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
+import com.digicube.fabric.client.model.IkkakumonModel;
 import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
@@ -37,6 +39,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
             Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
+            Constants.id("ikkakumon"), Constants.id("textures/entity/digimon/ikkakumon.png"),
             Constants.id("tentomon"), Constants.id("textures/entity/digimon/tentomon.png"),
             Constants.id("garurumon"), Constants.id("textures/entity/digimon/garurumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
@@ -46,20 +49,30 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
+    private final HowlingBlasterModel howlingBlaster;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
-        this.models = Map.of(
+        howlingBlaster = new HowlingBlasterModel(context.bakeLayer(HowlingBlasterModel.LAYER));
+        this.models = new java.util.HashMap<>(Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
+                Constants.id("ikkakumon"), new IkkakumonModel(context.bakeLayer(IkkakumonModel.LAYER)),
                 Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
                 Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
-                Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER)));
+                Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER))));
+        for (var species:com.digicube.digimon.DigimonSpeciesRegistry.all()) {
+            if (species.body().mount().map(m->m.flight()!=null).orElse(false)) {
+                var id=species.id();
+                models.put(id,new com.digicube.fabric.client.model.NativeFlyingMountModel(
+                        context.bakeLayer(new net.minecraft.client.model.geom.ModelLayerLocation(id,"main")),id));
+            }
+        }
     }
 
     @Override
@@ -73,7 +86,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
             poseStack.pushPose();
             poseStack.translate(mouth.x, mouth.y, mouth.z);
-            BlueBlasterRenderer.submit(blueBlaster, state.blueBlaster, poseStack, collector);
+            BlueBlasterRenderer.submit(state.blueBlaster.frost ? howlingBlaster : blueBlaster,
+                    state.blueBlaster, poseStack, collector);
             poseStack.popPose();
         }
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
@@ -117,10 +131,16 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.swimAnimationPhase = entity.getSwimAnimationPhase(partialTick);
         state.swimMotionAmount = entity.getSwimMotionAmount(partialTick);
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
+        state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
+        state.mountAnchor = entity.getMountAnchor(partialTick);
         state.flightPhase = entity.getFlightPhase();
         state.flightPhaseTime = entity.getFlightPhaseTime(partialTick);
         state.flightLoopTime = entity.getFlightLoopTime(partialTick);
         state.flightWalkAmount = entity.getFlightWalkAmount(partialTick);
+        state.aerialBank=entity.getAerialBank(partialTick);
+        state.aerialPitch=entity.getAerialPitch(partialTick);
+        state.flightGroundDistance=entity.aerialMount()!=null && state.flightPhase==com.digicube.entity.ai.FlightPhase.APPROACH
+                ? (float)entity.aerialRiding().groundDistance(3) : 3;
         state.swimBank = entity.getSwimBank(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         if (entity.isGuiPreview()) {
@@ -140,13 +160,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             state.yRot = 0.0F;
         }
         state.blueBlaster.length = 0;
+        state.blueBlaster.frost = false;
         if (entity.isAlive() && !state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
-                && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_STREAM) {
+                && state.attackDefinition.fuel() != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
             var motion = state.attackDefinition.motion();
             if (tick >= motion.activeFrom() && tick < motion.activeUntil() + 1) {
                 var frame = motion.sample(tick);
                 var flame = state.blueBlaster;
+                flame.frost = state.attackDefinition.kind() == DigimonAttack.Kind.FROST_STREAM;
                 flame.ageInTicks = tick - motion.activeFrom();
                 flame.yaw = state.bodyRot;
                 flame.pitch = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
@@ -166,12 +188,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
         }
         var attack = entity.getAnimatingAttack();
-        return attack != null && attack.kind() == DigimonAttack.Kind.FLAME_STREAM
+        return attack != null && attack.fuel() != null
                 ? bounds.inflate(attack.range()) : bounds;
     }
 
     @Override
     public Identifier getTextureLocation(DigimonRenderState state) {
+        if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeFlyingMountModel) {
+            return state.species.withPath("textures/entity/digimon/"+state.species.getPath()+".png");
+        }
         return TEXTURES.getOrDefault(state.species, FALLBACK_TEXTURE);
     }
 

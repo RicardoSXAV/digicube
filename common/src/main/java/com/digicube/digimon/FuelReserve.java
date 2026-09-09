@@ -49,6 +49,8 @@ public final class FuelReserve {
 
     /** @return exact integer charge for persistence */
     public int savedCharge() { return charge; }
+    /** Whole ticks this tank can emit; used when planning a combo. */
+    public int availableTicks() { return charge / definition.rechargeTicks(); }
     /** @return whether exhaustion requires a full refill before the next use */
     public boolean isRecharging() { return recharging; }
 

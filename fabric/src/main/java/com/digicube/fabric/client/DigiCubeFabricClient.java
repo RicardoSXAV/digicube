@@ -7,6 +7,7 @@ import com.digicube.fabric.client.starter.StarterClient;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
+import com.digicube.fabric.client.model.IkkakumonModel;
 import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
@@ -17,6 +18,7 @@ import com.digicube.fabric.client.model.MegaFlameModel;
 import com.digicube.fabric.client.model.MarchingFishesModel;
 import com.digicube.fabric.client.render.MarchingFishesRenderer;
 import com.digicube.fabric.client.model.BlueBlasterModel;
+import com.digicube.fabric.client.model.HowlingBlasterModel;
 import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
 import com.digicube.fabric.client.model.PepperBreathModel;
@@ -39,9 +41,19 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         new PartyClient().init();
         new StarterClient().init();
         new DevClient().init();
+        new AerialMountClient().init();
+        for (var species : com.digicube.digimon.DigimonSpeciesRegistry.all()) {
+            if (species.body().mount().map(m -> m.flight()!=null).orElse(false)) {
+                var id=species.id();
+                ModelLayerRegistry.registerModelLayer(new net.minecraft.client.model.geom.ModelLayerLocation(id,"main"),
+                        () -> com.digicube.fabric.client.model.NativeFlyingMountModel.createLayer(id));
+            }
+        }
+        com.digicube.fabric.client.render.IceMarkBadge.init();
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(IkkakumonModel.LAYER, IkkakumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GarurumonModel.LAYER, GarurumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);
@@ -51,6 +63,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MarchingFishesModel.LAYER, MarchingFishesModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(HowlingBlasterModel.LAYER, HowlingBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);

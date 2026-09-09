@@ -104,7 +104,11 @@ public final class BundledSpeciesLoader {
                 GsonHelper.getAsFloat(json, "follow_stop_distance"),
                 GsonHelper.getAsDouble(json, "walk_speed"), GsonHelper.getAsDouble(json, "run_speed"),
                 GsonHelper.getAsDouble(json, "swim_speed", 0),
-                json.has("flight") ? flight(GsonHelper.getAsJsonObject(json, "flight")) : null);
+                json.has("flight") ? flight(GsonHelper.getAsJsonObject(json, "flight")) : null,
+                json.has("ground_gait") ? new DigimonGait(
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "cycle_ticks"),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"),
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "max_playback_rate", Float.MAX_VALUE)) : null);
     }
 
     private static DigimonFlight flight(JsonObject json) {
@@ -132,14 +136,38 @@ public final class BundledSpeciesLoader {
             if (seat.size() != 3) throw new IllegalArgumentException("A mount seat needs three coordinates");
             mount = Optional.of(new DigimonBody.Mount(new Vec3(seat.get(0).getAsDouble(),
                     seat.get(1).getAsDouble(), seat.get(2).getAsDouble()),
-                    GsonHelper.getAsFloat(m, "speed"), GsonHelper.getAsFloat(m, "step_height")));
+                    GsonHelper.getAsFloat(m, "speed"), GsonHelper.getAsFloat(m, "step_height"),
+                    GsonHelper.getAsBoolean(m, "standing", false),
+                    m.has("water_seat_offset") ? vector(GsonHelper.getAsJsonArray(m, "water_seat_offset")) : Vec3.ZERO,
+                    m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null));
         }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
                 EntityDimensions.scalable(width, height).withEyeHeight(eye), mount);
     }
 
+    private static AerialMount aerialMount(JsonObject j) {
+        return new AerialMount(GsonHelper.getAsDouble(j,"cruise_speed"),
+                GsonHelper.getAsDouble(j,"acceleration"), GsonHelper.getAsDouble(j,"braking"),
+                GsonHelper.getAsDouble(j,"climb_speed"), GsonHelper.getAsDouble(j,"descend_speed"),
+                GsonHelper.getAsFloat(j,"turn_degrees"), GsonHelper.getAsInt(j,"takeoff_ticks"),
+                GsonHelper.getAsInt(j,"lift_tick"), GsonHelper.getAsInt(j,"landing_ticks"),
+                GsonHelper.getAsInt(j,"wing_loop_ticks"),
+                j.has("dive") ? aerialDive(GsonHelper.getAsJsonObject(j,"dive")) : null);
+    }
+
+    private static AerialMount.Dive aerialDive(JsonObject j) {
+        return new AerialMount.Dive(GsonHelper.getAsDouble(j, "max_speed"),
+                GsonHelper.getAsDouble(j, "acceleration"), GsonHelper.getAsDouble(j, "drag"),
+                GsonHelper.getAsDouble(j, "climb_drag"), GsonHelper.getAsDouble(j, "turn_drag"));
+    }
+
     private static Identifier identifier(String value) {
         return value.contains(":") ? Identifier.parse(value) : Constants.id(value);
+    }
+
+    private static Vec3 vector(JsonArray coordinates) {
+        if (coordinates.size() != 3) throw new IllegalArgumentException("A mount offset needs three coordinates");
+        return new Vec3(coordinates.get(0).getAsDouble(), coordinates.get(1).getAsDouble(), coordinates.get(2).getAsDouble());
     }
 
     private static JsonObject read(String path) {

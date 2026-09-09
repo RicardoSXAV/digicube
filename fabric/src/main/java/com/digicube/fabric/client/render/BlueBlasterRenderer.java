@@ -1,7 +1,6 @@
 package com.digicube.fabric.client.render;
 
 import com.digicube.Constants;
-import com.digicube.fabric.client.model.BlueBlasterModel;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.model.EntityModel;
@@ -14,15 +13,16 @@ import net.minecraft.util.LightCoordsUtil;
 /** Renders the original Blender flame rig at the actual animated mouth. */
 public final class BlueBlasterRenderer {
     private static final Identifier TEXTURE = Constants.id("textures/entity/projectile/blue_blaster.png");
+    private static final Identifier HOWLING_TEXTURE = Constants.id("textures/entity/projectile/howling_blaster.png");
 
     private BlueBlasterRenderer() {}
 
-    public static void submit(BlueBlasterModel model, BlueBlasterRenderState state,
+    public static void submit(EntityModel<BlueBlasterRenderState> model, BlueBlasterRenderState state,
                               PoseStack pose, SubmitNodeCollector collector) {
         if (state.length <= 0.05F) return;
         pose.pushPose();
         orient(pose, state.yaw, state.pitch);
-        collector.submitModel(model, state, pose, RenderTypes.entityTranslucentEmissive(TEXTURE),
+        collector.submitModel(model, state, pose, RenderTypes.entityTranslucentEmissive(state.frost ? HOWLING_TEXTURE : TEXTURE),
                 LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
         pose.popPose();
     }

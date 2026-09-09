@@ -14,7 +14,7 @@ public interface AnimatedRiderModel {
 
     /**
      * Fit the rider to the mount's width.
-     * @return seated leg angles
+     * @return rider leg angles (zero for standing)
      */
     RiderPose riderPose();
 
@@ -25,7 +25,7 @@ public interface AnimatedRiderModel {
     double cullingMargin();
 
     /**
-     * Symmetric seated leg pose, in radians.
+     * Symmetric rider leg pose, in radians.
      * @param pitch forward leg pitch
      * @param splay outward leg yaw
      * @param roll outward leg roll

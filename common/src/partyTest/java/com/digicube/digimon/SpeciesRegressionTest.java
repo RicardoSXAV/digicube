@@ -16,8 +16,10 @@ public final class SpeciesRegressionTest {
     public static void main(String[] args) {
         try {
             SharedConstants.tryDetectVersion();
+            net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 8, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 10, "all bundled species loaded");
+            IkkakumonRegressionTest.run();
             var tentomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tentomon"));
             check(tentomon.locomotion().canFly() && !tentomon.locomotion().canSwim()
                     && tentomon.stage() == DigimonStage.CHILD && tentomon.attribute() == DigimonAttribute.VACCINE,
@@ -48,7 +50,9 @@ public final class SpeciesRegressionTest {
             check(garurumon.locomotion().followSpeed(false) == garurumon.locomotion().followSpeed(true)
                             && garurumon.locomotion().followSpeed(false) * garurumon.baseSpeed() > .5,
                     "Garurumon keeps its fast pace whether or not its owner sprints");
-            check(garurumon.attacks().isEmpty(), "unapproved Garurumon attack animations are not enabled");
+            check(garurumon.attacks().equals(List.of(DigimonSpeciesBootstrap.FREEZE_FANG, DigimonSpeciesBootstrap.HOWLING_BLASTER)),
+                    "Garurumon uses the authored frost combo");
+            IceComboRegressionTest.run();
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
             check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
@@ -59,6 +63,7 @@ public final class SpeciesRegressionTest {
                     "Blue Blaster uses fuel and Horn Attack has no impulse");
             FuelRegressionTest.run();
             com.digicube.entity.FlameStreamRegressionTest.run();
+            com.digicube.entity.AttackGeometryRegressionTest.run();
             check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
                     && gabumon.body().dimensions().height() == 1.45F && gabumon.body().mount().isEmpty(),
                     "Gabumon uses its own non-rideable dimensions");

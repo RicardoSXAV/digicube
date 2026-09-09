@@ -1,0 +1,39 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 12,
+  "base_speed": 0.10,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 6,
+    "follow_stop_distance": 3,
+    "walk_speed": 1.15,
+    "run_speed": 1.15,
+    "ground_gait": { "cycle_ticks": 36, "stride": 1.10887, "max_playback_rate": 1.5 },
+    "flight": {
+      "speed": 0.55, "capacity_ticks": 2400, "recharge_ticks": 500,
+      "rest_ticks": 30, "restart_fraction": 0.15, "landing_reserve_ticks": 120,
+      "minimum_flight_ticks": 80, "start_distance": 14, "stop_distance": 5,
+      "cruise_height": 2, "clearance_width": 2.6, "clearance_height": 4.8
+    }
+  },
+  "body": {
+    "model_scale": 1.35, "width": 2.6, "height": 4.8, "eye_height": 4.2,
+    "mount": {
+      "seat": [0, 4.968, -0.324], "speed": 0.12, "step_height": 1,
+      "flight": {
+        "cruise_speed": 0.65, "acceleration": 0.045,
+        "braking": 0.13, "climb_speed": 0.42, "descend_speed": 0.36,
+        "turn_degrees": 7, "takeoff_ticks": 28, "lift_tick": 10,
+        "landing_ticks": 10, "wing_loop_ticks": 24,
+        "dive": {
+          "max_speed": 1.2, "acceleration": 0.022, "drag": 0.006,
+          "climb_drag": 0.03, "turn_drag": 0.06
+        }
+      }
+    }
+  }
+}

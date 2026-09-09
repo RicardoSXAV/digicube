@@ -83,7 +83,7 @@ public final class PepperBreathEntity extends ThrowableProjectile {
      * turns around does not get a fireball thrown at empty ground.
      */
     public static Vec3 predictImpactPoint(LivingEntity target, Vec3 from, double blocksPerTick, double maxLead) {
-        Vec3 centre = target.position().add(0.0, target.getBbHeight() * 0.5, 0.0);
+        Vec3 centre = AttackGeometry.chest(target.getBoundingBox());
         Vec3 velocity = target.position().subtract(target.oldPosition());
         velocity = new Vec3(velocity.x, 0.0, velocity.z);
         if (velocity.lengthSqr() < 1.0E-4) {
