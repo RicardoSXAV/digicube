@@ -342,8 +342,9 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
 - The developer panel (F6 shows it as a passive overlay on the left, F7 focuses it, in a
   dev run only) is tooling, not a player feature, and not a command front-end: it exists
   so the developer can test and tune values in play and write them back into the
-  repository. `DevPanel.handle` (common) admits only an operator in a development
-  environment; `DevActions` is the registry of tools, each a `(server, player, args) ->
+  repository. `DevPanel.handle` (common) admits, in a development environment only, an
+  operator or the singleplayer world owner (a survival world made without cheats gives
+  its host no permission level, and survival is where the balance testing happens); `DevActions` is the registry of tools, each a `(server, player, args) ->
   reply` lambda; `DevState.capture` builds the readout tag. The two payloads
   (`DevActionPayload`: action id + argument tag, `DevStatePayload`: state tag + reply)
   never change when a tool is added. `DevPanelView` (fabric) lays out and draws the panel
@@ -354,9 +355,14 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `DevState` (add keys, never rename them). Tuning: `SpeciesTuning` swaps a species for
   a validated copy at runtime and refreshes its live entities; `SpeciesSheetWriter` edits
   the numbers in place in the sheet under `common/src/main/resources`, found by walking
-  up from the game directory (`IPlatformHelper.gameDirectory`). `:common:devTest` covers
-  both. The panel is deliberately plain, with vanilla widgets and flat fills, outside
-  the GUI language.
+  up from the game directory (`IPlatformHelper.gameDirectory`). Player items: the
+  PLAYER ITEMS section equips one of the `PlayerLoadouts` (what an average vanilla
+  player carries after 1, 3, 5, 10 or 15 hours in 26.2; the reasoning is in
+  `../design/player-loadouts.md`), replacing the whole inventory through
+  `PlayerLoadout.equip`; enchantments are stored as keys and resolved against the
+  server registry. `:common:devTest` covers tuning, the sheet rewrite and the loadout
+  table. Pickers on the panel extend the generic `Dropdown<T>`. The panel is
+  deliberately plain, with vanilla widgets and flat fills, outside the GUI language.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at

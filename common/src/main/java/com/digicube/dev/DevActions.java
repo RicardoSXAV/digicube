@@ -36,10 +36,15 @@ public final class DevActions {
     public static final String TUNE_RESET = "tune_reset";
     /** Write the current runtime numbers into the sheet in the repository. */
     public static final String TUNE_WRITE = "tune_write";
+    /** Replace the player's inventory with a {@link PlayerLoadouts} loadout named by {@link #LOADOUT_ARG}. */
+    public static final String LOADOUT = "loadout";
+    /** Empty the player's inventory, offhand and armor. */
+    public static final String LOADOUT_CLEAR = "loadout_clear";
 
     public static final String SPECIES_ARG = "species";
     public static final String LEVEL_ARG = "level";
     public static final String VALUES_ARG = "values";
+    public static final String LOADOUT_ARG = "loadout";
 
     private static final Map<String, DevAction> ACTIONS = new LinkedHashMap<>();
 
@@ -51,6 +56,8 @@ public final class DevActions {
         register(TUNE, DevActions::tune);
         register(TUNE_RESET, DevActions::tuneReset);
         register(TUNE_WRITE, DevActions::tuneWrite);
+        register(LOADOUT, DevActions::loadout);
+        register(LOADOUT_CLEAR, DevActions::loadoutClear);
     }
 
     private DevActions() {}
@@ -123,6 +130,19 @@ public final class DevActions {
             // The write is the action; its failure is the outcome the developer needs to see.
             return "Write failed: " + failure.getMessage();
         }
+    }
+
+    private static String loadout(MinecraftServer server, ServerPlayer player, CompoundTag args) {
+        String id = args.getStringOr(LOADOUT_ARG, "");
+        PlayerLoadout loadout = PlayerLoadouts.get(id).orElse(null);
+        if (loadout == null) return "Unknown loadout: " + id;
+        int stacks = loadout.equip(server, player);
+        return "Equipped the " + loadout.label() + " loadout: " + stacks + " stacks";
+    }
+
+    private static String loadoutClear(MinecraftServer server, ServerPlayer player, CompoundTag args) {
+        PlayerLoadout.clear(player);
+        return "Cleared the inventory and armor";
     }
 
     private static DigimonSpecies species(CompoundTag args) {

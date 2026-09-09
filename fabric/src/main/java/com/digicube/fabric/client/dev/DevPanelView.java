@@ -1,6 +1,7 @@
 package com.digicube.fabric.client.dev;
 
 import com.digicube.dev.DevState;
+import com.digicube.dev.PlayerLoadout;
 import com.digicube.dev.SpeciesSheetWriter;
 import com.digicube.dev.SpeciesTuning;
 import com.digicube.digimon.DigimonSpecies;
@@ -35,6 +36,9 @@ final class DevPanelView {
     static final int FIELD_BOX_X = 32;
     static final int FIELD_BOX_WIDTH = 40;
     static final int SMALL_BUTTON = 14;
+    /** Width of the Equip and Clear buttons on the loadout row; the dropdown takes the rest. */
+    static final int LOADOUT_BUTTON = 34;
+    static final int LOADOUT_DROPDOWN = INNER - 2 * (LOADOUT_BUTTON + 2);
 
     static final int PANEL = 0xE8101010;
     static final int EDGE = 0xFF6A6A6A;
@@ -80,6 +84,8 @@ final class DevPanelView {
         int speciesY;
         int levelY = -1;
         int spawnButtonsY = -1;
+        int loadoutY = -1;
+        int loadoutTextY = -1;
         int membersY = -1;
         final int[] fieldY = new int[SpeciesTuning.FIELDS.size()];
         int tuneButtonsY = -1;
@@ -113,6 +119,15 @@ final class DevPanelView {
             y += ROW + 2;
             layout.spawnButtonsY = y;
             y += ROW + 3;
+        }
+
+        layout.headerY.put(Section.ITEMS, y);
+        y += HEADER;
+        if (!client.collapsed(Section.ITEMS)) {
+            layout.loadoutY = y;
+            y += ROW + 2;
+            layout.loadoutTextY = y;
+            y += 2 * LINE + 3;
         }
 
         layout.headerY.put(Section.PARTY, y);
@@ -187,6 +202,15 @@ final class DevPanelView {
             String level = Component.translatable("gui.digicube.dev.level").getString();
             graphics.text(font, level, left, layout.levelY + 3, WHITE, false);
             if (!focused) graphics.text(font, Integer.toString(client.level()), left + 16, layout.levelY + 3, ACCENT, false);
+        }
+
+        // PLAYER ITEMS
+        header(graphics, font, client, layout, Section.ITEMS, Component.translatable(Section.ITEMS.labelKey).getString());
+        if (layout.loadoutY >= 0) {
+            PlayerLoadout loadout = client.loadout();
+            if (!focused) Dropdown.drawStatic(graphics, font, loadout.label(), Dropdown.Icon.NONE, left, layout.loadoutY, LOADOUT_DROPDOWN, ROW);
+            graphics.text(font, fit(font, loadout.gear(), INNER), left, layout.loadoutTextY, WHITE, false);
+            graphics.text(font, fit(font, loadout.supplies(), INNER), left, layout.loadoutTextY + LINE, MUTED, false);
         }
 
         // PARTY

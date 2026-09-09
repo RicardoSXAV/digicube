@@ -9,14 +9,20 @@ import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonStage;
 import net.minecraft.SharedConstants;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
-/** Developer panel checks that need no game: tuning validation and the sheet text edit. */
+/** Developer panel checks that need no game: tuning validation, the sheet text edit and the player loadout table. */
 public final class DevRegressionTest {
     private DevRegressionTest() {}
 
@@ -129,7 +135,58 @@ public final class DevRegressionTest {
                 "flight and mount speeds are edited inside their own blocks");
         check(SpeciesSheetWriter.format(1).equals("1.0") && SpeciesSheetWriter.format(0.30000001).equals("0.3")
                 && SpeciesSheetWriter.format(0.4567).equals("0.457"), "numbers written short and with a decimal point");
-        Constants.LOG.info("Developer panel regression checks passed: tuning validation and sheet rewrite.");
+
+        loadouts();
+        Constants.LOG.info("Developer panel regression checks passed: tuning validation, sheet rewrite and player loadouts.");
+    }
+
+    /**
+     * The loadout table. It needs the vanilla registries, so this bootstraps them; item
+     * components stay unbound offline, so nothing here may build an {@code ItemStack}.
+     */
+    private static void loadouts() {
+        Bootstrap.bootStrap();
+        // Items exist only after the bootstrap, so these cannot be static fields.
+        Set<Item> swords = Set.of(Items.STONE_SWORD, Items.COPPER_SWORD, Items.IRON_SWORD, Items.DIAMOND_SWORD, Items.NETHERITE_SWORD);
+        Set<Item> pickaxes = Set.of(Items.STONE_PICKAXE, Items.COPPER_PICKAXE, Items.IRON_PICKAXE, Items.DIAMOND_PICKAXE, Items.NETHERITE_PICKAXE);
+        List<PlayerLoadout> all = PlayerLoadouts.ALL;
+        check(all.size() == 5 && all.stream().mapToInt(PlayerLoadout::hours).boxed().toList().equals(List.of(1, 3, 5, 10, 15)),
+                "five loadouts, one per play time, in order");
+        check(all.stream().map(PlayerLoadout::id).distinct().count() == 5 && PlayerLoadouts.get("10h").isPresent()
+                && PlayerLoadouts.get("nope").isEmpty(), "loadouts resolve by id");
+        for (PlayerLoadout loadout : all) {
+            check(loadout.hotbar().size() == Inventory.SELECTION_SIZE, loadout.id() + " fills the hotbar");
+            check(loadout.pack().size() <= PlayerLoadout.PACK_SIZE, loadout.id() + " fits the inventory");
+            check(!loadout.gear().isBlank() && !loadout.supplies().isBlank(), loadout.id() + " describes itself");
+            check(swords.contains(loadout.hotbar().getFirst().item()), loadout.id() + " keeps the sword in slot 1");
+            check(loadout.hotbar().stream().anyMatch(gear -> pickaxes.contains(gear.item())), loadout.id() + " carries a pickaxe");
+            check(loadout.pack().stream().filter(gear -> gear.potion().isPresent()).allMatch(gear -> gear.item() == Items.POTION),
+                    loadout.id() + " keeps potions in potion items");
+        }
+        PlayerLoadout first = all.getFirst();
+        PlayerLoadout last = all.getLast();
+        check(first.armor().isEmpty() && first.offhand() == null, "the first hour has no armor and no shield");
+        check(last.armor().size() == 4 && last.offhand() != null && last.offhand().item() == Items.SHIELD
+                && last.armor().values().stream().allMatch(piece -> !piece.enchants().isEmpty()),
+                "fifteen hours wears a full enchanted set with a shield");
+        check(all.stream().skip(1).allMatch(loadout -> loadout.armor().size() == 4 && loadout.offhand() != null),
+                "every loadout from three hours on wears full armor and a shield");
+        check(rejectedGear(Items.ENDER_PEARL, 65) && rejectedGear(Items.ENDER_PEARL, 0), "over-stacked and empty gear is rejected");
+        try {
+            new PlayerLoadout.Enchant(Enchantments.SHARPNESS, 0);
+            check(false, "a level 0 enchantment is rejected");
+        } catch (IllegalArgumentException expected) {
+            // The validators are the point.
+        }
+    }
+
+    private static boolean rejectedGear(Item item, int count) {
+        try {
+            new PlayerLoadout.Gear(item, count, Optional.empty(), List.of());
+            return false;
+        } catch (IllegalArgumentException expected) {
+            return true;
+        }
     }
 
     private static boolean rejected(DigimonSpecies species, String key, double value) {

@@ -4,6 +4,8 @@ import com.digicube.Constants;
 import com.digicube.dev.DevActionPayload;
 import com.digicube.dev.DevActions;
 import com.digicube.dev.DevStatePayload;
+import com.digicube.dev.PlayerLoadout;
+import com.digicube.dev.PlayerLoadouts;
 import com.digicube.digimon.Progression;
 import com.digicube.platform.Services;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -42,6 +44,7 @@ public final class DevClient {
     /** The foldable parts of the panel, in display order. */
     public enum Section {
         SPAWN("gui.digicube.dev.spawn"),
+        ITEMS("gui.digicube.dev.items"),
         PARTY("gui.digicube.dev.party"),
         TUNE("gui.digicube.dev.tune"),
         WORLD("gui.digicube.dev.world");
@@ -59,6 +62,8 @@ public final class DevClient {
     // Remembered across openings and worlds: the species list is static, so this is safe.
     private Identifier species;
     private int level = Progression.MIN_LEVEL;
+    /** Resolved lazily: the loadout table builds item stacks, which need the registries ready. */
+    private String loadoutId = "";
     private CompoundTag edits = new CompoundTag();
     private int ticks;
 
@@ -135,6 +140,15 @@ public final class DevClient {
 
     int level() { return level; }
     void setLevel(int level) { this.level = Progression.clampLevel(level); }
+
+    /** The chosen player loadout; the first one until a choice is made. */
+    PlayerLoadout loadout() {
+        return PlayerLoadouts.get(loadoutId).orElse(PlayerLoadouts.ALL.getFirst());
+    }
+
+    void setLoadout(PlayerLoadout loadout) {
+        if (loadout != null) loadoutId = loadout.id();
+    }
 
     /** Tuning values typed or stepped but not yet applied, by {@link com.digicube.dev.SpeciesTuning} key. */
     CompoundTag edits() { return edits; }

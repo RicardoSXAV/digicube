@@ -39,6 +39,9 @@ final class DevPanelScreen extends Screen {
     private final AbstractWidget[] levelButtons = new AbstractWidget[4];
     private AbstractWidget spawnWild;
     private AbstractWidget givePartner;
+    private LoadoutDropdown loadoutDropdown;
+    private AbstractWidget equip;
+    private AbstractWidget clearItems;
     private AbstractWidget healAll;
     private final EditBox[] fieldBoxes = new EditBox[SpeciesTuning.FIELDS.size()];
     private final AbstractWidget[] fieldMinus = new AbstractWidget[SpeciesTuning.FIELDS.size()];
@@ -88,6 +91,11 @@ final class DevPanelScreen extends Screen {
                 .size((inner - 4) / 2, row).build());
         givePartner = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.give_partner"), button -> act(DevActions.GIVE))
                 .size((inner - 4) / 2, row).build());
+        loadoutDropdown = addRenderableWidget(new LoadoutDropdown(font, left, 0, DevPanelView.LOADOUT_DROPDOWN, row, client.loadout(), client::setLoadout));
+        equip = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.equip"), button -> equipLoadout())
+                .size(DevPanelView.LOADOUT_BUTTON, row).build());
+        clearItems = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.clear"), button -> client.send(DevActions.LOADOUT_CLEAR, client.speciesArgs()))
+                .size(DevPanelView.LOADOUT_BUTTON, row).build());
         healAll = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.heal_all"), button -> client.send(DevActions.HEAL, client.speciesArgs()))
                 .size(50, DevPanelView.HEADER).build());
 
@@ -131,6 +139,11 @@ final class DevPanelScreen extends Screen {
         }
         show(spawnWild, spawn, left, layout.spawnButtonsY);
         show(givePartner, spawn, left + (DevPanelView.INNER - 4) / 2 + 4, layout.spawnButtonsY);
+        boolean items = layout.loadoutY >= 0;
+        show(loadoutDropdown, items, left, layout.loadoutY);
+        show(equip, items, left + DevPanelView.LOADOUT_DROPDOWN + 2, layout.loadoutY);
+        show(clearItems, items, left + DevPanelView.LOADOUT_DROPDOWN + 2 + DevPanelView.LOADOUT_BUTTON + 2, layout.loadoutY);
+        if (!items) loadoutDropdown.close();
         show(healAll, true, right - 50, layout.headerY.get(Section.PARTY));
 
         for (int i = 0; i < SpeciesTuning.FIELDS.size(); i++) {
@@ -193,6 +206,12 @@ final class DevPanelScreen extends Screen {
         client.send(action, args);
     }
 
+    private void equipLoadout() {
+        CompoundTag args = client.speciesArgs();
+        args.putString(DevActions.LOADOUT_ARG, client.loadout().id());
+        client.send(DevActions.LOADOUT, args);
+    }
+
     private void applyTune() {
         if (client.species() == null) return;
         CompoundTag args = client.speciesArgs();
@@ -234,8 +253,9 @@ final class DevPanelScreen extends Screen {
             onClose();
             return true;
         }
-        if (dropdown.isOpen() && event.key() == InputConstants.KEY_ESCAPE) {
+        if ((dropdown.isOpen() || loadoutDropdown.isOpen()) && event.key() == InputConstants.KEY_ESCAPE) {
             dropdown.close();
+            loadoutDropdown.close();
             return true;
         }
         return super.keyPressed(event);
@@ -252,7 +272,7 @@ final class DevPanelScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         MouseButtonEvent local = scaled(event);
-        if (dropdown.handleClick(local, doubleClick)) return true;
+        if (dropdown.handleClick(local, doubleClick) || loadoutDropdown.handleClick(local, doubleClick)) return true;
         return super.mouseClicked(local, doubleClick);
     }
 
@@ -268,7 +288,8 @@ final class DevPanelScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
-        if (dropdown.handleScroll(x / SCALE, y / SCALE, horizontal, vertical)) return true;
+        if (dropdown.handleScroll(x / SCALE, y / SCALE, horizontal, vertical)
+                || loadoutDropdown.handleScroll(x / SCALE, y / SCALE, horizontal, vertical)) return true;
         return super.mouseScrolled(x / SCALE, y / SCALE, horizontal, vertical);
     }
 
@@ -293,6 +314,7 @@ final class DevPanelScreen extends Screen {
         DevPanelView.draw(graphics, font, client, layout, true);
         super.extractRenderState(graphics, localX, localY, partialTick);
         dropdown.extractPopup(graphics, localX, localY, partialTick);
+        loadoutDropdown.extractPopup(graphics, localX, localY, partialTick);
         graphics.pose().popMatrix();
     }
 
