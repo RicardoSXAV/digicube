@@ -18,7 +18,9 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
 
     /** Native animation ticks per game tick. The cap affects presentation, never travel. */
     public float advance(double travel, float amount, float modelScale) {
+        // Very small authored strides still need their full cadence to match
+        // travel. Only guard the divisor near zero, rather than clamping to 1/8.
         return (float) Math.min(maxPlaybackRate,
-                travel / fullSpeed(modelScale) / Math.max(.125F, amount));
+                travel / fullSpeed(modelScale) / Math.max(.001F, amount));
     }
 }

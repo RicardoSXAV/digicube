@@ -41,6 +41,8 @@ public final class LocomotionRegressionTest {
             Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             checkGroundAndWater();
+            checkCentalmonCruise();
+            checkGolemonPlayerWalk();
             checkFollowWithoutAttacks();
             checkNodeArrival();
             AquaticRidingRegressionTest.run();
@@ -91,6 +93,28 @@ public final class LocomotionRegressionTest {
         check(mob.yya == 0 && mob.zza == 1, "leaving water clears dive input and restores ground propulsion");
     }
 
+    private static void checkCentalmonCruise() throws Exception {
+        var mob = fixture(0);
+        var species = DigimonSpeciesRegistry.getOrThrow(Constants.id("centalmon"));
+        mob.locomotion = species.locomotion();
+        mob.baseSpeed = species.baseSpeed();
+        var control = new net.minecraft.world.entity.ai.control.MoveControl<>(mob);
+        double travel = 0;
+        // MC 26.2 LivingEntity.travelInAir: ordinary ground accelerates by speed,
+        // then retains block friction times .91. Vanilla Mob input also carries
+        // speed, unlike the amphibious controller's deliberately normalized input.
+        for (int tick = 0; tick < 120; tick++) {
+            control.setWantedPosition(0, 0, 20, mob.locomotion.walkSpeed());
+            control.tick();
+            mob.moveRelative(mob.getSpeed(), new Vec3(mob.xxa * .98, 0, mob.zza * .98));
+            travel = mob.getDeltaMovement().horizontalDistance();
+            mob.setDeltaMovement(mob.getDeltaMovement().scale(Blocks.GRASS_BLOCK.getFriction() * .91));
+        }
+        double authored = species.locomotion().groundGait().fullSpeed(species.body().modelScale());
+        check(Math.abs(travel / authored - 1) < .01,
+                "Centarumon flat-ground cruise retains its authored four-beat tempo: " + travel);
+    }
+
     private static void checkFollowWithoutAttacks() throws Exception {
         var mob = fixture(0);
         mob.owner = fixture(6);
@@ -114,6 +138,31 @@ public final class LocomotionRegressionTest {
         check(new FollowOwnerGoal(mob).canUse(), "armed species follow again without a target");
         mob.owner = fixture(1);
         check(!new FollowOwnerGoal(mob).canUse(), "nearby owners do not trigger following");
+    }
+    private static void checkGolemonPlayerWalk() throws Exception {
+        var species=DigimonSpeciesRegistry.getOrThrow(Constants.id("golemon"));
+        double playerSpeed=net.minecraft.world.entity.player.Player.createAttributes().build()
+                .getBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        check(!species.locomotion().canRun(),"Golemon does not switch to player sprint speed");
+        // Follow walking, follow a sprinting owner, and the registered combat goal all use walking pace.
+        for(double gain:new double[]{species.locomotion().followSpeed(false),species.locomotion().followSpeed(true),1.25}) {
+            var mob=fixture(0);mob.locomotion=species.locomotion();mob.baseSpeed=species.baseSpeed();
+            var playerMotion=fixture(0);var control=new net.minecraft.world.entity.ai.control.MoveControl<>(mob);
+            for(int tick=0;tick<120;tick++) {
+                control.setWantedPosition(0,0,20,gain);control.tick();
+                mob.moveRelative(mob.getSpeed(),new Vec3(mob.xxa*.98,0,mob.zza*.98));
+                playerMotion.moveRelative((float)playerSpeed,new Vec3(0,0,.98));
+                check(mob.getDeltaMovement().distanceTo(playerMotion.getDeltaMovement())<1e-6,
+                        "Golemon matches nonsprinting player acceleration and cruise at tick "+tick);
+                double drag=Blocks.GRASS_BLOCK.getFriction()*.91;
+                mob.setDeltaMovement(mob.getDeltaMovement().scale(drag));
+                playerMotion.setDeltaMovement(playerMotion.getDeltaMovement().scale(drag));
+            }
+        }
+        var gait=species.locomotion().groundGait();
+        check(gait.advance(.216,1,species.body().modelScale())==gait.maxPlaybackRate()
+                && Math.abs(gait.cycleTicks()/gait.maxPlaybackRate()-20)<1e-5,
+                "player-speed travel keeps one readable walk cycle per second");
     }
 
     private static void check(boolean condition, String message) {

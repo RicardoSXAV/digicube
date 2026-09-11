@@ -52,7 +52,7 @@ public record DigimonAttack(
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
         if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
-                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM)
+                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
@@ -95,7 +95,13 @@ public record DigimonAttack(
         /** Swept fang contact and a collision-safe lunge that applies an ice mark. */
         FROST_BITE,
         /** Fueled ice flames which convert a mark after sustained contact. */
-        FROST_STREAM
+        FROST_STREAM,
+        /** A collision-checked finite-body wrap, a brief hold, and periodic damage. */
+        CONSTRICTION,
+        /** Swept contact from an authored fist, without root travel. */
+        FIST,
+        /** Delayed ground-supported spikes, with one hit per opponent per cast. */
+        GROUND_WAVE
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -105,11 +111,11 @@ public record DigimonAttack(
 
     public boolean isRanged() {
         return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
-                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE;
+                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */
     public boolean locksBodyFacing() {
-        return kind == Kind.BUBBLES || motion != null;
+        return kind == Kind.BUBBLES || kind == Kind.CONSTRICTION || motion != null;
     }
 }

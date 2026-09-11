@@ -1,0 +1,26 @@
+{
+  "stage": "adult",
+  "attribute": "data",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.1364,
+  "attacks": [],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.0,
+    "run_speed": 1.0,
+    "ground_gait": {
+      "cycle_ticks": 28,
+      "stride": 1.5
+    }
+  },
+  "body": {
+    "model_scale": 0.75,
+    "width": 1.7,
+    "height": 3.15,
+    "eye_height": 2.91
+  }
+}

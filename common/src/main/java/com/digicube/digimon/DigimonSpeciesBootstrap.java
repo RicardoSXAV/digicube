@@ -71,15 +71,36 @@ public final class DigimonSpeciesBootstrap {
             new AttackFuel(80, 160, 10), 0.0);
 
     /** The shared moves species sheets may reference, by id. */
+    public static final DigimonAttack ROCK_PUNCH = new DigimonAttack(
+            Constants.id("rock_punch"), DigimonAttack.Kind.FIST,
+            .85F, 24, 22, 9, 3.6, false, AttackMotion.load(Constants.id("rock_punch")), null, .25);
+
+    public static final DigimonAttack TECTONIC_FIST = new DigimonAttack(
+            Constants.id("tectonic_fist"), DigimonAttack.Kind.GROUND_WAVE,
+            2.4F, 240, 84, 28, 7.5, false, AttackMotion.load(Constants.id("tectonic_fist")), null, 1.15);
+
+    /** Sustained ice uses the same fuel reserve and pulse cadence as Howling Blaster. */
+    public static final DigimonAttack ICE_BLAST = new DigimonAttack(
+            Constants.id("ice_blast"), DigimonAttack.Kind.FROST_STREAM,
+            .30F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
+            new AttackFuel(80, 160, 10), 0);
+
+    public static final DigimonAttack CONSTRICTION = new DigimonAttack(
+            Constants.id("constriction"), DigimonAttack.Kind.CONSTRICTION,
+            .22F, 240, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
+    public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
+
     public static Map<Identifier, DigimonAttack> attacks() {
         return java.util.stream.Stream.of(PEPPER_BREATH, CLAW, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
-                BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, FREEZE_FANG, HOWLING_BLASTER)
+                BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, FREEZE_FANG, HOWLING_BLASTER, ROCK_PUNCH, TECTONIC_FIST,
+                ICE_BLAST, CONSTRICTION)
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));
     }
 
     public static void registerBuiltIn() {
         var species = BundledSpeciesLoader.load(attacks());
         species.forEach(DigimonSpeciesRegistry::register);
+        DigimonSpeciesRegistry.setCommandNames(BundledSpeciesLoader.loadCommandNames());
 
         Constants.LOG.info("Registered {} built-in Digimon species.", DigimonSpeciesRegistry.size());
     }

@@ -50,12 +50,17 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
     private final HowlingBlasterModel howlingBlaster;
+    private final com.digicube.fabric.client.model.IceBlastModel iceBlast;
+    private final com.digicube.fabric.client.model.NativeEffectModel fistEffect;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
         howlingBlaster = new HowlingBlasterModel(context.bakeLayer(HowlingBlasterModel.LAYER));
+        iceBlast = new com.digicube.fabric.client.model.IceBlastModel(context.bakeLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER));
+        fistEffect = new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(
+                com.digicube.fabric.client.model.NativeEffectModel.layer("rock_punch_fx")), "rock_punch_fx");
         this.models = new java.util.HashMap<>(Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
@@ -66,6 +71,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER))));
+        for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
+            models.put(definition.species(), new com.digicube.fabric.client.model.NativeGroundModel(
+                    context.bakeLayer(definition.layer()), definition));
+        }
         for (var species:com.digicube.digimon.DigimonSpeciesRegistry.all()) {
             if (species.body().mount().map(m->m.flight()!=null).orElse(false)) {
                 var id=species.id();
@@ -80,13 +89,19 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
         super.submit(state, poseStack, collector, cameraState);
+        if (!state.isInvisible && state.attackDefinition != null && state.attackDefinition.kind() == DigimonAttack.Kind.FIST
+                && state.attackAnimation.isStarted()) {
+            var fx=state.fistEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
+            fx.yaw=state.bodyRot;fx.scale=state.modelScale;fx.lightCoords=state.lightCoords;
+            TectonicWaveRenderer.submitEffect(fistEffect,"rock_punch_fx",fx,poseStack,collector);
+        }
         if (state.blueBlaster.length > 0.05F && state.attackDefinition != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
             var frame = state.attackDefinition.motion().sample(tick);
             var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
             poseStack.pushPose();
             poseStack.translate(mouth.x, mouth.y, mouth.z);
-            BlueBlasterRenderer.submit(state.blueBlaster.frost ? howlingBlaster : blueBlaster,
+            BlueBlasterRenderer.submit(state.blueBlaster.iceBlast ? iceBlast : state.blueBlaster.frost ? howlingBlaster : blueBlaster,
                     state.blueBlaster, poseStack, collector);
             poseStack.popPose();
         }
@@ -152,15 +167,20 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.attackAnimationName = entity.getAttackAnimationName();
         state.attackDefinition = entity.getAnimatingAttack();
         state.attackAimPitch = entity.getAttackAimPitch(partialTick);
+        state.constrictionFit = entity.getConstrictionFit();
         if (entity.isFlyingMovement() || (entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
                 || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
             // Swimming, riding and committed attacks turn the entire creature.
             // Keep its rendered body aligned with the server's steering direction.
-            state.bodyRot = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
+            state.bodyRot = state.attackAnimation.isStarted() && state.attackDefinition != null
+                    && (state.attackDefinition.kind()==DigimonAttack.Kind.GROUND_WAVE || state.attackDefinition.kind()==DigimonAttack.Kind.FIST)
+                    ? entity.getAttackYaw(partialTick) : Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }
         state.blueBlaster.length = 0;
+        state.constrictionOffset=entity.getConstrictionRenderOffset(partialTick).yRot(state.bodyRot*Mth.DEG_TO_RAD);
         state.blueBlaster.frost = false;
+        state.blueBlaster.iceBlast = false;
         if (entity.isAlive() && !state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
                 && state.attackDefinition.fuel() != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
@@ -169,6 +189,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 var frame = motion.sample(tick);
                 var flame = state.blueBlaster;
                 flame.frost = state.attackDefinition.kind() == DigimonAttack.Kind.FROST_STREAM;
+                flame.iceBlast = state.attackDefinition.id().equals(com.digicube.digimon.DigimonSpeciesBootstrap.ICE_BLAST.id());
                 flame.ageInTicks = tick - motion.activeFrom();
                 flame.yaw = state.bodyRot;
                 flame.pitch = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
@@ -182,6 +203,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
         AABB bounds = super.getBoundingBoxForCulling(entity);
+        if (models.get(entity.getSpeciesId()) instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel) {
+            bounds = bounds.inflate(nativeModel.definition().cullingMargin() * entity.getBody().modelScale());
+        }
         if (entity.canSwim()) bounds = bounds.inflate(entity.getBody().modelScale());
         if (entity.canFly()) bounds = bounds.inflate(2 * entity.getBody().modelScale());
         if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel) {
@@ -194,6 +218,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
 
     @Override
     public Identifier getTextureLocation(DigimonRenderState state) {
+        if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel) {
+            return nativeModel.definition().texture();
+        }
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeFlyingMountModel) {
             return state.species.withPath("textures/entity/digimon/"+state.species.getPath()+".png");
         }

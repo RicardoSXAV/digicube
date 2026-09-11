@@ -49,6 +49,18 @@ public final class BundledSpeciesLoader {
         return List.copyOf(species.values());
     }
 
+    /** @return preferred player-facing command names, keyed by stable species id */
+    public static Map<Identifier, Identifier> loadCommandNames() {
+        var catalog = read("/data/digicube/species.json");
+        Map<Identifier, Identifier> names = new LinkedHashMap<>();
+        if (catalog.has("command_names")) {
+            for (var entry : catalog.getAsJsonObject("command_names").entrySet()) {
+                names.put(identifier(entry.getKey()), identifier(GsonHelper.convertToString(entry.getValue(), "command name")));
+            }
+        }
+        return Map.copyOf(names);
+    }
+
     /**
      * Parse one bundled sheet on its own, as the developer panel does to undo tuning.
      * Evolution targets are not cross-checked here; the full catalog did that at startup.

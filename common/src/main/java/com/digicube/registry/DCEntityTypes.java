@@ -63,6 +63,10 @@ public final class DCEntityTypes {
             EntityType.Builder.<MarchingFishesEntity>of(MarchingFishesEntity::new, MobCategory.MISC)
                     .sized(2.2F, 1.25F).eyeHeight(0.625F).clientTrackingRange(10).updateInterval(1));
 
+    public static final EntityType<com.digicube.entity.TectonicWaveEntity> TECTONIC_WAVE = register(key("tectonic_wave"),
+            EntityType.Builder.<com.digicube.entity.TectonicWaveEntity>of(com.digicube.entity.TectonicWaveEntity::new, MobCategory.MISC)
+                    .sized(.1F,.1F).clientTrackingRange(12).updateInterval(1));
+
     /** Forces the static initialiser, which performs the registration. */
     public static void init() {
         Constants.LOG.debug("DigiCube entity types registered.");

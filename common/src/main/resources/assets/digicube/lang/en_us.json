@@ -1,10 +1,11 @@
 {
+  "digimon.digicube.centalmon": "Centarumon",
+  "digimon.digicube.golemon": "Golemon",
+  "entity.digicube.tectonic_wave": "Tectonic Fist",
   "digimon.digicube.kabuterimon": "Kabuterimon",
   "creative_tab.digicube.main": "DigiCube",
   "item.digicube.digivice": "Digivice",
-
   "entity.digicube.digimon": "Digimon",
-
   "commands.digicube.spawn.success": "Spawned %s at level %s",
   "commands.digicube.spawn.unknown": "Unknown Digimon species: %s",
   "commands.digicube.spawn.failed": "Could not create the Digimon entity",
@@ -46,7 +47,6 @@
   "commands.digicube.starter.unavailable": "You cannot link with a partner right now",
   "commands.digicube.starter.unknown": "That Digimon is not a starter",
   "commands.digicube.starter.failed": "The partner could not be created",
-
   "gui.digicube.party.title": "DIGIVICE",
   "gui.digicube.party.subtitle": "Your partners, one connection.",
   "gui.digicube.party.team": "PARTY  %s / 3",
@@ -74,7 +74,6 @@
   "gui.digicube.party.species_missing": "This partner's species is unavailable.",
   "gui.digicube.party.spawn_failed": "Deployment failed. Your party selection was restored.",
   "gui.digicube.party.wait": "Please wait a moment before changing your party.",
-
   "gui.digicube.starter.eyebrow": "DIGIVICE",
   "gui.digicube.starter.title": "CHOOSE YOUR PARTNER",
   "gui.digicube.starter.subtitle": "Your Digivice found %s Digimon. Choose one.",
@@ -89,7 +88,6 @@
   "gui.digicube.starter.kind": "%s · %s",
   "gui.digicube.starter.previous": "Previous partners",
   "gui.digicube.starter.next": "More partners",
-
   "key.category.digicube.digicube": "DigiCube",
   "key.digicube.dev_panel": "Developer Panel: show / hide",
   "key.digicube.dev_focus": "Developer Panel: focus",
@@ -115,18 +113,15 @@
   "gui.digicube.dev.section": "Section",
   "gui.digicube.dev.none": "no Digimon",
   "gui.digicube.dev.waiting": "Waiting for the server…",
-
   "entity.digicube.pepper_breath": "Pepper Breath",
   "entity.digicube.bubble_blow": "Bubble Blow",
   "entity.digicube.mega_flame": "Mega Flame",
   "entity.digicube.marching_fishes": "Marching Fishes",
-
   "digimon.digicube.level_up": "%s reached level %s!",
   "digimon.digicube.wild_nameplate": "Lv %s %s",
   "digimon.digicube.digivice.received": "Your Digivice is ready. Hold it and right-click to see your partners.",
   "digimon.digicube.starter.linked": "%s is now your partner.",
   "digimon.digicube.starter.later": "You can choose your partner any time with %s.",
-
   "digimon.digicube.koromon": "Koromon",
   "digimon.digicube.tsunomon": "Tsunomon",
   "digimon.digicube.gabumon": "Gabumon",
@@ -136,7 +131,6 @@
   "digimon.digicube.garurumon": "Garurumon",
   "digimon.digicube.agumon": "Agumon",
   "digimon.digicube.greymon": "Greymon",
-
   "digicube.stage.baby_i": "Fresh",
   "digicube.stage.baby_ii": "In-Training",
   "digicube.stage.child": "Rookie",
@@ -146,15 +140,18 @@
   "digicube.stage.super_ultimate": "Ultra",
   "digicube.stage.armor": "Armor",
   "digicube.stage.hybrid": "Hybrid",
-
   "digicube.attribute.vaccine": "Vaccine",
   "digicube.attribute.data": "Data",
   "digicube.attribute.virus": "Virus",
   "digicube.attribute.free": "Free",
   "digicube.attribute.variable": "Variable",
   "digicube.attribute.unknown": "Unknown",
-
   "effect.digicube.ice_mark": "Ice Mark",
   "effect.digicube.frozen": "Frozen",
-  "effect.digicube.frost_resistance": "Frost Resistance"
+  "effect.digicube.frost_resistance": "Frost Resistance",
+  "digimon.digicube.seadramon": "Seadramon",
+  "attack.digicube.ice_blast": "Ice Blast",
+  "attack.digicube.constriction": "Constriction",
+  "effect.digicube.constricted": "Constricted",
+  "effect.digicube.constriction_resistance": "Constriction Resistance"
 }

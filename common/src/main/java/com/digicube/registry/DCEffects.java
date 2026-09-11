@@ -24,6 +24,21 @@ public final class DCEffects {
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
     public static final Holder<MobEffect> FROST_RESISTANCE = register("frost_resistance",
             new MobEffect(MobEffectCategory.NEUTRAL, 0x6685AE) {});
+    public static final Holder<MobEffect> CONSTRICTION_RESISTANCE = register("constriction_resistance",
+            new MobEffect(MobEffectCategory.NEUTRAL, 0xB6CC94) {});
+    public static final Holder<MobEffect> CONSTRICTED = register("constricted", new MobEffect(MobEffectCategory.HARMFUL,0x317887) {
+        @Override public boolean shouldApplyEffectTickThisTick(int ticks,int amplifier) { return true; }
+        @Override public boolean applyEffectTick(ServerLevel level,LivingEntity entity,int amplifier) {
+            entity.setDeltaMovement(0,Math.min(0,entity.getDeltaMovement().y),0);
+            entity.setJumping(false);
+            if(entity instanceof Mob mob)mob.getNavigation().stop();
+            if(entity instanceof DigimonEntity digimon)digimon.interruptAttack();
+            return true;
+        }
+    }.addAttributeModifier(Attributes.MOVEMENT_SPEED,Constants.id("constricted_movement"),-1,
+            AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)
+     .addAttributeModifier(Attributes.JUMP_STRENGTH,Constants.id("constricted_jump"),-1,
+            AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 
     private DCEffects() {}
 

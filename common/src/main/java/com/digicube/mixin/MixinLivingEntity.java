@@ -40,6 +40,7 @@ public abstract class MixinLivingEntity implements IceMarkState {
 
     @Inject(method = "isImmobile", at = @At("RETURN"), cancellable = true)
     private void digicube$frozenImmobility(CallbackInfoReturnable<Boolean> result) {
-        if (((LivingEntity) (Object) this).hasEffect(DCEffects.FROZEN)) result.setReturnValue(true);
+        LivingEntity living = (LivingEntity) (Object) this;
+        if (living.hasEffect(DCEffects.FROZEN) || living.hasEffect(DCEffects.CONSTRICTED)) result.setReturnValue(true);
     }
 }

@@ -14,6 +14,7 @@ import net.minecraft.util.LightCoordsUtil;
 public final class BlueBlasterRenderer {
     private static final Identifier TEXTURE = Constants.id("textures/entity/projectile/blue_blaster.png");
     private static final Identifier HOWLING_TEXTURE = Constants.id("textures/entity/projectile/howling_blaster.png");
+    private static final Identifier ICE_TEXTURE = Constants.id("textures/entity/projectile/ice_blast_fx.png");
 
     private BlueBlasterRenderer() {}
 
@@ -22,7 +23,7 @@ public final class BlueBlasterRenderer {
         if (state.length <= 0.05F) return;
         pose.pushPose();
         orient(pose, state.yaw, state.pitch);
-        collector.submitModel(model, state, pose, RenderTypes.entityTranslucentEmissive(state.frost ? HOWLING_TEXTURE : TEXTURE),
+        collector.submitModel(model, state, pose, RenderTypes.entityTranslucentEmissive(state.iceBlast ? ICE_TEXTURE : state.frost ? HOWLING_TEXTURE : TEXTURE),
                 LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
         pose.popPose();
     }
