@@ -68,7 +68,7 @@ final class PartyHealthRegressionTest {
         sync.invalidate();
         check(sync.takeHealthChanges() == null, "death or recall prioritizes membership over queued health");
         PartyMemberView defeated = new PartyMemberView(first.id(), first.species(), first.nickname(), 0, 20,
-                first.level(), first.xp(), -1, false);
+                first.level(), first.xp(), -1, false, 6000);
         PartySnapshotPayload afterDeath = new PartySnapshotPayload(false, 0, 3,
                 List.of(patched.party().get(1), patched.party().get(2)),
                 List.of(defeated, patched.collection().get(1), patched.collection().get(2)), "");
@@ -105,7 +105,7 @@ final class PartyHealthRegressionTest {
     }
 
     private static PartyMemberView member(int slot) {
-        return new PartyMemberView(UUID.randomUUID(), Constants.id("agumon"), "Partner " + slot, 7.5F, 20, 3, 40, slot, true);
+        return new PartyMemberView(UUID.randomUUID(), Constants.id("agumon"), "Partner " + slot, 7.5F, 20, 3, 40, slot, true, 0);
     }
 
     private static void check(boolean condition, String message) {

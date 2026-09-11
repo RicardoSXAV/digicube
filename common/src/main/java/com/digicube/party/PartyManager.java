@@ -2,6 +2,7 @@ package com.digicube.party;
 
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.Progression;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.registry.DCEntityTypes;
 import net.minecraft.core.BlockPos;
@@ -88,16 +89,45 @@ public final class PartyManager {
                 capture(data, member, live);
                 continue;
             }
-            CompoundTag tag = member.entityData();
-            tag.putFloat("Health", member.maxHealth());
-            member.capture(member.species(), member.nickname(), member.maxHealth(), member.maxHealth(),
-                    member.level(), member.xp(), tag);
+            member.setHealth(member.maxHealth());
         }
         if (!owned.isEmpty()) {
             data.session(owner).sync.invalidate();
             data.setDirty();
         }
         return owned.size();
+    }
+
+    /**
+     * One regeneration pulse for every partner of {@code owner} resting in the Digivice:
+     * stored and below full health. A defeated partner first spends its rest
+     * ({@link Progression#DEFEAT_REST_TICKS}) and then heals from zero like any other;
+     * {@link #healAll} skips the rest. Deployed partners heal only through play. The pulse
+     * runs while the tamer is online, every {@link Progression#RESERVE_REGEN_INTERVAL_TICKS}
+     * ticks, and rest is spent at the same cadence.
+     * @return how many partners regained health; resting ones are not counted
+     */
+    static int regenerateReserve(PartySavedData data, UUID owner) {
+        int healed = 0;
+        boolean changed = false;
+        for (PartyMember member : data.roster().owned(owner)) {
+            if (data.live.containsKey(member.id())) continue;
+            if (member.resting()) {
+                member.rest(Progression.RESERVE_REGEN_INTERVAL_TICKS);
+                // The Digivice shows the countdown, and a rest that just ended reads as a fresh snapshot.
+                data.session(owner).sync.invalidate();
+                changed = true;
+                continue;
+            }
+            float next = Progression.reserveHealth(member.health(), member.maxHealth());
+            if (next == member.health()) continue;
+            member.setHealth(next);
+            data.session(owner).sync.recordHealth(member.id(), next, member.maxHealth());
+            healed++;
+            changed = true;
+        }
+        if (changed) data.setDirty();
+        return healed;
     }
 
     /** A partner gained XP or a level: its owner's HUD and Digivice need a fresh snapshot. */
@@ -138,7 +168,10 @@ public final class PartyManager {
         if (member == null || member.generation() != digimon.getPartyGeneration()) return;
         capture(data, member, digimon);
         member.nextGeneration();
-        if (digimon.getHealth() <= 0) member.setSlot(-1);
+        if (digimon.getHealth() <= 0) {
+            member.setSlot(-1);
+            member.defeat(Progression.DEFEAT_REST_TICKS);
+        }
         data.session(member.owner()).sync.invalidate();
         data.setDirty();
     }
@@ -165,6 +198,7 @@ public final class PartyManager {
             if (entity.getHealth() <= 0) {
                 capture(data, member, entity);
                 member.setSlot(-1);
+                member.defeat(Progression.DEFEAT_REST_TICKS);
                 member.nextGeneration();
                 data.live.remove(member.id());
                 data.session(member.owner()).sync.invalidate();
@@ -183,9 +217,11 @@ public final class PartyManager {
                 capture(data, member, entity);
             }
         }
+        boolean regenerate = server.getTickCount() % Progression.RESERVE_REGEN_INTERVAL_TICKS == 0;
         if (server.getTickCount() % 20 != 0) return;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (!player.isAlive() || player.isSpectator()) continue;
+            if (regenerate) regenerateReserve(data, player.getUUID());
             for (PartyMember member : data.roster().party(player.getUUID())) {
                 if (!data.live.containsKey(member.id())) deploy(data, member, player);
             }

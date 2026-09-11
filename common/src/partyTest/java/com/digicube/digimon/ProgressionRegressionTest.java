@@ -26,8 +26,9 @@ public final class ProgressionRegressionTest {
             checkSplit();
             checkGain();
             checkStats();
+            checkReserveRegen();
             checkLedger();
-            Constants.LOG.info("Progression regression checks passed: curve, yield, gap, damage split, level-ups, stats and ledger.");
+            Constants.LOG.info("Progression regression checks passed: curve, yield, gap, damage split, level-ups, stats, reserve regeneration and ledger.");
         } finally {
             Util.shutdownExecutors();
         }
@@ -177,6 +178,25 @@ public final class ProgressionRegressionTest {
         check(ledger.recent(800, 1200).size() == 2, "both recent when the window covers them");
         ledger.clear();
         check(ledger.isEmpty(), "clear empties the ledger");
+    }
+
+    private static void checkReserveRegen() {
+        check(Progression.RESERVE_REGEN_INTERVAL_TICKS == 100 && Progression.RESERVE_FULL_HEAL_TICKS == 6000,
+                "a pulse every five seconds, full in five minutes");
+        check(nearFloat(Progression.reserveHealth(7.5F, 20), 7.5F + 20.0F / 60), "Agumon regains a sixtieth of its health per pulse");
+        check(Progression.reserveHealth(19.9F, 20) == 20 && Progression.reserveHealth(20, 20) == 20, "regeneration clamps at full");
+        check(nearFloat(Progression.reserveHealth(0, 20), 20.0F / 60) && Progression.reserveHealth(-1, 20) == -1,
+                "a rested partner heals from zero; negative health is left alone");
+        check(Progression.DEFEAT_REST_TICKS == 6000, "a defeat costs five minutes of rest before the first pulse");
+        float health = 0.5F;
+        for (int i = 0; i < 60; i++) health = Progression.reserveHealth(health, 20);
+        check(health == 20, "sixty pulses fill any partner");
+        check(nearFloat(Progression.reserveHealth(50, 118), 50 + 118.0F / 60), "regeneration scales with max health");
+    }
+
+    /** Health is a float on the entity, so regeneration is compared at float precision. */
+    private static boolean nearFloat(float actual, float expected) {
+        return Math.abs(actual - expected) < 1.0E-4F;
     }
 
     private static boolean near(double actual, double expected) {

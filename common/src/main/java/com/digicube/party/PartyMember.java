@@ -27,7 +27,9 @@ public final class PartyMember {
             Codec.INT.optionalFieldOf("xp", 0).forGetter(PartyMember::xp),
             Codec.INT.fieldOf("slot").forGetter(PartyMember::slot),
             Codec.LONG.fieldOf("generation").forGetter(PartyMember::generation),
-            CompoundTag.CODEC.fieldOf("entity").forGetter(PartyMember::entityData)
+            CompoundTag.CODEC.fieldOf("entity").forGetter(PartyMember::entityData),
+            // Optional so rosters saved before defeat rest existed load rested.
+            Codec.INT.optionalFieldOf("rest_ticks", 0).forGetter(PartyMember::restTicks)
     ).apply(instance, PartyMember::new));
 
     private final UUID id;
@@ -41,9 +43,15 @@ public final class PartyMember {
     private int slot;
     private long generation;
     private CompoundTag entityData;
+    private int restTicks;
 
     public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
                        int level, int xp, int slot, long generation, CompoundTag entityData) {
+        this(id, owner, species, nickname, health, maxHealth, level, xp, slot, generation, entityData, 0);
+    }
+
+    public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
+                       int level, int xp, int slot, long generation, CompoundTag entityData, int restTicks) {
         this.id = id;
         this.owner = owner;
         this.species = species;
@@ -55,6 +63,7 @@ public final class PartyMember {
         this.slot = slot;
         this.generation = generation;
         this.entityData = entityData.copy();
+        this.restTicks = Math.max(0, restTicks);
     }
 
     public UUID id() { return id; }
@@ -70,11 +79,22 @@ public final class PartyMember {
     public CompoundTag entityData() { return entityData.copy(); }
     public boolean active() { return slot >= 0; }
     public boolean defeated() { return health <= 0; }
+    /** Ticks of rest a defeat still imposes before regeneration starts; zero for a living partner. */
+    public int restTicks() { return restTicks; }
+    /** Defeated and still waiting out its rest. */
+    public boolean resting() { return defeated() && restTicks > 0; }
 
     void setSlot(int slot) { this.slot = slot; }
 
     /** Invalidates any older incarnation still present in an unloaded chunk. */
     long nextGeneration() { return ++generation; }
+
+    /** Sets the stored health and keeps the saved entity data in step, for a partner not in the world. */
+    void setHealth(float health) {
+        this.health = health;
+        this.entityData.putFloat("Health", health);
+        if (health > 0) restTicks = 0;
+    }
 
     void capture(Identifier species, String nickname, float health, float maxHealth, int level, int xp, CompoundTag data) {
         this.species = species;
@@ -84,5 +104,21 @@ public final class PartyMember {
         this.level = Progression.clampLevel(level);
         this.xp = Math.max(0, xp);
         this.entityData = data.copy();
+        if (health > 0) restTicks = 0;
+    }
+
+    /** Marks a defeat: the partner must rest this long in the Digivice before its first regeneration pulse. */
+    void defeat(int restTicks) {
+        this.restTicks = Math.max(0, restTicks);
+    }
+
+    /**
+     * Lets {@code ticks} of rest pass.
+     * @return whether there was rest left to spend
+     */
+    boolean rest(int ticks) {
+        if (restTicks <= 0) return false;
+        restTicks = Math.max(0, restTicks - ticks);
+        return true;
     }
 }
