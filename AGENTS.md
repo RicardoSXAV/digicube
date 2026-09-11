@@ -310,14 +310,21 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   hits before `super.tick()`, and bend a few degrees per tick toward the target while it
   stays ahead. Tune those constants before touching speed or hitbox size.
 
-- Progression: every balance number of levels and XP (the curve, stage yields, the
-  level-gap multiplier, stat scaling and the damage-proportional split) lives in
+- Progression: every balance number of levels, XP and rest (the curve, stage yields, the
+  level-gap multiplier, stat scaling, the damage-proportional split and the Digivice
+  regeneration pulse) lives in
   `Progression`, next to the attribute triangle, and `:common:progressionTest` asserts
   the tables in `../design/wild-spawns-and-progression.md`. Never put a balance
   constant anywhere else. `DigimonEntity` holds `level` and `xp`; a wild Digimon's
   `DamageLedger` records the health it lost to each partner, and `ExperienceAward`
   splits the yield at the end of `hurtServer` on the killing blow (vanilla calls `die`
   from inside `hurtServer`, before the last hit could be recorded).
+- Healing in survival: a partner stored in the Digivice regenerates slowly
+  (`PartyManager.regenerateReserve`, one pulse per `Progression.RESERVE_REGEN_INTERVAL_TICKS`
+  while the tamer is online, full in `RESERVE_FULL_HEAL_TICKS`); a defeated partner first
+  rests `DEFEAT_REST_TICKS` (`PartyMember.restTicks`, saved, shown as a countdown in the
+  Digivice) and then heals from zero; deployed partners heal only through play and
+  `/digicube heal` skips the rest.
 - Wild spawning is data too: `data/digicube/spawn_tables.json` lists one
   `data/digicube/spawn_table/<dimension>.json` per dimension, loaded and validated at
   startup by `BundledSpawnTableLoader` and covered by `:common:spawnTableTest`.

@@ -1,6 +1,7 @@
 package com.digicube.party;
 
 import com.digicube.Constants;
+import com.digicube.digimon.Progression;
 import com.digicube.dev.DevActionPayload;
 import com.digicube.dev.DevActions;
 import com.digicube.dev.DevStatePayload;
@@ -105,11 +106,37 @@ public final class PartyRegressionTest {
         PartyMember dead = member(owner);
         dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), dead.entityData());
         roster.add(dead);
+        dead.defeat(Progression.DEFEAT_REST_TICKS);
         check(!dead.active() && !roster.select(owner, dead.id(), 0), "party storage cannot resurrect dead partners");
+        PartyMember full = member(owner);
+        full.setHealth(20);
+        roster.add(full);
+        int resting = (int) roster.owned(owner).stream().filter(m -> m.health() > 0 && m.health() < m.maxHealth()).count();
+        float pulse = 20.0F * Progression.RESERVE_REGEN_INTERVAL_TICKS / Progression.RESERVE_FULL_HEAL_TICKS;
+        check(PartyManager.regenerateReserve(data, owner) == resting, "a pulse heals every resting partner below full");
+        check(reserve.health() == 7.5F + pulse && reserve.entityData().getFloatOr("Health", 0) == reserve.health(),
+                "a resting partner regains one pulse in its saved data");
+        check(dead.health() == 0 && dead.resting()
+                && dead.restTicks() == Progression.DEFEAT_REST_TICKS - Progression.RESERVE_REGEN_INTERVAL_TICKS, "a defeated partner rests instead of healing");
+        check(full.health() == 20, "a full partner stays full");
+        check(PartyManager.regenerateReserve(data, other) == 1 && PartyManager.regenerateReserve(data, UUID.randomUUID()) == 0,
+                "regeneration is scoped to one owner");
+        for (int i = 0; i < Progression.RESERVE_FULL_HEAL_TICKS / Progression.RESERVE_REGEN_INTERVAL_TICKS; i++) PartyManager.regenerateReserve(data, owner);
+        check(dead.health() > 0 && !dead.defeated() && dead.restTicks() == 0, "after its rest a defeated partner heals from zero");
+        dead.setHealth(20);
+        check(reserve.health() == 20 && PartyManager.regenerateReserve(data, owner) == 0, "regeneration stops at full health");
+        reserve.setHealth(7.5F);
+        dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), dead.entityData());
+        dead.defeat(Progression.DEFEAT_REST_TICKS);
+        check(dead.resting() && !roster.select(owner, dead.id(), 0), "a resting partner cannot be selected");
+        CompoundTag rested = (CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, dead).getOrThrow();
+        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, rested).getOrThrow().restTicks() == Progression.DEFEAT_REST_TICKS, "the rest survives reload");
+        rested.remove("rest_ticks");
+        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, rested).getOrThrow().restTicks() == 0, "rosters saved before rest existed load rested");
         int healed = PartyManager.healAll(data, owner);
         check(healed == roster.owned(owner).size(), "heal touches every owned partner");
         check(reserve.health() == 20 && reserve.entityData().getFloatOr("Health", 0) == 20, "reserve partners heal in their saved data");
-        check(dead.health() == 20 && !dead.defeated() && !dead.active(), "a defeated partner revives into reserve");
+        check(dead.health() == 20 && !dead.defeated() && !dead.active() && dead.restTicks() == 0, "a defeated partner revives into reserve without its rest");
         check(reserve.entityData().getStringOr("FutureTrainingData", "").equals("retained"), "heal keeps the rest of the saved data");
         check(roster.select(owner, dead.id(), -1), "a revived partner is selectable again");
         check(PartyManager.healAll(data, other) == 1 && PartyManager.healAll(data, UUID.randomUUID()) == 0, "heal is scoped to one owner");

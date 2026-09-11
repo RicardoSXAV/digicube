@@ -51,8 +51,22 @@ final class PartyGraphics {
         return font.width(value) <= width ? value : font.plainSubstrByWidth(value, Math.max(0, width - 6)) + "…";
     }
 
-    static Component status(PartyMemberView member) {
-        if (member.health() <= 0) return Component.translatable("gui.digicube.party.defeated");
+    /** Minutes and seconds left, rounded up to whole seconds. */
+    static String clock(int ticks) {
+        int seconds = (ticks + 19) / 20;
+        return String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    /**
+     * @param elapsedTicks client ticks since the snapshot that carried {@code member}, so the
+     *                     countdown runs every second between the server's five-second updates
+     */
+    static Component status(PartyMemberView member, int elapsedTicks) {
+        if (member.health() <= 0) {
+            // Once the local count reaches zero the next snapshot is imminent; hold at one second rather than flash "Defeated".
+            if (member.restTicks() > 0) return Component.translatable("gui.digicube.party.resting", clock(Math.max(20, member.restTicks() - elapsedTicks)));
+            return Component.translatable("gui.digicube.party.defeated");
+        }
         if (member.slot() < 0) return Component.translatable("gui.digicube.party.reserve");
         return Component.translatable(member.deployed() ? "gui.digicube.party.active" : "gui.digicube.party.waiting");
     }

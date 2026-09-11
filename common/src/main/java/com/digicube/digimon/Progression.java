@@ -29,6 +29,13 @@ public final class Progression {
     /** A contributor farther than this from the defeated Digimon receives nothing. */
     public static final double CONTRIBUTION_RANGE = 64.0;
 
+    /** A partner resting in the Digivice regains health once every this many ticks. */
+    public static final int RESERVE_REGEN_INTERVAL_TICKS = 100;
+    /** Ticks a resting partner needs to go from empty to full: 6000 is five minutes. */
+    public static final int RESERVE_FULL_HEAL_TICKS = 6000;
+    /** A defeated partner rests in the Digivice for this long before its first pulse: five minutes, so a defeat costs about twice a bad fight. */
+    public static final int DEFEAT_REST_TICKS = 6000;
+
     /** Max health grows by this percentage of the base value per level above 1. */
     private static final int HEALTH_GROWTH_PERCENT = 4;
     /** Attack grows by this percentage of the base value per level above 1. */
@@ -103,6 +110,18 @@ public final class Progression {
     /** Attack of a species with {@code baseAttack} at {@code level}. */
     public static double attack(int baseAttack, int level) {
         return baseAttack * (100 + ATTACK_GROWTH_PERCENT * (clampLevel(level) - 1)) / 100.0;
+    }
+
+    /**
+     * Health of a partner resting in the Digivice after one regeneration pulse: a fixed
+     * fraction of its maximum, {@code RESERVE_REGEN_INTERVAL_TICKS / RESERVE_FULL_HEAL_TICKS},
+     * never past full. A partner at zero heals from zero once its rest is over; the rest
+     * gate itself belongs to the party ({@code PartyMember.resting}).
+     */
+    public static float reserveHealth(float health, float maxHealth) {
+        if (health < 0.0F || maxHealth <= 0.0F || health >= maxHealth) return health;
+        float pulse = maxHealth * RESERVE_REGEN_INTERVAL_TICKS / RESERVE_FULL_HEAL_TICKS;
+        return Math.min(maxHealth, health + pulse);
     }
 
     /**

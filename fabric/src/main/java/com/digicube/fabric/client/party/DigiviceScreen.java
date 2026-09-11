@@ -30,15 +30,19 @@ public final class DigiviceScreen extends Screen {
     private int panelHeight;
     private String feedback = "";
     private int feedbackTicks;
+    /** Client ticks since the last snapshot; drives the rest countdown between server updates. */
+    private int sinceSnapshot;
     private final List<MemberButton> memberButtons = new ArrayList<>();
 
     DigiviceScreen(PartyClient client) {
         super(Component.translatable("gui.digicube.party.title"));
         this.client = client;
         this.snapshot = client.snapshot();
+        this.sinceSnapshot = client.snapshotAge();
     }
 
     void receive(PartySnapshotPayload snapshot) {
+        sinceSnapshot = 0;
         boolean changed = this.snapshot.page() != snapshot.page() || !this.snapshot.collection().equals(snapshot.collection())
                 || !this.snapshot.party().equals(snapshot.party());
         this.snapshot = snapshot;
@@ -161,6 +165,13 @@ public final class DigiviceScreen extends Screen {
 
     @Override public void tick() {
         if (feedbackTicks > 0) feedbackTicks--;
+        sinceSnapshot++;
+        if (sinceSnapshot % 20 == 0) {
+            // Tooltips are built once per member; a resting one needs its countdown refreshed each second.
+            for (MemberButton button : memberButtons) {
+                if (button.member != null && button.member.health() <= 0 && button.member.restTicks() > 0) button.updateMember(button.member);
+            }
+        }
         if (minecraft.player == null || !minecraft.player.isAlive()) onClose();
     }
 
@@ -210,7 +221,7 @@ public final class DigiviceScreen extends Screen {
                         ? Component.translatable("gui.digicube.party.xp_max")
                         : Component.translatable("gui.digicube.party.xp", member.xp(), Progression.xpToNext(member.level()));
                 var detail = Component.empty().append(PartyGraphics.name(member)).append("\n")
-                        .append(PartyGraphics.status(member)).append(" · ")
+                        .append(PartyGraphics.status(member, sinceSnapshot)).append(" · ")
                         .append(Component.translatable("gui.digicube.party.hp", (int) Math.ceil(member.health()), (int) Math.ceil(member.maxHealth())))
                         .append("\n").append(Component.translatable("gui.digicube.party.level_long", member.level()))
                         .append(" · ").append(progress);
@@ -243,7 +254,7 @@ public final class DigiviceScreen extends Screen {
                     textX, textY, active ? PartyGraphics.WHITE : PartyGraphics.MUTED, false);
             graphics.text(font, level, getX() + getWidth() - levelWidth - 5, textY,
                     member.slot() >= 0 ? PartyGraphics.TEAL : PartyGraphics.MUTED, false);
-            Component status = partySlot >= 0 ? Component.translatable("gui.digicube.party.slot", partySlot + 1) : PartyGraphics.status(member);
+            Component status = partySlot >= 0 ? Component.translatable("gui.digicube.party.slot", partySlot + 1) : PartyGraphics.status(member, sinceSnapshot);
             graphics.text(font, PartyGraphics.shortText(font, status, getWidth() - iconSize - 10), textX, textY + 10,
                     member.slot() >= 0 ? PartyGraphics.TEAL : PartyGraphics.MUTED, false);
             if (partySlot >= 0) PartyGraphics.health(graphics, member, getX() + 6, getY() + getHeight() - 7, getWidth() - 12);

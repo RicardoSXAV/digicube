@@ -62,6 +62,7 @@
   "gui.digicube.party.reserve": "In reserve",
   "gui.digicube.party.waiting": "Waiting for space",
   "gui.digicube.party.defeated": "Defeated",
+  "gui.digicube.party.resting": "Resting · %s",
   "gui.digicube.party.hp": "%s / %s HP",
   "gui.digicube.party.level": "Lv%s",
   "gui.digicube.party.level_long": "Level %s",

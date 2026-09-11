@@ -6,6 +6,7 @@ import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyMemberView;
 import com.digicube.party.PartyRoster;
 import com.digicube.party.PartySnapshotPayload;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -20,6 +21,8 @@ import java.util.List;
 /** Client receiver/HUD registration. State is connection-scoped and reset on disconnect. */
 public final class PartyClient {
     private PartySnapshotPayload snapshot = empty();
+    /** Client ticks since {@link #snapshot} arrived, so a countdown can continue between server updates. */
+    private int snapshotAge;
 
     private static PartySnapshotPayload empty() {
         return new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "");
@@ -29,6 +32,7 @@ public final class PartyClient {
         ClientPlayNetworking.registerGlobalReceiver(PartySnapshotPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     snapshot = payload;
+                    snapshotAge = 0;
                     if (payload.openScreen() && !(context.client().gui.screen() instanceof DigiviceScreen)) {
                         context.client().gui.setScreen(new DigiviceScreen(this));
                     } else if (context.client().gui.screen() instanceof DigiviceScreen screen) {
@@ -43,11 +47,13 @@ public final class PartyClient {
                     }
                 }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> snapshot = empty());
+        ClientTickEvents.END_CLIENT_TICK.register(client -> snapshotAge++);
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, Constants.id("party"),
                 (graphics, delta) -> drawHud(graphics));
     }
 
     PartySnapshotPayload snapshot() { return snapshot; }
+    int snapshotAge() { return snapshotAge; }
 
     void send(PartyActionPayload payload) {
         if (ClientPlayNetworking.canSend(PartyActionPayload.TYPE)) ClientPlayNetworking.send(payload);
