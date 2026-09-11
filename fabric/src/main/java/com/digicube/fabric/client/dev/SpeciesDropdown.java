@@ -10,7 +10,7 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** The species picker: every registered species by id, with its icon. */
+/** The species picker: every registered species by translated name, with its icon. */
 final class SpeciesDropdown extends Dropdown<DigimonSpecies> {
     private static final int ICON = 12;
 
@@ -21,7 +21,7 @@ final class SpeciesDropdown extends Dropdown<DigimonSpecies> {
 
     @Override
     protected String label(DigimonSpecies species) {
-        return species.id().getPath();
+        return Component.translatable(species.translationKey()).getString();
     }
 
     @Override
@@ -38,7 +38,7 @@ final class SpeciesDropdown extends Dropdown<DigimonSpecies> {
 
     /** Draws the closed header without a widget: the same box, for the passive overlay. */
     static void drawStatic(GuiGraphicsExtractor graphics, Font font, DigimonSpecies species, int x, int y, int width, int height) {
-        drawStatic(graphics, font, species == null ? "" : species.id().getPath(), species == null ? Icon.NONE : icon(species, ICON),
+        drawStatic(graphics, font, species == null ? "" : Component.translatable(species.translationKey()).getString(), species == null ? Icon.NONE : icon(species, ICON),
                 x, y, width, height);
     }
 }

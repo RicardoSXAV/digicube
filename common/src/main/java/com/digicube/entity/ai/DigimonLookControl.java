@@ -16,6 +16,17 @@ public final class DigimonLookControl extends LookControl {
     }
 
     @Override
+    public void tick() {
+        if (((DigimonEntity)mob).constrictionHeadingLocked()) {
+            lookAtCooldown = 0;
+            mob.yHeadRot = mob.yBodyRot = mob.getYRot();
+            mob.setXRot(0);
+            return;
+        }
+        super.tick();
+    }
+
+    @Override
     protected boolean resetXRotOnTick() {
         return !mob.isInWater();
     }

@@ -24,6 +24,7 @@ import java.util.Optional;
 public final class DigimonSpeciesRegistry {
 
     private static final Map<Identifier, DigimonSpecies> SPECIES = new LinkedHashMap<>();
+    private static Map<Identifier, Identifier> commandNames = Map.of();
 
     private DigimonSpeciesRegistry() {}
 
@@ -63,7 +64,13 @@ public final class DigimonSpeciesRegistry {
     public static Optional<DigimonSpecies> resolve(Identifier id) {
         Optional<DigimonSpecies> species = get(id);
         if (species.isEmpty() && Identifier.DEFAULT_NAMESPACE.equals(id.getNamespace())) {
-            species = get(Constants.id(id.getPath()));
+            id = Constants.id(id.getPath());
+            species = get(id);
+        }
+        if (species.isEmpty()) {
+            for (var entry : commandNames.entrySet()) {
+                if (entry.getValue().equals(id)) return get(entry.getKey());
+            }
         }
         return species;
     }
@@ -86,8 +93,26 @@ public final class DigimonSpeciesRegistry {
         return SPECIES.size();
     }
 
+    /** @return the suggested command spelling while saved species ids remain stable */
+    public static Identifier commandId(Identifier speciesId) {
+        return commandNames.getOrDefault(speciesId, speciesId);
+    }
+
+    /** Validate aliases before publishing them during catalog initialization. */
+    static void setCommandNames(Map<Identifier, Identifier> names) {
+        var used = new java.util.HashSet<Identifier>();
+        for (var entry : names.entrySet()) {
+            if (!SPECIES.containsKey(entry.getKey()) || !used.add(entry.getValue())
+                    || SPECIES.containsKey(entry.getValue()) && !entry.getKey().equals(entry.getValue())) {
+                throw new IllegalArgumentException("Invalid or ambiguous species command name: " + entry);
+            }
+        }
+        commandNames = Map.copyOf(names);
+    }
+
     /** Wipes the registry. Called before a reload; not for gameplay code. */
     public static void clear() {
         SPECIES.clear();
+        commandNames = Map.of();
     }
 }

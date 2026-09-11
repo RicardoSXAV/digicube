@@ -1,0 +1,18 @@
+{
+  "stage": "adult",
+  "attribute": "virus",
+  "base_health": 48,
+  "base_attack": 14,
+  "base_defence": 14,
+  "base_speed": 0.252982213,
+  "attacks": ["tectonic_fist", "rock_punch"],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.25,
+    "run_speed": 1.25,
+    "ground_gait": { "cycle_ticks": 48, "stride": 1.71875, "max_playback_rate": 2.4 }
+  },
+  "body": { "model_scale": 0.5, "width": 2.1, "height": 2.75, "eye_height": 2.35 }
+}

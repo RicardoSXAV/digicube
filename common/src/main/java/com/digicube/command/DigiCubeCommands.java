@@ -147,7 +147,8 @@ public final class DigiCubeCommands {
     private static RequiredArgumentBuilder<CommandSourceStack, Identifier> speciesArgument() {
         return Commands.argument("species", IdentifierArgument.id())
                 .suggests((context, builder) -> SharedSuggestionProvider.suggestResource(
-                        DigimonSpeciesRegistry.all().stream().map(DigimonSpecies::id), builder));
+                        DigimonSpeciesRegistry.all().stream().map(DigimonSpecies::id)
+                                .map(DigimonSpeciesRegistry::commandId), builder));
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, Integer> levelArgument() {

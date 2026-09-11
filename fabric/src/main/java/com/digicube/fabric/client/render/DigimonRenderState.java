@@ -16,6 +16,9 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float flightGroundDistance=3;
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
+    public com.digicube.digimon.ConstrictionMotion.Fit constrictionFit = new com.digicube.digimon.ConstrictionMotion.Fit(34,36);
+    public net.minecraft.world.phys.Vec3 constrictionOffset = net.minecraft.world.phys.Vec3.ZERO;
+    public final NativeEffectState fistEffect = new NativeEffectState();
     public final MegaFlameRenderState mouthFlame = new MegaFlameRenderState();
     public final BlueBlasterRenderState blueBlaster = new BlueBlasterRenderState();
 

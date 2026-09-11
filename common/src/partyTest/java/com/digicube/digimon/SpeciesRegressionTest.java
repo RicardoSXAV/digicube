@@ -18,7 +18,37 @@ public final class SpeciesRegressionTest {
             SharedConstants.tryDetectVersion();
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
-            check(DigimonSpeciesRegistry.size() == 10, "all bundled species loaded");
+            com.digicube.entity.ConstrictionRegressionTest.run();
+            check(DigimonSpeciesRegistry.size() == 13, "all bundled species loaded");
+            com.digicube.entity.GolemonRegressionTest.run();
+            var centalmon = DigimonSpeciesRegistry.getOrThrow(Constants.id("centalmon"));
+            check(DigimonSpeciesRegistry.resolve("centarumon").orElseThrow() == centalmon
+                            && DigimonSpeciesRegistry.resolve("digicube:centarumon").orElseThrow() == centalmon
+                            && DigimonSpeciesRegistry.resolve("Centarumon").orElseThrow() == centalmon,
+                    "Centarumon command spelling resolves to the existing species");
+            check(DigimonSpeciesRegistry.commandId(centalmon.id()).equals(Constants.id("centarumon"))
+                            && DigimonSpeciesRegistry.resolve("centalmon").orElseThrow() == centalmon
+                            && DigimonSpeciesRegistry.get(centalmon.id()).orElseThrow() == centalmon
+                            && DigimonSpeciesRegistry.resolve("other:centarumon").isEmpty(),
+                    "suggest Centarumon while preserving saved ids, old commands and namespaces");
+            rejects(() -> DigimonSpeciesRegistry.setCommandNames(Map.of(centalmon.id(), Constants.id("agumon"))),
+                    "command aliases cannot hide another species");
+            check(centalmon.stage() == DigimonStage.ADULT && centalmon.attribute() == DigimonAttribute.DATA,
+                    "Centarumon is a data champion registered as centalmon");
+            check(centalmon.attacks().isEmpty() && centalmon.body().mount().isEmpty()
+                            && !centalmon.locomotion().canRun() && !centalmon.locomotion().canFly()
+                            && !centalmon.locomotion().canSwim(),
+                    "Centarumon exposes only its authored ground locomotion");
+            var centalmonGait = centalmon.locomotion().groundGait();
+            check(centalmonGait.cycleTicks() == 28 && centalmonGait.stride() == 1.5,
+                    "Centarumon cadence uses the full cycle distance, not the stance sweep");
+            for (float amount : new float[] {.005F, .025F, .075F, .125F, .25F, .5F, 1F}) {
+                double travel = centalmonGait.fullSpeed(centalmon.body().modelScale()) * amount;
+                check(Math.abs(centalmonGait.advance(travel, amount, centalmon.body().modelScale()) - 1) < 1e-6,
+                        "Centarumon ground clock matches scaled partial stride");
+            }
+            check(centalmonGait.advance(0, 0, centalmon.body().modelScale()) == 0,
+                    "Centarumon gait clock stops at zero travel");
             IkkakumonRegressionTest.run();
             var tentomon = DigimonSpeciesRegistry.getOrThrow(Constants.id("tentomon"));
             check(tentomon.locomotion().canFly() && !tentomon.locomotion().canSwim()

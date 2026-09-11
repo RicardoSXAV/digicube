@@ -43,12 +43,14 @@ public final class NativeAnimationSet {
                 for (var element : clip.getAsJsonArray("tracks")) {
                     var track = element.getAsJsonObject();
                     var frames = track.getAsJsonArray("keys");
-                    float[][] keys = new float[frames.size()][7];
+                    int channels = frames.get(0).getAsJsonArray().size();
+                    if (channels != 7 && channels != 10) throw new IllegalArgumentException("Invalid native transform width");
+                    float[][] keys = new float[frames.size()][channels];
                     if (keys.length < 2) throw new IllegalArgumentException("A native track needs two keys");
                     for (int i = 0; i < keys.length; i++) {
                         var key = frames.get(i).getAsJsonArray();
-                        if (key.size() != 7) throw new IllegalArgumentException("Invalid native transform");
-                        for (int j = 0; j < 7; j++) {
+                        if (key.size() != channels) throw new IllegalArgumentException("Invalid native transform");
+                        for (int j = 0; j < channels; j++) {
                             keys[i][j] = key.get(j).getAsFloat();
                             if (!Float.isFinite(keys[i][j])) throw new IllegalArgumentException("Nonfinite native curve");
                         }
@@ -118,11 +120,12 @@ public final class NativeAnimationSet {
                 if (keys[middle][0] <= tick) low = middle; else high = middle;
             }
             float blend = Math.clamp((tick - keys[low][0]) / (keys[high][0] - keys[low][0]), 0, 1);
-            float[] v = new float[6];
-            for (int i = 0; i < 6; i++) v[i] = (keys[low][i+1] + blend * (keys[high][i+1] - keys[low][i+1])) * weight;
+            float[] v = new float[keys[low].length - 1];
+            for (int i = 0; i < v.length; i++) v[i] = (keys[low][i+1] + blend * (keys[high][i+1] - keys[low][i+1])) * weight;
             ModelPart p = track.part;
             p.x += v[0]; p.y += v[1]; p.z += v[2];
             p.xRot += v[3]; p.yRot += v[4]; p.zRot += v[5];
+            if (v.length == 9) { p.xScale += v[6]; p.yScale += v[7]; p.zScale += v[8]; }
         }
         for (Visibility visibility : clip.visibility) {
             int index = 0;

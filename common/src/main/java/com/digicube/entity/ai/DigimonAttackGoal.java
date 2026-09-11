@@ -53,6 +53,7 @@ public final class DigimonAttackGoal extends Goal {
     public void stop() {
         mob.setAggressive(false);
         mob.getNavigation().stop();
+        mob.resetConstrictionApproach();
     }
 
     @Override
@@ -66,12 +67,13 @@ public final class DigimonAttackGoal extends Goal {
         if (target == null) {
             return;
         }
-        mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
-
         if (mob.isAttacking()) {
             mob.getNavigation().stop();
             return;
         }
+
+        if (mob.tickConstrictionApproach(target,speedModifier)) return;
+        mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
         DigimonAttack attack = mob.chooseAttack(target);
         if (attack != null) {
@@ -81,6 +83,13 @@ public final class DigimonAttackGoal extends Goal {
         }
 
         var desiredMoves = mob.positioningAttacks(target);
+        boolean preparing = desiredMoves.stream().noneMatch(mob::isAttackReady);
+        if (preparing && desiredMoves.stream().anyMatch(move -> mob.canAttackFrom(move,target,mob.position()))) {
+            // Hold a useful firing stance; otherwise use recovery time to get
+            // there, including climbing/descending to a reachable platform.
+            mob.getNavigation().stop();
+            return;
+        }
         if (!desiredMoves.equals(positionedMoves)) ticksUntilPathRecalc = 0;
         if (--ticksUntilPathRecalc <= 0) {
             ticksUntilPathRecalc = adjustedTickDelay(6 + mob.getRandom().nextInt(6));
@@ -88,7 +97,7 @@ public final class DigimonAttackGoal extends Goal {
                     && mob.tickCount - positionedAtTick < 20
                     && desiredMoves.equals(positionedMoves) && positionedTarget.distanceToSqr(target.position()) < 1) return;
             positionedMoves = desiredMoves;
-            var combatPath = DigimonCombatPosition.find(mob, target);
+            var combatPath = DigimonCombatPosition.find(mob, target,preparing);
             if (combatPath != null && mob.getNavigation().moveTo(combatPath, speedModifier)) {
                 positionedTarget = target.position();
                 // Navigation can keep a blocked path alive while an enemy pins us.
@@ -97,6 +106,18 @@ public final class DigimonAttackGoal extends Goal {
                 return;
             }
             positionedTarget = null;
+            if (preparing) {
+                mob.getNavigation().stop();
+                return;
+            }
+            if (Math.abs(target.getY()-mob.getY()) > .6) {
+                // Never fall back to pressing into the bottom of a cliff or
+                // alternating chase/retreat while both attacks recover.
+                var reachable = mob.getNavigation().createPath(target,0);
+                if (reachable != null && reachable.canReach()) mob.getNavigation().moveTo(reachable,speedModifier);
+                else mob.getNavigation().stop();
+                return;
+            }
             double spacing = mob.minimumAttackSpacing();
             if (spacing > 0 && mob.position().subtract(target.position()).horizontalDistanceSqr() < spacing * spacing
                     && Math.abs(mob.getY() - target.getY()) < .6) {

@@ -9,6 +9,12 @@
     "gomamon",
     "ikkakumon",
     "tentomon",
-    "kabuterimon"
-  ]
+    "kabuterimon",
+    "centalmon",
+    "golemon",
+    "seadramon"
+  ],
+  "command_names": {
+    "centalmon": "centarumon"
+  }
 }

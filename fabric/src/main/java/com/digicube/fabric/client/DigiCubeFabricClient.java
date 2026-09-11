@@ -42,6 +42,9 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         new StarterClient().init();
         new DevClient().init();
         new AerialMountClient().init();
+        for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
+            ModelLayerRegistry.registerModelLayer(definition.layer(), definition::createLayer);
+        }
         for (var species : com.digicube.digimon.DigimonSpeciesRegistry.all()) {
             if (species.body().mount().map(m -> m.flight()!=null).orElse(false)) {
                 var id=species.id();
@@ -62,14 +65,21 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MarchingFishesModel.LAYER, MarchingFishesModel::createBodyLayer);
+        for (String effect : new String[]{"rock_punch_fx", "tectonic_fist_fx"}) {
+            ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
+                    () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
+        }
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(HowlingBlasterModel.LAYER, HowlingBlasterModel::createBodyLayer);
+        ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER,
+                com.digicube.fabric.client.model.IceBlastModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MARCHING_FISHES, MarchingFishesRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.TECTONIC_WAVE, com.digicube.fabric.client.render.TectonicWaveRenderer::new);
 
         Constants.LOG.info("DigiCube client initialised.");
     }

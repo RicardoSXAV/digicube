@@ -22,6 +22,15 @@ public final class AttackGeometry {
         return feet.add(local.yRot(-yaw * Mth.DEG_TO_RAD));
     }
 
+    public static float contactYaw(DigimonAttack attack, Vec3 feet, Vec3 target) {
+        float result=yaw(feet,target);
+        if(attack.kind()==DigimonAttack.Kind.FIST) {
+            var f=attack.motion().sample(attack.hitTick());var p=f.hornBase().lerp(f.hornTip(),.5);
+            result-=(float)Math.toDegrees(Math.atan2(-p.x,p.z));
+        }
+        return result;
+    }
+
     /** Exact, stationary-victim rehearsal of a horn/bite, including its collision-limited root travel. */
     public static boolean canContact(DigimonAttack attack, Vec3 feet, double width, double height,
                                      AABB target, BiPredicate<Vec3, Vec3> visible,
@@ -35,7 +44,7 @@ public final class AttackGeometry {
                                            AABB target, BiPredicate<Vec3, Vec3> visible,
                                            Predicate<AABB> free, Predicate<Vec3> supported) {
         var motion = attack.motion();
-        float yaw = yaw(feet, target.getCenter());
+        float yaw = contactYaw(attack, feet, target.getCenter());
         Vec3 forward = Vec3.directionFromRotation(0, yaw);
         Vec3 at = feet;
         AABB padded = target.inflate(motion.contactRadius());

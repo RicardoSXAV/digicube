@@ -21,6 +21,16 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
 
     @Override
     public void tick() {
+        // Mob runs controls after customServerAiStep. Stopping navigation alone
+        // leaves MOVE_TO/JUMPING queued and can overwrite the cast's heading.
+        if (mob.combatControlsLocked()) {
+            operation = Operation.WAIT;
+            mob.setSpeed(0);
+            mob.setXxa(0);
+            mob.setYya(0);
+            mob.setZza(0);
+            return;
+        }
         if (!mob.canSwim() || !mob.isInWater()) {
             Operation groundOperation = operation;
             super.tick();

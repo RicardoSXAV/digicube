@@ -49,7 +49,10 @@ public final class SpawnTableRegressionTest {
         List<SpawnTable> tables = BundledSpawnTableLoader.load(KNOWN_SPECIES);
         check(tables.size() == 1 && tables.getFirst().dimension().equals(Level.OVERWORLD), "one bundled table, for the overworld");
         SpawnTable overworld = tables.getFirst();
-        check(overworld.entries().size() == 6, "the starter table has six entries");
+        check(overworld.entries().size() == 7, "starter habitats plus the rare stone champion");
+        SpawnEntry golemon = overworld.entries().stream().filter(entry -> entry.species().equals(Constants.id("golemon"))).findFirst().orElseThrow();
+        check(golemon.weight() == 3 && golemon.minLevel() == 14 && golemon.maxLevel() == 20 && golemon.maxPack() == 1,
+                "Golemon is a rare solitary adult in rocky habitats");
         check(overworld.entries().stream().noneMatch(entry -> entry.species().equals(Constants.id("garurumon"))),
                 "Garurumon stays out of the wild until it has attacks");
         check(overworld.entries().stream().allMatch(entry -> KNOWN_SPECIES.test(entry.species())), "every entry names a known species");

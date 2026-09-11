@@ -8,4 +8,5 @@ public final class BlueBlasterRenderState extends EntityRenderState {
     public float pitch;
     public float length;
     public boolean frost;
+    public boolean iceBlast;
 }

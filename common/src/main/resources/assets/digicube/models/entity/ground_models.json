@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "models": {
+    "centalmon": {
+      "culling_margin": 1.5
+    },
+    "golemon": {
+      "culling_margin": 1.5
+    },
+    "seadramon": {
+      "culling_margin": 18,
+      "amphibious": true,
+      "walk_blend": false,
+      "aim_path": [
+        "root",
+        "float",
+        "body_00",
+        "head"
+      ]
+    }
+  }
+}
