@@ -56,10 +56,11 @@ public record DigimonAttack(
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
+        // A tank smaller than the authored window simply ends emission early, into the exhale.
         if ((kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM) != (fuel != null)
                 || fuel != null && (motion.activeFrom() != hitTick
-                || motion.activeUntil() - motion.activeFrom() + 1 != fuel.capacityTicks())) {
-            throw new IllegalArgumentException(id + ": fuel must match the sustained motion interval");
+                || motion.activeUntil() - motion.activeFrom() + 1 < fuel.capacityTicks())) {
+            throw new IllegalArgumentException(id + ": fuel must fit the sustained motion interval");
         }
     }
 

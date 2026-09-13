@@ -11,9 +11,13 @@ public final class IceExposure {
 
     public void clear() { contacts.clear(); }
 
-    /** One actual, unobstructed contact tick on a marked, susceptible victim. */
-    public boolean touch(UUID target, int emissionTick, boolean marked, boolean resistant, int requiredTicks) {
-        if (!marked || resistant) {
+    /**
+     * One actual, unobstructed contact tick on a susceptible victim.
+     * @param susceptible marked prey, or any prey of a caster whose stream freezes on its own
+     * @param requiredTicks contact needed for this victim; it may change while a mark comes or goes
+     */
+    public boolean touch(UUID target, int emissionTick, boolean susceptible, boolean resistant, int requiredTicks) {
+        if (!susceptible || resistant) {
             contacts.remove(target);
             return false;
         }
@@ -21,6 +25,6 @@ public final class IceExposure {
         if (previous != null && previous.lastTick() == emissionTick) return false;
         int ticks = previous == null ? 1 : previous.ticks() + 1;
         contacts.put(target, new Contact(ticks, emissionTick));
-        return ticks == requiredTicks;
+        return ticks >= requiredTicks;
     }
 }

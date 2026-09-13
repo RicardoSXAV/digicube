@@ -83,7 +83,21 @@ public record AttackMotion(List<Frame> frames, int samplesPerTick, double minimu
         String path = "/data/" + id.getNamespace() + "/attack_motion/" + id.getPath() + ".json";
         try (var input = AttackMotion.class.getResourceAsStream(path)) {
             if (input == null) throw new IllegalStateException("Missing attack motion " + path);
-            JsonObject json = GsonHelper.parse(new InputStreamReader(input, StandardCharsets.UTF_8));
+            return load(new InputStreamReader(input, StandardCharsets.UTF_8), path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read attack motion " + path, e);
+        }
+    }
+
+    /**
+     * Parse one exported motion document; the bundled resource and offline checks share it.
+     * @param source JSON text
+     * @param label name used in error messages
+     * @return validated motion profile
+     */
+    public static AttackMotion load(java.io.Reader source, String label) {
+        try {
+            JsonObject json = GsonHelper.parse(source);
             var frames = new ArrayList<Frame>();
             for (var element : json.getAsJsonArray("frames")) {
                 JsonObject f = element.getAsJsonObject();
@@ -95,8 +109,8 @@ public record AttackMotion(List<Frame> frames, int samplesPerTick, double minimu
             return new AttackMotion(frames, json.get("samples_per_tick").getAsInt(), json.get("minimum_range").getAsDouble(),
                     json.get("active_from").getAsInt(), json.get("active_until").getAsInt(),
                     json.get("contact_radius").getAsDouble());
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read attack motion " + path, e);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Cannot read attack motion " + label, e);
         }
     }
 

@@ -86,7 +86,7 @@ public final class SpeciesTuning {
             DigimonBody.Mount ridden = mount.get();
             body = new DigimonBody(body.modelScale(), body.dimensions(), Optional.of(new DigimonBody.Mount(
                     ridden.seat(), (float) values.getDoubleOr(MOUNT_SPEED, ridden.speed()), ridden.stepHeight(),
-                    ridden.standing(), ridden.waterSeatOffset())));
+                    ridden.standing(), ridden.waterSeatOffset())), body.hitParts());
         }
         return new DigimonSpecies(species.id(), species.stage(), species.attribute(), species.baseHealth(),
                 species.baseAttack(), species.baseDefence(), (float) base, species.evolutions(), species.attacks(),

@@ -3,6 +3,7 @@ package com.digicube.digimon;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -11,8 +12,9 @@ import java.util.Optional;
  * @param modelScale renderer scale applied to the authored model
  * @param dimensions collision dimensions and eye height in blocks
  * @param mount optional seat and movement settings
+ * @param hitParts extra hittable volumes for bodies that extend well beyond the collision box
  */
-public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount) {
+public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts) {
 
     /** Original rookie dimensions, retained for existing species and unknown ids. */
     public static final DigimonBody DEFAULT = new DigimonBody(0.75F,
@@ -24,6 +26,28 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
         }
         Objects.requireNonNull(dimensions, "dimensions");
         Objects.requireNonNull(mount, "mount");
+        hitParts = List.copyOf(Objects.requireNonNull(hitParts, "hitParts"));
+    }
+
+    /** Bodies whose collision box already covers them. */
+    public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount) {
+        this(modelScale, dimensions, mount, List.of());
+    }
+
+    /**
+     * One extra hittable box, carried along by the body. A long neck or tail is a chain of these.
+     * @param offset bottom-centre of the box in blocks relative to the feet at yaw zero (+Z forward)
+     * @param width horizontal size in blocks
+     * @param height vertical size in blocks
+     */
+    public record HitPart(Vec3 offset, float width, float height) {
+        public HitPart {
+            Objects.requireNonNull(offset, "offset");
+            if (!Double.isFinite(offset.x) || !Double.isFinite(offset.y) || !Double.isFinite(offset.z)
+                    || !Float.isFinite(width) || width <= 0 || !Float.isFinite(height) || height <= 0) {
+                throw new IllegalArgumentException("Invalid hit part");
+            }
+        }
     }
 
     /**

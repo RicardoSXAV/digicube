@@ -30,12 +30,21 @@ public final class ConstrictionRegressionTest {
         var species=DigimonSpeciesRegistry.getOrThrow(Constants.id("seadramon"));
         check(species.stage()==DigimonStage.ADULT&&species.attribute()==DigimonAttribute.DATA,"adult data species");
         check(species.attacks().equals(List.of(DigimonSpeciesBootstrap.CONSTRICTION,DigimonSpeciesBootstrap.ICE_BLAST)),"only the two authored attacks");
+        var hitParts=species.body().hitParts();
+        check(hitParts.size()==9&&hitParts.get(0).offset().z()<0&&hitParts.get(8).offset().z()<-8.5,"the serpent body carries nine hit parts trailing behind the head");
+        for(int i=1;i<hitParts.size();i++)check(hitParts.get(i).offset().z()<hitParts.get(i-1).offset().z()&&hitParts.get(i).offset().y()<=hitParts.get(i-1).offset().y(),"parts descend from the neck to the tail in order");
+        var tail=HitParts.place(hitParts.get(8),new Vec3(10,5,10),90);
+        check(Math.abs(tail.getCenter().x-(10+8.8))<1e-6&&Math.abs(tail.getCenter().z-10)<1e-6&&Math.abs(tail.minY-5)<1e-9,"a part follows the body yaw like an authored attack point");
+        check(DigimonPart.idFor(1234,3)<0&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1234,4)&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1235,3),"part ids are negative and unique per parent and index");
         check(species.locomotion().canSwim()&&species.locomotion().swimSpeed()>.6,"fast aquatic navigation");
         var ice=DigimonSpeciesBootstrap.ICE_BLAST;var wrap=DigimonSpeciesBootstrap.CONSTRICTION;
-        check(ice.fuel().equals(DigimonSpeciesBootstrap.HOWLING_BLASTER.fuel()),"same tank, refill and pulse timing");
-        var tank=new FuelReserve(ice.fuel());tank.begin();for(int i=0;i<80;i++)check(tank.consume(),"full tank emits 80 ticks");
-        tank.end();for(int i=0;i<159;i++)tank.tickRecharge();check(!tank.isReady(),"exhaustion cannot stutter-fire");
-        tank.tickRecharge();check(tank.isReady(),"empty tank refills in eight seconds");
+        check(ice.fuel().equals(new AttackFuel(40,80,10))&&ice.fuel().damageIntervalTicks()==DigimonSpeciesBootstrap.HOWLING_BLASTER.fuel().damageIntervalTicks(),
+                "short two-second tank with Howling Blaster's pulse cadence");
+        check(ice.motion().activeUntil()-ice.motion().activeFrom()+1>ice.fuel().capacityTicks(),"the tank ends emission early inside the authored window");
+        var tank=new FuelReserve(ice.fuel());tank.begin();for(int i=0;i<40;i++)check(tank.consume(),"full tank emits 40 ticks");
+        check(!tank.consume(),"the forty-first tick is dry");
+        tank.end();for(int i=0;i<79;i++)tank.tickRecharge();check(!tank.isReady(),"exhaustion cannot stutter-fire");
+        tank.tickRecharge();check(tank.isReady(),"empty tank refills in four seconds");
         var motion=DigimonSpeciesBootstrap.CONSTRICTION_MOTION;
         check(motion.fit(new AABB(-.3,0,-.3,.3,1.8,.3),.6F)!=null,"player fits");
         check(motion.fit(new AABB(-.7,0,-.7,.7,1,.7),.6F)!=null,"wide spider-sized body fits");
@@ -48,7 +57,18 @@ public final class ConstrictionRegressionTest {
         }
         var owner=fixture(0,.9,2.65);var target=fixture(2,.9,1.4);target.world=owner.world;
         place(target,new Vec3(0,0,6));
-        check(owner.chooseAttack(target)==null,"approach a fitting cow for ready Constriction instead of spending Ice Blast first");
+        check(owner.chooseAttack(target)==null&&!owner.tickConstrictionApproach(target,1),"freeze first: close to wrap reach before freezing distant prey, without planning the wrap");
+        check(owner.positioningAttacks(target).equals(List.of(ice)),"navigation prepares the freezing stream rather than the wrap");
+        var closeIn=com.digicube.entity.ai.DigimonCombatPosition.find(owner,target);
+        check(closeIn!=null&&closeIn.getEntityPosAtNode(owner,closeIn.getNodeCount()-1).distanceTo(target.position())<=wrap.range(),"the freezing stance sits inside wrap reach");
+        owner.tickCount+=ConstrictionMotion.CLOSE_IN_TICKS;
+        check(owner.chooseAttack(target)==ice,"a walk that never arrives withholds the freeze only briefly");
+        owner.tickCount-=ConstrictionMotion.CLOSE_IN_TICKS;
+        place(target,new Vec3(0,0,3));
+        check(owner.chooseAttack(target)==ice,"prey inside wrap reach is frozen at once");
+        place(target,new Vec3(0,0,6));
+        freeze(target);
+        check(owner.chooseAttack(target)==null,"approach frozen prey for the wrap instead of puffing frost at it");
         check(owner.positioningAttacks(target).equals(List.of(wrap)),"navigation commits to the same wrap approach");
         owner.target=target;
         check(owner.minimumAttackSpacing()==0,"ready wrap does not retreat to Ice Blast spacing");
@@ -60,17 +80,31 @@ public final class ConstrictionRegressionTest {
         owner.nav.reachable=false;owner.tickCount+=24;
         check(owner.chooseAttack(target)==null,"empty tank cannot fire when wrap path is blocked");
         for(int i=0;i<160;i++)exhausted.tickRecharge();
-        check(owner.chooseAttack(target)==ice,"unreachable wrap falls back to recharged Ice Blast");
+        check(owner.chooseAttack(target)==null,"a refilled tank still never fires at frozen prey");
+        thaw(target);
+        check(owner.chooseAttack(target)==ice,"unreachable wrap falls back to recharged Ice Blast once prey thaws");
+        freeze(target);
         owner.nav.reachable=true;
         owner.tickCount=81;
-        check(owner.chooseAttack(target)==null,"retry resumes a reachable wrap after backoff");
+        check(owner.chooseAttack(target)==null&&owner.tickConstrictionApproach(target,1),"retry resumes a reachable wrap after backoff");
         owner.tickCount+=ConstrictionMotion.APPROACH_TICKS;
-        check(owner.chooseAttack(target)==ice,"bounded wrap approach falls back to Ice Blast instead of chasing forever");
+        check(owner.chooseAttack(target)==null&&!owner.tickConstrictionApproach(target,1),"bounded wrap approach gives up instead of chasing forever");
         owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
         place(target,new Vec3(0,0,2));
-        check(owner.chooseAttack(target)==wrap,"ready close target uses occasional wrap");
+        check(owner.chooseAttack(target)==wrap,"ready close frozen prey is wrapped at once");
+        check(ConstrictionSession.rejection(owner,target,wrap,owner.position())==null,"a possible cast reports no rejection");
+        owner.startAttack(wrap,target);check(owner.isAttacking(),"whiff fixture starts its cast");
+        place(target,new Vec3(0,0,4));owner.combatTick();
+        check(!owner.isAttacking()&&owner.constrictionReadyIn(wrap)<=ConstrictionMotion.APPROACH_RETRY_TICKS,"a wrap broken before capture refunds all but a short retry");
+        place(target,new Vec3(0,0,2));owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
         target.effects.put(DCEffects.CONSTRICTION_RESISTANCE,new MobEffectInstance(DCEffects.CONSTRICTION_RESISTANCE,200));
-        check(owner.chooseAttack(target)==ice,"resistant target falls back to fueled Ice Blast");target.effects.clear();
+        check("prey hold-resistant".equals(ConstrictionSession.rejection(owner,target,wrap,owner.position())),"the trace names the gate that refuses a cast");
+        check(owner.chooseAttack(target)==null,"hold-resistant frozen prey is neither wrapped nor sprayed");
+        thaw(target);
+        check(owner.chooseAttack(target)==ice,"hold-resistant thawed prey falls back to fueled Ice Blast");target.effects.clear();
+        target.effects.put(DCEffects.FROST_RESISTANCE,new MobEffectInstance(DCEffects.FROST_RESISTANCE,200));
+        check(ConstrictionSession.prepare(owner,target,wrap)!=null,"frost resistance alone no longer refuses the wrap");
+        target.effects.clear();freeze(target);
         var cast=ConstrictionSession.prepare(owner,target,wrap);check(cast!=null,"flat clear terrain permits cast");
         for(int t=0;t<120;t++) {
             check(cast.tick(t),"cast progresses at tick "+t);
@@ -78,9 +112,11 @@ public final class ConstrictionRegressionTest {
         }
         check(owner.pulses==4,"four evenly spaced damage pulses");
         check(Math.abs(owner.damage-14*.22*4)<.001,"12.32 raw champion damage over two seconds");
+        check(target.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,
+                "wrapping frozen prey re-ices it through the hold plus a one-second tail");
         check(target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&target.hasEffect(DCEffects.FROST_RESISTANCE),"capture grants shared anti-chain resistance");
         check(ConstrictionSession.prepare(owner,target,wrap)==null,"another ready caster cannot immediately recapture");
-        check(wrap.cooldownTicks()==240&&wrap.cooldownTicks()>wrap.durationTicks(),"twelve-second cooldown outlasts the complete performance");
+        check(wrap.cooldownTicks()==200&&wrap.cooldownTicks()>wrap.durationTicks(),"ten-second cooldown outlasts the complete performance");
         check(ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.RESISTANCE_TICKS<=wrap.cooldownTicks(),"resistance does not add a hidden wait beyond the caster cooldown");
         owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
         cast=ConstrictionSession.prepare(owner,target,wrap);
@@ -167,7 +203,7 @@ public final class ConstrictionRegressionTest {
         check(owner.chooseAttack(cow)==ice,"refilled tank can fire immediately from its prepared stance");
 
         owner=fixture(0,.9,2.65);cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        check(owner.tickConstrictionApproach(cow,1),"start stair-approach fixture");
+        freeze(cow);check(owner.tickConstrictionApproach(cow,1),"start stair-approach fixture");
         path=owner.nav.getPath();end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);
         place(owner,end.add(0,.1,0));owner.airborne=true;owner.tickCount++;
         check(owner.tickConstrictionApproach(cow,1)&&owner.nav.getPath()==path&&!owner.combatControlsLocked(),"do not cancel or lock movement while landing at the wrap stance");
@@ -177,7 +213,7 @@ public final class ConstrictionRegressionTest {
     }
     private static void integratedControllerChecks(DigimonAttack wrap,DigimonAttack ice)throws Exception {
         var owner=fixture(0,.9,2.65);var cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
-        owner.setYRot(170);
+        owner.setYRot(170);freeze(cow);
         var goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);
         int turning=0;
         while(!owner.isAttacking()&&turning<25) {
@@ -209,7 +245,7 @@ public final class ConstrictionRegressionTest {
         check(owner.position().distanceTo(new Vec3(1.56,0,0))<.001,"walking cow stays aligned through the actual timeline and controls");
 
         owner=fixture(0,.9,2.65);cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        check(owner.tickConstrictionApproach(cow,1),"distant cow gets a rehearsed approach");
+        freeze(cow);check(owner.tickConstrictionApproach(cow,1),"distant cow gets a rehearsed approach");
         var path=owner.nav.getPath();check(path!=null,"approach submits a real endpoint");
         int requests=owner.nav.requests;
         for(int t=1;t<20;t++) {owner.tickCount=t;check(owner.tickConstrictionApproach(cow,1),"retain approach while making progress");}
@@ -221,7 +257,7 @@ public final class ConstrictionRegressionTest {
 
         owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
         owner.world.wall=new AABB(-1,0,-3,1,3,-2);
-        check(!owner.canAttackFrom(wrap,cow,owner.position()),"a wall behind the head blocks the authored tail sweep");
+        freeze(cow);check(!owner.canAttackFrom(wrap,cow,owner.position()),"a wall behind the head blocks the authored tail sweep");
         check(owner.tickConstrictionApproach(cow,1),"blocked current stance finds a usable alternate wrap angle");
         path=owner.nav.getPath();check(path!=null,"alternate stance has a reachable path");
         end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);
@@ -237,7 +273,8 @@ public final class ConstrictionRegressionTest {
         field(owner,DigimonEntity.class,"attackFuel",new HashMap<>(Map.of(ice.id(),tank)));
         goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);goal.tick();
         check(owner.nav.getPath()==null&&!owner.isAttacking(),"blocked wrap plus exhausted tank waits instead of circling");
-        owner.nav.reachable=true;owner.tickCount=40;
+        // The wrap was first rehearsed (and refused) only once the tank emptied, so its backoff runs from there.
+        owner.nav.reachable=true;owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
         check(owner.tickConstrictionApproach(cow,1),"wrap retries a reachable stance while Ice Blast is still empty");
 
         owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
@@ -245,11 +282,13 @@ public final class ConstrictionRegressionTest {
         check(!owner.canAttackFrom(wrap,cow,owner.position()),"clear eye line does not authorize a body-obstructed wrap");
         check(owner.chooseAttack(cow)==ice,"terrain-invalid full body uses breath instead of repeatedly failing cast start");
         owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;
-        owner.setYRot(90);check(owner.tickConstrictionApproach(cow,1),"begin alignment before terrain changes");
+        freeze(cow);owner.setYRot(90);check(owner.tickConstrictionApproach(cow,1),"begin alignment before terrain changes");
         owner.world.wall=new AABB(-20,3,-20,20,5,20);owner.setYRot(0);owner.tickCount++;
-        check(owner.chooseAttack(cow)==ice,"obstruction appearing during alignment falls back immediately at commit");
+        check(owner.chooseAttack(cow)==null&&!owner.tickConstrictionApproach(cow,1),"obstruction appearing during alignment drops the wrap at commit");
     }
     private static void check(boolean ok,String label){if(!ok)throw new AssertionError(label);}
+    private static void freeze(Fixture f){f.effects.put(DCEffects.FROZEN,new MobEffectInstance(DCEffects.FROZEN,30));}
+    private static void thaw(Fixture f){f.effects.remove(DCEffects.FROZEN);}
     private static <T>T allocate(Class<T> type)throws Exception {
         var u=Class.forName("sun.misc.Unsafe");var f=u.getDeclaredField("theUnsafe");f.setAccessible(true);
         return type.cast(u.getMethod("allocateInstance",Class.class).invoke(f.get(null),type));
@@ -305,6 +344,7 @@ public final class ConstrictionRegressionTest {
         private FlatWorld(){super(null,null,null,null,null,null,false,0,List.of(),false);}
         @Override public BlockState getBlockState(BlockPos p){return p.getY()<0?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState();}
         @Override public boolean noCollision(Entity entity,AABB box){return !getBlockCollisions(entity,box).iterator().hasNext();}
+        @Override public void broadcastEntityEvent(Entity entity,byte event){} // no chunk tracking offline
         @Override public Iterable<VoxelShape> getBlockCollisions(Entity entity,AABB box){
             var floor=new AABB(-100,-1,-100,100,0,100);var hits=new ArrayList<VoxelShape>();
             if(floor.intersects(box))hits.add(Shapes.create(floor));

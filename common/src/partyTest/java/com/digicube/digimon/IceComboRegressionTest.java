@@ -67,6 +67,21 @@ final class IceComboRegressionTest {
         check(tank.availableTicks() == 40, "two resting ticks restore one emission tick");
         check(IceCombo.FREEZE_TICKS == 60 && IceCombo.RESISTANCE_TICKS == 140,
                 "short freeze is followed by a longer recovery window");
+        var ice = DigimonSpeciesBootstrap.ICE_BLAST;
+        check(IceCombo.SELF_FREEZE_CONTACT_TICKS == 10 && IceCombo.selfFreezeFuelTicks(ice.fuel()) == 18
+                        && ice.fuel().capacityTicks() - IceCombo.selfFreezeFuelTicks(ice.fuel()) >= 2 * ice.fuel().damageIntervalTicks(),
+                "an unmarked self-freeze costs half a second of contact and leaves a damage burst above the reserve");
+        int wrapExhale = ice.durationTicks() - ice.motion().activeUntil() - 1;
+        check(wrapExhale + 8 + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK < IceCombo.SELF_FREEZE_TICKS,
+                "exhale, alignment and the wrap wind-up all fit inside the self-freeze");
+        check(IceCombo.SELF_FREEZE_TICKS < IceCombo.RESISTANCE_TICKS, "resistance still outlasts the self-freeze");
+        var selfExposure = new IceExposure();
+        for (int i = 0; i < IceCombo.SELF_FREEZE_CONTACT_TICKS - 1; i++)
+            check(!selfExposure.touch(first, i, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "self-freeze needs its full contact");
+        check(selfExposure.touch(first, 50, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "tenth contact tick freezes unmarked prey");
+        var lateMark = new IceExposure();
+        for (int i = 0; i < 15; i++) check(!lateMark.touch(first, i, true, false, required), "marked contact short of a second does not freeze");
+        check(lateMark.touch(first, 15, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "a threshold that drops below banked contact still freezes");
         var bite = DigimonSpeciesBootstrap.FREEZE_FANG;
         check(bite.cooldownTicks() == bite.durationTicks() && bite.cooldownTicks() == 28,
                 "the bite is ready as soon as its existing performance finishes");

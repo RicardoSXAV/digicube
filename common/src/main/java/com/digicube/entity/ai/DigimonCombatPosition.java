@@ -43,19 +43,30 @@ public final class DigimonCombatPosition {
                     // Probe both elevations. A target-centred two-block scan
                     // misses the lower firing ledge, and a hard Y cap rejects
                     // perfectly reachable stairs to a higher platform.
+                    boolean afloat = mob.isInWater() && target.isInWater();
                     for (double elevation : new double[]{target.getY(),mob.getY()}) {
-                        Vec3 top = new Vec3(horizontal.x,elevation+2.1,horizontal.z);
-                        Vec3 bottom = new Vec3(horizontal.x,Math.min(target.getY(),mob.getY())-2,horizontal.z);
-                        HitResult ground = mob.level().clip(new ClipContext(top, bottom, ClipContext.Block.COLLIDER,
-                                ClipContext.Fluid.NONE, mob));
-                        if (ground.getType() == HitResult.Type.MISS) continue;
-                        Vec3 feet = ground.getLocation();
+                        Vec3 feet;
+                        if (afloat) {
+                            // Two swimmers fight at the prey's depth; the sea floor is not a stance.
+                            feet = new Vec3(horizontal.x,target.getY(),horizontal.z);
+                            if (!mob.level().getFluidState(net.minecraft.core.BlockPos.containing(feet)).is(net.minecraft.tags.FluidTags.WATER)) continue;
+                        } else {
+                            Vec3 top = new Vec3(horizontal.x,elevation+2.1,horizontal.z);
+                            Vec3 bottom = new Vec3(horizontal.x,Math.min(target.getY(),mob.getY())-2,horizontal.z);
+                            HitResult ground = mob.level().clip(new ClipContext(top, bottom, ClipContext.Block.COLLIDER,
+                                    ClipContext.Fluid.NONE, mob));
+                            if (ground.getType() == HitResult.Type.MISS) continue;
+                            feet = ground.getLocation();
+                        }
                         if (feet.distanceToSqr(mob.position()) < .16 || !visited.add(net.minecraft.core.BlockPos.containing(feet))) continue;
                         var body = mob.getBoundingBox().move(feet.subtract(mob.position())).deflate(.01);
                         if (!mob.level().noCollision(mob, body) || !mob.canAttackFrom(attack, target, feet)) continue;
                         // Prefer converting an existing mark; otherwise the least expensive useful move wins.
                         double combo = target.hasEffect(DCEffects.ICE_MARK) && attack.fuel() != null ? -2 : 0;
-                        double cost = feet.distanceToSqr(mob.position()) + Math.abs(feet.y - mob.getY()) + combo;
+                        // A stance outside the follow-up's reach costs a walk after the freeze; rank it behind every closer one.
+                        double preferred = mob.preferredStanceRange(attack);
+                        double walk = feet.distanceToSqr(target.position()) > preferred * preferred ? 1000 : 0;
+                        double cost = feet.distanceToSqr(mob.position()) + Math.abs(feet.y - mob.getY()) + combo + walk;
                         candidates.add(new Candidate(feet, attack, cost));
                     }
                 }

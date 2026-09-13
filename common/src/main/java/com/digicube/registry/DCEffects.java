@@ -29,7 +29,7 @@ public final class DCEffects {
     public static final Holder<MobEffect> CONSTRICTED = register("constricted", new MobEffect(MobEffectCategory.HARMFUL,0x317887) {
         @Override public boolean shouldApplyEffectTickThisTick(int ticks,int amplifier) { return true; }
         @Override public boolean applyEffectTick(ServerLevel level,LivingEntity entity,int amplifier) {
-            entity.setDeltaMovement(0,Math.min(0,entity.getDeltaMovement().y),0);
+            hold(entity);
             entity.setJumping(false);
             if(entity instanceof Mob mob)mob.getNavigation().stop();
             if(entity instanceof DigimonEntity digimon)digimon.interruptAttack();
@@ -41,6 +41,11 @@ public final class DCEffects {
             AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 
     private DCEffects() {}
+
+    /** Pin the victim in place: it may still fall, but afloat it neither sinks nor drifts. */
+    private static void hold(LivingEntity entity) {
+        entity.setDeltaMovement(0, entity.isInWater() ? 0 : Math.min(0, entity.getDeltaMovement().y), 0);
+    }
 
     private static Holder<MobEffect> register(String name, MobEffect effect) {
         return Registry.registerForHolder(BuiltInRegistries.MOB_EFFECT, Constants.id(name), effect);
@@ -62,7 +67,7 @@ public final class DCEffects {
         @Override
         public boolean applyEffectTick(ServerLevel level, LivingEntity entity, int amplifier) {
             if (frozen) {
-                entity.setDeltaMovement(0, Math.min(0, entity.getDeltaMovement().y), 0);
+                hold(entity);
                 entity.setJumping(false);
                 if (entity instanceof Mob mob) mob.getNavigation().stop();
                 if (entity instanceof DigimonEntity digimon) digimon.interruptAttack();

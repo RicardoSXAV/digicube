@@ -8,6 +8,10 @@ public final class IceCombo {
     public static final int RESISTANCE_TICKS = 140;
     public static final int CONTACT_TICKS = 20;
     public static final int FUEL_MARGIN_TICKS = 8;
+    /** A stream without a marking bite freezes on its own after half a second of landed frost, before prey can flee far. */
+    public static final int SELF_FREEZE_CONTACT_TICKS = 10;
+    /** Exhale, a short approach and the wrap wind-up must fit; the hold then re-ices the prey. */
+    public static final int SELF_FREEZE_TICKS = 80;
     public static final float SHATTER_MULTIPLIER = 1.5F;
 
     private IceCombo() {}
@@ -22,6 +26,11 @@ public final class IceCombo {
     /** Leave room for flame travel and a few missed frames before committing a partial tank. */
     public static int comboFuelTicks(AttackFuel fuel) {
         return Math.min(fuel.capacityTicks(), requiredContactTicks(fuel) + FUEL_MARGIN_TICKS);
+    }
+
+    /** Fuel a wrap-capable caster keeps back from resistant prey so its next freeze is never starved. */
+    public static int selfFreezeFuelTicks(AttackFuel fuel) {
+        return Math.min(fuel.capacityTicks(), SELF_FREEZE_CONTACT_TICKS + FUEL_MARGIN_TICKS);
     }
 
     public static float biteMultiplier(boolean frozen) { return frozen ? SHATTER_MULTIPLIER : 1; }

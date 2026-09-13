@@ -67,6 +67,7 @@ public final class DigimonAttackGoal extends Goal {
         if (target == null) {
             return;
         }
+        mob.traceCombat(target);
         if (mob.isAttacking()) {
             mob.getNavigation().stop();
             return;

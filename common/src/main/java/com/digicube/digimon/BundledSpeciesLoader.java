@@ -153,8 +153,18 @@ public final class BundledSpeciesLoader {
                     m.has("water_seat_offset") ? vector(GsonHelper.getAsJsonArray(m, "water_seat_offset")) : Vec3.ZERO,
                     m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null));
         }
+        var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
+        if (json.has("hit_parts")) {
+            // Each entry is [x, y, z, width, height]: a box bottom-centre in blocks at yaw zero, +Z forward.
+            for (var element : GsonHelper.getAsJsonArray(json, "hit_parts")) {
+                JsonArray part = element.getAsJsonArray();
+                if (part.size() != 5) throw new IllegalArgumentException("A hit part needs x, y, z, width and height");
+                hitParts.add(new DigimonBody.HitPart(new Vec3(part.get(0).getAsDouble(), part.get(1).getAsDouble(),
+                        part.get(2).getAsDouble()), part.get(3).getAsFloat(), part.get(4).getAsFloat()));
+            }
+        }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
-                EntityDimensions.scalable(width, height).withEyeHeight(eye), mount);
+                EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts);
     }
 
     private static AerialMount aerialMount(JsonObject j) {
