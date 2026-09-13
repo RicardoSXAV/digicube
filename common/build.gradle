@@ -39,10 +39,9 @@ artifacts {
 }
 
 def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
-['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'].each { variant ->
-    configurations.named("$variant") {
-        attributes { attribute(loaderAttribute, 'common') }
-    }
+// Matched lazily: the sources and javadoc variants only exist when extra_jars is on.
+configurations.matching { it.name in ['apiElements', 'runtimeElements', 'sourcesElements', 'javadocElements'] }.configureEach {
+    attributes { attribute(loaderAttribute, 'common') }
 }
 sourceSets.configureEach {
     [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->

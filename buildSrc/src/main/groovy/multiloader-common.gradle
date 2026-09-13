@@ -12,8 +12,10 @@ java {
     // Gradle downloads this JDK for you if you don't have it (see the foojay
     // resolver in settings.gradle).
     toolchain.languageVersion = JavaLanguageVersion.of(java_version)
-    withSourcesJar()
-    withJavadocJar()
+    if (extra_jars.toBoolean()) {
+        withSourcesJar()
+        withJavadocJar()
+    }
 }
 
 repositories {
@@ -45,7 +47,7 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs << '-Xlint:all,-processing' << '-Xlint:-serial'
 }
 
-sourcesJar {
+tasks.withType(Jar).matching { it.name == 'sourcesJar' }.configureEach {
     from(rootProject.file('LICENSE')) {
         rename { "${it}_${mod_name}" }
     }
