@@ -269,7 +269,8 @@ Rules:
   side and is synced to clients. Never decide gameplay outcomes on the client.
 - Check `level.isClientSide()` before spawning particles or sounds locally, and before
   running server-authoritative logic. Get this backwards and things de-sync.
-- Test every feature with **`./gradlew :fabric:runServer`**, not just the client.
+- Test every feature with **`./gradlew :fabric:runServer`**, not just the client. For
+  anything a Digimon does in a fight, that means the headless scenarios in section 11.
 
 ---
 
@@ -428,26 +429,74 @@ Dev-run game files (worlds, logs, configs) live in `fabric/runs/client/` and
 Before reporting a change as complete:
 
 1. `./gradlew build` passes.
-2. Launch the updated build with `./gradlew :fabric:runClient` so it is ready to try
+2. **Test headless whenever the outcome can be read without eyes.** If the change runs
+   on the server and its result shows up in world state, entity state or the log, stage
+   it with a scenario (below) and quote the verdict lines in the report. Combat, attack
+   selection, navigation, effects, spawns, levelling, timers and server-side rules all
+   qualify. Extend the runner when the situation you need does not exist yet; that is
+   part of the change, not optional. A change that makes a scenario slower or fail is not
+   done. Only what needs a screen or a real player's hands is left to manual testing.
+3. Launch the updated build with `./gradlew :fabric:runClient` so it is ready to try
    (`--args="--quickPlaySingleplayer \"New World\""` opens the dev world directly).
-3. Tell the user exactly what to try in game — the command, the item, the recipe — and
-   leave the in-game testing to them.
-4. If it touches gameplay logic, mention that `:fabric:runServer` should be checked too.
+4. Tell the user exactly what to try in game — the command, the item, the recipe — and
+   leave the feel judgments (animation, pacing, balance) to them.
 5. No new warnings in `latest.log` that this change introduced.
 
-### In-game testing is manual
+### Headless scenarios: the AI tests gameplay in the real game
 
-The user tests in game themselves. An AI agent must **not** drive the running game: no
-sending keystrokes or chat commands to the Minecraft window, no screenshotting it, no
-scripted "spawn it and look" loops. Launching the client with the fresh build so the
-test is one click away is welcome; everything after that is the user's.
+Gameplay logic is verified in the actual game, without a player, on the dedicated dev
+server. The principle is general: a scenario is a name, a setup step that builds the
+situation, and a verdict rule that reads the outcome from the world or the log. Today
+the runner stages fights; add setup steps and verdict rules for spawns, levelling,
+timers or anything else server-side as bugs arrive, the same way regression tests
+accumulate. Player-driven features (taming, the Digivice, riding, GUIs) need a
+server-side stand-in for the player before they can be staged; build that when the
+first such bug needs it rather than testing them by hand forever.
+
+`common/.../dev/CombatScenario` (hooked from `DigiCubeFabric`) reads the
+`DIGICUBE_SCENARIO` environment variable, builds a platform at y=300, spawns the two
+Digimon eight blocks apart, heals both every tick (the caster is invulnerable), sets
+mutual targets after two seconds, logs each phase as `[scenario] ...`, and halts the
+server with a `[scenario] PASS ...` or `[scenario] FAIL ...` verdict (90-second timeout).
+One run takes about 40 seconds:
+
+```powershell
+$env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runServer --console=plain
+```
+
+- Name: `<caster>_vs_<prey>[@flat|@steps|@ledge|@water][+duel][+behind]`, species by id
+  path. `flat` is a bare stone platform, `steps` adds a one-block ledge, a step down and
+  scattered single blocks, `ledge` raises the prey's whole half by one block so the
+  caster must climb, `water` is a five-deep pool with both Digimon swimming. The prey
+  is passive by default so the caster is measured alone; `+duel` lets it fight back,
+  `+behind` turns its back (and any long body) toward the caster. The arena is walled,
+  evicted of leftovers from earlier runs on start, and purged of natural spawns every
+  two seconds, so a run only ever contains the two fighters.
+- Verdict: a caster with a wrap move passes when its prey is frozen, captured and
+  released, reporting the freeze-to-capture ticks; any other caster passes after
+  three landed hits, reporting the tick of the first one. Compare the numbers before
+  and after a change, not just PASS.
+- Read `fabric/runs/server/logs/latest.log`. Freeze-loop casters also log a
+  `[wrap-trace]` line every second (distance, level, status flags, fuel, planner state
+  with its last failure, and the exact gate refusing a cast from the current position).
+  The trace turns "it hesitates sometimes" into the name of a gate; fix the gate, rerun.
+- Add a terrain to `CombatScenario.build` when a bug needs new geometry, and add a
+  verdict rule when a new kind of move needs its own success criterion. Keep scenarios
+  deterministic: fixed positions, healed combatants, no wild spawns nearby.
+- The server EULA under `fabric/runs/server/eula.txt` is accepted; it is a run
+  directory and stays git-ignored.
+
+What an agent still must **not** do is drive the Minecraft window: no keystrokes or
+chat commands typed into the client, no screenshots of it. Scenario runs are logs, not
+screens. Launching the client with the fresh build so the user's own test is one click
+away remains welcome.
 
 Model verification **outside** the game is different and encouraged: rendering a
 Blender model (the harness in `../harness` produces idle, front, side and action
 renders) and looking at the images before handing the model over is expected.
 
-If something could not be built or launched, **say so explicitly** rather than implying
-it was tested.
+If something could not be built, launched or run through a scenario, **say so
+explicitly** rather than implying it was tested.
 
 ---
 

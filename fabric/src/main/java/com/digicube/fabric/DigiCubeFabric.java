@@ -32,5 +32,7 @@ public class DigiCubeFabric implements ModInitializer {
                 DigiCubeCommands.register(dispatcher));
         // Wild Digimon: the spawner is loader-neutral, only this per-dimension tick hook is Fabric's.
         ServerTickEvents.END_LEVEL_TICK.register(WildSpawner::tick);
+        // Headless combat rehearsals on a development server (DIGICUBE_SCENARIO); inert otherwise.
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.dev.CombatScenario::tick);
     }
 }

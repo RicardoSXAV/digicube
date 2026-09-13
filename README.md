@@ -112,6 +112,27 @@ In IntelliJ, the same two runs appear as **DigiCube Client (Fabric)** and
 **DigiCube Server (Fabric)** in the run dropdown at the top right. Use those instead of the
 terminal — you get breakpoints and a debugger.
 
+**Run a staged situation without playing** (the fastest way to check gameplay logic, and
+what an AI agent uses to verify its own changes; fights are staged today, and the same
+runner grows a setup step and a verdict rule for each new kind of bug):
+
+```powershell
+$env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runServer --console=plain
+```
+
+The dedicated server builds a platform high above the world, spawns the two Digimon
+eight blocks apart, lets them fight with both healed every tick, logs each phase as
+`[scenario] ...` and stops itself with a `[scenario] PASS ...` or `FAIL ...` line in
+`fabric/runs/server/logs/latest.log`. Name it `<caster>_vs_<prey>` with an optional
+terrain: `@flat` (default), `@steps` (one-block ledges and bumps), `@ledge` (the prey a
+block higher) or `@water` (a pool, both swimming), plus `+duel` if the prey should fight
+back instead of standing passive and `+behind` to face it away from the caster.
+A caster with a wrap move passes when it freezes, captures and releases
+its prey and reports the freeze-to-capture ticks; any other caster passes after three
+landed hits. Seadramon also logs a `[wrap-trace]` line every second naming the exact
+gate that is holding its wrap back. One run takes about 40 seconds. Section 11 of
+`AGENTS.md` has the rules for when a change must go through these.
+
 ### Testing what you built
 
 In Creative mode, open the **DigiCube** tab, identified by the **Digivice** icon.
