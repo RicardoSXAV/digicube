@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -38,7 +35,7 @@ public class KoromonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart effort;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -54,7 +51,7 @@ public class KoromonModel extends EntityModel<DigimonRenderState> {
         this.normalFace = root.getChild("body").getChild("normal_face");
         this.teeth = root.getChild("body").getChild("teeth");
         this.effort = root.getChild("body").getChild("effort");
-        KoromonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/koromon.animation.json"));
     }
 
     /**
@@ -114,10 +111,9 @@ public class KoromonModel extends EntityModel<DigimonRenderState> {
         this.teeth.visible = !blowing;
         this.effort.visible = blowing;
         if (state.attackAnimation.isStarted()) {
-            KeyframeAnimation attack = this.animations.get(state.attackAnimationName);
-            if (attack != null) attack.apply(state.attackAnimation, state.ageInTicks);
+            if (this.animations.has(state.attackAnimationName)) this.animations.applyStarted(state.attackAnimationName, state.attackAnimation, state.ageInTicks);
         } else {
-            this.animations.get("walk").applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 1.4F, 2.0F);
+            this.animations.applyWalk("walk", state.walkAnimationPos, state.walkAnimationSpeed, 1.4F, 2.0F);
         }
         float idle = Mth.sin(state.ageInTicks * 0.09F) * 0.018F;
         this.leftEar.zRot += idle;

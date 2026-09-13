@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -38,7 +35,7 @@ public class TsunomonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart effort;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -54,7 +51,7 @@ public class TsunomonModel extends EntityModel<DigimonRenderState> {
         this.horn = root.getChild("body").getChild("horn");
         this.normalFace = root.getChild("body").getChild("normal_face");
         this.effort = root.getChild("body").getChild("effort");
-        TsunomonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/tsunomon.animation.json"));
     }
 
     /**
@@ -122,10 +119,9 @@ public class TsunomonModel extends EntityModel<DigimonRenderState> {
         this.normalFace.visible = !blowing;
         this.effort.visible = blowing;
         if (state.attackAnimation.isStarted()) {
-            KeyframeAnimation attack = this.animations.get(state.attackAnimationName);
-            if (attack != null) attack.apply(state.attackAnimation, state.ageInTicks);
+            if (this.animations.has(state.attackAnimationName)) this.animations.applyStarted(state.attackAnimationName, state.attackAnimation, state.ageInTicks);
         } else {
-            this.animations.get("walk").applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 1.4F, 2.0F);
+            this.animations.applyWalk("walk", state.walkAnimationPos, state.walkAnimationSpeed, 1.4F, 2.0F);
         }
     }
 

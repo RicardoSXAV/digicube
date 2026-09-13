@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -149,7 +146,7 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
     private final ModelPart riderSeat;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -278,8 +275,7 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
         this.tail11Section = root.getChild("body").getChild("pelvis").getChild("tail_00").getChild("tail_01").getChild("tail_02").getChild("tail_03").getChild("tail_04").getChild("tail_05").getChild("tail_06").getChild("tail_07").getChild("tail_08").getChild("tail_09").getChild("tail_10").getChild("tail_11").getChild("tail_11_section");
         this.tailTip = root.getChild("body").getChild("pelvis").getChild("tail_00").getChild("tail_01").getChild("tail_02").getChild("tail_03").getChild("tail_04").getChild("tail_05").getChild("tail_06").getChild("tail_07").getChild("tail_08").getChild("tail_09").getChild("tail_10").getChild("tail_11").getChild("tail_tip");
         this.riderSeat = root.getChild("body").getChild("rider_seat");
-        GarurumonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
-        GarurumonAttackAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/garurumon.animation.json"));
     }
 
     /**
@@ -294,10 +290,9 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
-            var attack = this.animations.get(state.attackAnimationName);
-            if (attack != null) {
+            if (this.animations.has(state.attackAnimationName)) {
                 long time = state.attackAnimation.getTimeInMillis(state.ageInTicks);
-                attack.apply(time, 1.0F);
+                this.animations.apply(state.attackAnimationName, time / 50.0F, 1.0F);
                 if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
                     this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(time / 50.0F).aimWeight() * Mth.DEG_TO_RAD;
                 }
@@ -305,7 +300,7 @@ public class GarurumonModel extends EntityModel<DigimonRenderState> implements A
             }
         }
         float motion = Mth.clamp(state.walkAnimationSpeed * 3.0F, 0.0F, 1.0F);
-        this.animations.get("run").applyWalk(state.walkAnimationPos, motion, 0.828235294F, 1.0F);
+        this.animations.applyWalk("run", state.walkAnimationPos, motion, 0.828235294F, 1.0F);
         if (motion > 0.0F && motion < 1.0F) keepTransitionFeetAboveGround();
         if (!state.isBeingRidden) {
             this.head.yRot += Mth.clamp(state.yRot, -25.0F, 25.0F) * Mth.DEG_TO_RAD;

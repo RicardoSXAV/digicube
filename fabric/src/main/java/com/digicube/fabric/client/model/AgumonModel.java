@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -50,7 +47,7 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart tailTip;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     public AgumonModel(ModelPart root) {
         super(root);
@@ -75,7 +72,7 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
         this.rightLeg = root.getChild("right_leg");
         this.tail = root.getChild("body").getChild("tail");
         this.tailTip = root.getChild("body").getChild("tail").getChild("tail_tip");
-        AgumonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/agumon.animation.json"));
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -199,9 +196,8 @@ public class AgumonModel extends EntityModel<DigimonRenderState> {
                 + Mth.cos(state.walkAnimationPos * 0.6662F) * 0.25F * state.walkAnimationSpeed;
 
         // Attack keyframes (see AgumonAnimations) layer on top of the idle/walk pose.
-        KeyframeAnimation attack = state.attackAnimationName == null ? null : this.animations.get(state.attackAnimationName);
-        if (attack != null) {
-            attack.apply(state.attackAnimation, state.ageInTicks);
+        if (this.animations.has(state.attackAnimationName)) {
+            this.animations.applyStarted(state.attackAnimationName, state.attackAnimation, state.ageInTicks);
         }
     }
 

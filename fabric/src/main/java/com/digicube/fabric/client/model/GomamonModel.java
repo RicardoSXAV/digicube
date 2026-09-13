@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -62,7 +59,7 @@ public class GomamonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart tailTip;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -104,7 +101,7 @@ public class GomamonModel extends EntityModel<DigimonRenderState> {
         this.rightHindClaw2 = root.getChild("body").getChild("hips").getChild("right_leg").getChild("right_hind_claw_2");
         this.tail = root.getChild("body").getChild("hips").getChild("tail");
         this.tailTip = root.getChild("body").getChild("hips").getChild("tail").getChild("tail_tip");
-        GomamonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/gomamon.animation.json"));
     }
 
     /**
@@ -118,11 +115,11 @@ public class GomamonModel extends EntityModel<DigimonRenderState> {
     @Override
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
-        KeyframeAnimation attackAnimation = null;
+        String attackAnimation = null;
         float attackWeight = 0.0F;
         long attackMillis = 0;
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
-            attackAnimation = this.animations.get(state.attackAnimationName);
+            if (this.animations.has(state.attackAnimationName)) attackAnimation = state.attackAnimationName;
             if (attackAnimation != null && state.attackDefinition != null) {
                 attackMillis = state.attackAnimation.getTimeInMillis(state.ageInTicks);
                 float tick = attackMillis / 50.0F;
@@ -137,14 +134,14 @@ public class GomamonModel extends EntityModel<DigimonRenderState> {
         water = water * water * (3.0F - 2.0F * water);
         float motion = Mth.clamp(state.walkAnimationSpeed * 10.0F, 0.0F, 1.0F);
         float power = Mth.clamp(state.swimMotionAmount, 0.0F, 1.0F);
-        this.animations.get("walk").applyWalk(state.groundAnimationPhase, (1.0F-water)*motion*locomotionWeight, 1.0F, 1.0F);
-        this.animations.get("swim_idle").applyWalk(state.swimAnimationPhase, water*(1.0F-power)*locomotionWeight, 1.0F, 1.0F);
-        this.animations.get("swim").applyWalk(state.swimAnimationPhase, water*power*locomotionWeight, 1.0F, 1.0F);
+        this.animations.applyWalk("walk", state.groundAnimationPhase, (1.0F-water)*motion*locomotionWeight, 1.0F, 1.0F);
+        this.animations.applyWalk("swim_idle", state.swimAnimationPhase, water*(1.0F-power)*locomotionWeight, 1.0F, 1.0F);
+        this.animations.applyWalk("swim", state.swimAnimationPhase, water*power*locomotionWeight, 1.0F, 1.0F);
         this.body.xRot += Mth.clamp(state.xRot, -65.0F, 65.0F) * Mth.DEG_TO_RAD * water * locomotionWeight;
         this.body.zRot += state.swimBank * Mth.DEG_TO_RAD * water * locomotionWeight;
         this.head.yRot += Mth.clamp(state.yRot, -20.0F, 20.0F) * Mth.DEG_TO_RAD * (1.0F-water*.75F) * locomotionWeight;
         this.head.xRot += Mth.clamp(state.xRot, -10.0F, 10.0F) * Mth.DEG_TO_RAD * (1.0F-water) * locomotionWeight;
-        if (attackAnimation != null) attackAnimation.apply(attackMillis, attackWeight);
+        if (attackAnimation != null) this.animations.apply(attackAnimation, attackMillis / 50.0F, attackWeight);
     }
 
     private static float rad(float degrees) {

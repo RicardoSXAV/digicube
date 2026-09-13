@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.BubbleBlowRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -51,7 +48,7 @@ public class BubbleBlowModel extends EntityModel<BubbleBlowRenderState> {
     private final ModelPart pop6;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -80,7 +77,7 @@ public class BubbleBlowModel extends EntityModel<BubbleBlowRenderState> {
         this.bubble6 = root.getChild("bubble6");
         this.disk6 = root.getChild("bubble6").getChild("disk6");
         this.pop6 = root.getChild("bubble6").getChild("pop6");
-        BubbleBlowAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/bubble_blow.animation.json"));
     }
 
     /**
@@ -166,8 +163,8 @@ public class BubbleBlowModel extends EntityModel<BubbleBlowRenderState> {
     @Override
     public void setupAnim(BubbleBlowRenderState state) {
         super.setupAnim(state);
-        this.animations.get(state.popped ? "pop" : "flight").apply(
-                (long) ((state.popped ? state.popTicks : state.ageInTicks) * 50.0F), 1.0F);
+        this.animations.apply(state.popped ? "pop" : "flight",
+                (long) ((state.popped ? state.popTicks : state.ageInTicks) * 50.0F) / 50.0F, 1.0F);
         this.disk0.visible = !state.popped && state.ageInTicks >= 0.0F;
         this.pop0.visible = state.popped && state.ageInTicks >= 0.0F;
         this.disk0.xRot = this.pop0.xRot = state.billboardPitch;

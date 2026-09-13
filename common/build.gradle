@@ -152,3 +152,14 @@ tasks.register('flightTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('flightTest') }
+
+// Fails the build on dense or unrounded animation and motion tables; see ../harness/tools/native_animation.py.
+tasks.register('assetTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.AssetRegressionTest'
+    workingDir = layout.buildDirectory.dir('asset-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('assetTest') }

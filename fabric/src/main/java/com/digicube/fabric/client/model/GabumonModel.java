@@ -3,10 +3,7 @@ package com.digicube.fabric.client.model;
 import com.digicube.Constants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -87,7 +84,7 @@ public class GabumonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart rightPeltNail2B;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -151,7 +148,7 @@ public class GabumonModel extends EntityModel<DigimonRenderState> {
         this.rightPeltNail1B = root.getChild("body").getChild("right_inner_arm").getChild("right_yellow_forearm").getChild("right_yellow_hand_joint").getChild("right_pelt_grip").getChild("right_pelt_claw1").getChild("right_pelt_nail1_b");
         this.rightPeltNail2A = root.getChild("body").getChild("right_inner_arm").getChild("right_yellow_forearm").getChild("right_yellow_hand_joint").getChild("right_pelt_grip").getChild("right_pelt_claw2").getChild("right_pelt_nail2_a");
         this.rightPeltNail2B = root.getChild("body").getChild("right_inner_arm").getChild("right_yellow_forearm").getChild("right_yellow_hand_joint").getChild("right_pelt_grip").getChild("right_pelt_claw2").getChild("right_pelt_nail2_b");
-        GabumonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/gabumon.animation.json"));
     }
 
     /**
@@ -433,9 +430,8 @@ public class GabumonModel extends EntityModel<DigimonRenderState> {
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
-            var attack = this.animations.get(state.attackAnimationName);
-            if (attack != null) {
-                attack.apply(state.attackAnimation.getTimeInMillis(state.ageInTicks), 1.0F);
+            if (this.animations.has(state.attackAnimationName)) {
+                this.animations.apply(state.attackAnimationName, state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F, 1.0F);
                 if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
                     float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
                     this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(tick).aimWeight() * Mth.DEG_TO_RAD;
@@ -446,8 +442,8 @@ public class GabumonModel extends EntityModel<DigimonRenderState> {
 
         float motion = Mth.clamp(state.walkAnimationSpeed * 2.5F, 0.0F, 1.0F);
         float running = Mth.clamp(state.runAnimationAmount, 0.0F, 1.0F);
-        this.animations.get("walk").applyWalk(state.walkAnimationPos, motion * (1.0F - running), 2.5F, 1.0F);
-        this.animations.get("run").applyWalk(state.walkAnimationPos, motion * running, 1.25F, 1.0F);
+        this.animations.applyWalk("walk", state.walkAnimationPos, motion * (1.0F - running), 2.5F, 1.0F);
+        this.animations.applyWalk("run", state.walkAnimationPos, motion * running, 1.25F, 1.0F);
         if (motion > 0.0F && motion < 1.0F) {
             // Carry the hands clear before the thighs start stepping; reverse on stopping.
             float remaining = 1.0F - motion;

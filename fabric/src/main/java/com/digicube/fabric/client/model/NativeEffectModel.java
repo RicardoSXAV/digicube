@@ -6,9 +6,6 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
-import net.minecraft.util.GsonHelper;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 
 /** Original cuboids and flat pixel sheets, including native scale and visibility curves. */
 public final class NativeEffectModel extends EntityModel<NativeEffectState> {
@@ -20,13 +17,10 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
         super(NativeModelGeometry.apply(root,Constants.id("models/entity/"+name+".mesh.json")));
         animation=new NativeAnimationSet(root,Constants.id("models/entity/"+name+".animation.json"));
         if(name.equals("tectonic_fist_fx")) {
-            try(var in=NativeEffectModel.class.getResourceAsStream("/assets/digicube/models/entity/"+name+".mesh.json")) {
-                if(in==null)throw new IllegalStateException("Missing native effect");
-                for(var el:GsonHelper.parse(new InputStreamReader(in,StandardCharsets.UTF_8)).getAsJsonArray("parts")) {
-                    var p=el.getAsJsonObject();String n=p.get("name").getAsString();
-                    if(n.startsWith("Spike ") && p.getAsJsonArray("path").size()==1)spikes[Integer.parseInt(n.substring(6,8))-1]=root.getChild(n);
-                }
-            }catch(java.io.IOException e){throw new IllegalStateException(e);}
+            for(var part:NativeModelGeometry.mesh(Constants.id("models/entity/"+name+".mesh.json")).parts()) {
+                String n=part.name();
+                if(n.startsWith("Spike ") && part.path().length==1)spikes[Integer.parseInt(n.substring(6,8))-1]=root.getChild(n);
+            }
         }
     }
     @Override public void setupAnim(NativeEffectState state) {

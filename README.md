@@ -239,10 +239,30 @@ SPECIES = "koromon"
 exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/run.py", encoding="utf-8").read())
 ```
 
-Copy the generated `KoromonModel.java` and `KoromonAnimations.java` into
+Copy the generated `KoromonModel.java` into
 `fabric/src/main/java/com/digicube/fabric/client/model/`, and `koromon.png` into
 `common/src/main/resources/assets/digicube/textures/entity/digimon/`, then build.
 Edit the harness source to change geometry or motion; keep the exports reproducible.
+
+Animations are data, not Java. Whatever a harness export produces, the mod reads
+`common/src/main/resources/assets/digicube/models/entity/<name>.animation.json`
+through `NativeAnimationSet`. Convert a generated keyframe class and reduce a native
+export with the harness tool (Blender's bundled Python works; the machine has no other):
+
+```bash
+python ../harness/tools/native_animation.py java-to-native common/src/main/resources/assets/digicube/models/entity/koromon.animation.json --hierarchy fabric/src/main/java/com/digicube/fabric/client/model/KoromonModel.java ../harness/out/koromon/KoromonAnimations.java
+```
+
+```bash
+python ../harness/tools/native_animation.py simplify common/src/main/resources/assets/digicube/models/entity/golemon.animation.json
+```
+
+`simplify` drops keys a linear loader reproduces anyway (tolerances 0.0002 rad, 0.001 px),
+collapses walk-amplitude variants the blend already interpolates, and verifies its own
+output; `round-motion` trims constriction and attack-motion tables to four and six
+decimals. The `assetTest` step of `gradlew.bat build` rejects dense or unrounded tables,
+and the same sentences below that mention copying a `*Animations.java` file mean
+converting it this way.
 
 Koromon uses a 128×64 atlas, thin folded ear tips and a looping 16-tick hop with
 squash, stretch and delayed ear motion. Movement controls animation speed and weight;

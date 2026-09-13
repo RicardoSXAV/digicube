@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.DigimonRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -72,7 +69,7 @@ public class GreymonModel extends EntityModel<DigimonRenderState> {
     private final ModelPart riderSeat;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -122,7 +119,7 @@ public class GreymonModel extends EntityModel<DigimonRenderState> {
         this.rightShin = root.getChild("right_leg").getChild("right_shin");
         this.rightFoot = root.getChild("right_leg").getChild("right_shin").getChild("right_foot");
         this.riderSeat = root.getChild("body").getChild("neck").getChild("head").getChild("rider_seat");
-        GreymonAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/greymon.animation.json"));
     }
 
     /**
@@ -367,15 +364,15 @@ public class GreymonModel extends EntityModel<DigimonRenderState> {
                     new org.joml.Vector3f());
         }
         boolean attacking = !state.isBeingRidden && state.attackAnimation.isStarted()
-                && this.animations.containsKey(state.attackAnimationName);
+                && this.animations.has(state.attackAnimationName);
         if (attacking) {
-            this.animations.get(state.attackAnimationName).apply(state.attackAnimation, state.ageInTicks);
+            this.animations.applyStarted(state.attackAnimationName, state.attackAnimation, state.ageInTicks);
             if (state.attackDefinition != null && state.attackDefinition.motion() != null) {
                 float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
                 this.head.xRot += state.attackAimPitch * state.attackDefinition.motion().sample(tick).aimWeight() * Mth.DEG_TO_RAD;
             }
         } else {
-            this.animations.get("walk").applyWalk(state.walkAnimationPos, state.walkAnimationSpeed, 4.1666667F, 4.1666667F);
+            this.animations.applyWalk("walk", state.walkAnimationPos, state.walkAnimationSpeed, 4.1666667F, 4.1666667F);
         }
         if (!state.isBeingRidden && !attacking) {
             this.head.yRot += Mth.clamp(state.yRot, -25.0F, 25.0F) * Mth.DEG_TO_RAD;

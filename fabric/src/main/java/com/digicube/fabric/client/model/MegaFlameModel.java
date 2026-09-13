@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.MegaFlameRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -45,7 +42,7 @@ public class MegaFlameModel extends EntityModel<MegaFlameRenderState> {
     private final ModelPart ember7;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -68,7 +65,7 @@ public class MegaFlameModel extends EntityModel<MegaFlameRenderState> {
         this.ember5 = root.getChild("ember5");
         this.ember6 = root.getChild("ember6");
         this.ember7 = root.getChild("ember7");
-        MegaFlameAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/mega_flame.animation.json"));
     }
 
     /**
@@ -146,8 +143,8 @@ public class MegaFlameModel extends EntityModel<MegaFlameRenderState> {
     @Override
     public void setupAnim(MegaFlameRenderState state) {
         super.setupAnim(state);
-        this.animations.get(state.charging ? "charge" : state.burst ? "burst" : "flight").apply(
-                (long) ((state.burst ? state.burstTicks : state.ageInTicks) * 50.0F), 1.0F);
+        this.animations.apply(state.charging ? "charge" : state.burst ? "burst" : "flight",
+                (long) ((state.burst ? state.burstTicks : state.ageInTicks) * 50.0F) / 50.0F, 1.0F);
         float trail = state.charging || state.burst ? 1.0F : Mth.clamp(state.ageInTicks * 0.55F / 3.04F, 0.02F, 1.0F);
         this.lick0.zScale *= trail;
         this.lick1.zScale *= trail;

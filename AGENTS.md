@@ -302,6 +302,13 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   the move. The client animation is looked up by the attack id path, so an attack named
   `digicube:claw` needs a harness animation called `claw` (plus `claw_mirrored` when it
   alternates sides). Author animations in `../harness` (README §3c), never by hand in Java.
+  Animations ship as data: `assets/digicube/models/entity/<name>.animation.json`, read by
+  `NativeAnimationSet` (linear keys, or `"interpolation":"catmullrom"` for Minecraft's own
+  spline). A harness export that still produces a `*Animations.java` keyframe class is
+  converted with `../harness/tools/native_animation.py java-to-native` and the class is
+  never committed. Every export goes through that tool's `simplify` (bounded-error key
+  reduction) and motion tables through `round-motion`; the `assetTest` build check fails on
+  dense or unrounded tables, because they multiply the jar size for no visible gain.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin

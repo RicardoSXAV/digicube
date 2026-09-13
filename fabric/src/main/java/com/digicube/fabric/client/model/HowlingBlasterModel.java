@@ -2,10 +2,7 @@ package com.digicube.fabric.client.model;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.render.BlueBlasterRenderState;
-import net.minecraft.client.animation.KeyframeAnimation;
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
@@ -129,7 +126,7 @@ public class HowlingBlasterModel extends EntityModel<BlueBlasterRenderState> {
     private final ModelPart throat2;
 
     /** Baked once per model instance; keyed by harness animation name. */
-    private final Map<String, KeyframeAnimation> animations = new HashMap<>();
+    private final NativeAnimationSet animations;
 
     /**
      * Creates the model and binds its animation bones.
@@ -236,7 +233,7 @@ public class HowlingBlasterModel extends EntityModel<BlueBlasterRenderState> {
         this.throat0 = root.getChild("throat0");
         this.throat1 = root.getChild("throat1");
         this.throat2 = root.getChild("throat2");
-        HowlingBlasterAnimations.BY_NAME.forEach((name, definition) -> this.animations.put(name, definition.bake(root)));
+        this.animations = new NativeAnimationSet(root, com.digicube.Constants.id("models/entity/howling_blaster.animation.json"));
     }
 
     /**
@@ -648,7 +645,7 @@ public class HowlingBlasterModel extends EntityModel<BlueBlasterRenderState> {
     @Override
     public void setupAnim(BlueBlasterRenderState state) {
         super.setupAnim(state);
-        this.animations.get("flow").apply((long) (state.ageInTicks * 50.0F), 1.0F);
+        this.animations.apply("flow", (long) (state.ageInTicks * 50.0F) / 50.0F, 1.0F);
         this.eddy0.visible = -this.eddy0.z + 0.024F < state.length * 16.0F;
         this.eddy0.zScale = Math.min(this.eddy0.zScale, Math.max(0.001F, (state.length * 16.0F + this.eddy0.z) / 28.0F));
         this.eddy1.visible = -this.eddy1.z + 0.024F < state.length * 16.0F;
