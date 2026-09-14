@@ -1,0 +1,36 @@
+{
+  "hunting_cannon": {
+    "kind": "KINETIC_SHOT",
+    "power": 1.65,
+    "cooldown": 70,
+    "duration": 50,
+    "hit_tick": 19,
+    "range": 14,
+    "model_scale": 0.325,
+    "projectile": "hunting_cannon_bolt",
+    "projectile_speed": 0.56875,
+    "projectile_life": 35,
+    "max_lead": 3,
+    "max_pitch": 65,
+    "aim_path": [
+      "root",
+      "equine_body",
+      "humanoid_base",
+      "thorax",
+      "right_upper_arm"
+    ]
+  },
+  "jet_dash": {
+    "kind": "RETREAT_KICK",
+    "power": 0.85,
+    "cooldown": 32,
+    "duration": 20,
+    "hit_tick": 14,
+    "range": 3.5,
+    "knockback": 0.8,
+    "model_scale": 0.325,
+    "kick_animation": "jet_dash_kick",
+    "decision_tick": 12,
+    "max_lead": 1
+  }
+}

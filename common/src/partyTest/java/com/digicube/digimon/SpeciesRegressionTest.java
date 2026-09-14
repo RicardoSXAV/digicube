@@ -19,8 +19,10 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 13, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 14, "all bundled species loaded");
+            com.digicube.entity.AuthoredAttackRegressionTest.run();
             com.digicube.entity.GolemonRegressionTest.run();
+            com.digicube.entity.KineticRegressionTest.run();
             var centalmon = DigimonSpeciesRegistry.getOrThrow(Constants.id("centalmon"));
             check(DigimonSpeciesRegistry.resolve("centarumon").orElseThrow() == centalmon
                             && DigimonSpeciesRegistry.resolve("digicube:centarumon").orElseThrow() == centalmon
@@ -35,12 +37,12 @@ public final class SpeciesRegressionTest {
                     "command aliases cannot hide another species");
             check(centalmon.stage() == DigimonStage.ADULT && centalmon.attribute() == DigimonAttribute.DATA,
                     "Centarumon is a data champion registered as centalmon");
-            check(centalmon.attacks().isEmpty() && centalmon.body().mount().isEmpty()
-                            && !centalmon.locomotion().canRun() && !centalmon.locomotion().canFly()
+            check(centalmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("hunting_cannon", "jet_dash")) && centalmon.body().mount().isEmpty()
+                            && centalmon.locomotion().canRun() && !centalmon.locomotion().canFly()
                             && !centalmon.locomotion().canSwim(),
-                    "Centarumon exposes only its authored ground locomotion");
+                    "Centarumon uses cannon, retreat kick and approved ground gaits without basic melee");
             var centalmonGait = centalmon.locomotion().groundGait();
-            check(centalmonGait.cycleTicks() == 28 && centalmonGait.stride() == 1.5,
+            check(centalmonGait.cycleTicks() == 25 && centalmonGait.stride() == 2.5 && centalmonGait.runStride() == 8,
                     "Centarumon cadence uses the full cycle distance, not the stance sweep");
             for (float amount : new float[] {.005F, .025F, .075F, .125F, .25F, .5F, 1F}) {
                 double travel = centalmonGait.fullSpeed(centalmon.body().modelScale()) * amount;

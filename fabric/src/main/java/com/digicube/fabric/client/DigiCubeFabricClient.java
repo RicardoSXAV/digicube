@@ -69,6 +69,11 @@ public class DigiCubeFabricClient implements ClientModInitializer {
             ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }
+        for(var definition:com.digicube.digimon.AuthoredAttacks.all()) if(definition.effect()!=null) {
+            String effect=definition.effect();
+            ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
+                    () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
+        }
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(HowlingBlasterModel.LAYER, HowlingBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER,
@@ -78,6 +83,12 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
+        for (var definition : com.digicube.digimon.KineticAttacks.all()) if (definition.projectile() != null) {
+            String name = definition.projectile();
+            ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(name),
+                    () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(name));
+        }
+        EntityRendererRegistry.register(DCEntityTypes.KINETIC_PROJECTILE, com.digicube.fabric.client.render.KineticProjectileRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MARCHING_FISHES, MarchingFishesRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.TECTONIC_WAVE, com.digicube.fabric.client.render.TectonicWaveRenderer::new);
 

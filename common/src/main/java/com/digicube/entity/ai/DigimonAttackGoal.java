@@ -84,6 +84,9 @@ public final class DigimonAttackGoal extends Goal {
         }
 
         var desiredMoves = mob.positioningAttacks(target);
+        double pursuitSpeed = mob.getLocomotion().groundGait() != null
+                && mob.getLocomotion().groundGait().runStride() > mob.getLocomotion().groundGait().stride()
+                && mob.distanceToSqr(target) > 64 ? mob.getLocomotion().runSpeed() : speedModifier;
         boolean preparing = desiredMoves.stream().noneMatch(mob::isAttackReady);
         if (preparing && desiredMoves.stream().anyMatch(move -> mob.canAttackFrom(move,target,mob.position()))) {
             // Hold a useful firing stance; otherwise use recovery time to get
@@ -99,7 +102,7 @@ public final class DigimonAttackGoal extends Goal {
                     && desiredMoves.equals(positionedMoves) && positionedTarget.distanceToSqr(target.position()) < 1) return;
             positionedMoves = desiredMoves;
             var combatPath = DigimonCombatPosition.find(mob, target,preparing);
-            if (combatPath != null && mob.getNavigation().moveTo(combatPath, speedModifier)) {
+            if (combatPath != null && mob.getNavigation().moveTo(combatPath, pursuitSpeed)) {
                 positionedTarget = target.position();
                 // Navigation can keep a blocked path alive while an enemy pins us.
                 // Re-evaluate at least once a second, even if the target stays put.
@@ -127,7 +130,7 @@ public final class DigimonAttackGoal extends Goal {
                 var retreat = mob.position().add(away.scale(spacing + 0.5));
                 mob.getNavigation().moveTo(retreat.x, retreat.y, retreat.z, speedModifier);
             } else {
-                mob.getNavigation().moveTo(target, speedModifier);
+                mob.getNavigation().moveTo(target, pursuitSpeed);
             }
         }
     }

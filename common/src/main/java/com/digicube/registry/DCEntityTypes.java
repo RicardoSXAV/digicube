@@ -45,6 +45,10 @@ public final class DCEntityTypes {
 
     private DCEntityTypes() {}
 
+    public static final EntityType<com.digicube.entity.KineticProjectileEntity> KINETIC_PROJECTILE = register(key("kinetic_projectile"),
+            EntityType.Builder.<com.digicube.entity.KineticProjectileEntity>of(com.digicube.entity.KineticProjectileEntity::new, MobCategory.MISC)
+                    .sized(.1F, .1F).clientTrackingRange(12).updateInterval(1));
+
     /** Koromon's small bubble volley; its visual trail follows behind the hitbox. */
     public static final EntityType<BubbleBlowEntity> BUBBLE_BLOW = register(key("bubble_blow"),
             EntityType.Builder.<BubbleBlowEntity>of(BubbleBlowEntity::new, MobCategory.MISC)

@@ -5,6 +5,17 @@ import net.minecraft.world.phys.Vec3;
 
 /** An authored cuboid, retaining its orientation instead of damaging empty broad-phase corners. */
 public record AttackBox(Vec3 center, Vec3 x, Vec3 y, Vec3 z) {
+    /** Extra downward aim around the same feet-local head pivot as the native model. */
+    public AttackBox aimed(Vec3 pivot, double degrees) {
+        double a=Math.toRadians(degrees), c=Math.cos(a), s=Math.sin(a);
+        return new AttackBox(rotate(center.subtract(pivot),c,s).add(pivot),
+                rotate(x,c,s),rotate(y,c,s),rotate(z,c,s));
+    }
+
+    private static Vec3 rotate(Vec3 v,double c,double s) {
+        return new Vec3(v.x,v.y*c-v.z*s,v.y*s+v.z*c);
+    }
+
     public AttackBox world(Vec3 feet, float yaw, double height) {
         float angle = (float)-Math.toRadians(yaw);
         return new AttackBox(center.yRot(angle).add(feet).add(0,height,0),

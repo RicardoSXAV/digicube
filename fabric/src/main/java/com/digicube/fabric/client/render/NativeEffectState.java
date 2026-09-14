@@ -3,5 +3,10 @@ import net.minecraft.client.renderer.entity.state.EntityRenderState;
 /** Independent clock and per-spike terrain placement. */
 public final class NativeEffectState extends EntityRenderState {
     public float tick, yaw, scale=.5F;
+    public float aimPitch;
+    public net.minecraft.world.phys.Vec3 aimPivot=net.minecraft.world.phys.Vec3.ZERO;
     public float[] heights;
+    public java.util.Set<String> hidden = java.util.Set.of();
+    public float pitch;
+    public String projectile;
 }

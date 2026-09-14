@@ -52,7 +52,7 @@ public record DigimonAttack(
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
         if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
-                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST)
+                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST || kind == Kind.BOX_SWEEP || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT || kind == Kind.RETREAT_KICK)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
         }
@@ -102,7 +102,15 @@ public record DigimonAttack(
         /** Swept contact from an authored fist, without root travel. */
         FIST,
         /** Delayed ground-supported spikes, with one hit per opponent per cast. */
-        GROUND_WAVE
+        GROUND_WAVE,
+        /** Finite native cuboid sweep, one hit per opponent. */
+        BOX_SWEEP,
+        /** Finite native burst with authored expanding volumes and bounded pulses. */
+        BOX_BURST,
+        /** An aimed, non-burning projectile whose authored cuboids sweep the world. */
+        KINETIC_SHOT,
+        /** A supported retreat with a conditional, once-per-opponent hoof strike. */
+        RETREAT_KICK
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -112,7 +120,7 @@ public record DigimonAttack(
 
     public boolean isRanged() {
         return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
-                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE;
+                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */

@@ -18,18 +18,30 @@ import java.util.Locale;
 /**
  * Headless combat rehearsal on a development server, for iterating on combat AI without a player.
  *
- * <p>Set {@code DIGICUBE_SCENARIO=<caster>_vs_<prey>[@flat|@steps|@water]} (for example
+ * <p>Set {@code DIGICUBE_SCENARIO=<caster>_vs_<prey>[@flat|@steps|@ledge|@down|@wall|@water]} (for example
  * {@code seadramon_vs_golemon@steps}) and start the dedicated server. A platform is built high
  * above the world, both Digimon are spawned facing each other eight blocks apart, healed every
  * tick so the fight never ends early, and the log records each phase of the caster's freeze-and-
  * wrap loop. The server halts with a {@code [scenario] PASS} or {@code FAIL} verdict.
+ * {@code ledge} raises the prey's half one block; {@code down} raises the caster's half.
+ * {@code wall} requires zero damage through solid cover.
+ *
+ * <p>{@code DIGICUBE_SCENARIO_ATTACK=<attack>} isolates one caster move.
+ * {@code DIGICUBE_BENCHMARK=true} measures 600 combat ticks instead of stopping after three hits;
+ * {@code DIGICUBE_NEUTRAL=true} removes attribute advantage in that test process only.
  */
 public final class CombatScenario {
     private static final String NAME = System.getenv("DIGICUBE_SCENARIO");
     private static final int FLOOR_Y = 300, HALF = 14, TIMEOUT_TICKS = 20 * 90, SETTLE_TICKS = 40, REQUIRED_HITS = 3;
+    private static final boolean BENCHMARK=Boolean.parseBoolean(System.getenv("DIGICUBE_BENCHMARK"));
+    private static final String MOVE=System.getenv("DIGICUBE_SCENARIO_ATTACK");
+    private static double damage;
+    private static final java.util.Map<String,Integer> moves=new java.util.TreeMap<>();
+    private static String lastMove;
+    private static boolean blockedScenario;
     private static boolean started, done;
     private static int startTick, freezeTick = -1, captureTick = -1, releaseTick = -1, firstHitTick = -1, casts, hits;
-    private static boolean casterWasAttacking, wrapCaster, duel, preyFacesAway;
+    private static boolean casterWasAttacking, wrapCaster, oversizedWrapPrey, duel, preyFacesAway;
     private static DigimonEntity caster, prey;
 
     private CombatScenario() {}
@@ -37,6 +49,7 @@ public final class CombatScenario {
     /** Per-dimension server tick hook; inert unless the environment variable names a scenario. */
     public static void tick(ServerLevel level) {
         if (NAME == null || done || level.dimension() != Level.OVERWORLD || !Services.PLATFORM.isDevelopmentEnvironment()) return;
+        if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
         try {
             if (!started) start(level);
             else observe(level);
@@ -59,6 +72,7 @@ public final class CombatScenario {
         String[] parts = spec.split("@", 2);
         String[] names = parts[0].split("_vs_", 2);
         String terrain = parts.length > 1 ? parts[1] : "flat";
+        blockedScenario=terrain.equals("wall");
         if (names.length != 2) { finish(level, "FAIL bad scenario name " + NAME); return; }
         for (int cx = -1; cx <= 0; cx++) for (int cz = -1; cz <= 0; cz++) level.setChunkForced(cx, cz, true);
         // The dev world persists between runs: evict every earlier fighter and anything else that wandered in.
@@ -67,12 +81,32 @@ public final class CombatScenario {
         build(level, terrain);
         DigimonSpecies casterSpecies = DigimonSpeciesRegistry.getOrThrow(Constants.id(names[0]));
         DigimonSpecies preySpecies = DigimonSpeciesRegistry.getOrThrow(Constants.id(names[1]));
+        if(MOVE!=null && !MOVE.isBlank()) {
+            var selected=casterSpecies.attacks().stream().filter(a->a.id().getPath().equals(MOVE)).toList();
+            if(selected.isEmpty())throw new IllegalArgumentException("Unknown scenario attack "+MOVE);
+            casterSpecies=new DigimonSpecies(casterSpecies.id(),casterSpecies.stage(),casterSpecies.attribute(),casterSpecies.baseHealth(),
+                    casterSpecies.baseAttack(),casterSpecies.baseDefence(),casterSpecies.baseSpeed(),casterSpecies.evolutions(),selected,
+                    casterSpecies.body(),casterSpecies.locomotion());
+            DigimonSpeciesRegistry.replace(casterSpecies);
+        }
+        if(Boolean.parseBoolean(System.getenv("DIGICUBE_NEUTRAL"))) {
+            for(var species:new DigimonSpecies[]{casterSpecies,preySpecies}) {
+                DigimonSpeciesRegistry.replace(new DigimonSpecies(species.id(),species.stage(),com.digicube.digimon.DigimonAttribute.FREE,
+                        species.baseHealth(),species.baseAttack(),species.baseDefence(),species.baseSpeed(),species.evolutions(),species.attacks(),species.body(),species.locomotion()));
+            }
+            casterSpecies=DigimonSpeciesRegistry.getOrThrow(casterSpecies.id());preySpecies=DigimonSpeciesRegistry.getOrThrow(preySpecies.id());
+        }
         // A wrap caster is judged on freeze, capture and release; anyone else on landing hits.
         wrapCaster = casterSpecies.attacks().stream().anyMatch(a -> a.kind() == com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION);
         double y = terrain.equals("water") ? FLOOR_Y - 3 : FLOOR_Y;
-        caster = DigimonEntity.spawnWild(level, casterSpecies, 20, new Vec3(.5, y, -3.5));
+        caster = DigimonEntity.spawnWild(level, casterSpecies, 20, new Vec3(.5, terrain.equals("down") ? y+1:y, -3.5));
         prey = DigimonEntity.spawnWild(level, preySpecies, 20, new Vec3(.5, terrain.equals("ledge") ? y + 1 : y, 4.5));
         if (caster == null || prey == null) { finish(level, "FAIL could not spawn"); return; }
+        if (wrapCaster && caster.constrictionMotion().fit(prey.getBoundingBox(), caster.getBody().modelScale()) == null) {
+            oversizedWrapPrey = true;
+            wrapCaster = false;
+            Constants.LOG.info("[scenario] prey exceeds authored wrap fit; require landed fallback attacks and no capture");
+        }
         // Facing each other by default; +behind turns the prey's back (and any long body) toward the caster.
         caster.setYRot(0); prey.setYRot(preyFacesAway ? 0 : 180); prey.yBodyRot = prey.yHeadRot = prey.getYRot();
         // Both stay valid, damageable targets that no single blow can kill. Never mark either invulnerable:
@@ -83,6 +117,7 @@ public final class CombatScenario {
             fighter.setHealth(fighter.getMaxHealth());
         }
         startTick = level.getServer().getTickCount();
+        if ("true".equals(System.getenv("DIGICUBE_SCENARIO_SPRINT"))) level.getServer().tickRateManager().requestGameToSprint(TIMEOUT_TICKS + 100);
         Constants.LOG.info("[scenario] {} vs {} on {} terrain: start at tick {}", names[0], names[1], terrain, startTick);
     }
 
@@ -98,6 +133,10 @@ public final class CombatScenario {
             if (pool) {
                 boolean rim = Math.abs(x) == HALF || Math.abs(z) == HALF;
                 for (int dy = -5; dy <= -1; dy++) level.setBlock(new BlockPos(x, FLOOR_Y + dy, z), rim ? stone : water, 3);
+            } else if(terrain.equals("wall")) {
+                if(z==0)for(int dy=0;dy<=8;dy++)level.setBlock(new BlockPos(x,FLOOR_Y+dy,z),stone,3);
+            } else if(terrain.equals("down")) {
+                if(z<0)level.setBlock(new BlockPos(x,FLOOR_Y,z),stone,3);
             } else if (terrain.equals("ledge")) {
                 // The prey's whole half stands one block higher: the caster must climb before anything else.
                 if (z >= 0) level.setBlock(new BlockPos(x, FLOOR_Y, z), stone, 3);
@@ -122,6 +161,8 @@ public final class CombatScenario {
         // Read the damage of this tick before healing it away; the species may reset its own max health,
         // so the boost is reasserted every tick rather than trusted from spawn.
         boolean preyHurt = prey.getHealth() < prey.getMaxHealth();
+        if(elapsed>=SETTLE_TICKS)damage+=prey.getMaxHealth()-prey.getHealth();
+        if (oversizedWrapPrey && prey.hasEffect(DCEffects.CONSTRICTED)) { finish(level, "FAIL oversized prey was captured"); return; }
         for (DigimonEntity fighter : new DigimonEntity[]{caster, prey}) {
             var health = fighter.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
             if (health != null && health.getBaseValue() < 1024) health.setBaseValue(1024);
@@ -151,15 +192,27 @@ public final class CombatScenario {
             }
         }
         boolean attacking = caster.isAttacking();
-        if (attacking && !casterWasAttacking) { casts++; Constants.LOG.info("[scenario] t={} caster starts an attack", elapsed); }
+        String current=caster.getActiveAttack()==null?null:caster.getActiveAttack().id().getPath();
+        if (attacking && (!casterWasAttacking || !java.util.Objects.equals(current,lastMove))) {
+            casts++;moves.merge(current,1,Integer::sum);Constants.LOG.info("[scenario] t={} caster starts {}",elapsed,current);
+        }
+        lastMove=current;
         casterWasAttacking = attacking;
         // Both are healed at the end of every tick, so any missing health is a hit landed this tick.
         if (preyHurt) {
             if (hits++ == 0) { firstHitTick = elapsed; Constants.LOG.info("[scenario] t={} first hit on the prey", elapsed); }
-            if (!wrapCaster && hits >= REQUIRED_HITS) {
+            if (!blockedScenario && !BENCHMARK && !wrapCaster && hits >= REQUIRED_HITS) {
                 finish(level, String.format("PASS firstHit=%d hits=%d by t=%d casts=%d", firstHitTick, hits, elapsed, casts));
                 return;
             }
+        }
+        if(blockedScenario && elapsed>=240) {
+            finish(level,(hits==0?"PASS":"FAIL")+" solid cover hits="+hits+" casts="+casts);return;
+        }
+        if(BENCHMARK && elapsed>=640) {
+            float triangle=caster.getSpecies().orElseThrow().attribute().damageMultiplierAgainst(prey.getSpecies().orElseThrow().attribute());
+            finish(level,String.format(java.util.Locale.ROOT,"%s benchmark firstHit=%d hits=%d damage=%.2f neutralEquivalent=%.2f duration=600 moves=%s",
+                    hits>=REQUIRED_HITS?"PASS":"FAIL",firstHitTick,hits,damage,damage/triangle,moves));return;
         }
         if (!wrapCaster) {
             if (elapsed >= TIMEOUT_TICKS) finish(level, String.format("FAIL only %d hits within %d ticks (casts=%d caster=%s prey=%s)",

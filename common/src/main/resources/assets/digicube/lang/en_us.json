@@ -154,5 +154,8 @@
   "attack.digicube.ice_blast": "Ice Blast",
   "attack.digicube.constriction": "Constriction",
   "effect.digicube.constricted": "Constricted",
-  "effect.digicube.constriction_resistance": "Constriction Resistance"
+  "effect.digicube.constriction_resistance": "Constriction Resistance",
+  "digimon.digicube.darktyrannomon": "DarkTyrannomon",
+  "attack.digicube.hunting_cannon": "Hunting Cannon",
+  "attack.digicube.jet_dash": "Jet Dash"
 }

@@ -1,0 +1,30 @@
+{
+  "stage": "adult",
+  "attribute": "virus",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.32,
+  "attacks": [
+    "fire_blast",
+    "iron_tail"
+  ],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.65,
+    "width": 2.8,
+    "height": 4.7,
+    "eye_height": 4.05
+  },
+  "locomotion": {
+    "walk_speed": 1,
+    "run_speed": 1,
+    "ground_gait": {
+      "cycle_ticks": 28,
+      "stride": 1.6,
+      "max_playback_rate": 3
+    },
+    "follow_start_distance": 5,
+    "follow_stop_distance": 2.5
+  }
+}

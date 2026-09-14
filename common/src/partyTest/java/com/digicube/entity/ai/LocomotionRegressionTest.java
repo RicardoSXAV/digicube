@@ -113,6 +113,15 @@ public final class LocomotionRegressionTest {
         double authored = species.locomotion().groundGait().fullSpeed(species.body().modelScale());
         check(Math.abs(travel / authored - 1) < .01,
                 "Centarumon flat-ground cruise retains its authored four-beat tempo: " + travel);
+        for (int tick = 0; tick < 120; tick++) {
+            control.setWantedPosition(0, 0, 20, mob.locomotion.runSpeed());
+            control.tick();
+            mob.moveRelative(mob.getSpeed(), new Vec3(mob.xxa * .98, 0, mob.zza * .98));
+            travel = mob.getDeltaMovement().horizontalDistance();
+            mob.setDeltaMovement(mob.getDeltaMovement().scale(Blocks.GRASS_BLOCK.getFriction() * .91));
+        }
+        check(Math.abs(travel / species.locomotion().groundGait().runSpeed(species.body().modelScale()) - 1) < .01,
+                "Centarumon run speed matches its approved gallop stride: " + travel);
     }
 
     private static void checkFollowWithoutAttacks() throws Exception {

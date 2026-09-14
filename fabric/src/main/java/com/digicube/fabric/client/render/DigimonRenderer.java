@@ -47,6 +47,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
+    private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> authoredEffects=new java.util.HashMap<>();
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
     private final HowlingBlasterModel howlingBlaster;
@@ -55,6 +56,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
+        for(var d:com.digicube.digimon.AuthoredAttacks.all()) if(d.effect()!=null) {
+            String effect=d.effect();authoredEffects.put(effect,new com.digicube.fabric.client.model.NativeEffectModel(
+                    context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
+        }
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
         howlingBlaster = new HowlingBlasterModel(context.bakeLayer(HowlingBlasterModel.LAYER));
@@ -94,6 +99,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             var fx=state.fistEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=state.bodyRot;fx.scale=state.modelScale;fx.lightCoords=state.lightCoords;
             TectonicWaveRenderer.submitEffect(fistEffect,"rock_punch_fx",fx,poseStack,collector);
+        }
+        if (!state.isInvisible && state.attackDefinition!=null && state.attackAnimation.isStarted()) {
+            var d=com.digicube.digimon.AuthoredAttacks.get(state.attackDefinition);
+            if(d!=null && d.effect()!=null) TectonicWaveRenderer.submitEffect(authoredEffects.get(d.effect()),d.effect(),state.authoredEffect,poseStack,collector);
         }
         if (state.blueBlaster.length > 0.05F && state.attackDefinition != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
@@ -147,6 +156,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.swimMotionAmount = entity.getSwimMotionAmount(partialTick);
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
+        state.groundRunAmount = entity.getGroundRunAmount(partialTick);
         state.mountAnchor = entity.getMountAnchor(partialTick);
         state.flightPhase = entity.getFlightPhase();
         state.flightPhaseTime = entity.getFlightPhaseTime(partialTick);
@@ -167,18 +177,37 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.attackAnimationName = entity.getAttackAnimationName();
         state.attackDefinition = entity.getAnimatingAttack();
         state.attackAimPitch = entity.getAttackAimPitch(partialTick);
+        var authored=state.attackDefinition==null?null:com.digicube.digimon.AuthoredAttacks.get(state.attackDefinition);
+        if(authored!=null && authored.effect()!=null) {
+            var fx=state.authoredEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
+            fx.yaw=entity.getAttackYaw(partialTick);fx.scale=state.modelScale;
+            var frame=state.attackDefinition.motion().sample(fx.tick);
+            fx.aimPivot=frame.head();fx.aimPitch=state.attackAimPitch*frame.aimWeight();
+            fx.lightCoords=authored.emissive()?net.minecraft.util.LightCoordsUtil.FULL_BRIGHT:state.lightCoords;
+            var hidden=new java.util.HashSet<String>();var boxes=authored.sample(fx.tick);
+            for(int i=0;i<boxes.length;i++) if(boxes[i]!=null && !com.digicube.entity.AuthoredVolumeAttack.visible(entity.level(),entity,
+                    state.attackDefinition,fx.tick,entity.position(),fx.yaw,
+                    com.digicube.entity.AuthoredVolumeAttack.aimed(boxes[i],state.attackDefinition,fx.tick,state.attackAimPitch)
+                            .world(entity.position(),fx.yaw,0)))hidden.add(authored.parts().get(i));
+            fx.hidden=java.util.Set.copyOf(hidden);
+        }
         state.constrictionFit = entity.getConstrictionFit();
         if (entity.isFlyingMovement() || (entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
                 || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
             // Swimming, riding and committed attacks turn the entire creature.
             // Keep its rendered body aligned with the server's steering direction.
             state.bodyRot = state.attackAnimation.isStarted() && state.attackDefinition != null
-                    && (state.attackDefinition.kind()==DigimonAttack.Kind.GROUND_WAVE || state.attackDefinition.kind()==DigimonAttack.Kind.FIST)
+                    && (state.attackDefinition.kind()==DigimonAttack.Kind.GROUND_WAVE || state.attackDefinition.kind()==DigimonAttack.Kind.FIST
+                    || com.digicube.digimon.AuthoredAttacks.handles(state.attackDefinition))
                     ? entity.getAttackYaw(partialTick) : Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }
         state.blueBlaster.length = 0;
         state.constrictionOffset=entity.getConstrictionRenderOffset(partialTick).yRot(state.bodyRot*Mth.DEG_TO_RAD);
+        if (state.attackDefinition != null && state.attackDefinition.kind() == DigimonAttack.Kind.RETREAT_KICK && state.attackAnimation.isStarted()) {
+            state.bodyRot = entity.getKineticRenderYaw(partialTick);
+        }
+        state.kineticOffset = entity.getKineticRenderOffset(partialTick).yRot(state.bodyRot * Mth.DEG_TO_RAD);
         state.blueBlaster.frost = false;
         state.blueBlaster.iceBlast = false;
         if (entity.isAlive() && !state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null

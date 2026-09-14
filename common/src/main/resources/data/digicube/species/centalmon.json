@@ -4,23 +4,29 @@
   "base_health": 40,
   "base_attack": 14,
   "base_defence": 10,
-  "base_speed": 0.1364,
-  "attacks": [],
+  "base_speed": 0.12271,
+  "attacks": [
+    "hunting_cannon",
+    "jet_dash"
+  ],
   "evolutions": [],
   "locomotion": {
     "follow_start_distance": 5.0,
     "follow_stop_distance": 2.5,
-    "walk_speed": 1.0,
-    "run_speed": 1.0,
+    "walk_speed": 1,
+    "run_speed": 2.44949,
     "ground_gait": {
-      "cycle_ticks": 28,
-      "stride": 1.5
+      "cycle_ticks": 25,
+      "stride": 2.5,
+      "run_cycle_ticks": 13.333333,
+      "run_stride": 8,
+      "max_playback_rate": 2
     }
   },
   "body": {
-    "model_scale": 0.75,
-    "width": 1.7,
+    "model_scale": 0.325,
+    "width": 1.8,
     "height": 3.15,
-    "eye_height": 2.91
+    "eye_height": 2.9
   }
 }

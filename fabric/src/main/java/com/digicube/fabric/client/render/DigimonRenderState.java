@@ -7,6 +7,10 @@ import net.minecraft.world.entity.AnimationState;
 
 /** Per-frame snapshot of a {@link DigimonEntity} that the model and renderer read from. */
 public class DigimonRenderState extends LivingEntityRenderState {
+    public final NativeEffectState authoredEffect = new NativeEffectState();
+
+    public float groundRunAmount;
+    public net.minecraft.world.phys.Vec3 kineticOffset = net.minecraft.world.phys.Vec3.ZERO;
     public com.digicube.entity.ai.FlightPhase flightPhase = com.digicube.entity.ai.FlightPhase.GROUNDED;
     public float flightPhaseTime;
     public float flightLoopTime;

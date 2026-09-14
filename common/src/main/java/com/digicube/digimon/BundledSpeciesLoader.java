@@ -120,7 +120,9 @@ public final class BundledSpeciesLoader {
                 json.has("ground_gait") ? new DigimonGait(
                         GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "cycle_ticks"),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"),
-                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "max_playback_rate", Float.MAX_VALUE)) : null);
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "max_playback_rate", Float.MAX_VALUE),
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "run_cycle_ticks", GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "cycle_ticks")),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))) : null);
     }
 
     private static DigimonFlight flight(JsonObject json) {
