@@ -57,6 +57,8 @@ public final class CombatScenario {
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
+        if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
+        if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
         try {
             if (!started) start(level);
             else observe(level);
@@ -216,6 +218,12 @@ public final class CombatScenario {
             return;
         }
         if (elapsed % 40 == 0) purge(level);
+        if (elapsed % 20 == 0 && Boolean.parseBoolean(System.getenv("DIGICUBE_SCENARIO_TRACE"))) {
+            Constants.LOG.info("[scenario-trace] t={} caster={} prey={} velocity={} water={}/{} active={} ready={}",
+                    elapsed,caster.position(),prey.position(),prey.getDeltaMovement(),caster.isInWater(),prey.isInWater(),
+                    caster.getActiveAttack()==null?"none":caster.getActiveAttack().id(),
+                    caster.getSpecies().orElseThrow().attacks().stream().map(a->a.id().getPath()+":"+caster.isAttackReady(a)+":"+caster.canAttackFrom(a,prey,caster.position())).toList());
+        }
         if (!duel) {
             // A passive prey measures the caster alone; being hit would otherwise make it retaliate.
             prey.setLastHurtByMob(null);

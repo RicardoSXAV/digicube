@@ -39,5 +39,9 @@ public final class PartySavedData extends SavedData {
         public boolean open;
         public int page;
         public int lastActionTick = Integer.MIN_VALUE / 2;
+        public long lastCombatTick=Long.MAX_VALUE;
+        public int lastOwnerHurtAt,lastOwnerAttackAt;
+        public VecSafePosition lastSafePosition;
     }
+    public record VecSafePosition(net.minecraft.server.level.ServerLevel level,net.minecraft.world.phys.Vec3 position) {}
 }

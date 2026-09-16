@@ -7,6 +7,7 @@ import net.minecraft.world.entity.AnimationState;
 
 /** Per-frame snapshot of a {@link DigimonEntity} that the model and renderer read from. */
 public class DigimonRenderState extends LivingEntityRenderState {
+    public com.digicube.fabric.client.evolution.EvolutionPresentation.Snapshot evolution;
     public final NativeEffectState authoredEffect = new NativeEffectState();
 
     public float groundRunAmount;
@@ -37,6 +38,8 @@ public class DigimonRenderState extends LivingEntityRenderState {
 
     /** Species-authored swimming pose, independent of the amount of forward movement. */
     public float swimAnimationAmount;
+    /** Exact fluid state for matching authored water attack poses and server volumes. */
+    public boolean attackInWater;
     /** Interpolated per-entity swimming clock, in authored ticks. */
     public float swimAnimationPhase;
     /** Observed movement blended between the glide and full stroke clips. */

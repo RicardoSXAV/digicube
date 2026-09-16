@@ -50,10 +50,10 @@ public final class AuthoredVolumeAttack {
     }
     /** Occluded cells are hidden by the client and excluded from server damage. */
     public static boolean visible(Level level,DigimonEntity caster,DigimonAttack attack,double tick,Vec3 feet,float yaw,AttackBox box) {
-        var f=attack.motion().sample(tick);
+        var f=AuthoredAttacks.get(attack).motion(caster.isInWater()).sample(tick);
         Vec3 origin=AttackGeometry.world(feet,f.head(),yaw);
         if(!level.getWorldBorder().isWithinBounds(box.bounds()))return false;
-        if(AuthoredAttacks.get(attack).effect()==null) {
+        if(attack.kind()==DigimonAttack.Kind.BOX_SWEEP || AuthoredAttacks.get(attack).effect()==null) {
             // A physical limb can extend its pivot through thin cover. Checking
             // only pivot-to-tip would then start on the far side of that cover.
             if(!clear(level,caster,feet.add(0,f.head().y,0),origin)
@@ -76,11 +76,11 @@ public final class AuthoredVolumeAttack {
         var d=AuthoredAttacks.get(attack);Vec3 targetPoint=target.getBoundingBox().getCenter();
         float facing=yaw(attack,feet,targetPoint), pitch=pitch(attack,feet,targetPoint,facing);
         for(double t=attack.motion().activeFrom();t<=attack.motion().activeUntil();t+=.5) {
-            for(var local:d.sample(t)) if(local!=null && Math.abs(local.x().dot(local.y().cross(local.z())))>1e-8) {
+            for(var local:d.sample(t,caster.isInWater())) if(local!=null && Math.abs(local.x().dot(local.y().cross(local.z())))>1e-8) {
                 var box=aimed(local,attack,t,pitch).world(feet,facing,0);
                 for(var volume:HitParts.of(target))if(box.intersects(volume) && visible(caster.level(),caster,attack,t,feet,facing,box)
                         && (!d.grounded() || supported(caster.level(),caster,box))
-                        && clear(caster.level(),caster,AttackGeometry.world(feet,attack.motion().sample(t).head(),facing),volume.getCenter()))return true;
+                        && clear(caster.level(),caster,AttackGeometry.world(feet,d.motion(caster.isInWater()).sample(t).head(),facing),volume.getCenter()))return true;
             }
         }
         return false;
@@ -93,7 +93,7 @@ public final class AuthoredVolumeAttack {
             if(time>attack.motion().activeUntil())break;
             int beat=d.beat(time);
             if(!d.hitWindows().isEmpty() && beat<0)continue;
-            for(var local:d.sample(time)) if(local!=null && Math.abs(local.x().dot(local.y().cross(local.z())))>1e-8) {
+            for(var local:d.sample(time,caster.isInWater())) if(local!=null && Math.abs(local.x().dot(local.y().cross(local.z())))>1e-8) {
                 var box=aimed(local,attack,time,caster.getAttackAimPitch(1)).world(caster.position(),caster.getYRot(),0);
                 for(var entity:level.getEntities(caster,box.bounds(),e->DigimonPart.livingOf(e) instanceof LivingEntity)) {
                     LivingEntity victim=DigimonPart.livingOf(entity);UUID id=victim.getUUID();
@@ -102,7 +102,7 @@ public final class AuthoredVolumeAttack {
                             || beat>=0 && beats.getOrDefault(id,Set.of()).contains(beat)
                             || !box.intersects(entity.getBoundingBox()) || !visible(level,caster,attack,time,caster.position(),caster.getYRot(),box)
                             || d.grounded() && !supported(level,caster,box)
-                            || !clear(level,caster,AttackGeometry.world(caster.position(),attack.motion().sample(time).head(),caster.getYRot()),entity.getBoundingBox().getCenter()))continue;
+                            || !clear(level,caster,AttackGeometry.world(caster.position(),d.motion(caster.isInWater()).sample(time).head(),caster.getYRot()),entity.getBoundingBox().getCenter()))continue;
                     if(caster.hitWithAttack(level,attack,victim)) {
                         counts.merge(id,1,Integer::sum);lastHit.put(id,tick);
                         if(beat>=0)beats.computeIfAbsent(id,k->new HashSet<>()).add(beat);

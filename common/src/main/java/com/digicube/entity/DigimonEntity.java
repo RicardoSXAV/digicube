@@ -32,6 +32,7 @@ import com.digicube.party.PartyManager;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -109,6 +110,46 @@ import java.util.Optional;
  * {@code /digicube give agumon}.
  */
 public class DigimonEntity extends PathfinderMob implements OwnableEntity, PlayerRideable {
+    private static final EntityDataAccessor<String> DATA_EVOLUTION = SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.STRING);
+    private com.digicube.digimon.EvolutionState evolution = new com.digicube.digimon.EvolutionState();
+    private int evolutionAttackUntil;
+    public com.digicube.digimon.EvolutionState evolution() { return evolution; }
+    public com.digicube.digimon.EvolutionEvent evolutionEvent() { return com.digicube.digimon.EvolutionEvent.decode(entityData.get(DATA_EVOLUTION)); }
+    public boolean evolutionLocked() { return !level().isClientSide() && (evolution.transitioning() || evolution.phase==com.digicube.digimon.EvolutionState.Phase.EVOLVED && evolution.charge<=0); }
+    public void syncEvolutionEvent(boolean preview) {
+        if(level().isClientSide())return;
+        entityData.set(DATA_EVOLUTION,evolution.transitioning() ? new com.digicube.digimon.EvolutionEvent(evolution.source,evolution.target,evolution.start,evolution.duration,evolution.sequence,preview).encode() : "");
+    }
+    /** Cosmetic only: no state, charge, history or invulnerability changes. */
+    public void previewEvolution(Identifier target,int duration) {
+        if(!evolution.transitioning()&&DigimonSpeciesRegistry.get(target).isPresent()) {
+            entityData.set(DATA_EVOLUTION,new com.digicube.digimon.EvolutionEvent(getSpeciesId(),target,level().getGameTime(),duration,++evolution.sequence,true).encode());
+            EvolutionController.openingSound(this,duration);
+        }
+    }
+    public void stopForEvolution() { cancelAttack();resetConstrictionApproach();getNavigation().stop();attackAnimationState.stop();setDeltaMovement(Vec3.ZERO); }
+    public void freezeForEvolution() {
+        getNavigation().stop();setDeltaMovement(Vec3.ZERO);setSpeed(0);
+        cooldownUntil.replaceAll((id,until)->until+1);if(constrictionRetryTick>tickCount)constrictionRetryTick++;
+    }
+    public void changeEvolutionForm(Identifier form) {
+        double fraction=getMaxHealth()>0?(double)getHealth()/getMaxHealth():0;
+        stopForEvolution();setNoGravity(false);setFlightPhase(FlightPhase.GROUNDED);
+        setSpecies(form);configureSpeciesMovement();applyLevelAttributes();refreshDimensions();
+        setFractionHealth(fraction);evolutionAttackUntil=tickCount+Progression.EVOLUTION_ATTACK_DELAY;
+    }
+    private void setFractionHealth(double fraction) {
+        float hp=(float)(fraction*getMaxHealth());
+        if(getMaxHealth()>0&&(double)hp/getMaxHealth()>fraction)hp=Math.nextDown(hp);
+        setHealth(Math.max(0,hp));
+    }
+    /** Developer edit retains injury and defeat, independently of the full-heal spawn helper. */
+    public void setPartyLevel(int level) {
+        double fraction=getMaxHealth()>0?(double)getHealth()/getMaxHealth():0;setLevel(level);xp=0;setFractionHealth(fraction);
+        evolution.unlock(getSpeciesId(),getLevel());PartyManager.progressChanged(this);
+    }
+    @Override public void heal(float amount) { if(!evolutionLocked())super.heal(amount); }
+    @Override public boolean isPushable() { return !evolutionLocked() && super.isPushable(); }
 
     /** NBT key holding the species id. Changing it is a save-data migration. */
     public static final String SPECIES_TAG = "Species";
@@ -429,6 +470,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
+        builder.define(DATA_EVOLUTION, "");
         builder.define(DATA_SPECIES, DEFAULT_SPECIES.toString());
         builder.define(DATA_ATTACK_AIM_PITCH, 0.0F);
         builder.define(DATA_ATTACK_YAW, 0.0F);
@@ -527,6 +569,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     @Override public void travel(Vec3 input) {
+        if(evolutionLocked()){setDeltaMovement(Vec3.ZERO);return;}
         if (isFlyingMovement() && !isInWater() && !isInLava()) {
             if (aerialMount()!=null && getControllingPassenger() instanceof Player rider) {
                 setDeltaMovement(aerialRiding().velocity(rider));
@@ -1026,6 +1069,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        if(evolutionLocked()&&!source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY))return false;
+        PartyManager.markEvolutionCombat(this);
+        if(source.getEntity() instanceof DigimonEntity attacker)PartyManager.markEvolutionCombat(attacker);
         DigimonEntity partner = !isOwned() && source.getEntity() instanceof DigimonEntity attacker && attacker.isOwned()
                 ? attacker : null;
         // A partner's hit counts as its tamer's, like a tamed wolf's, so vanilla orbs drop for the tamer.
@@ -1134,6 +1180,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     public boolean isAttackReady(DigimonAttack attack) {
+        if(evolutionLocked()||tickCount<evolutionAttackUntil)return false;
         if (attack.kind() == DigimonAttack.Kind.CONSTRICTION && tickCount < constrictionRetryTick) return false;
         return attack.fuel() != null ? fuelFor(attack).isReady()
                 : tickCount >= cooldownUntil.getOrDefault(attack.id(), 0);
@@ -1474,6 +1521,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected void customServerAiStep(ServerLevel level) {
         super.customServerAiStep(level);
+        if(evolutionLocked())return;
         if (canFly()) {
             if (getFlightPhase() == FlightPhase.GROUNDED && onGround() && !isInWater() && !isInLava()
                     && !(aerialMount()!=null && isVehicle())) flightReserve().rest();
@@ -2054,6 +2102,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     public void tick() {
         if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
+        EvolutionController.tick(this);
+        if(isRemoved())return;
         previousMountWaterAmount = mountWaterAmount;
         mountWaterAmount = Mth.approach(mountWaterAmount, isSwimmingMovement() ? 1 : 0, .08F);
         previousAttackAimPitch = this.entityData.get(DATA_ATTACK_AIM_PITCH);
@@ -2061,6 +2111,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (aerialMount()!=null) aerialRiding().serverTick();
         if (!level().isClientSide() && aerialMount()!=null) entityData.set(DATA_FLIGHT_FUEL,flightReserve().fraction());
         super.tick();
+        if(evolutionLocked())setDeltaMovement(Vec3.ZERO);
         placeParts();
         if (!level().isClientSide() && !isAlive()) {
             cancelAttack();
@@ -2169,6 +2220,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
+        output.store(com.digicube.digimon.EvolutionState.TAG, CompoundTag.CODEC, evolution.save());
         output.putString(SPECIES_TAG, getSpeciesId().toString());
         output.putInt(LEVEL_TAG, getLevel());
         output.putInt(XP_TAG, xp);
@@ -2205,17 +2257,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         EntityReference<LivingEntity> owner = EntityReference.read(input, OWNER_TAG);
         this.entityData.set(DATA_OWNER, Optional.ofNullable(owner));
         partyGeneration = input.getLongOr("PartyGeneration", 0L);
+        evolution=com.digicube.digimon.EvolutionState.load(input.read(com.digicube.digimon.EvolutionState.TAG,CompoundTag.CODEC).orElseGet(CompoundTag::new));
+        if(evolution.transitioning())EvolutionController.normalize(this);
         cooldownUntil.clear();
         attackFuel.clear();
         ValueInput cooldowns = input.childOrEmpty("AttackCooldowns");
         ValueInput fuel = input.childOrEmpty("AttackFuel");
-        for (DigimonAttack attack : attacks()) {
+        // Inactive-form reserves must survive recall/restart too; otherwise cycling and saving refills them.
+        for (DigimonAttack attack : DigimonSpeciesRegistry.all().stream().flatMap(species->species.attacks().stream()).distinct().toList()) {
             int remaining = cooldowns.getIntOr(attack.id().toString(), 0);
             if (remaining > 0) cooldownUntil.put(attack.id(), tickCount + remaining);
             if (attack.fuel() != null) {
-                FuelReserve reserve = fuelFor(attack);
                 ValueInput tank = fuel.childOrEmpty(attack.id().toString());
-                reserve.restore(tank.getIntOr("Charge", reserve.savedCharge()), tank.getBooleanOr("Recharging", false));
+                int savedCharge=tank.getIntOr("Charge",-1);
+                if(savedCharge>=0)fuelFor(attack).restore(savedCharge,tank.getBooleanOr("Recharging",false));
             }
         }
         if (canFly()) {

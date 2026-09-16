@@ -61,6 +61,9 @@ public final class DevState {
         for (PartyMember member : owned) {
             PartyMemberView view = PartyMemberView.of(data, member);
             CompoundTag entry = new CompoundTag();
+            entry.putString("uuid",member.id().toString());entry.putInt("soul",view.soul());entry.putString("phase",view.phase());entry.putString("origin",view.origin());
+            entry.putInt("cooldown",view.cooldown());entry.putBoolean("originRequired",view.originRequired());entry.putBoolean("firstEvolution",view.firstEvolution());
+            var evolution=member.evolution();entry.putString("target",evolution.target==null?"":evolution.target.toString());entry.putLong("event",evolution.sequence);entry.putInt("duration",evolution.duration);entry.putString("lastRejection",evolution.rejection);
             entry.putString("name", view.nickname().isEmpty() ? view.species().getPath() : view.nickname());
             entry.putString("species", view.species().toString());
             entry.putInt("level", view.level());

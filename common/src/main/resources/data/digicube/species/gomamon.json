@@ -9,7 +9,12 @@
     "digicube:marching_fishes",
     "digicube:claw_attack"
   ],
-  "evolutions": [],
+  "evolutions": [
+    {
+      "target": "digicube:ikkakumon",
+      "min_level": 20
+    }
+  ],
   "locomotion": {
     "follow_start_distance": 3.5,
     "follow_stop_distance": 1.75,

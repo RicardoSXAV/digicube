@@ -24,6 +24,7 @@ public final class DigiCube {
 
     public static void init() {
         DCEffects.init();
+        com.digicube.registry.DCSounds.init();
         Constants.LOG.info("Starting {} on {} ({} environment).",
                 Constants.MOD_NAME,
                 Services.PLATFORM.getPlatformName(),

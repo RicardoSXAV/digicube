@@ -12,7 +12,7 @@ import java.util.List;
 public record PartySnapshotPayload(boolean openScreen, int page, int total,
                                    List<PartyMemberView> party, List<PartyMemberView> collection,
                                    String message) implements CustomPacketPayload {
-    public static final int PAGE_SIZE = 6;
+    public static final int PAGE_SIZE = 4;
     public static final Type<PartySnapshotPayload> TYPE = new Type<>(Constants.id("party_snapshot"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartySnapshotPayload> STREAM_CODEC =
             StreamCodec.ofMember(PartySnapshotPayload::write, PartySnapshotPayload::read);

@@ -30,6 +30,7 @@ public final class DevActions {
     public static final String SPAWN = "spawn";
     public static final String GIVE = "give";
     public static final String HEAL = "heal";
+    public static final String PARTY_TOOL = "party_tool";
     /** Tune the selected species' speeds at runtime: {@code values} holds {@link SpeciesTuning} keys. */
     public static final String TUNE = "tune";
     /** Put the bundled sheet back. */
@@ -53,6 +54,13 @@ public final class DevActions {
         register(SPAWN, DevActions::spawn);
         register(GIVE, DevActions::give);
         register(HEAL, DevActions::heal);
+        register(PARTY_TOOL,(server,player,args)-> {
+            java.util.UUID id;
+            try{id=java.util.UUID.fromString(args.getStringOr("member",""));}catch(IllegalArgumentException invalid){return "Invalid partner UUID";}
+            var target=DigimonSpeciesRegistry.resolve(args.getStringOr("target","")).map(DigimonSpecies::id).orElse(null);
+            String result=com.digicube.party.PartyEvolution.action(player,id,args.getStringOr("operation",""),args.getIntOr("value",0),target);
+            return result.isEmpty()?"Partner updated":net.minecraft.network.chat.Component.translatable(result).getString();
+        });
         register(TUNE, DevActions::tune);
         register(TUNE_RESET, DevActions::tuneReset);
         register(TUNE_WRITE, DevActions::tuneWrite);
@@ -91,6 +99,12 @@ public final class DevActions {
         DigimonEntity digimon = DCEntityTypes.DIGIMON.create(player.level(), EntitySpawnReason.COMMAND);
         if (digimon == null) return "Could not create the Digimon entity";
         digimon.initializeAs(species, level(args));
+        var origin=DigimonSpeciesRegistry.resolve(args.getStringOr("origin","")).map(DigimonSpecies::id).orElse(null);
+        if(com.digicube.digimon.EvolutionRules.validOrigin(origin,species.id())) {
+            var state=digimon.evolution();state.origin=origin;state.unlock(origin,digimon.getLevel());
+            if(digimon.getLevel()<Progression.CHAMPION_LEVEL)digimon.changeEvolutionForm(origin);
+            else {state.phase=com.digicube.digimon.EvolutionState.Phase.EVOLVED;state.charge-=Progression.DIGISOUL_FEE;}
+        }
         PartyMember member = PartyManager.give(player, digimon);
         return (member.active() ? "Added " : "Stored in reserve ") + species.id().getPath() + " Lv " + member.level()
                 + (member.active() ? " to the party" : ": the party is full");

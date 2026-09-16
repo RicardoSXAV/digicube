@@ -107,7 +107,7 @@ public final class FlightRegressionTest {
     }
     private static <T>T allocate(Class<T> type)throws Exception {
         Class<?> unsafe=Class.forName("sun.misc.Unsafe");var f=unsafe.getDeclaredField("theUnsafe");f.setAccessible(true);
-        return type.cast(unsafe.getMethod("allocateInstance",Class.class).invoke(f.get(null),type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(unsafe.getMethod("allocateInstance",Class.class).invoke(f.get(null),type)));
     }
     private static Fixture fixture(double z)throws Exception {
         Fixture f=allocate(Fixture.class);f.reserve=new FlightReserve(locomotion.flight());f.phase=FlightPhase.GROUNDED;

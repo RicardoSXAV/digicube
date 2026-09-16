@@ -13,12 +13,19 @@ import java.util.*;
 /** Finite native performances: the visual cells and damage volumes share one clock. */
 public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
-                             List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows) {
+                             List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows,
+                             List<AttackBox[]> waterFrames, AttackMotion waterMotion) {
+        public boolean hasWaterVariant() { return waterMotion != null; }
+        public AttackMotion motion(boolean water) { return water && waterMotion != null ? waterMotion : attack.motion(); }
         public int beat(double tick) {
             for(int i=0;i<hitWindows.size();i++)if(tick>=hitWindows.get(i)[0] && tick<=hitWindows.get(i)[1])return i;
             return -1;
         }
         public AttackBox[] sample(double tick) {
+            return sample(tick, false);
+        }
+        public AttackBox[] sample(double tick, boolean water) {
+            var frames = water && !waterFrames.isEmpty() ? waterFrames : this.frames;
             double t=Math.clamp(tick*samplesPerTick,0,frames.size()-1);
             int i=(int)t; double w=t-i;
             AttackBox[] a=frames.get(i), b=frames.get(Math.min(i+1,frames.size()-1)), result=new AttackBox[a.length];
@@ -49,7 +56,7 @@ public final class AuthoredAttacks {
     private static Map<Identifier,Definition> load() {
         var config=read("/data/digicube/authored_attacks.json");
         var volumes=read("/data/digicube/attack_volumes/authored.json");
-        int rate=volumes.get("samples_per_tick").getAsInt();
+        int defaultRate=volumes.get("samples_per_tick").getAsInt();
         Map<Identifier,Definition> result=new LinkedHashMap<>();
         for(var entry:config.entrySet()) {
             String name=entry.getKey();var c=entry.getValue().getAsJsonObject();var id=Constants.id(name);
@@ -57,6 +64,7 @@ public final class AuthoredAttacks {
                     c.get("cooldown").getAsInt(),c.get("duration").getAsInt(),c.get("hit_tick").getAsInt(),
                     c.get("range").getAsDouble(),false,AttackMotion.load(id),null,c.get("knockback").getAsDouble());
             var v=volumes.getAsJsonObject("attacks").getAsJsonObject(name);
+            int rate=GsonHelper.getAsInt(v,"samples_per_tick",defaultRate);
             List<String> parts=new ArrayList<>();v.getAsJsonArray("parts").forEach(p->parts.add(p.getAsString()));
             List<List<String>> visuals=new ArrayList<>();
             if (v.has("visual_parts")) for (var group:v.getAsJsonArray("visual_parts")) {
@@ -66,17 +74,12 @@ public final class AuthoredAttacks {
             }
             if(visuals.isEmpty()) for(String part:parts)visuals.add(List.of(part));
             if(visuals.size()!=parts.size())throw new IllegalArgumentException("Visual volume width "+id);
-            List<AttackBox[]> frames=new ArrayList<>();
-            for(var row:v.getAsJsonArray("frames")) {
-                var cells=row.getAsJsonArray();var boxes=new AttackBox[cells.size()];
-                if(cells.size()!=parts.size())throw new IllegalArgumentException("Volume width "+id);
-                for(int i=0;i<boxes.length;i++) if(!cells.get(i).isJsonNull()) {
-                    var a=cells.get(i).getAsJsonArray();if(a.size()!=12)throw new IllegalArgumentException("Cuboid "+id);
-                    for(var number:a)if(!Double.isFinite(number.getAsDouble()))throw new IllegalArgumentException("Nonfinite cuboid "+id);
-                    boxes[i]=new AttackBox(vector(a,0),vector(a,3),vector(a,6),vector(a,9));
-                }
-                frames.add(boxes);
-            }
+            List<AttackBox[]> frames=readFrames(v.getAsJsonArray("frames"),parts.size(),id);
+            List<AttackBox[]> waterFrames=v.has("water_frames")?readFrames(v.getAsJsonArray("water_frames"),parts.size(),id):List.of();
+            AttackMotion waterMotion=c.has("water_motion")?AttackMotion.load(Constants.id(c.get("water_motion").getAsString())):null;
+            if((waterMotion==null)!=waterFrames.isEmpty() || waterMotion!=null && (waterFrames.size()!=frames.size()
+                    || waterMotion.activeFrom()!=attack.motion().activeFrom() || waterMotion.activeUntil()!=attack.motion().activeUntil()))
+                throw new IllegalArgumentException("Water performance clock "+id);
             int interval=c.get("hit_interval").getAsInt(),max=c.get("max_hits").getAsInt();
             var windows=new ArrayList<double[]>();
             if(c.has("hit_windows"))for(var window:c.getAsJsonArray("hit_windows")) {
@@ -87,8 +90,22 @@ public final class AuthoredAttacks {
             if(rate<1 || frames.size()!=attack.durationTicks()*rate+1 || interval<1 || max<1)throw new IllegalArgumentException("Volume clock "+id);
             result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),
                     GsonHelper.getAsBoolean(c,"grounded",false),interval,max,
-                    List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows)));
+                    List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion));
         }
         return Collections.unmodifiableMap(result);
+    }
+    private static List<AttackBox[]> readFrames(com.google.gson.JsonArray rows,int width,Identifier id) {
+        List<AttackBox[]> frames=new ArrayList<>();
+        for(var row:rows) {
+            var cells=row.getAsJsonArray();var boxes=new AttackBox[cells.size()];
+            if(cells.size()!=width)throw new IllegalArgumentException("Volume width "+id);
+            for(int i=0;i<boxes.length;i++) if(!cells.get(i).isJsonNull()) {
+                var a=cells.get(i).getAsJsonArray();if(a.size()!=12)throw new IllegalArgumentException("Cuboid "+id);
+                for(var number:a)if(!Double.isFinite(number.getAsDouble()))throw new IllegalArgumentException("Nonfinite cuboid "+id);
+                boxes[i]=new AttackBox(vector(a,0),vector(a,3),vector(a,6),vector(a,9));
+            }
+            frames.add(boxes);
+        }
+        return frames;
     }
 }

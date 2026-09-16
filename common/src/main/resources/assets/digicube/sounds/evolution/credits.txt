@@ -1,0 +1,17 @@
+LONG DIGIVOLUTION — user-approved V12 adaptation, installed locally by request.
+The eight long cues retain the supplied Brave Heart composition and recorded
+performance, processed into V12. They are not an original DigiCube composition,
+not CC0, and are not covered by the source-code MIT license. No recording or
+composition redistribution permission is established or implied by this install.
+
+Supplied file label: Digimon Tri - Brave Heart (Short Version) - musiclover san
+(youtube) (mp3cut.net).mp3. Source SHA-256:
+dfaf911b8f8a4abfa3be9ac69d07fa9cb63c369294ecccfa8b1a162b27667877
+Approved mix/provenance: harness/v2/out/digivolution/audio_r12.
+Reproducible packaging: harness/v2/tools/install_digivolution_audio_v12.py.
+Stereo master folded to mono for existing positional playback, partitioned into
+eight complementary phase cues. No melody, fade or timeline changes at install.
+
+Short/reversion sounds remain original DigiCube procedural effects, unchanged.
+vsco_cc0.txt is retained as historical instrument-library attribution for the
+archived V1 authoring work; it does not license this recorded music.

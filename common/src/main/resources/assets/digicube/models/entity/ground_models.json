@@ -63,6 +63,13 @@
           1.25
         ]
       }
+    },
+    "betamon": {
+      "culling_margin": 2,
+      "amphibious": true,
+      "walk_blend": true,
+      "attack_blend_in": 2,
+      "attack_blend_out": 3
     }
   }
 }

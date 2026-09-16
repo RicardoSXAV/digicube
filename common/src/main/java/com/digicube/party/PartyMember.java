@@ -81,6 +81,20 @@ public final class PartyMember {
     public boolean defeated() { return health <= 0; }
     /** Ticks of rest a defeat still imposes before regeneration starts; zero for a living partner. */
     public int restTicks() { return restTicks; }
+    public com.digicube.digimon.EvolutionState evolution() { return com.digicube.digimon.EvolutionState.load(entityData.getCompoundOrEmpty(com.digicube.digimon.EvolutionState.TAG)); }
+    public void saveEvolution(com.digicube.digimon.EvolutionState state) { entityData.put(com.digicube.digimon.EvolutionState.TAG,state.save()); }
+    public boolean originRequired() { return evolution().needsOrigin(species); }
+    /** Updates a stored individual directly, with no hidden live entity and no healing. */
+    public void editStored(net.minecraft.resources.Identifier form,int newLevel,boolean clearXp) {
+        double fraction=maxHealth>0?health/(double)maxHealth:0;
+        var sheet=com.digicube.digimon.DigimonSpeciesRegistry.getOrThrow(form);
+        species=form;level=Progression.clampLevel(newLevel);if(clearXp)xp=0;
+        maxHealth=Progression.maxHealth(sheet.baseHealth(),level);health=(float)(fraction*maxHealth);
+        if(health/(double)maxHealth>fraction)health=Math.nextDown(health);
+        entityData.putString(com.digicube.entity.DigimonEntity.SPECIES_TAG,form.toString());
+        entityData.putInt(com.digicube.entity.DigimonEntity.LEVEL_TAG,level);entityData.putInt(com.digicube.entity.DigimonEntity.XP_TAG,xp);
+        entityData.putFloat("Health",health);
+    }
     /** Defeated and still waiting out its rest. */
     public boolean resting() { return defeated() && restTicks > 0; }
 

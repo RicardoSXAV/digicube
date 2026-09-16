@@ -47,7 +47,7 @@ public final class GolemonRegressionTest {
     }
     private static <T> T allocate(Class<T> type)throws Exception {
         var c=Class.forName("sun.misc.Unsafe");var f=c.getDeclaredField("theUnsafe");f.setAccessible(true);
-        return type.cast(c.getMethod("allocateInstance",Class.class).invoke(f.get(null),type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(c.getMethod("allocateInstance",Class.class).invoke(f.get(null),type)));
     }
     private static void field(Object object,Class<?> type,String name,Object value)throws Exception {
         var f=type.getDeclaredField(name);f.setAccessible(true);f.set(object,value);

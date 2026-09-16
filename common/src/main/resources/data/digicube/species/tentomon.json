@@ -4,9 +4,14 @@
   "base_health": 20,
   "base_attack": 5,
   "base_defence": 6,
-  "base_speed": 0.10,
+  "base_speed": 0.1,
   "attacks": [],
-  "evolutions": [],
+  "evolutions": [
+    {
+      "target": "digicube:kabuterimon",
+      "min_level": 20
+    }
+  ],
   "locomotion": {
     "follow_start_distance": 3.5,
     "follow_stop_distance": 2.0,

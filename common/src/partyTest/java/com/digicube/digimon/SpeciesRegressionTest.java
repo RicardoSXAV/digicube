@@ -19,7 +19,18 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 16, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 17, "all bundled species loaded");
+            var betamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("betamon"));
+            check(betamon.stage() == DigimonStage.CHILD && betamon.attribute() == DigimonAttribute.VIRUS
+                    && betamon.locomotion().canSwim(), "Betamon is an amphibious virus rookie");
+            check(betamon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("electric_shock", "headbutt")),
+                    "Betamon signature burst priority and contact fallback");
+            for (var move : betamon.attacks()) {
+                var authored = AuthoredAttacks.get(move);
+                check(authored.maxHits() == 1 && authored.hasWaterVariant(), "one hit per cast and matched water volumes");
+                check(authored.samplesPerTick() == 8 && authored.motion(true).activeUntil() == move.motion().activeUntil(),
+                        "preserve native sub-tick sampling and water release clock");
+            }
             var digmon = DigimonSpeciesRegistry.getOrThrow(Constants.id("digmon"));
             check(digmon.locomotion().canFly() && !digmon.locomotion().canRun(),
                     "Digmon uses flight instead of running");
@@ -96,7 +107,7 @@ public final class SpeciesRegressionTest {
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
             check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
-                            && gabumon.evolutions().isEmpty(), "Gabumon prioritizes fueled breath, then horn contact");
+                            && gabumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("garurumon"),20))), "Gabumon prioritizes fueled breath, then horn contact, with its level-20 route");
             check(DigimonSpeciesBootstrap.BLUE_BLASTER.cooldownTicks() == 0
                     && DigimonSpeciesBootstrap.BLUE_BLASTER.fuel().capacityTicks() == 80
                     && DigimonSpeciesBootstrap.HORN_ATTACK.knockback() == 0,
@@ -138,8 +149,7 @@ public final class SpeciesRegressionTest {
                     "Agumon stats and dimensions preserved");
             check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, DigimonSpeciesBootstrap.CLAW)),
                     "Agumon attack priority preserved");
-            check(agumon.evolutions().equals(List.of(new Evolution(Constants.id("greymon"), 16, 40, -1, 20, null),
-                    Evolution.atLevel(Constants.id("greymon"), 20))), "evolution conditions and priority preserved");
+            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20))), "Champion prototype has one level-20 route");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10
                     && greymon.baseSpeed() == .32F, "Greymon stats preserved");

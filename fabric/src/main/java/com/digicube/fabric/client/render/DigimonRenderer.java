@@ -46,6 +46,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
     private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
+    private final com.digicube.fabric.client.evolution.EvolutionPresentation evolution;
     private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> authoredEffects=new java.util.HashMap<>();
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
@@ -85,11 +86,16 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                         context.bakeLayer(new net.minecraft.client.model.geom.ModelLayerLocation(id,"main")),id));
             }
         }
+        evolution=new com.digicube.fabric.client.evolution.EvolutionPresentation(models);
     }
 
     @Override
     public void submit(DigimonRenderState state, PoseStack poseStack,
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
+        if(state.evolution!=null&&!state.isInvisible) {
+            com.digicube.fabric.client.evolution.EvolutionPresentation.submit(state.evolution,poseStack,collector,state.lightCoords,cameraState);
+            return;
+        }
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
         super.submit(state, poseStack, collector, cameraState);
         if (!state.isInvisible && state.attackDefinition != null && state.attackDefinition.kind() == DigimonAttack.Kind.FIST
@@ -173,16 +179,18 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         state.attackAnimation.copyFrom(entity.attackAnimationState);
         state.attackAnimationName = entity.getAttackAnimationName();
+        state.attackInWater = entity.isInWater();
         state.attackDefinition = entity.getAnimatingAttack();
         state.attackAimPitch = entity.getAttackAimPitch(partialTick);
         var authored=state.attackDefinition==null?null:com.digicube.digimon.AuthoredAttacks.get(state.attackDefinition);
         if(authored!=null && authored.effect()!=null) {
             var fx=state.authoredEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=entity.getAttackYaw(partialTick);fx.scale=state.modelScale;
-            var frame=state.attackDefinition.motion().sample(fx.tick);
+            fx.clip=state.attackInWater && authored.hasWaterVariant()?"effect_water":"effect";
+            var frame=authored.motion(state.attackInWater).sample(fx.tick);
             fx.aimPivot=frame.head();fx.aimPitch=state.attackAimPitch*frame.aimWeight();
             fx.lightCoords=authored.emissive()?net.minecraft.util.LightCoordsUtil.FULL_BRIGHT:state.lightCoords;
-            var hidden=new java.util.HashSet<String>();var boxes=authored.sample(fx.tick);
+            var hidden=new java.util.HashSet<String>();var boxes=authored.sample(fx.tick,state.attackInWater);
             for(int i=0;i<boxes.length;i++) if(boxes[i]!=null) {
                 var world=com.digicube.entity.AuthoredVolumeAttack.aimed(boxes[i],state.attackDefinition,fx.tick,state.attackAimPitch)
                         .world(entity.position(),fx.yaw,0);
@@ -227,11 +235,14 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 flame.outlineColor = state.outlineColor;
             }
         }
+        state.evolution = evolution.extract(entity,state,partialTick);
     }
 
     @Override
     protected AABB getBoundingBoxForCulling(DigimonEntity entity) {
         AABB bounds = super.getBoundingBoxForCulling(entity);
+        bounds=bounds.inflate(evolution.radius(entity));
+        bounds=bounds.expandTowards(0,evolution.beamHeight(entity),0);
         if (models.get(entity.getSpeciesId()) instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel) {
             bounds = bounds.inflate(nativeModel.definition().cullingMargin() * entity.getBody().modelScale());
         }

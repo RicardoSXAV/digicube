@@ -73,8 +73,11 @@ public final class FabricPartyNetworking {
             session.open = false;
             return;
         }
-        if (!session.open || !player.isAlive() || player.isSpectator()
+        if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE) || !player.isAlive() || player.isSpectator()
                 || !player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) return;
+        if(payload.action()>=PartyActionPayload.EVOLVE&&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
+            send(player,false,"gui.digicube.evolution.stale");return;
+        }
         int tick = player.level().getServer().getTickCount();
         if (tick - session.lastActionTick < 2) {
             send(player, false, "gui.digicube.party.wait");
@@ -84,6 +87,15 @@ public final class FabricPartyNetworking {
         String message = "";
         if (payload.action() == PartyActionPayload.PAGE) session.page = Math.max(0, payload.value());
         else if (payload.action() == PartyActionPayload.SELECT) message = PartyManager.select(player, payload.member(), payload.value());
+        else if(payload.action()==PartyActionPayload.EVOLVE||payload.action()==PartyActionPayload.REVERT) {
+            message=com.digicube.party.PartyEvolution.action(player,payload.member(),payload.action()==PartyActionPayload.EVOLVE?"evolve":"revert",0,null);
+            if(message.isEmpty())message="gui.digicube.evolution.accepted";
+        } else if(payload.action()==PartyActionPayload.ORIGIN) {
+            var member=data.roster().get(payload.member());if(member==null||!member.owner().equals(player.getUUID()))return;
+            var origins=com.digicube.digimon.EvolutionRules.origins(member.species());
+            if(payload.value()<0||payload.value()>=origins.size())return;
+            message=com.digicube.party.PartyEvolution.action(player,payload.member(),"origin",0,origins.get(payload.value()));
+        }
         else return;
         send(player, false, message);
     }

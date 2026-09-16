@@ -33,6 +33,7 @@ public final class DigiviceScreen extends Screen {
     /** Client ticks since the last snapshot; drives the rest countdown between server updates. */
     private int sinceSnapshot;
     private final List<MemberButton> memberButtons = new ArrayList<>();
+    private int originChoice;
 
     DigiviceScreen(PartyClient client) {
         super(Component.translatable("gui.digicube.party.title"));
@@ -42,15 +43,17 @@ public final class DigiviceScreen extends Screen {
     }
 
     void receive(PartySnapshotPayload snapshot) {
+        if(snapshot.message().equals("gui.digicube.evolution.accepted")){onClose();return;}
         sinceSnapshot = 0;
-        boolean changed = this.snapshot.page() != snapshot.page() || !this.snapshot.collection().equals(snapshot.collection())
-                || !this.snapshot.party().equals(snapshot.party());
+        boolean changed = this.snapshot.page() != snapshot.page() || !this.snapshot.collection().stream().map(PartyMemberView::id).toList().equals(snapshot.collection().stream().map(PartyMemberView::id).toList())
+                || !this.snapshot.party().stream().map(m->m.id()+":"+m.slot()).toList().equals(snapshot.party().stream().map(m->m.id()+":"+m.slot()).toList());
         this.snapshot = snapshot;
         if (!snapshot.message().isEmpty()) {
             feedback = snapshot.message();
             feedbackTicks = 80;
         }
         if (changed) rebuildWidgets();
+        else {for(var button:memberButtons)if(button.member!=null){var fresh=java.util.stream.Stream.concat(snapshot.party().stream(),snapshot.collection().stream()).filter(m->m.id().equals(button.member.id())).findFirst().orElse(null);if(fresh!=null)button.updateMember(fresh);}updateEvolutionButton();}
     }
 
     void receiveHealth(PartySnapshotPayload snapshot, PartyHealthPayload health) {
@@ -75,8 +78,8 @@ public final class DigiviceScreen extends Screen {
         for (int slot = 0; slot < PartyRoster.PARTY_SIZE; slot++) {
             int currentSlot = slot;
             PartyMemberView member = inSlot(slot);
-            memberButtons.add(addRenderableWidget(new MemberButton(left + 10 + slot * (cardWidth + 6), top + 51,
-                    cardWidth, 48, member, slot, () -> {
+            memberButtons.add(addRenderableWidget(new MemberButton(left + 10 + slot * (cardWidth + 6), top + 45,
+                    cardWidth, 36, member, slot, () -> {
                         if (selected != null) {
                             client.send(new PartyActionPayload(PartyActionPayload.SELECT, selected, currentSlot));
                             selected = null;
@@ -84,12 +87,12 @@ public final class DigiviceScreen extends Screen {
                         rebuildWidgets();
                     })));
         }
-        int rowHeight = Math.min(40, (panelHeight - 155) / 3);
+        int rowHeight = Math.min(40, (panelHeight - 171) / 2);
         int columnWidth = (panelWidth - 26) / 2;
         for (int index = 0; index < snapshot.collection().size(); index++) {
             PartyMemberView member = snapshot.collection().get(index);
             int x = left + 10 + index % 2 * (columnWidth + 6);
-            int y = top + 121 + index / 2 * rowHeight;
+            int y = top + 103 + index / 2 * rowHeight;
             memberButtons.add(addRenderableWidget(new MemberButton(x, y, columnWidth, rowHeight - 3, member, -1, () -> {
                 selected = member.id().equals(selected) ? null : member.id();
                 rebuildWidgets();
@@ -110,6 +113,31 @@ public final class DigiviceScreen extends Screen {
                 }));
         recall.active = selectedMember() != null && selectedMember().slot() >= 0;
         recall.setTooltip(Tooltip.create(Component.translatable("gui.digicube.party.recall_hint")));
+        evolutionButton=addRenderableWidget(new ActionButton(left+10,top+panelHeight-49,panelWidth-48,18,Component.empty(),this::evolutionAction));
+        var cycle=addRenderableWidget(new ActionButton(left+panelWidth-32,top+panelHeight-49,22,18,Component.literal(">"),()->{originChoice++;updateEvolutionButton();}));
+        cycle.active=selectedMember()!=null&&selectedMember().originRequired();updateEvolutionButton();
+    }
+
+    private ActionButton evolutionButton;
+    private void updateEvolutionButton() {
+        if(evolutionButton==null)return;var m=selectedMember();evolutionButton.active=m!=null;
+        if(m==null){evolutionButton.setMessage(Component.translatable("gui.digicube.evolution.select"));return;}
+        if(m.originRequired()){
+            var origins=com.digicube.digimon.EvolutionRules.origins(m.species());evolutionButton.active=!origins.isEmpty();
+            evolutionButton.setMessage(origins.isEmpty()?Component.translatable("gui.digicube.evolution.no_origin"):Component.translatable("gui.digicube.evolution.choose",origins.get(originChoice%origins.size()).getPath()));return;
+        }
+        String reason=m.health()<=0?"resting":!m.deployed()?"deploy":m.phase().equals("EVOLVED")?"revert":!m.phase().equals("RESTING")?"busy":m.level()<Progression.CHAMPION_LEVEL?"level":m.cooldown()>0?"cooldown":m.soul()<Progression.DIGISOUL_MINIMUM?"charge":"";
+        var target=com.digicube.digimon.EvolutionRules.target(m.species(),m.level()).orElse(null);
+        if(reason.isEmpty()&&target==null)reason="route";
+        evolutionButton.active=reason.isEmpty()||reason.equals("revert");
+        evolutionButton.setMessage(reason.isEmpty()?Component.translatable("gui.digicube.evolution.evolve",target.getPath()):Component.translatable("gui.digicube.evolution."+reason));
+        evolutionButton.setTooltip(Tooltip.create(Component.translatable("gui.digicube.evolution.recovery")));
+    }
+    private void evolutionAction() {
+        var m=selectedMember();if(m==null)return;
+        if(m.originRequired()) {
+            var origins=com.digicube.digimon.EvolutionRules.origins(m.species());if(!origins.isEmpty())client.send(new PartyActionPayload(PartyActionPayload.ORIGIN,m.id(),originChoice%origins.size(),m.generation(),m.sequence()));
+        } else client.send(new PartyActionPayload(m.phase().equals("EVOLVED")?PartyActionPayload.REVERT:PartyActionPayload.EVOLVE,m.id(),0,m.generation(),m.sequence()));
     }
 
     private void page(int delta) {
@@ -140,13 +168,13 @@ public final class DigiviceScreen extends Screen {
         graphics.text(font, title, left + 12, top + 9, PartyGraphics.WHITE, false);
         graphics.text(font, Component.translatable("gui.digicube.party.subtitle"), left + 12, top + 21, PartyGraphics.MUTED, false);
         graphics.text(font, Component.translatable("gui.digicube.party.team", snapshot.party().size()),
-                left + 10, top + 39, PartyGraphics.TEAL, false);
+                left + 10, top + 35, PartyGraphics.TEAL, false);
         Component help = selected == null ? Component.translatable("gui.digicube.party.select_hint")
                 : Component.translatable("gui.digicube.party.assign_hint");
-        graphics.text(font, PartyGraphics.shortText(font, help, panelWidth - 110), left + 105, top + 39, PartyGraphics.MUTED, false);
+        graphics.text(font, PartyGraphics.shortText(font, help, panelWidth - 110), left + 105, top + 35, PartyGraphics.MUTED, false);
         Component collectionLabel = feedbackTicks > 0 ? Component.translatable(feedback)
                 : Component.translatable("gui.digicube.party.collection", snapshot.total());
-        graphics.text(font, PartyGraphics.shortText(font, collectionLabel, panelWidth - 20), left + 10, top + 108,
+        graphics.text(font, PartyGraphics.shortText(font, collectionLabel, panelWidth - 20), left + 10, top + 90,
                 feedbackTicks > 0 ? PartyGraphics.ORANGE : PartyGraphics.MUTED, false);
         if (snapshot.total() == 0) {
             graphics.centeredText(font, Component.translatable("gui.digicube.party.empty"), left + panelWidth / 2, top + 148, PartyGraphics.WHITE);
@@ -156,6 +184,16 @@ public final class DigiviceScreen extends Screen {
                 (snapshot.total() + PartySnapshotPayload.PAGE_SIZE - 1) / PartySnapshotPayload.PAGE_SIZE),
                 left + 58, top + panelHeight - 21, PartyGraphics.MUTED);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        var m=selectedMember();if(m!=null) {
+            String detail="DigiSoul "+(m.soul()*100/Progression.DIGISOUL_CAPACITY)+"%";
+            if(m.phase().equals("EVOLVED"))detail+=" · "+Math.max(0,(m.soul()-sinceSnapshot)/20)+"s";
+            else {
+                detail+=" · "+Math.max(0,(m.soul()-Progression.DIGISOUL_FEE)/20)+"s after fee";
+                if(m.firstEvolution())detail+=" · First 8s";
+            }
+            if(m.cooldown()>0)detail+=" · Wait "+((m.cooldown()+19)/20)+"s";
+            graphics.text(font,PartyGraphics.shortText(font,Component.literal(detail),panelWidth-20),left+10,top+panelHeight-61,PartyGraphics.TEAL,false);
+        }
     }
 
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {

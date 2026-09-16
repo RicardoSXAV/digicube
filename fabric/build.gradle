@@ -41,11 +41,43 @@ tasks.register('nativeIkkakumonTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('nativeIkkakumonTest') }
 
+tasks.register('nativeBetamonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeBetamonRegressionTest'
+    if (project.hasProperty('betamonEvidence')) args project.property('betamonEvidence')
+    workingDir = layout.buildDirectory.dir('native-betamon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeBetamonTest') }
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 }
+
+tasks.register('evolutionGeometryTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.EvolutionGeometryExperiment'
+    if (project.hasProperty('evolutionEvidence')) args project.property('evolutionEvidence')
+    workingDir = layout.buildDirectory.dir('evolution-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('evolutionGeometryTest') }
+
+tasks.register('evolutionAudioTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.evolution.EvolutionAudioRegressionTest'
+    workingDir = layout.buildDirectory.dir('evolution-audio-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('evolutionAudioTest') }
 
 loom {
     def aw = project(':common').file("src/main/resources/${mod_id}.accesswidener")
@@ -81,3 +113,14 @@ sourceSets.configureEach {
         }
     }
 }
+
+// Pins the party strip's readout rules (status priority, local countdowns, DigiSoul cell, stack layout).
+tasks.register('partyHudTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.party.PartyHudRegressionTest'
+    workingDir = layout.buildDirectory.dir('party-hud-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('partyHudTest') }

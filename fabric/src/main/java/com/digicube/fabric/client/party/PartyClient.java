@@ -6,33 +6,49 @@ import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyMemberView;
 import com.digicube.party.PartyRoster;
 import com.digicube.party.PartySnapshotPayload;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.HumanoidArm;
 
 import java.util.List;
 
-/** Client receiver/HUD registration. State is connection-scoped and reset on disconnect. */
+/**
+ * Client receiver, party keys and HUD registration. State is connection-scoped and reset
+ * on disconnect. One party slot is <em>selected</em>: the arrow keys move the selection
+ * through the filled slots and the Digivolve key acts on the selected partner.
+ */
 public final class PartyClient {
     private PartySnapshotPayload snapshot = empty();
     /** Client ticks since {@link #snapshot} arrived, so a countdown can continue between server updates. */
     private int snapshotAge;
+    /** The party slot the arrow keys have selected; always a filled slot while the party is not empty. */
+    private int selected;
+    private final PartyHud hud = new PartyHud();
+    private KeyMapping evolveKey;
+    private KeyMapping previousKey;
+    private KeyMapping nextKey;
 
     private static PartySnapshotPayload empty() {
         return new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "");
     }
 
     public void init() {
+        KeyMapping.Category category = KeyMapping.Category.register(Constants.id("party"));
+        evolveKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.evolve", InputConstants.KEY_V, category));
+        previousKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_previous", InputConstants.KEY_UP, category));
+        nextKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_next", InputConstants.KEY_DOWN, category));
+        ClientTickEvents.END_CLIENT_TICK.register(this::handleKeys);
         ClientPlayNetworking.registerGlobalReceiver(PartySnapshotPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     snapshot = payload;
                     snapshotAge = 0;
+                    selected = PartyHudReadout.normalizeSelection(filled(), selected);
                     if (payload.openScreen() && !(context.client().gui.screen() instanceof DigiviceScreen)) {
                         context.client().gui.setScreen(new DigiviceScreen(this));
                     } else if (context.client().gui.screen() instanceof DigiviceScreen screen) {
@@ -46,10 +62,36 @@ public final class PartyClient {
                         screen.receiveHealth(snapshot, payload);
                     }
                 }));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> snapshot = empty());
-        ClientTickEvents.END_CLIENT_TICK.register(client -> snapshotAge++);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            snapshot = empty();
+            selected = 0;
+        });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            snapshotAge++;
+            hud.tick(snapshot);
+        });
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, Constants.id("party"),
-                (graphics, delta) -> drawHud(graphics));
+                (graphics, delta) -> hud.draw(graphics, delta, snapshot, snapshotAge, selected, evolveKey));
+    }
+
+    /** Arrow keys move the selection; the Digivolve key asks the server to evolve the selected resting partner. */
+    private void handleKeys(Minecraft client) {
+        boolean inWorld = client.player != null && client.gui.screen() == null;
+        while (previousKey.consumeClick()) if (inWorld) selected = PartyHudReadout.nextSelection(filled(), selected, -1);
+        while (nextKey.consumeClick()) if (inWorld) selected = PartyHudReadout.nextSelection(filled(), selected, 1);
+        while (evolveKey.consumeClick()) {
+            if (!inWorld) continue;
+            snapshot.party().stream().filter(m -> m.slot() == selected && m.phase().equals("RESTING")).findFirst()
+                    .ifPresent(m -> send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), 0, m.generation(), m.sequence())));
+        }
+    }
+
+    private boolean[] filled() {
+        boolean[] filled = new boolean[PartyRoster.PARTY_SIZE];
+        for (PartyMemberView member : snapshot.party()) {
+            if (member.slot() >= 0 && member.slot() < filled.length) filled[member.slot()] = true;
+        }
+        return filled;
     }
 
     PartySnapshotPayload snapshot() { return snapshot; }
@@ -57,48 +99,5 @@ public final class PartyClient {
 
     void send(PartyActionPayload payload) {
         if (ClientPlayNetworking.canSend(PartyActionPayload.TYPE)) ClientPlayNetworking.send(payload);
-    }
-
-    private void drawHud(GuiGraphicsExtractor graphics) {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.player.isSpectator() || client.gui.hud.isHidden() || snapshot.total() == 0) return;
-        int hotbarLeft = graphics.guiWidth() / 2 - 91;
-        boolean offhandLeft = !client.player.getOffhandItem().isEmpty() && client.player.getMainArm() == HumanoidArm.RIGHT;
-        int right = hotbarLeft - (offhandLeft ? 32 : 5);
-        int tile = 24;
-        int gap = 3;
-        int x = right - (tile + gap) * PartyRoster.PARTY_SIZE + gap;
-        int y = graphics.guiHeight() - 27;
-        boolean vertical = x < 4;
-        var flightFuel = new java.util.HashMap<java.util.UUID, Float>();
-        if (client.level != null) for (var entity : client.level.entitiesForRendering()) {
-            if (entity instanceof com.digicube.entity.DigimonEntity digimon && digimon.canFly()) {
-                flightFuel.put(entity.getUUID(), digimon.getFlightFuel());
-            }
-        }
-        // At high GUI scales, a vertical strip preserves the offhand, armor and hearts.
-        if (vertical) { x = 4; y = graphics.guiHeight() - 108; }
-        for (int slot = 0; slot < PartyRoster.PARTY_SIZE; slot++) {
-            int currentSlot = slot;
-            PartyMemberView member = snapshot.party().stream().filter(entry -> entry.slot() == currentSlot).findFirst().orElse(null);
-            int sx = x + (vertical ? 0 : slot * (tile + gap));
-            int sy = y + (vertical ? slot * (tile + gap) : 0);
-            graphics.fill(sx, sy, sx + tile, sy + tile, 0xDA101B28);
-            graphics.outline(sx, sy, tile, tile, member == null ? 0x99405262 : 0xFF588779);
-            if (member != null) {
-                PartyGraphics.icon(graphics, member, sx + 1, sy, 22);
-                PartyGraphics.health(graphics, member, sx + 3, sy + tile - 4, tile - 6);
-                Float fuel = flightFuel.get(member.id());
-                if (fuel != null) {
-                    graphics.fill(sx + 3, sy + tile - 2, sx + tile - 3, sy + tile - 1, PartyGraphics.INK);
-                    graphics.fill(sx + 3, sy + tile - 2, sx + 3 + Math.round((tile - 6) * fuel), sy + tile - 1, 0xFF79BFFF);
-                }
-                if (!member.deployed()) graphics.fill(sx + tile - 5, sy + 3, sx + tile - 3, sy + 5, PartyGraphics.ORANGE);
-                // The level sits beside the tile: above it along the hotbar, to its right in the vertical strip.
-                String level = Component.translatable("gui.digicube.party.level", member.level()).getString();
-                if (vertical) graphics.text(client.font, level, sx + tile + 3, sy + 8, PartyGraphics.WHITE, true);
-                else graphics.centeredText(client.font, level, sx + tile / 2, sy - 10, PartyGraphics.WHITE);
-            } else graphics.centeredText(client.font, Integer.toString(slot + 1), sx + tile / 2, sy + 8, PartyGraphics.MUTED);
-        }
     }
 }

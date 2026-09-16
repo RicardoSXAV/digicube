@@ -43,6 +43,10 @@ final class DevPanelScreen extends Screen {
     private AbstractWidget equip;
     private AbstractWidget clearItems;
     private AbstractWidget healAll;
+    private AbstractWidget partyTools;
+    private Button originButton;
+    private int giveOrigin=-1;
+    private net.minecraft.resources.Identifier originChampion;
     private final EditBox[] fieldBoxes = new EditBox[SpeciesTuning.FIELDS.size()];
     private final AbstractWidget[] fieldMinus = new AbstractWidget[SpeciesTuning.FIELDS.size()];
     private final AbstractWidget[] fieldPlus = new AbstractWidget[SpeciesTuning.FIELDS.size()];
@@ -91,6 +95,7 @@ final class DevPanelScreen extends Screen {
                 .size((inner - 4) / 2, row).build());
         givePartner = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.give_partner"), button -> act(DevActions.GIVE))
                 .size((inner - 4) / 2, row).build());
+        originButton=addRenderableWidget(Button.builder(Component.literal("Choose Rookie origin"),button->{giveOrigin++;place();}).size(inner,row).build());
         loadoutDropdown = addRenderableWidget(new LoadoutDropdown(font, left, 0, DevPanelView.LOADOUT_DROPDOWN, row, client.loadout(), client::setLoadout));
         equip = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.equip"), button -> equipLoadout())
                 .size(DevPanelView.LOADOUT_BUTTON, row).build());
@@ -98,6 +103,7 @@ final class DevPanelScreen extends Screen {
                 .size(DevPanelView.LOADOUT_BUTTON, row).build());
         healAll = addRenderableWidget(Button.builder(Component.translatable("gui.digicube.dev.heal_all"), button -> client.send(DevActions.HEAL, client.speciesArgs()))
                 .size(50, DevPanelView.HEADER).build());
+        partyTools=addRenderableWidget(Button.builder(Component.literal("Level / evolution"),button->minecraft.gui.setScreen(new PartyToolsScreen(client))).size(DevPanelView.INNER,DevPanelView.ROW).build());
 
         for (int i = 0; i < SpeciesTuning.FIELDS.size(); i++) {
             SpeciesTuning.Field field = SpeciesTuning.FIELDS.get(i);
@@ -139,12 +145,20 @@ final class DevPanelScreen extends Screen {
         }
         show(spawnWild, spawn, left, layout.spawnButtonsY);
         show(givePartner, spawn, left + (DevPanelView.INNER - 4) / 2 + 4, layout.spawnButtonsY);
+        show(originButton,spawn,left,layout.spawnButtonsY+DevPanelView.ROW+2);
+        var chosen=dropdown.selected();
+        if(chosen!=null) {
+            if(!chosen.id().equals(originChampion)){originChampion=chosen.id();giveOrigin=-1;}
+            var origins=com.digicube.digimon.EvolutionRules.origins(chosen.id());originButton.active=!origins.isEmpty();
+            originButton.setMessage(Component.literal(origins.isEmpty()?"No Rookie origin needed / configured":giveOrigin<0?"Choose Rookie origin (stored until chosen)":"Return: "+origins.get(giveOrigin%origins.size()).getPath()));
+        }
         boolean items = layout.loadoutY >= 0;
         show(loadoutDropdown, items, left, layout.loadoutY);
         show(equip, items, left + DevPanelView.LOADOUT_DROPDOWN + 2, layout.loadoutY);
         show(clearItems, items, left + DevPanelView.LOADOUT_DROPDOWN + 2 + DevPanelView.LOADOUT_BUTTON + 2, layout.loadoutY);
         if (!items) loadoutDropdown.close();
         show(healAll, true, right - 50, layout.headerY.get(Section.PARTY));
+        show(partyTools,layout.membersY>=0,left,layout.membersY-DevPanelView.ROW-2);
 
         for (int i = 0; i < SpeciesTuning.FIELDS.size(); i++) {
             boolean shown = layout.fieldShown(i);
@@ -203,6 +217,8 @@ final class DevPanelScreen extends Screen {
         if (species == null) return;
         CompoundTag args = client.speciesArgs();
         args.putInt(DevActions.LEVEL_ARG, Progression.clampLevel(client.level()));
+        var origins=com.digicube.digimon.EvolutionRules.origins(species.id());
+        if(action.equals(DevActions.GIVE)&&giveOrigin>=0&&!origins.isEmpty())args.putString("origin",origins.get(giveOrigin%origins.size()).toString());
         client.send(action, args);
     }
 

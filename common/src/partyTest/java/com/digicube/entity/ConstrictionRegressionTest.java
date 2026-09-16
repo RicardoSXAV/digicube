@@ -291,7 +291,7 @@ public final class ConstrictionRegressionTest {
     private static void thaw(Fixture f){f.effects.remove(DCEffects.FROZEN);}
     private static <T>T allocate(Class<T> type)throws Exception {
         var u=Class.forName("sun.misc.Unsafe");var f=u.getDeclaredField("theUnsafe");f.setAccessible(true);
-        return type.cast(u.getMethod("allocateInstance",Class.class).invoke(f.get(null),type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(u.getMethod("allocateInstance",Class.class).invoke(f.get(null),type)));
     }
     private static void field(Object o,Class<?> type,String name,Object value)throws Exception {var f=type.getDeclaredField(name);f.setAccessible(true);f.set(o,value);}
     private static void place(Fixture f,Vec3 p) {

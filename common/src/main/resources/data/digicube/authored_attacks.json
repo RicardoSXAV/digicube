@@ -89,5 +89,39 @@
     "knockback": 0.3,
     "hit_interval": 18,
     "max_hits": 1
+  },
+  "headbutt": {
+    "kind": "BOX_SWEEP",
+    "power": 0.8,
+    "cooldown": 24,
+    "duration": 16,
+    "hit_tick": 6,
+    "range": 1.25,
+    "knockback": 0.15,
+    "hit_interval": 16,
+    "max_hits": 1,
+    "effect": "headbutt_fx",
+    "emissive": true,
+    "water_motion": "headbutt_water"
+  },
+  "electric_shock": {
+    "kind": "BOX_BURST",
+    "power": 1.6,
+    "cooldown": 80,
+    "duration": 28,
+    "hit_tick": 12,
+    "range": 2.1,
+    "knockback": 0.25,
+    "hit_interval": 28,
+    "max_hits": 1,
+    "effect": "electric_shock_fx",
+    "emissive": true,
+    "water_motion": "electric_shock_water",
+    "hit_windows": [
+      [
+        12,
+        17
+      ]
+    ]
   }
 }

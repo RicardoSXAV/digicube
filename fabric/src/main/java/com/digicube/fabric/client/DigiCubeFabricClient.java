@@ -37,6 +37,8 @@ public class DigiCubeFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        com.digicube.fabric.client.evolution.EvolutionRenderType.GRID.pipeline();
+        new com.digicube.fabric.client.evolution.EvolutionAudio().init();
         new PartyClient().init();
         new StarterClient().init();
         new DevClient().init();

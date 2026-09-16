@@ -1,0 +1,31 @@
+{
+  "stage": "child",
+  "attribute": "virus",
+  "base_health": 20,
+  "base_attack": 5,
+  "base_defence": 5,
+  "base_speed": 0.08,
+  "attacks": [
+    "electric_shock",
+    "headbutt"
+  ],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.32,
+    "width": 1.1,
+    "height": 1.46,
+    "eye_height": 0.62
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 1,
+    "run_speed": 1,
+    "swim_speed": 0.36,
+    "ground_gait": {
+      "cycle_ticks": 24,
+      "stride": 0.5,
+      "max_playback_rate": 1.5
+    }
+  }
+}

@@ -44,7 +44,7 @@ public final class AquaticRidingRegressionTest {
     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     private static <T>T allocate(Class<T> type)throws Exception {
         var unsafe=Class.forName("sun.misc.Unsafe");var field=unsafe.getDeclaredField("theUnsafe");field.setAccessible(true);
-        return type.cast(unsafe.getMethod("allocateInstance",Class.class).invoke(field.get(null),type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(unsafe.getMethod("allocateInstance",Class.class).invoke(field.get(null),type)));
     }
     private static final class PlayerFixture extends ServerPlayer {
         private PlayerFixture(){super(null,null,null,null);}

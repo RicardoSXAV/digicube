@@ -102,6 +102,66 @@ public final class DigiPanels {
     }
 
     /**
+     * The edge of a raised module: a one-unit light line along the top and left, a dark
+     * one along the bottom and right, with the same 45-degree corner cuts as {@link #frame}.
+     * Draw it over a chamfered fill of the same rectangle.
+     */
+    public static void bevel(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int chamfer, int light, int dark) {
+        int c = Math.clamp(chamfer, 0, Math.min(width, height) / 2);
+        graphics.fill(x + c, y, x + width - c, y + 1, light);
+        graphics.fill(x, y + c, x + 1, y + height - c, light);
+        graphics.fill(x + c, y + height - 1, x + width - c, y + height, dark);
+        graphics.fill(x + width - 1, y + c, x + width, y + height - c, dark);
+        for (int i = 0; i < c; i++) {
+            int inset = c - 1 - i;
+            graphics.fill(x + inset, y + i, x + inset + 1, y + i + 1, light);
+            graphics.fill(x + width - 1 - inset, y + i, x + width - inset, y + i + 1, light);
+            graphics.fill(x + inset, y + height - 1 - i, x + inset + 1, y + height - i, dark);
+            graphics.fill(x + width - 1 - inset, y + height - 1 - i, x + width - inset, y + height - i, dark);
+        }
+    }
+
+    /** 3 x 5 readout glyphs, one bit per unit, top row first. Digits, plus the L and V of "LV". */
+    private static final int[][] READOUT = {
+            {0b111, 0b101, 0b101, 0b101, 0b111}, // 0
+            {0b010, 0b110, 0b010, 0b010, 0b111}, // 1
+            {0b111, 0b001, 0b111, 0b100, 0b111}, // 2
+            {0b111, 0b001, 0b111, 0b001, 0b111}, // 3
+            {0b101, 0b101, 0b111, 0b001, 0b001}, // 4
+            {0b111, 0b100, 0b111, 0b001, 0b111}, // 5
+            {0b111, 0b100, 0b111, 0b101, 0b111}, // 6
+            {0b111, 0b001, 0b001, 0b001, 0b001}, // 7
+            {0b111, 0b101, 0b111, 0b101, 0b111}, // 8
+            {0b111, 0b101, 0b111, 0b001, 0b111}, // 9
+            {0b100, 0b100, 0b100, 0b100, 0b111}, // L
+            {0b101, 0b101, 0b101, 0b101, 0b010}, // V
+    };
+
+    /**
+     * A device readout in 3 x 5 pixel glyphs on a 4-unit pitch: digits, 'L' and 'V'; any
+     * other character is a blank cell. It sits under a sprite where the vanilla font is
+     * too tall and reads as hardware rather than as body text.
+     * @return the width drawn, in units
+     */
+    public static int readout(GuiGraphicsExtractor graphics, int x, int y, String text, int color) {
+        int cx = x;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            int glyph = ch >= '0' && ch <= '9' ? ch - '0' : ch == 'L' ? 10 : ch == 'V' ? 11 : -1;
+            if (glyph >= 0) {
+                for (int row = 0; row < 5; row++) {
+                    int bits = READOUT[glyph][row];
+                    for (int col = 0; col < 3; col++) {
+                        if ((bits & (0b100 >> col)) != 0) graphics.fill(cx + col, y + row, cx + col + 1, y + row + 1, color);
+                    }
+                }
+            }
+            cx += 4;
+        }
+        return Math.max(0, cx - x - 1);
+    }
+
+    /**
      * Four L-shaped corner brackets, two units thick, {@code inset} units outside the
      * rectangle. Animate by varying {@code inset}.
      */
@@ -179,10 +239,15 @@ public final class DigiPanels {
      * a framed question mark when the species has none yet.
      */
     public static void icon(GuiGraphicsExtractor graphics, Identifier species, int x, int y, int size) {
+        icon(graphics, species, x, y, size, 0xFFFFFFFF);
+    }
+
+    /** {@link #icon(GuiGraphicsExtractor, Identifier, int, int, int)} multiplied by {@code color}; white with alpha fades the sprite. */
+    public static void icon(GuiGraphicsExtractor graphics, Identifier species, int x, int y, int size, int color) {
         Identifier texture = species.withPath(path -> "textures/gui/digimon/" + path + ".png");
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.getResourceManager().getResource(texture).isPresent()) {
-            graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, size, size, 32, 32, 32, 32);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, size, size, 32, 32, 32, 32, color);
         } else {
             graphics.outline(x + 2, y + 2, size - 4, size - 4, DigiTheme.EDGE);
             graphics.centeredText(minecraft.font, "?", x + size / 2, y + size / 2 - 4, DigiTheme.MUTED);

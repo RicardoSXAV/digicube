@@ -110,7 +110,7 @@ final class CombatPressureRegressionTest {
         Class<?> unsafe = Class.forName("sun.misc.Unsafe");
         var singleton = unsafe.getDeclaredField("theUnsafe");
         singleton.setAccessible(true);
-        return type.cast(unsafe.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(unsafe.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type)));
     }
 
     private static final class Fixture extends DigimonEntity {

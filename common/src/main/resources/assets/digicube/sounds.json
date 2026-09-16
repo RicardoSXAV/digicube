@@ -1,0 +1,117 @@
+{
+  "evolution_gather": {
+    "subtitle": "subtitles.digicube.evolution.gather",
+    "sounds": [
+      {
+        "name": "digicube:evolution/gather",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_shed": {
+    "subtitle": "subtitles.digicube.evolution.shed",
+    "sounds": [
+      {
+        "name": "digicube:evolution/shed",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_reshape": {
+    "subtitle": "subtitles.digicube.evolution.reshape",
+    "sounds": [
+      {
+        "name": "digicube:evolution/reshape",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_reconstruct": {
+    "subtitle": "subtitles.digicube.evolution.reconstruct",
+    "sounds": [
+      {
+        "name": "digicube:evolution/reconstruct",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_arrival": {
+    "subtitle": "subtitles.digicube.evolution.arrival",
+    "sounds": [
+      {
+        "name": "digicube:evolution/arrival",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_short": {
+    "subtitle": "subtitles.digicube.evolution",
+    "sounds": [
+      {
+        "name": "digicube:evolution/short",
+        "volume": 0.8
+      }
+    ]
+  },
+  "evolution_short_reveal": {
+    "subtitle": "subtitles.digicube.evolution",
+    "sounds": [
+      {
+        "name": "digicube:evolution/short_reveal",
+        "volume": 0.8
+      }
+    ]
+  },
+  "evolution_return": {
+    "subtitle": "subtitles.digicube.evolution",
+    "sounds": [
+      {
+        "name": "digicube:evolution/return",
+        "volume": 0.8
+      }
+    ]
+  },
+  "evolution_sky": {
+    "subtitle": "subtitles.digicube.evolution.sky",
+    "sounds": [
+      {
+        "name": "digicube:evolution/sky",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_grid": {
+    "subtitle": "subtitles.digicube.evolution.grid",
+    "sounds": [
+      {
+        "name": "digicube:evolution/grid",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "evolution_landing": {
+    "subtitle": "subtitles.digicube.evolution.landing",
+    "sounds": [
+      {
+        "name": "digicube:evolution/landing",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 32
+      }
+    ]
+  }
+}

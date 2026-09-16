@@ -8,6 +8,7 @@ out/
 run/
 runs/
 /logs/
+/fabric/logs/
 */run/
 */runs/
 

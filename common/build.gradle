@@ -3,6 +3,16 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
+tasks.register('evolutionTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.digimon.EvolutionRegressionTest'
+    workingDir = layout.buildDirectory.dir('evolution-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('evolutionTest') }
+
 // Gives this module a plain, un-modded Minecraft to compile against.
 // No loader APIs are on the classpath here -- that is the point.
 neoForge {

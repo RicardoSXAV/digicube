@@ -18,6 +18,10 @@ public final class DigiTheme {
     public static final int EDGE = 0xFF2E5A8F;
     /** Disabled frames, separators. */
     public static final int EDGE_DIM = 0xFF1B3556;
+    /** Bevel highlight: the lit top and left edge of a raised module. */
+    public static final int EDGE_LIGHT = 0xFF4A7FBF;
+    /** Bevel shadow and one-unit outlines around wells and modules. */
+    public static final int SHADOW = 0xFF071019;
 
     // --- accents --------------------------------------------------------------------------
     /** Hover and focus frames, eyebrow text. */
@@ -39,6 +43,10 @@ public final class DigiTheme {
     /** Health and "in party". Semantic only. */
     public static final int TEAL = 0xFF74DFC4;
     public static final int RED = 0xFFEF7980;
+    /** The Virus attribute stripe on party cards. Nowhere else. */
+    public static final int VIRUS = 0xFF9C7BD9;
+    /** Flight reserve hairline. */
+    public static final int FLIGHT = 0xFF79BFFF;
 
     // --- knobs ----------------------------------------------------------------------------
     /** Light on purpose: the compact panel sits over a world the player should still see. */
@@ -72,5 +80,14 @@ public final class DigiTheme {
     /** @param alpha 0..255 */
     public static int withAlpha(int color, int alpha) {
         return (Math.clamp(alpha, 0, 255) << 24) | (color & 0xFFFFFF);
+    }
+
+    /** Linear blend of two colours' RGB channels; the result is opaque. {@code t} 0 gives {@code from}, 1 gives {@code to}. */
+    public static int mix(int from, int to, float t) {
+        float f = Math.clamp(t, 0.0F, 1.0F);
+        int r = Math.round(((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * f);
+        int g = Math.round(((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * f);
+        int b = Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * f);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 }

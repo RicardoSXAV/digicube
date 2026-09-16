@@ -4,15 +4,12 @@
   "base_health": 20,
   "base_attack": 6,
   "base_defence": 4,
-  "base_speed": 0.30,
-  "attacks": ["pepper_breath", "claw"],
+  "base_speed": 0.3,
+  "attacks": [
+    "pepper_breath",
+    "claw"
+  ],
   "evolutions": [
-    {
-      "target": "digicube:greymon",
-      "min_level": 16,
-      "min_bond": 40,
-      "min_training": 20
-    },
     {
       "target": "digicube:greymon",
       "min_level": 20

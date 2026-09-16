@@ -118,7 +118,7 @@ final class DevPanelView {
             layout.levelY = y;
             y += ROW + 2;
             layout.spawnButtonsY = y;
-            y += ROW + 3;
+            y += 2 * ROW + 5;
         }
 
         layout.headerY.put(Section.ITEMS, y);
@@ -133,6 +133,7 @@ final class DevPanelView {
         layout.headerY.put(Section.PARTY, y);
         y += HEADER;
         if (!client.collapsed(Section.PARTY)) {
+            y+=ROW+2;
             layout.membersY = y;
             y += layout.members.isEmpty() ? LINE + 2 : layout.members.size() * (2 * LINE + 1) + 2;
         }

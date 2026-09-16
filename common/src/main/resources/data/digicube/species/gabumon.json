@@ -4,9 +4,17 @@
   "base_health": 20,
   "base_attack": 6,
   "base_defence": 4,
-  "base_speed": 0.30,
-  "attacks": ["blue_blaster", "horn_attack"],
-  "evolutions": [],
+  "base_speed": 0.3,
+  "attacks": [
+    "blue_blaster",
+    "horn_attack"
+  ],
+  "evolutions": [
+    {
+      "target": "digicube:garurumon",
+      "min_level": 20
+    }
+  ],
   "locomotion": {
     "follow_start_distance": 4.0,
     "follow_stop_distance": 2.0,

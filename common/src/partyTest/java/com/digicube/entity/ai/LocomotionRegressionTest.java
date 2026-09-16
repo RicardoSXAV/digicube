@@ -185,7 +185,7 @@ public final class LocomotionRegressionTest {
         Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
         var singleton = unsafeClass.getDeclaredField("theUnsafe");
         singleton.setAccessible(true);
-        return type.cast(unsafeClass.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type));
+        return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(unsafeClass.getMethod("allocateInstance", Class.class).invoke(singleton.get(null), type)));
     }
 
     private static void checkNodeArrival() throws Exception {

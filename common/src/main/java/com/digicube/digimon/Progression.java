@@ -23,6 +23,14 @@ public final class Progression {
 
     public static final int MIN_LEVEL = 1;
     public static final int LEVEL_CAP = 50;
+    public static final int CHAMPION_LEVEL = 20;
+    public static final int DIGISOUL_CAPACITY = 3600;
+    public static final int DIGISOUL_FEE = 360;
+    public static final int DIGISOUL_MINIMUM = 900;
+    public static final int DIGISOUL_RECHARGE_INTERVAL = 2;
+    public static final int DIGISOUL_COMBAT_DELAY = 200;
+    public static final int EVOLUTION_COOLDOWN = 200;
+    public static final int EVOLUTION_ATTACK_DELAY = 10;
 
     /** A contributor that has not hit the wild Digimon for this long is forgotten. */
     public static final int CONTRIBUTION_MEMORY_TICKS = 1200;

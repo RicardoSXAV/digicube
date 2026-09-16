@@ -3,6 +3,8 @@ package com.digicube.party;
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.Progression;
+import com.digicube.digimon.EvolutionRules;
+import com.digicube.entity.EvolutionController;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.registry.DCEntityTypes;
 import net.minecraft.core.BlockPos;
@@ -29,6 +31,7 @@ public final class PartyManager {
         PartySavedData data = PartySavedData.get(player.level().getServer());
         digimon.setOwner(player);
         PartyMember member = remember(data, digimon);
+        if(member.originRequired()){member.setSlot(-1);data.setDirty();return member;}
         // A cramped room must not force a large partner inside a wall. It stays selected
         // and waits for space, while subsequent gifts still respect the three-slot cap.
         if (member.active()) deploy(data, member, player);
@@ -62,7 +65,7 @@ public final class PartyManager {
         return member;
     }
 
-    private static void capture(PartySavedData data, PartyMember member, DigimonEntity entity) {
+    static void capture(PartySavedData data, PartyMember member, DigimonEntity entity) {
         member.capture(entity.getSpeciesId(), nickname(entity), entity.getHealth(), entity.getMaxHealth(),
                 entity.getLevel(), entity.getXp(), save(entity));
         data.setDirty();
@@ -141,6 +144,8 @@ public final class PartyManager {
         if (!(entity instanceof DigimonEntity digimon) || !digimon.isOwned()) return true;
         PartySavedData data = PartySavedData.get(level.getServer());
         PartyMember member = remember(data, digimon);
+        if(!data.roster().accepts(member.id(),digimon.getOwnerReference().getUUID(),digimon.getPartyGeneration())||data.live.containsKey(member.id()))return false;
+        if(member.originRequired()){member.setSlot(-1);capture(data,member,digimon);data.setDirty();return false;}
         return data.roster().accepts(member.id(), digimon.getOwnerReference().getUUID(), digimon.getPartyGeneration())
                 && !data.live.containsKey(member.id());
     }
@@ -166,6 +171,7 @@ public final class PartyManager {
         if (!data.live.remove(entity.getUUID(), digimon)) return;
         PartyMember member = data.roster().get(entity.getUUID());
         if (member == null || member.generation() != digimon.getPartyGeneration()) return;
+        EvolutionController.normalize(digimon);
         capture(data, member, digimon);
         member.nextGeneration();
         if (digimon.getHealth() <= 0) {
@@ -186,16 +192,23 @@ public final class PartyManager {
             entity.discard();
             return false;
         }
+        if(entity.evolution().needsOrigin(entity.getSpeciesId())){storeForEvolution(entity);return false;}
+        if(EvolutionRules.champion(entity.getSpeciesId())&&entity.evolution().phase==com.digicube.digimon.EvolutionState.Phase.RESTING) {
+            if(entity.getLevel()<Progression.CHAMPION_LEVEL||entity.evolution().charge<=0){storeForEvolution(entity);return false;}
+            entity.evolution().phase=com.digicube.digimon.EvolutionState.Phase.EVOLVED;
+        }
         if (data.live.put(member.id(), entity) == null) data.session(member.owner()).sync.invalidate();
         return true;
     }
 
     public static void tick(MinecraftServer server) {
         PartySavedData data = PartySavedData.get(server);
+        PartyEvolution.tick(server,data);
         for (DigimonEntity entity : List.copyOf(data.live.values())) {
             PartyMember member = data.roster().get(entity.getUUID());
             if (member == null) continue;
             if (entity.getHealth() <= 0) {
+                EvolutionController.normalize(entity);
                 capture(data, member, entity);
                 member.setSlot(-1);
                 member.defeat(Progression.DEFEAT_REST_TICKS);
@@ -234,11 +247,13 @@ public final class PartyManager {
         data.forgetSession(player.getUUID());
     }
 
-    private static void recall(PartySavedData data, PartyMember member) {
+    static void recall(PartySavedData data, PartyMember member) {
         DigimonEntity live = data.live.remove(member.id());
         if (live != null) {
+            PartyEvolution.safePassengers(data,live);
             live.ejectPassengers();
             live.stopRiding();
+            EvolutionController.normalize(live);
             capture(data, member, live);
             member.nextGeneration();
             live.discard();
@@ -256,6 +271,7 @@ public final class PartyManager {
         }
         if (!player.isAlive() || player.isSpectator()) return "gui.digicube.party.unavailable";
         if (member.defeated()) return "gui.digicube.party.defeated";
+        if(slot>=0&&member.originRequired())return "gui.digicube.evolution.origin";
         PartyMember previous = slot < 0 ? null : data.roster().inSlot(player.getUUID(), slot);
         if (busy(data, member) || previous != null && busy(data, previous)) return "gui.digicube.party.riding";
         if (slot == member.slot()) return "";
@@ -291,6 +307,7 @@ public final class PartyManager {
     }
 
     private static DigimonEntity restore(PartyMember member, ServerPlayer player) {
+        if(member.originRequired())return null;
         if (member.defeated() || DigimonSpeciesRegistry.get(member.species()).isEmpty()) return null;
         DigimonEntity entity = DCEntityTypes.DIGIMON.create(player.level(), EntitySpawnReason.LOAD);
         if (entity == null) return null;
@@ -335,5 +352,20 @@ public final class PartyManager {
             }
         }
         return false;
+    }
+
+    public static void markEvolutionCombat(DigimonEntity entity) {
+        if(entity.isOwned()&&entity.level() instanceof ServerLevel level)
+            PartySavedData.get(level.getServer()).session(entity.getOwnerReference().getUUID()).lastCombatTick=level.getGameTime();
+    }
+    public static boolean canRecoverDigiSoul(DigimonEntity entity) {
+        if(!(entity.level() instanceof ServerLevel level)||!entity.isOwned()||!entity.isAlive())return false;
+        var owner=level.getServer().getPlayerList().getPlayer(entity.getOwnerReference().getUUID());
+        return owner!=null&&owner.isAlive()&&!owner.isSpectator()&&level.getGameTime()-PartySavedData.get(level.getServer()).session(owner.getUUID()).lastCombatTick>=Progression.DIGISOUL_COMBAT_DELAY;
+    }
+    public static void storeForEvolution(DigimonEntity entity) {
+        if(!(entity.level() instanceof ServerLevel level)||!entity.isOwned())return;
+        var data=PartySavedData.get(level.getServer());var member=remember(data,entity);
+        data.live.put(member.id(),entity);member.setSlot(-1);recall(data,member);data.setDirty();
     }
 }

@@ -51,6 +51,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         super.setupAnim(state);
         animations.hideMembranes();
         if (!state.isBeingRidden && state.attackAnimationName != null && state.attackAnimation.isStarted()) {
+            String attackClip=state.attackInWater && animations.has(state.attackAnimationName+"_water")
+                    ? state.attackAnimationName+"_water" : state.attackAnimationName;
             float tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             if(state.attackDefinition!=null && state.attackDefinition.kind()==com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION) {
                 for(var b:com.digicube.digimon.DigimonSpeciesBootstrap.CONSTRICTION_MOTION.blends(state.constrictionFit)) animations.apply(b.clip(),tick,b.weight());
@@ -59,7 +61,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             } else {
                 float weight=1;
                 if(definition.attackBlendIn()>0)weight=Math.min(weight,tick/definition.attackBlendIn());
-                if(definition.attackBlendOut()>0)weight=Math.min(weight,(animations.length(state.attackAnimationName)-tick)/definition.attackBlendOut());
+                if(definition.attackBlendOut()>0)weight=Math.min(weight,(animations.length(attackClip)-tick)/definition.attackBlendOut());
                 weight=Math.clamp(weight,0,1);weight=weight*weight*(3-2*weight);
                 applyGround(state,1-weight);
                 if(definition.supportFloor()) {
@@ -69,7 +71,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                     applyGround(state,1);
                     var base=rootPart.getAllParts().stream().map(p->new float[]{p.x,p.y,p.z,p.xRot,p.yRot,p.zRot,p.xScale,p.yScale,p.zScale}).toList();
                     rootPart.getAllParts().forEach(ModelPart::resetPose);
-                    animations.apply(state.attackAnimationName,tick,1);
+                    animations.apply(attackClip,tick,1);
                     var all=rootPart.getAllParts();
                     for(int i=0;i<all.size();i++) {
                         var p=all.get(i);var a=base.get(i);
@@ -80,7 +82,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         p.xRot=e.x;p.yRot=e.y;p.zRot=e.z;
                         p.xScale=a[6]+(p.xScale-a[6])*weight;p.yScale=a[7]+(p.yScale-a[7])*weight;p.zScale=a[8]+(p.zScale-a[8])*weight;
                     }
-                } else animations.apply(state.attackAnimationName,tick,weight);
+                } else animations.apply(attackClip,tick,weight);
                 var rootOffset = state.kineticOffset.scale(16 / state.modelScale);
                 rootPart.x += (float) rootOffset.x; rootPart.y -= (float) rootOffset.y; rootPart.z -= (float) rootOffset.z;
                 var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
