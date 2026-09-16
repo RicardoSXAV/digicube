@@ -1,0 +1,31 @@
+{
+  "stage": "adult",
+  "attribute": "virus",
+  "base_health": 44,
+  "base_attack": 15,
+  "base_defence": 12,
+  "base_speed": 0.12,
+  "attacks": [
+    "deadly_shade",
+    "devil_bashing"
+  ],
+  "evolutions": [],
+  "locomotion": {
+    "follow_start_distance": 6,
+    "follow_stop_distance": 3,
+    "walk_speed": 1,
+    "run_speed": 1,
+    "swim_speed": 0.38,
+    "ground_gait": {
+      "cycle_ticks": 32,
+      "stride": 1.2868,
+      "max_playback_rate": 1.5
+    }
+  },
+  "body": {
+    "model_scale": 0.5,
+    "width": 2.25,
+    "height": 3.7,
+    "eye_height": 2.7
+  }
+}

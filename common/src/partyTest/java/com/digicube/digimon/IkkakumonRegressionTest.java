@@ -14,7 +14,9 @@ public final class IkkakumonRegressionTest {
         var mount = species.body().mount().orElseThrow();
         check(species.stage() == DigimonStage.ADULT && species.attribute() == DigimonAttribute.VACCINE,
                 "Ikkakumon is a vaccine adult");
-        check(species.attacks().isEmpty(), "only authored locomotion is enabled");
+        check(species.attacks().stream().map(a->a.id().getPath()).toList().equals(java.util.List.of("harpoon_vulcan","heat_top")), "signature priority and close fallback are loaded");
+        check(species.attacks().getFirst().durationTicks()>=23 && species.attacks().get(1).motion().activeUntil()==9,
+                "signature recovers the whole horn before another contact move can start");
         check(mount.standing() && species.locomotion().canSwim(), "standing aquatic mount is loaded from data");
         check(species.baseSpeed() > DigimonSpeciesRegistry.getOrThrow(Constants.id("gomamon")).baseSpeed()
                 && species.locomotion().swimSpeed() > .46, "Ikkakumon has the faster land and water speeds");
@@ -25,8 +27,10 @@ public final class IkkakumonRegressionTest {
         check(mount.position(.5F).distanceTo(feet.lerp(mount.position(1), .5)) < 1e-9,
                 "water attachment transitions continuously");
         var gait = species.locomotion().groundGait();
-        check(gait.maxPlaybackRate() == 1 && gait.cycleTicks() == 20,
-                "the walk remains at most one authored push/glide cycle per second");
+        check(gait.maxPlaybackRate() == 1 && gait.cycleTicks() == 32,
+                "the walk preserves the approved 1.6-second cycle at maximum cadence");
+        check(Math.abs(gait.fullSpeed(species.body().modelScale())-.4/32)<1e-8,
+                "native stride is scaled exactly once into the 0.4-block runtime cycle");
         check(Math.abs(species.baseSpeed() - .10) < 1e-7
                 && species.locomotion().walkSpeed() == 1.3 && species.locomotion().runSpeed() == 1.3
                 && Math.abs(mount.speed() - .13) < 1e-7,

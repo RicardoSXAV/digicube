@@ -16,6 +16,17 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 
 /** Synced, saveable frost statuses on any living target, including non-Digimon mobs. */
 public final class DCEffects {
+    /** Ink briefly obscures distant targets, without pinning movement or cancelling close defence. */
+    public static final Holder<MobEffect> INKED = register("inked",new MobEffect(MobEffectCategory.HARMFUL,0x311B42) {
+        @Override public boolean shouldApplyEffectTickThisTick(int ticks,int amplifier) { return true; }
+        @Override public boolean applyEffectTick(ServerLevel level,LivingEntity entity,int amplifier) {
+            if(entity instanceof Mob mob && mob.getTarget()!=null && mob.distanceToSqr(mob.getTarget())>9) {
+                mob.setTarget(null);
+                if(mob instanceof DigimonEntity digimon)digimon.interruptAttack();
+            }
+            return true;
+        }
+    });
     public static final Holder<MobEffect> ICE_MARK = register("ice_mark", new FrostEffect(false, 0x65CFFF));
     public static final Holder<MobEffect> FROZEN = register("frozen", new FrostEffect(true, 0xB8EEFF)
             .addAttributeModifier(Attributes.MOVEMENT_SPEED, Constants.id("frozen_movement"), -1,

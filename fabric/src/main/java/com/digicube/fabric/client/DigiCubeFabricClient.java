@@ -7,7 +7,6 @@ import com.digicube.fabric.client.starter.StarterClient;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
-import com.digicube.fabric.client.model.IkkakumonModel;
 import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
@@ -56,7 +55,6 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(IkkakumonModel.LAYER, IkkakumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GarurumonModel.LAYER, GarurumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);

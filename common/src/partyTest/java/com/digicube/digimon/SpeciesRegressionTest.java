@@ -19,7 +19,15 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 14, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 16, "all bundled species loaded");
+            var digmon = DigimonSpeciesRegistry.getOrThrow(Constants.id("digmon"));
+            check(digmon.locomotion().canFly() && !digmon.locomotion().canRun(),
+                    "Digmon uses flight instead of running");
+            check(digmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("gold_rush", "big_crack")),
+                    "Digmon has both authored signature attacks");
+            var digmonGait = digmon.locomotion().groundGait();
+            check(digmonGait != null && digmonGait.cycleTicks() == 32 && digmonGait.stride() == 2,
+                    "Digmon ground animation uses the authored 1.6-second, two-unit stride");
             com.digicube.entity.AuthoredAttackRegressionTest.run();
             com.digicube.entity.GolemonRegressionTest.run();
             com.digicube.entity.KineticRegressionTest.run();

@@ -11,6 +11,7 @@ import org.joml.Vector3f;
 public final class NativeArmAim {
     private NativeArmAim() {}
     public static void apply(ModelPart root, KineticAttacks.Definition definition, float tick, float pitch) {
+        if(definition.blendAim())pitch*=definition.attack().motion().sample(tick).aimWeight();
         if (definition.aimPath().isEmpty() || pitch == 0) return;
         ModelPart part = root;
         PoseStack stack = new PoseStack();

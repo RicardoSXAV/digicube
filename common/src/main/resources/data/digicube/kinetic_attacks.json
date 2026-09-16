@@ -32,5 +32,51 @@
     "kick_animation": "jet_dash_kick",
     "decision_tick": 12,
     "max_lead": 1
+  },
+  "deadly_shade": {
+    "kind": "KINETIC_SHOT",
+    "power": 0.8,
+    "cooldown": 120,
+    "duration": 22,
+    "hit_tick": 7,
+    "range": 9,
+    "model_scale": 0.5,
+    "projectile": "deadly_shade_ink",
+    "projectile_speed": 0.5,
+    "projectile_life": 20,
+    "max_lead": 2,
+    "max_pitch": 18,
+    "aim_path": [
+      "root",
+      "mantle"
+    ],
+    "impairment_ticks": 40,
+    "impact_ticks": 7,
+    "emissive": false
+  },
+  "harpoon_vulcan": {
+    "kind": "KINETIC_SHOT",
+    "power": 1.65,
+    "cooldown": 90,
+    "duration": 24,
+    "hit_tick": 10,
+    "range": 14,
+    "model_scale": 0.5,
+    "projectile": "harpoon_vulcan_projectile",
+    "projectile_speed": 0.3,
+    "projectile_life": 55,
+    "max_lead": 3,
+    "max_pitch": 70,
+    "aim_path": [
+      "ikkakumon",
+      "body",
+      "chest",
+      "neck",
+      "head"
+    ],
+    "impact_ticks": 5,
+    "emissive": false,
+    "blend_aim": true,
+    "aim_at_top": false
   }
 }

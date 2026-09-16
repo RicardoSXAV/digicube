@@ -50,14 +50,18 @@ public final class NativeFlyingMountModel extends EntityModel<DigimonRenderState
     }
     @Override public void setupAnim(DigimonRenderState s) {
         super.setupAnim(s);
+        if (!s.isBeingRidden && s.attackAnimationName != null && s.attackAnimation.isStarted()) {
+            animations.apply(s.attackAnimationName, s.attackAnimation.getTimeInMillis(s.ageInTicks) / 50F, 1);
+            return;
+        }
         float t=s.flightPhaseTime;
         switch (s.flightPhase) {
             case GROUNDED -> {
                 animations.apply("idle",s.ageInTicks,1-s.groundAnimationAmount);
-                animations.blend("walk",s.groundAnimationAmount,s.groundAnimationPhase,s.groundAnimationAmount>0?1:0);
+                walk(s, s.groundAnimationAmount > 0 ? 1 : 0);
             }
             case TAKEOFF -> {
-                animations.blend("walk",s.groundAnimationAmount,s.groundAnimationPhase,1-smooth(t/5));
+                walk(s, 1-smooth(t/5));
                 animations.apply("takeoff",t,1);
             }
             case FLYING -> animations.apply("fly",s.flightLoopTime,1);
@@ -80,6 +84,14 @@ public final class NativeFlyingMountModel extends EntityModel<DigimonRenderState
             root.x += shift.x;
             root.y += shift.y;
             root.z += shift.z;
+        }
+    }
+    private void walk(DigimonRenderState s, float weight) {
+        if (animations.blendNames().contains("walk")) {
+            animations.blend("walk", s.groundAnimationAmount, s.groundAnimationPhase, weight);
+        } else {
+            // A single authored cycle does not require an amplitude blend table.
+            animations.apply("walk", s.groundAnimationPhase, weight * s.groundAnimationAmount);
         }
     }
     @Override public Vec3 riderOffset(DigimonRenderState s) {

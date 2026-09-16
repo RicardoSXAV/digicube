@@ -13,7 +13,9 @@
     "centalmon",
     "golemon",
     "seadramon",
-    "darktyrannomon"
+    "darktyrannomon",
+    "digmon",
+    "gesomon"
   ],
   "command_names": {
     "centalmon": "centarumon"

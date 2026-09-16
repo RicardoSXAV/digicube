@@ -66,6 +66,11 @@ public final class FlightRegressionTest {
         mob.leash=false;mob.reserve.restore(1,0);check(!new DigimonFlightGoal(mob).canUse(),"low stamina blocks voluntary flight");
         mob.reserve=new FlightReserve(locomotion.flight());mob.owner=null;mob.threat=fixture(3);
         check(new DigimonFlightGoal(mob).canUse(),"recent nearby attack allows escape without an owner");
+        mob.armed=true;
+        check(!new DigimonFlightGoal(mob).canUse(),"healthy armed flyer retaliates instead of fleeing every hit");
+        mob.wounded=true;
+        check(new DigimonFlightGoal(mob).canUse(),"wounded armed flyer retains escape flight");
+        mob.armed=false;mob.wounded=false;
         mob.ally=true;check(!new DigimonFlightGoal(mob).canUse(),"friendly damage does not trigger escape");
         mob.ally=false;mob.threat=null;mob.recover=true;mob.reserve.restore(0,0);mob.ground=false;
         check(new DigimonFlightGoal(mob).canUse(),"airborne reload can descend with an empty tank");
@@ -130,7 +135,7 @@ public final class FlightRegressionTest {
     private static final class Fixture extends DigimonEntity {
         @Override public DigimonBody getBody() { return DigimonBody.DEFAULT; }
         FlightReserve reserve;FlightPhase phase;int clock,start,loop;Air air;Navigation nav;MoveControl<?> control;
-        Fixture owner,threat;boolean ground,water,leash,ally,recover,sprint,noGravity;Vec3 lastMove;
+        Fixture owner,threat;boolean ground,water,leash,ally,recover,sprint,noGravity,armed,wounded;Vec3 lastMove;
         private Fixture(){super(null,null);}
         @Override public DigimonLocomotion getLocomotion(){return locomotion;}
         @Override public FlightReserve flightReserve(){return reserve;}
@@ -146,6 +151,7 @@ public final class FlightRegressionTest {
         @Override public boolean isNoAi(){return false;}
         @Override public boolean isAlive(){return true;}
         @Override public boolean isAttacking(){return false;}
+        @Override public boolean hasAttacks(){return armed;}
         @Override public boolean isPassenger(){return false;}
         @Override public boolean isVehicle(){return false;}
         @Override public boolean isOnFire(){return false;}
@@ -156,7 +162,7 @@ public final class FlightRegressionTest {
         @Override public int getLastHurtByMobTimestamp(){return tickCount;}
         @Override public LivingEntity getTarget(){return null;}
         @Override public boolean isAllyOf(Entity other){return ally;}
-        @Override public float getHealth(){return 20;}
+        @Override public float getHealth(){return wounded?5:20;}
         @Override public double getAttributeValue(Holder<Attribute> a){return 20;}
         @Override public Level level(){return air;}
         @Override public PathNavigation getNavigation(){return nav;}

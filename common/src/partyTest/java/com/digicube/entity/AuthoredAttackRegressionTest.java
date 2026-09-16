@@ -27,7 +27,7 @@ public final class AuthoredAttackRegressionTest {
                     check(box.intersects(new AABB(point.subtract(.01,.01,.01),point.add(.01,.01,.01))),"occupied cuboid centre at diagonal/elevation");
                     check(!box.intersects(box.bounds().move(100,0,0)),"no distant damage");found=true;
                 }
-                check(found,"visible authored strike");
+                check(found,"visible authored strike at hit_tick for " + d.attack().id());
             }
         }
         var thin=new AttackBox(Vec3.ZERO,new Vec3(1,0,1),new Vec3(0,.1,0),new Vec3(-.05,0,.05));
@@ -53,6 +53,26 @@ public final class AuthoredAttackRegressionTest {
             aimedCases++;
         }
         Constants.LOG.info("Authored small-target aim passed {} heading/elevation/range fixtures.",aimedCases);
+        var gold = DigimonSpeciesRegistry.getOrThrow(Constants.id("digmon")).attacks().getFirst();
+        for (float yaw : new float[]{0, 45, 90, 135, 180, 225, 270, 315}) {
+            // Stay inside the authored travel; at the outer range cap the planner must close in,
+            // especially when pitching shortens horizontal reach.
+            for (int height : new int[]{-1, 0, 1}) for (double distance : new double[]{2.5, 3, 3.5}) {
+                Vec3 feet = new Vec3(3, 5, -7);
+                Vec3 center = AttackGeometry.world(feet, new Vec3(0, height + .5, distance), yaw);
+                AABB target = new AABB(center.add(-.3, -.5, -.3), center.add(.3, .5, .3));
+                float pitch = AuthoredVolumeAttack.pitch(gold, feet, center, yaw);
+                boolean hit = false;
+                for (double tick = gold.motion().activeFrom(); tick <= gold.motion().activeUntil() && !hit; tick += .125) {
+                    for (var box : AuthoredAttacks.get(gold).sample(tick)) if (box != null
+                            && AuthoredVolumeAttack.aimed(box, gold, tick, pitch).world(feet, yaw, 0).intersects(target)) {
+                        hit = true;
+                        break;
+                    }
+                }
+                check(hit, "Gold Rush small-target aim: yaw=" + yaw + " height=" + height + " range=" + distance);
+            }
+        }
         Constants.LOG.info("Authored attack regression checks passed: clocks, stat tier, oriented volume, finite pulse contract and cutoff.");
     }
     private static void check(boolean value,String message) { if(!value)throw new AssertionError(message); }

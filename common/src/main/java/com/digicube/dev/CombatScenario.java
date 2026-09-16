@@ -27,6 +27,7 @@ import java.util.Locale;
  * {@code wall} requires zero damage through solid cover.
  *
  * <p>{@code DIGICUBE_SCENARIO_ATTACK=<attack>} isolates one caster move.
+ * {@code +escape} checks a wounded flyer's complete escape and grounded recovery.
  * {@code DIGICUBE_BENCHMARK=true} measures 600 combat ticks instead of stopping after three hits;
  * {@code DIGICUBE_NEUTRAL=true} removes attribute advantage in that test process only.
  */
@@ -38,10 +39,14 @@ public final class CombatScenario {
     private static double damage;
     private static final java.util.Map<String,Integer> moves=new java.util.TreeMap<>();
     private static String lastMove;
+    private static String lastPreyMove;
+    private static int preyCasts,preyHits;
     private static boolean blockedScenario;
     private static boolean started, done;
     private static int startTick, freezeTick = -1, captureTick = -1, releaseTick = -1, firstHitTick = -1, casts, hits;
     private static boolean casterWasAttacking, wrapCaster, oversizedWrapPrey, duel, preyFacesAway;
+    private static boolean escapeScenario;
+    private static final java.util.Set<com.digicube.entity.ai.FlightPhase> flightPhases = java.util.EnumSet.noneOf(com.digicube.entity.ai.FlightPhase.class);
     private static DigimonEntity caster, prey;
 
     private CombatScenario() {}
@@ -50,6 +55,8 @@ public final class CombatScenario {
     public static void tick(ServerLevel level) {
         if (NAME == null || done || level.dimension() != Level.OVERWORLD || !Services.PLATFORM.isDevelopmentEnvironment()) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
+        if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
+        if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         try {
             if (!started) start(level);
             else observe(level);
@@ -67,6 +74,7 @@ public final class CombatScenario {
             again = false;
             if (spec.endsWith("+duel")) { duel = true; spec = spec.substring(0, spec.length() - 5); again = true; }
             if (spec.endsWith("+behind")) { behind = true; spec = spec.substring(0, spec.length() - 7); again = true; }
+            if (spec.endsWith("+escape")) { escapeScenario = true; spec = spec.substring(0, spec.length() - 7); again = true; }
         }
         preyFacesAway = behind;
         String[] parts = spec.split("@", 2);
@@ -128,8 +136,9 @@ public final class CombatScenario {
         for (int x = -HALF; x <= HALF; x++) for (int z = -HALF; z <= HALF; z++) {
             for (int dy = -6; dy <= 8; dy++) level.setBlock(new BlockPos(x, FLOOR_Y + dy, z), air, 3);
             level.setBlock(new BlockPos(x, FLOOR_Y - (pool ? 6 : 1), z), stone, 3);
-            // A rim keeps a strolling or knocked-back fighter on the platform.
-            if (Math.abs(x) == HALF || Math.abs(z) == HALF) for (int dy = 0; dy <= 2; dy++) level.setBlock(new BlockPos(x, FLOOR_Y + dy, z), stone, 3);
+            // Contain flyers as well as walkers; a three-block rim lets escape flight leave the test.
+            if (Math.abs(x) == HALF || Math.abs(z) == HALF) for (int dy = 0; dy <= 8; dy++) level.setBlock(new BlockPos(x, FLOOR_Y + dy, z), stone, 3);
+            level.setBlock(new BlockPos(x, FLOOR_Y + 9, z), stone, 3);
             if (pool) {
                 boolean rim = Math.abs(x) == HALF || Math.abs(z) == HALF;
                 for (int dy = -5; dy <= -1; dy++) level.setBlock(new BlockPos(x, FLOOR_Y + dy, z), rim ? stone : water, 3);
@@ -161,6 +170,14 @@ public final class CombatScenario {
         // Read the damage of this tick before healing it away; the species may reset its own max health,
         // so the boost is reasserted every tick rather than trusted from spawn.
         boolean preyHurt = prey.getHealth() < prey.getMaxHealth();
+        if(duel && elapsed>=SETTLE_TICKS) {
+            if(caster.getHealth()<caster.getMaxHealth())preyHits++;
+            String move=prey.getActiveAttack()==null?null:prey.getActiveAttack().id().getPath();
+            if(move!=null && !java.util.Objects.equals(move,lastPreyMove)) {
+                preyCasts++;Constants.LOG.info("[scenario] t={} opponent starts {}",elapsed,move);
+            }
+            lastPreyMove=move;
+        }
         if(elapsed>=SETTLE_TICKS)damage+=prey.getMaxHealth()-prey.getHealth();
         if (oversizedWrapPrey && prey.hasEffect(DCEffects.CONSTRICTED)) { finish(level, "FAIL oversized prey was captured"); return; }
         for (DigimonEntity fighter : new DigimonEntity[]{caster, prey}) {
@@ -172,6 +189,25 @@ public final class CombatScenario {
             caster.setTarget(prey);
             if (duel) prey.setTarget(caster);
             Constants.LOG.info("[scenario] targets set ({}), caster at {} prey at {}", duel ? "duel" : "passive prey", caster.position(), prey.position());
+        }
+        if (escapeScenario && elapsed >= SETTLE_TICKS) {
+            caster.setTarget(null);
+            caster.setHealth(caster.getMaxHealth() * .25F);
+            if (elapsed == SETTLE_TICKS) caster.setLastHurtByMob(prey);
+            var phase = caster.getFlightPhase();
+            if (flightPhases.add(phase)) Constants.LOG.info("[scenario] t={} escape phase={}", elapsed, phase);
+            if (phase == com.digicube.entity.ai.FlightPhase.FLYING) caster.setLastHurtByMob(null);
+            if (caster.isAttacking() && phase != com.digicube.entity.ai.FlightPhase.GROUNDED) {
+                finish(level,"FAIL attack during escape"); return;
+            }
+            if (phase == com.digicube.entity.ai.FlightPhase.GROUNDED
+                    && flightPhases.contains(com.digicube.entity.ai.FlightPhase.LANDING)) {
+                boolean complete = flightPhases.size() == com.digicube.entity.ai.FlightPhase.values().length
+                        && caster.onGround() && !caster.isNoGravity();
+                finish(level, (complete ? "PASS" : "FAIL") + " escape takeoff, flight, approach, landing and gravity recovery by t=" + elapsed);
+                return;
+            }
+            if (elapsed >= TIMEOUT_TICKS) { finish(level,"FAIL escape did not land: " + flightPhases); return; }
         }
         if (elapsed < SETTLE_TICKS) {
             // Nobody strolls off during the settle; the fight starts from the authored positions.
@@ -191,6 +227,7 @@ public final class CombatScenario {
                 prey.setYRot(0); prey.yBodyRot = prey.yHeadRot = 0;
             }
         }
+        if (escapeScenario) return;
         boolean attacking = caster.isAttacking();
         String current=caster.getActiveAttack()==null?null:caster.getActiveAttack().id().getPath();
         if (attacking && (!casterWasAttacking || !java.util.Objects.equals(current,lastMove))) {
@@ -248,6 +285,11 @@ public final class CombatScenario {
 
     private static void finish(ServerLevel level, String verdict) {
         done = true;
+        if(duel) {
+            if(!blockedScenario && Boolean.parseBoolean(System.getenv("DIGICUBE_SCENARIO_REQUIRE_DUEL")) && preyCasts==0 && verdict.startsWith("PASS"))
+                verdict="FAIL opponent never attacked: "+verdict;
+            verdict+=" opponentCasts="+preyCasts+" opponentHits="+preyHits;
+        }
         Constants.LOG.info("[scenario] {}", verdict);
         level.getServer().halt(false);
     }

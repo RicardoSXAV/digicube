@@ -51,11 +51,26 @@ public final class KineticAttacks {
     public record Definition(DigimonAttack attack, Motion motion, Motion kickMotion, String kickAnimation,
                              int decisionTick, String projectile, double projectileSpeed, int projectileLife,
                              float modelScale, double maxLead, float maxPitch, List<AttackBox> projectileBoxes,
-                             List<String> aimPath) {
+                             List<String> aimPath, ProjectileMotion projectileMotion, int impairmentTicks, boolean emissive,
+                             boolean blendAim, boolean aimAtTop) {
         public Motion motion(boolean kick) { return kick && kickMotion != null ? kickMotion : motion; }
         public String animation(boolean kick) { return kick && kickAnimation != null ? kickAnimation : attack.id().getPath(); }
         public int duration(boolean kick) { return Math.round(motion(kick).duration()); }
         public boolean matches(String animation) { return attack.id().getPath().equals(animation) || animation != null && animation.equals(kickAnimation); }
+    }
+
+    /** Animated projectile cuboids use the same phase clock as the native effect. */
+    public record ProjectileMotion(int samplesPerTick, float holdTick, int impactTicks, List<List<AttackBox>> frames) {
+        public float flightTick(float age) { return Math.clamp(age, 0, holdTick); }
+        public List<AttackBox> sample(double age) {
+            double time=Math.clamp(age,0,holdTick)*samplesPerTick;
+            int i=Math.min((int)time,frames.size()-1); double w=time-i;
+            var a=frames.get(i);var b=frames.get(Math.min(i+1,frames.size()-1));var result=new ArrayList<AttackBox>();
+            for(int j=0;j<a.size();j++) { var x=a.get(j);var y=b.get(j);
+                result.add(new AttackBox(x.center().lerp(y.center(),w),x.x().lerp(y.x(),w),x.y().lerp(y.y(),w),x.z().lerp(y.z(),w)));
+            }
+            return result;
+        }
     }
 
     private static final Map<Identifier, Definition> DEFINITIONS = load();
@@ -131,8 +146,19 @@ public final class KineticAttacks {
                     || alternate != null && (decision < 0 || decision >= attack.hitTick() || alternate.duration() > attack.cooldownTicks())) {
                 throw new IllegalArgumentException("Invalid kinetic definition " + id);
             }
+            ProjectileMotion flight=null;
+            if(geometry.has("projectile_motion") && geometry.getAsJsonObject("projectile_motion").has(name)) {
+                var data=geometry.getAsJsonObject("projectile_motion").getAsJsonObject(name);
+                var frames=new ArrayList<List<AttackBox>>();data.getAsJsonArray("frames").forEach(row->frames.add(boxes(row.getAsJsonArray())));
+                flight=new ProjectileMotion(data.get("samples_per_tick").getAsInt(),data.get("hold_tick").getAsFloat(),
+                        GsonHelper.getAsInt(c,"impact_ticks",7),List.copyOf(frames));
+                if(flight.samplesPerTick()<1 || flight.holdTick()<0 || flight.holdTick()*flight.samplesPerTick()>=frames.size()
+                        || frames.stream().anyMatch(row->row.size()!=frames.getFirst().size()))throw new IllegalArgumentException("Invalid projectile animation "+id);
+            }
             result.put(id, new Definition(attack, base, alternate, kick, decision, projectile, speed, life, scale, lead, pitch,
-                    projectile == null ? List.of() : boxes(geometry.getAsJsonObject("projectile_boxes").getAsJsonArray(name)), List.copyOf(aim)));
+                    projectile == null ? List.of() : boxes(geometry.getAsJsonObject("projectile_boxes").getAsJsonArray(name)), List.copyOf(aim),
+                    flight,GsonHelper.getAsInt(c,"impairment_ticks",0),GsonHelper.getAsBoolean(c,"emissive",true),
+                    GsonHelper.getAsBoolean(c,"blend_aim",false),GsonHelper.getAsBoolean(c,"aim_at_top",flight!=null)));
         }
         return Collections.unmodifiableMap(result);
     }

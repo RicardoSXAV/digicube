@@ -207,6 +207,8 @@ public final class DigimonFlightGoal extends Goal {
     }
 
     private LivingEntity danger() {
+        // Armed flyers retaliate while healthy; repeated chip damage must not monopolize their AI.
+        if (mob.hasAttacks() && mob.getHealth() >= mob.getMaxHealth() * .4F) return null;
         LivingEntity threat = mob.getLastHurtByMob();
         if (threat != null && threat.isAlive() && mob.tickCount - mob.getLastHurtByMobTimestamp() < 100
                 && mob.distanceToSqr(threat) < 100 && !mob.isAllyOf(threat)) return threat;

@@ -1313,7 +1313,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     private boolean inRange(DigimonAttack attack, LivingEntity target) {
         if (attack.kind() == DigimonAttack.Kind.GROUND_WAVE && (!onGround() || isInWater() || isInLava())) return false;
-        return (attack.motion() == null || attack.isRanged() || onGround()) && canAttackFrom(attack, target, position());
+        var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
+        if (authored!=null && authored.grounded() && (!onGround() || isInWater() || isInLava())) return false;
+        return (attack.motion() == null || attack.isRanged() || onGround() || canSwim() && isInWater()) && canAttackFrom(attack, target, position());
     }
 
     /** Rehearse the move at a prospective foot position, including its real launch/contact geometry. */
@@ -1697,6 +1699,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     : activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE
                     ? TectonicWave.aimPoint(position(), attackTarget, activeAttack.hitTick()-attackTick)
                     : nearestVolume(attackTarget).getCenter();
+            var authoredDefinition=com.digicube.digimon.AuthoredAttacks.get(activeAttack);
+            if(authoredDefinition!=null && !authoredDefinition.hitWindows().isEmpty()) {
+                double contact=authoredDefinition.hitWindows().getLast()[0];
+                Vec3 lead=attackTarget.getDeltaMovement().multiply(1,0,1).scale(Math.max(0,contact-attackTick));
+                if(lead.length()>.6)lead=lead.normalize().scale(.6);
+                authoredAimPoint=authoredAimPoint.add(lead);
+            }
             Vec3 direction = authoredAimPoint.subtract(position());
             if (direction.horizontalDistanceSqr() > 1.0E-8) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
@@ -1720,7 +1729,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 this.entityData.set(DATA_ATTACK_AIM_PITCH, Mth.approach(previous, desired, 6));
             } else if (activeAttack.kind() == DigimonAttack.Kind.BOX_BURST) {
                 float desired=AuthoredVolumeAttack.pitch(activeAttack,position(),authoredAimPoint,getYRot());
-                this.entityData.set(DATA_ATTACK_AIM_PITCH,Mth.approach(this.entityData.get(DATA_ATTACK_AIM_PITCH),desired,4));
+                // A clip whose aim starts at zero supplies its own smooth anticipation.
+                // Seed its destination now; a short windup cannot otherwise reach a low target.
+                this.entityData.set(DATA_ATTACK_AIM_PITCH,attackTick==0 && activeAttack.motion().sample(0).aimWeight()==0
+                        ? desired : Mth.approach(this.entityData.get(DATA_ATTACK_AIM_PITCH),desired,4));
             } else if (activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT) {
                 float pitch = FlameStream.aimPitch(release, position(), authoredAimPoint, getYRot(),
                         this.entityData.get(DATA_ATTACK_AIM_PITCH));
@@ -1963,7 +1975,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Delayed authored area attacks retain the caster's attribute triangle and ally rules. */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim) {
         if (!victim.isAlive() || !canAttack(victim) || isAllyOf(victim)) return false;
-        float damage=damageAgainst(attack,victim);var source=damageSources().mobAttack(this);
+        float damage=damageAgainst(attack,victim);
+        var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
+        var source=authored!=null && !authored.hitWindows().isEmpty()?DCDamageTypes.volleyAttack(this):damageSources().mobAttack(this);
         if (!victim.hurtServer(level,source,damage)) return false;
         victim.knockback(attack.knockback(),getX()-victim.getX(),getZ()-victim.getZ(),source,damage);
         setLastHurtMob(victim);return true;

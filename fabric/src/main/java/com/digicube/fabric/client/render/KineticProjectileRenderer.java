@@ -27,12 +27,18 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
         }
     }
     @Override public NativeEffectState createRenderState() { return new NativeEffectState(); }
+    @Override protected net.minecraft.world.phys.AABB getBoundingBoxForCulling(KineticProjectileEntity entity) {
+        return entity.getBoundingBox().inflate(4);
+    }
     @Override public void extractRenderState(KineticProjectileEntity entity, NativeEffectState state, float partial) {
         super.extractRenderState(entity, state, partial);
         var definition = entity.definition();
         state.projectile = definition == null ? null : definition.projectile();
         if (definition == null) return;
         state.scale = definition.modelScale();
+        state.clip=entity.impacting()?"impact":"effect";
+        state.tick=definition.projectileMotion()==null?0:entity.impacting()?entity.effectTick(partial):definition.projectileMotion().flightTick(entity.effectTick(partial));
+        state.emissive=definition.emissive();
         var velocity = entity.getDeltaMovement();
         state.yaw = (float) Math.toDegrees(Math.atan2(-velocity.x, velocity.z));
         state.pitch = (float) -Math.toDegrees(Math.atan2(velocity.y, velocity.horizontalDistance()));
@@ -50,8 +56,9 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
         stack.pushPose();
         transform(stack, state.yaw, state.pitch, state.scale);
         collector.submitModel(model, state, stack,
-                RenderTypes.entityTranslucentEmissive(Constants.id("textures/entity/projectile/" + state.projectile + ".png")),
-                LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
+                state.emissive?RenderTypes.entityTranslucentEmissive(Constants.id("textures/entity/projectile/" + state.projectile + ".png"))
+                        :RenderTypes.entityTranslucent(Constants.id("textures/entity/projectile/" + state.projectile + ".png")),
+                state.emissive?LightCoordsUtil.FULL_BRIGHT:state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
         stack.popPose();
         super.submit(state, stack, collector, camera);
     }

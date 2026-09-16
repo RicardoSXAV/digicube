@@ -12,8 +12,12 @@ import java.util.*;
 
 /** Finite native performances: the visual cells and damage volumes share one clock. */
 public final class AuthoredAttacks {
-    public record Definition(DigimonAttack attack, String effect, boolean emissive, int hitInterval, int maxHits,
-                             List<String> parts, List<AttackBox[]> frames, int samplesPerTick) {
+    public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
+                             List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows) {
+        public int beat(double tick) {
+            for(int i=0;i<hitWindows.size();i++)if(tick>=hitWindows.get(i)[0] && tick<=hitWindows.get(i)[1])return i;
+            return -1;
+        }
         public AttackBox[] sample(double tick) {
             double t=Math.clamp(tick*samplesPerTick,0,frames.size()-1);
             int i=(int)t; double w=t-i;
@@ -54,6 +58,14 @@ public final class AuthoredAttacks {
                     c.get("range").getAsDouble(),false,AttackMotion.load(id),null,c.get("knockback").getAsDouble());
             var v=volumes.getAsJsonObject("attacks").getAsJsonObject(name);
             List<String> parts=new ArrayList<>();v.getAsJsonArray("parts").forEach(p->parts.add(p.getAsString()));
+            List<List<String>> visuals=new ArrayList<>();
+            if (v.has("visual_parts")) for (var group:v.getAsJsonArray("visual_parts")) {
+                var names=new ArrayList<String>();group.getAsJsonArray().forEach(p->names.add(p.getAsString()));
+                if(names.isEmpty())throw new IllegalArgumentException("Empty visual group "+id);
+                visuals.add(List.copyOf(names));
+            }
+            if(visuals.isEmpty()) for(String part:parts)visuals.add(List.of(part));
+            if(visuals.size()!=parts.size())throw new IllegalArgumentException("Visual volume width "+id);
             List<AttackBox[]> frames=new ArrayList<>();
             for(var row:v.getAsJsonArray("frames")) {
                 var cells=row.getAsJsonArray();var boxes=new AttackBox[cells.size()];
@@ -66,8 +78,16 @@ public final class AuthoredAttacks {
                 frames.add(boxes);
             }
             int interval=c.get("hit_interval").getAsInt(),max=c.get("max_hits").getAsInt();
+            var windows=new ArrayList<double[]>();
+            if(c.has("hit_windows"))for(var window:c.getAsJsonArray("hit_windows")) {
+                var w=window.getAsJsonArray();double from=w.get(0).getAsDouble(),until=w.get(1).getAsDouble();
+                if(from<0 || until<from || until>attack.durationTicks())throw new IllegalArgumentException("Invalid hit window "+id);
+                windows.add(new double[]{from,until});
+            }
             if(rate<1 || frames.size()!=attack.durationTicks()*rate+1 || interval<1 || max<1)throw new IllegalArgumentException("Volume clock "+id);
-            result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),interval,max,List.copyOf(parts),List.copyOf(frames),rate));
+            result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),
+                    GsonHelper.getAsBoolean(c,"grounded",false),interval,max,
+                    List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows)));
         }
         return Collections.unmodifiableMap(result);
     }

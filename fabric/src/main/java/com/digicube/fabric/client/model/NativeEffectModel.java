@@ -31,7 +31,7 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
     }
     @Override public void setupAnim(NativeEffectState state) {
         super.setupAnim(state);cells.values().forEach(p->p.visible=true);
-        animation.hideMembranes();animation.apply("effect",state.tick,1);
+        animation.hideMembranes();animation.apply(state.clip,state.tick,1);
         if(state.aimPitch!=0) {
             double a=Math.toRadians(state.aimPitch), c=Math.cos(a), s=Math.sin(a);
             double y=24-state.aimPivot.y*16/state.scale, z=-state.aimPivot.z*16/state.scale;

@@ -91,6 +91,18 @@ public final class DigimonCombatPosition {
     }
     /** Slow, stationary strikers need usable stances, not a ring inside their own body or beyond the fist. */
     static double[] approachRadii(DigimonAttack attack,double near,double far) {
+        var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
+        if(authored!=null && !authored.hitWindows().isEmpty()) {
+            // Multi-limb attacks have useful contact rings between the range
+            // endpoints. Rehearse those native positions before pathfinding.
+            var radii=new java.util.TreeSet<Double>();radii.add(near);radii.add(far);
+            for(var window:authored.hitWindows())for(var box:authored.sample((window[0]+window[1])*.5))if(box!=null) {
+                double reach=box.center().horizontalDistance();
+                radii.add(Math.round(reach*4)/4.0);
+                radii.add(Math.round((reach+.5)*4)/4.0);
+            }
+            return radii.stream().mapToDouble(Double::doubleValue).filter(r->r>0 && r<=attack.range()).toArray();
+        }
         if (attack.fuel()!=null) return new double[]{near,far,Math.max(far,attack.range()*.8)};
         if(attack.kind()==DigimonAttack.Kind.FIST) {
             var frame=attack.motion().sample(attack.hitTick());

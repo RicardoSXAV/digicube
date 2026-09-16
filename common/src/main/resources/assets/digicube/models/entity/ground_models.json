@@ -32,6 +32,37 @@
       ],
       "attack_blend_in": 3,
       "attack_blend_out": 6
+    },
+    "gesomon": {
+      "culling_margin": 4,
+      "amphibious": true,
+      "walk_blend": false,
+      "attack_blend_in": 4,
+      "attack_blend_out": 6,
+      "support_floor": true
+    },
+    "ikkakumon": {
+      "culling_margin": 3,
+      "amphibious": true,
+      "walk_blend": true,
+      "aim_path": [
+        "ikkakumon",
+        "body",
+        "chest",
+        "neck",
+        "head"
+      ],
+      "rider": {
+        "path": [
+          "ikkakumon",
+          "body"
+        ],
+        "point": [
+          1.04,
+          0.6,
+          1.25
+        ]
+      }
     }
   }
 }

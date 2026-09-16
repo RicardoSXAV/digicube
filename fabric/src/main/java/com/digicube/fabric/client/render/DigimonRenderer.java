@@ -8,7 +8,6 @@ import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
-import com.digicube.fabric.client.model.IkkakumonModel;
 import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
@@ -70,7 +69,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
-                Constants.id("ikkakumon"), new IkkakumonModel(context.bakeLayer(IkkakumonModel.LAYER)),
                 Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
                 Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
@@ -185,10 +183,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             fx.aimPivot=frame.head();fx.aimPitch=state.attackAimPitch*frame.aimWeight();
             fx.lightCoords=authored.emissive()?net.minecraft.util.LightCoordsUtil.FULL_BRIGHT:state.lightCoords;
             var hidden=new java.util.HashSet<String>();var boxes=authored.sample(fx.tick);
-            for(int i=0;i<boxes.length;i++) if(boxes[i]!=null && !com.digicube.entity.AuthoredVolumeAttack.visible(entity.level(),entity,
-                    state.attackDefinition,fx.tick,entity.position(),fx.yaw,
-                    com.digicube.entity.AuthoredVolumeAttack.aimed(boxes[i],state.attackDefinition,fx.tick,state.attackAimPitch)
-                            .world(entity.position(),fx.yaw,0)))hidden.add(authored.parts().get(i));
+            for(int i=0;i<boxes.length;i++) if(boxes[i]!=null) {
+                var world=com.digicube.entity.AuthoredVolumeAttack.aimed(boxes[i],state.attackDefinition,fx.tick,state.attackAimPitch)
+                        .world(entity.position(),fx.yaw,0);
+                if(!com.digicube.entity.AuthoredVolumeAttack.visible(entity.level(),entity,state.attackDefinition,fx.tick,entity.position(),fx.yaw,world)
+                        || authored.grounded() && !com.digicube.entity.AuthoredVolumeAttack.supported(entity.level(),entity,world)) hidden.addAll(authored.visualParts().get(i));
+            }
             fx.hidden=java.util.Set.copyOf(hidden);
         }
         state.constrictionFit = entity.getConstrictionFit();
@@ -237,7 +237,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         if (entity.canSwim()) bounds = bounds.inflate(entity.getBody().modelScale());
         if (entity.canFly()) bounds = bounds.inflate(2 * entity.getBody().modelScale());
-        if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel) {
+        if (models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel nativeModel
+                && !(nativeModel instanceof com.digicube.fabric.client.model.NativeGroundModel)) {
             bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
         }
         var attack = entity.getAnimatingAttack();
@@ -275,6 +276,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
      * @return its visual attachment, or null for mounts with an already fixed seat
      */
     public RiderVisual riderVisual(DigimonEntity entity, float partialTick) {
+        if(models.get(entity.getSpeciesId()) instanceof com.digicube.fabric.client.model.NativeGroundModel ground && ground.definition().rider()==null)return null;
         if (!(models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel mount)) return null;
         var state = createRenderState();
         extractRenderState(entity, state, partialTick);

@@ -1,0 +1,61 @@
+{
+  "stage": "armor",
+  "attribute": "free",
+  "base_health": 42,
+  "base_attack": 14,
+  "base_defence": 16,
+  "base_speed": 0.11,
+  "attacks": [
+    "gold_rush",
+    "big_crack"
+  ],
+  "evolutions": [],
+  "locomotion": {
+    "ground_gait": { "cycle_ticks": 32, "stride": 2, "max_playback_rate": 1.5 },
+    "follow_start_distance": 6,
+    "follow_stop_distance": 3,
+    "walk_speed": 0.95,
+    "run_speed": 0.95,
+    "flight": {
+      "speed": 0.28,
+      "capacity_ticks": 900,
+      "recharge_ticks": 560,
+      "rest_ticks": 60,
+      "restart_fraction": 0.25,
+      "landing_reserve_ticks": 120,
+      "minimum_flight_ticks": 100,
+      "start_distance": 12,
+      "stop_distance": 4.5,
+      "cruise_height": 2.2,
+      "clearance_width": 2.7,
+      "clearance_height": 3.0
+    }
+  },
+  "body": {
+    "model_scale": 0.5,
+    "width": 2.65,
+    "height": 2.86,
+    "eye_height": 2.45,
+    "mount": {
+      "seat": [
+        0,
+        2.5,
+        0
+      ],
+      "speed": 0.11,
+      "step_height": 1,
+      "flight": {
+        "cruise_speed": 0.28,
+        "acceleration": 0.018,
+        "braking": 0.07,
+        "climb_speed": 0.22,
+        "descend_speed": 0.18,
+        "turn_degrees": 4,
+        "takeoff_ticks": 40,
+        "lift_tick": 15,
+        "landing_ticks": 16,
+        "wing_loop_ticks": 40
+      }
+    }
+  }
+}

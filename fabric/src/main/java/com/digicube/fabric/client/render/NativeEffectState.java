@@ -9,4 +9,6 @@ public final class NativeEffectState extends EntityRenderState {
     public java.util.Set<String> hidden = java.util.Set.of();
     public float pitch;
     public String projectile;
+    public String clip="effect";
+    public boolean emissive=true;
 }

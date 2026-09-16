@@ -14,6 +14,10 @@ public final class DCDamageTypes {
             ResourceKey.create(Registries.DAMAGE_TYPE, Constants.id("partner_attack"));
 
     private DCDamageTypes() {}
+    public static final ResourceKey<DamageType> VOLLEY_ATTACK = ResourceKey.create(Registries.DAMAGE_TYPE,Constants.id("volley_attack"));
+    public static DamageSource volleyAttack(LivingEntity attacker) {
+        return new DamageSource(attacker.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(VOLLEY_ATTACK),attacker);
+    }
 
     /** @param attacker responsible partner @return attributed damage without a hurt impulse */
     public static DamageSource partnerAttack(LivingEntity attacker) {
