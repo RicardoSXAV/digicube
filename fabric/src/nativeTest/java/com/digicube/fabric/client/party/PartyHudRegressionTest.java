@@ -64,6 +64,9 @@ public final class PartyHudRegressionTest {
         check(PartyHudReadout.stackHeight(3, 0, false) == 134, "without the header: 134 units");
         check(PartyHudReadout.stackHeight(0, 0, true) == PartyHudReadout.HEADER_HEIGHT, "empty stack is just the header");
 
+        check(PartyHudReadout.stripScale(3) == 2.5F / 3 && PartyHudReadout.stripScale(4) == 0.875F, "strip is half a pixel per unit smaller from GUI scale 3 up");
+        check(PartyHudReadout.stripScale(2) == 1.0F && PartyHudReadout.stripScale(1) == 1.0F, "strip keeps full size at small GUI scales");
+
         boolean[] full = {true, true, true};
         boolean[] gap = {true, false, true};
         boolean[] one = {false, true, false};

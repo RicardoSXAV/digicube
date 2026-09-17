@@ -73,9 +73,11 @@ public final class FabricPartyNetworking {
             session.open = false;
             return;
         }
-        if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE) || !player.isAlive() || player.isSpectator()
+        boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.SEND_OUT;
+        // The V key and the command wheel act from the world, without the Digivice screen open.
+        if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE && payload.action()!=PartyActionPayload.REVERT && !order) || !player.isAlive() || player.isSpectator()
                 || !player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) return;
-        if(payload.action()>=PartyActionPayload.EVOLVE&&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
+        if(payload.action()>=PartyActionPayload.EVOLVE&&!order&&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
             send(player,false,"gui.digicube.evolution.stale");return;
         }
         int tick = player.level().getServer().getTickCount();
@@ -96,6 +98,11 @@ public final class FabricPartyNetworking {
             if(payload.value()<0||payload.value()>=origins.size())return;
             message=com.digicube.party.PartyEvolution.action(player,payload.member(),"origin",0,origins.get(payload.value()));
         }
+        else if (payload.action() == PartyActionPayload.HOLD) message = PartyManager.hold(player, payload.member(), true);
+        else if (payload.action() == PartyActionPayload.FOLLOW) message = PartyManager.hold(player, payload.member(), false);
+        else if (payload.action() == PartyActionPayload.CANCEL_TARGET) message = PartyManager.cancelTarget(player, payload.member());
+        else if (payload.action() == PartyActionPayload.STOW) message = PartyManager.stow(player, payload.member());
+        else if (payload.action() == PartyActionPayload.SEND_OUT) message = PartyManager.sendOut(player, payload.member());
         else return;
         send(player, false, message);
     }

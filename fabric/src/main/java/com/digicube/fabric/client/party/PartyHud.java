@@ -28,11 +28,11 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * The party strip: a header tab and one bevelled card per party slot, stacked on the left
- * edge of the screen and centred vertically. Each card is the Digivice's reading of one
- * partner: sprite on the data grid, level plate, name band, HP, status code, XP rail and
- * the DigiSoul cell. Everything is {@code fill} calls in GUI units plus the species sprite,
- * so it is crisp at every GUI scale. Design: {@code design/party-hud-strip.md} section 12.
+ * The party strip: a header tab and one bevelled card per party slot, stacked in the
+ * top-left corner of the screen at a little under full GUI size. Each card is the
+ * Digivice's reading of one partner: sprite on the data grid, level plate, name band, HP,
+ * status code, XP rail and the DigiSoul cell. Everything is {@code fill} calls in GUI units
+ * plus the species sprite, drawn inside one scaled pose. Design: {@code design/party-hud-strip.md} section 12.
  *
  * <p>The strip keeps a little client memory per partner (last health for the damage
  * ghost, last level for the level-up flash), advanced from the client tick, never from
@@ -44,7 +44,7 @@ final class PartyHud {
     private static final int STUB = PartyHudReadout.STUB_HEIGHT;
     private static final int GAP = PartyHudReadout.GAP;
     private static final int HEADER = PartyHudReadout.HEADER_HEIGHT;
-    /** Distance from the left edge of the screen. */
+    /** Distance from the top and left edges of the screen, in unscaled GUI units. */
     private static final int MARGIN = 4;
     /** The strip stays visible but steps back while the chat is open. */
     private static final float CHAT_FADE = 0.45F;
@@ -95,12 +95,14 @@ final class PartyHud {
 
     /**
      * @param age       client ticks since {@code snapshot} arrived, for the local countdowns
-     * @param selected  the party slot the arrow keys have selected; its card wears the cyan ring
+     * @param selected  the party slot the arrow keys have selected; its card wears the amber corner brackets
      * @param evolveKey the Digivolve key, for the READY hint on the selected card
      */
     void draw(GuiGraphicsExtractor graphics, DeltaTracker delta, PartySnapshotPayload snapshot, int age, int selected, KeyMapping evolveKey) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.player.isSpectator() || client.gui.hud.isHidden() || snapshot.total() == 0) return;
+        if (client.player == null || client.player.isSpectator() || client.gui.hud.isHidden() || snapshot.total() == 0
+                // the dev panel is translucent and centred: the strip would show through it
+                || client.gui.screen() instanceof com.digicube.fabric.client.dev.DevPanelScreen) return;
         Font font = client.font;
         float time = tick + delta.getGameTimeDeltaPartialTick(true);
         float fade = client.gui.screen() instanceof ChatScreen ? CHAT_FADE : 1.0F;
@@ -118,8 +120,13 @@ final class PartyHud {
                 if (entity instanceof DigimonEntity digimon && digimon.canFly()) flightFuel.put(entity.getUUID(), digimon.getFlightFuel());
             }
         }
-        int x = MARGIN;
-        int y = (graphics.guiHeight() - PartyHudReadout.stackHeight(filled, slots.length - filled, true)) / 2;
+        // Top-left corner, a touch under full size. Everything below is drawn from the origin inside this transform.
+        float scale = PartyHudReadout.stripScale(client.getWindow().getGuiScale());
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(MARGIN, MARGIN);
+        graphics.pose().scale(scale, scale);
+        int x = 0;
+        int y = 0;
         header(graphics, font, x, y, filled, fade);
         y += HEADER;
         for (int slot = 0; slot < slots.length; slot++) {
@@ -135,6 +142,7 @@ final class PartyHud {
                     memories.computeIfAbsent(member.id(), id -> new Memory()), time, fade);
             y += H + GAP;
         }
+        graphics.pose().popMatrix();
     }
 
     // --- pieces ----------------------------------------------------------------------------
@@ -165,7 +173,7 @@ final class PartyHud {
         Status status = PartyHudReadout.status(m, age, route);
         DigimonSpecies species = DigimonSpeciesRegistry.get(m.species()).orElse(null);
         DigimonAttribute attribute = species == null ? DigimonAttribute.UNKNOWN : species.attribute();
-        int attributeColor = attributeColor(attribute);
+        int attributeColor = DigiPanels.attributeColor(attribute);
         int light = lit ? DigiTheme.EDGE_LIGHT : DigiTheme.EDGE_DIM;
         if (hurt) light = DigiTheme.mix(DigiTheme.EDGE_DIM, DigiTheme.RED, 0.35F + 0.65F * breath(time, LOW_HEALTH_BREATH_TICKS, 0));
 
@@ -244,7 +252,7 @@ final class PartyHud {
         int soul = PartyHudReadout.soul(m, age);
         int sx = x + TEXT_X;
         if (status == Status.STAGE) {
-            attributeGlyph(g, attribute, sx, y + 27, tint(attributeColor, 0xD0, fade));
+            DigiPanels.attributeGlyph(g, attribute, sx, y + 27, tint(attributeColor, 0xD0, fade));
             sx += 8;
         }
         g.text(font, DigiPanels.shortText(font, Component.literal(code(m, status, age, soul, key, species)), x + TEXT_X + TEXT_W - sx), sx, y + 26,
@@ -324,30 +332,6 @@ final class PartyHud {
         if (status == Status.SOUL) return soul < PartyHudReadout.SOUL_CRITICAL_TICKS ? DigiTheme.RED : soul < PartyHudReadout.SOUL_WARN_TICKS ? DigiTheme.AMBER : DigiTheme.DATA_LIGHT;
         if (status == Status.COOLDOWN || status == Status.REVERTING) return DigiTheme.MUTED;
         return soul >= com.digicube.digimon.Progression.DIGISOUL_MINIMUM ? DigiTheme.DATA_LIGHT : DigiTheme.DATA;
-    }
-
-    private static int attributeColor(DigimonAttribute attribute) {
-        return switch (attribute) {
-            case VACCINE -> DigiTheme.TEAL;
-            case DATA -> DigiTheme.DATA_LIGHT;
-            case VIRUS -> DigiTheme.VIRUS;
-            default -> DigiTheme.MUTED;
-        };
-    }
-
-    /** 5 x 5 glyphs: Vaccine a plus, Data three bars, Virus an X, everything else a hollow diamond. */
-    private static void attributeGlyph(GuiGraphicsExtractor g, DigimonAttribute attribute, int x, int y, int color) {
-        int[] rows = switch (attribute) {
-            case VACCINE -> new int[]{0b00100, 0b00100, 0b11111, 0b00100, 0b00100};
-            case DATA -> new int[]{0b11111, 0b00000, 0b11111, 0b00000, 0b11111};
-            case VIRUS -> new int[]{0b10001, 0b01010, 0b00100, 0b01010, 0b10001};
-            default -> new int[]{0b00100, 0b01010, 0b10001, 0b01010, 0b00100};
-        };
-        for (int row = 0; row < 5; row++) {
-            for (int col = 0; col < 5; col++) {
-                if ((rows[row] & (0b10000 >> col)) != 0) g.fill(x + col, y + row, x + col + 1, y + row + 1, color);
-            }
-        }
     }
 
     // --- primitives ------------------------------------------------------------------------

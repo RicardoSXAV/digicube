@@ -16,6 +16,12 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
     public static final int EVOLVE = 3;
     public static final int REVERT = 4;
     public static final int ORIGIN = 5;
+    /** Command wheel orders. They carry no evolution intent, so generation and sequence stay unset. */
+    public static final int HOLD = 6;
+    public static final int FOLLOW = 7;
+    public static final int CANCEL_TARGET = 8;
+    public static final int STOW = 9;
+    public static final int SEND_OUT = 10;
     public static final UUID NO_MEMBER = new UUID(0, 0);
     public static final Type<PartyActionPayload> TYPE = new Type<>(Constants.id("party_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartyActionPayload> STREAM_CODEC =

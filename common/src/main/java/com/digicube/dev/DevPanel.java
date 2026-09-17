@@ -44,7 +44,7 @@ public final class DevPanel {
                 .map(action -> action.run(server, player, payload.args()))
                 .orElse("Unknown developer action: " + payload.action());
         if (!result.isEmpty()) Constants.LOG.info("Dev panel [{}] {}: {}", player.getName().getString(), payload.action(), result);
-        reply(player, DevState.capture(server, player, payload.args()), result);
+        reply(player, BattleTest.state(player), result);
     }
 
     private static void reply(ServerPlayer player, CompoundTag state, String message) {

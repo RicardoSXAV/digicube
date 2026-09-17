@@ -1,5 +1,6 @@
 package com.digicube.fabric.client.gui;
 
+import com.digicube.digimon.DigimonAttribute;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -251,6 +252,31 @@ public final class DigiPanels {
         } else {
             graphics.outline(x + 2, y + 2, size - 4, size - 4, DigiTheme.EDGE);
             graphics.centeredText(minecraft.font, "?", x + size / 2, y + size / 2 - 4, DigiTheme.MUTED);
+        }
+    }
+
+    /** The colour an attribute wears on stripes and glyphs. */
+    public static int attributeColor(DigimonAttribute attribute) {
+        return switch (attribute) {
+            case VACCINE -> DigiTheme.TEAL;
+            case DATA -> DigiTheme.DATA_LIGHT;
+            case VIRUS -> DigiTheme.VIRUS;
+            default -> DigiTheme.MUTED;
+        };
+    }
+
+    /** 5 x 5 glyphs: Vaccine a plus, Data three bars, Virus an X, everything else a hollow diamond. */
+    public static void attributeGlyph(GuiGraphicsExtractor g, DigimonAttribute attribute, int x, int y, int color) {
+        int[] rows = switch (attribute) {
+            case VACCINE -> new int[]{0b00100, 0b00100, 0b11111, 0b00100, 0b00100};
+            case DATA -> new int[]{0b11111, 0b00000, 0b11111, 0b00000, 0b11111};
+            case VIRUS -> new int[]{0b10001, 0b01010, 0b00100, 0b01010, 0b10001};
+            default -> new int[]{0b00100, 0b01010, 0b10001, 0b01010, 0b00100};
+        };
+        for (int row = 0; row < 5; row++) {
+            for (int col = 0; col < 5; col++) {
+                if ((rows[row] & (0b10000 >> col)) != 0) g.fill(x + col, y + row, x + col + 1, y + row + 1, color);
+            }
         }
     }
 

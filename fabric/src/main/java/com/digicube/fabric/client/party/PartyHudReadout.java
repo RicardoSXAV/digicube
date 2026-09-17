@@ -122,6 +122,16 @@ public final class PartyHudReadout {
         return current;
     }
 
+    /**
+     * How much the strip is scaled down from the GUI scale. At GUI scale 3 and above it is
+     * drawn half a screen pixel per unit smaller (2.5 px per unit at scale 3, about 83 %),
+     * which keeps the pixel pattern regular; at smaller GUI scales it is already compact and
+     * stays at full size.
+     */
+    public static float stripScale(int guiScale) {
+        return guiScale >= 3 ? (guiScale - 0.5F) / guiScale : 1.0F;
+    }
+
     /** Height of the whole strip in units: header, cards, stubs and the gaps between them. */
     public static int stackHeight(int filled, int empty, boolean header) {
         int slots = filled + empty;

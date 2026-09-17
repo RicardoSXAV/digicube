@@ -124,3 +124,25 @@ tasks.register('partyHudTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('partyHudTest') }
+
+// Pins the command wheel's rules (which order each sector offers, when it is available, sector picking).
+tasks.register('commandWheelTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.party.CommandWheelRegressionTest'
+    workingDir = layout.buildDirectory.dir('command-wheel-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('commandWheelTest') }
+
+// Pins the developer panel: declarations, config search, card and tab arithmetic, number rows.
+tasks.register('devPanelTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.dev.DevPanelRegressionTest'
+    workingDir = layout.buildDirectory.dir('dev-panel-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('devPanelTest') }

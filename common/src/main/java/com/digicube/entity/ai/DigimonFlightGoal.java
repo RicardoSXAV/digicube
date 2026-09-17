@@ -203,7 +203,7 @@ public final class DigimonFlightGoal extends Goal {
 
     private LivingEntity owner() {
         LivingEntity owner = mob.getOwner();
-        return owner != null && owner.isAlive() && !owner.isSpectator() && owner.level() == mob.level() ? owner : null;
+        return owner != null && !mob.isHolding() && owner.isAlive() && !owner.isSpectator() && owner.level() == mob.level() ? owner : null;
     }
 
     private LivingEntity danger() {

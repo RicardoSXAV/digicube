@@ -64,7 +64,7 @@ public final class FollowOwnerGoal extends Goal {
 
     private boolean canFollow(LivingEntity candidate) {
         return candidate != null && candidate.isAlive() && !candidate.isSpectator()
-                && mob.isAlive() && (mob.getTarget() == null || !mob.hasAttacks()) && !mob.isAttacking()
+                && mob.isAlive() && !mob.isHolding() && (mob.getTarget() == null || !mob.hasAttacks()) && !mob.isAttacking()
                 && !mob.isPassenger() && !mob.isVehicle();
     }
 

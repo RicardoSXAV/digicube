@@ -78,6 +78,13 @@ public final class PartyRegressionTest {
         legacy.remove("xp");
         PartyMember beforeProgression = PartyMember.CODEC.parse(NbtOps.INSTANCE, legacy).getOrThrow();
         check(beforeProgression.level() == 1 && beforeProgression.xp() == 0, "rosters saved before progression existed load at level 1");
+        check(!beforeProgression.stowed(), "rosters saved before the command wheel existed load deployed");
+        PartyMember recalled = PartyMember.CODEC.parse(NbtOps.INSTANCE, legacy).getOrThrow();
+        recalled.setStowed(true);
+        CompoundTag stowedTag = (CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, recalled).getOrThrow();
+        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, stowedTag).getOrThrow().stowed(), "a recalled partner stays recalled across a reload");
+        recalled.setSlot(1);
+        check(!recalled.stowed(), "placing a partner in a party slot sends it out again");
         // Exercise Minecraft's actual disk API too: a valid codec alone does not verify
         // SavedDataType/data-fixer configuration or asynchronous write completion.
         Path directory = Files.createTempDirectory("digicube-party-test-").toAbsolutePath().normalize();
@@ -161,13 +168,13 @@ public final class PartyRegressionTest {
             check(PartyActionPayload.STREAM_CODEC.decode(buffer).equals(action), "recall action round-trip");
             buffer.clear();
             CompoundTag devArgs = new CompoundTag();
-            devArgs.putString(DevActions.SPECIES_ARG, "agumon");
-            devArgs.putInt(DevActions.LEVEL_ARG, 7);
-            DevActionPayload devAction = new DevActionPayload(DevActions.SPAWN, devArgs);
+            devArgs.putString(DevActions.SPECIES_A_ARG, "agumon");
+            devArgs.putInt(DevActions.LEVEL_A_ARG, 7);
+            DevActionPayload devAction = new DevActionPayload(DevActions.BATTLE_START, devArgs);
             DevActionPayload.STREAM_CODEC.encode(buffer, devAction);
             check(DevActionPayload.STREAM_CODEC.decode(buffer).equals(devAction), "dev action round-trip");
             buffer.clear();
-            DevStatePayload devState = new DevStatePayload(devArgs, "Spawned wild agumon Lv 7");
+            DevStatePayload devState = new DevStatePayload(devArgs, "agumon Lv 7 vs gabumon Lv 7");
             DevStatePayload.STREAM_CODEC.encode(buffer, devState);
             check(DevStatePayload.STREAM_CODEC.decode(buffer).equals(devState), "dev state round-trip");
             check(new DevStatePayload(devArgs, "x".repeat(400)).reply().length() == DevStatePayload.MAX_REPLY_LENGTH, "dev reply is bounded");

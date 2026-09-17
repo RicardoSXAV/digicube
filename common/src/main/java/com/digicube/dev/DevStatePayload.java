@@ -9,7 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /**
  * Server to client: the developer panel's readout after an action, and the one-line
- * result of that action. The state is the tag {@link DevState#capture} builds; the reply
+ * result of that action. The state is a free-form tag (today the fight of {@link BattleTest}); the reply
  * is plain text because this is a tool for the developer, not a player-facing screen.
  */
 public record DevStatePayload(CompoundTag state, String reply) implements CustomPacketPayload {

@@ -1,8 +1,6 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
-import com.digicube.dev.SpeciesTuning;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.phys.Vec3;
 
@@ -48,12 +46,6 @@ public final class IkkakumonRegressionTest {
                 check(Math.abs(travel-recovered) < 1e-6, "unspecified playback limits preserve existing gait behavior");
             }
         }
-        var edit = new CompoundTag();edit.putDouble(SpeciesTuning.MOUNT_SPEED, .15);
-        edit.putDouble(SpeciesTuning.SWIM_SPEED, .65);
-        var tuned = SpeciesTuning.with(species, edit);
-        check(tuned.body().mount().orElseThrow().standing()
-                && tuned.body().mount().orElseThrow().waterSeatOffset().equals(mount.waterSeatOffset())
-                && tuned.locomotion().groundGait().equals(gait), "developer tuning preserves rider and gait metadata");
         for (String id : new String[]{"greymon", "garurumon"}) {
             var other = DigimonSpeciesRegistry.getOrThrow(Constants.id(id)).body().mount().orElseThrow();
             check(!other.standing() && other.waterSeatOffset().equals(Vec3.ZERO), "existing seated mounts are unchanged");

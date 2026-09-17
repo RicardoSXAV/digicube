@@ -94,7 +94,7 @@ digicube/
 │       │   ├── party/                  <- Digivice collection, party slots, sync payloads
 │       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
 │       │   ├── starter/                <- first-partner prompt: starter set, saved data, flow, payloads
-│       │   ├── dev/                    <- developer panel: action registry, readout, payloads, gate
+│       │   ├── dev/                    <- developer panel: server actions, battle testing, payloads, gate
 │       │   ├── command/                <- /digicube commands
 │       │   ├── registry/               <- DCItems, DCBlocks, DCEntityTypes, ...
 │       │   ├── platform/               <- ServiceLoader bridge to loader features
@@ -113,7 +113,7 @@ digicube/
         │   ├── client/DigiCubeFabricClient.java <- client-only entry point
         │   ├── client/gui/                      <- the DigiCube GUI language: DigiTheme, DigiPanels, DigimonPreview
         │   ├── client/starter/                  <- the Partner Link screen and its client gate
-        │   ├── client/dev/                      <- the F6 developer panel (dev environment only)
+        │   ├── client/dev/                      <- the developer panel, opened from the wheel gear (dev only)
         │   ├── dev/FabricDevNetworking.java     <- developer panel transport
         │   ├── platform/FabricPlatformHelper.java
         │   └── mixin/                           <- Fabric-only mixins
@@ -358,30 +358,28 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `GuiGraphicsExtractor.entity`. Widgets extend `AbstractButton` for focus and narration;
   screens do not pause; layouts are integer GUI units validated at 320 × 240. The
   Digivice screen and party HUD keep `PartyGraphics` until the language is approved.
-- The developer panel (F6 shows it as a passive overlay on the left, F7 focuses it, in a
-  dev run only) is tooling, not a player feature, and not a command front-end: it exists
-  so the developer can test and tune values in play and write them back into the
-  repository. `DevPanel.handle` (common) admits, in a development environment only, an
-  operator or the singleplayer world owner (a survival world made without cheats gives
-  its host no permission level, and survival is where the balance testing happens); `DevActions` is the registry of tools, each a `(server, player, args) ->
-  reply` lambda; `DevState.capture` builds the readout tag. The two payloads
-  (`DevActionPayload`: action id + argument tag, `DevStatePayload`: state tag + reply)
-  never change when a tool is added. `DevPanelView` (fabric) lays out and draws the panel
-  in panel units, scaled by `DevClient.SCALE`, for both the overlay and `DevPanelScreen`,
-  which only adds widgets on the rows the layout gives it. To add a tool: register an
-  action in `DevActions`, give it a row in `DevPanelView.layout`/`draw` and a control in
-  `DevPanelScreen.init`/`place`, and if it needs numbers on screen, add keys to
-  `DevState` (add keys, never rename them). Tuning: `SpeciesTuning` swaps a species for
-  a validated copy at runtime and refreshes its live entities; `SpeciesSheetWriter` edits
-  the numbers in place in the sheet under `common/src/main/resources`, found by walking
-  up from the game directory (`IPlatformHelper.gameDirectory`). Player items: the
-  PLAYER ITEMS section equips one of the `PlayerLoadouts` (what an average vanilla
-  player carries after 1, 3, 5, 10 or 15 hours in 26.2; the reasoning is in
-  `../design/player-loadouts.md`), replacing the whole inventory through
-  `PlayerLoadout.equip`; enchantments are stored as keys and resolved against the
-  server registry. `:common:devTest` covers tuning, the sheet rewrite and the loadout
-  table. Pickers on the panel extend the generic `Dropdown<T>`. The panel is
-  deliberately plain, with vanilla widgets and flat fills, outside the GUI language.
+- The developer panel is tooling, not a player feature, and not a command front-end: its one
+  job is calibrating mechanics in play. It has no key. In a development environment the
+  command wheel shows a gear in the bottom right corner (`DevGear`); resting the cursor on
+  it opens `DevPanelScreen`, centred and translucent, and Esc closes it. The panel draws
+  what `DevTabs` declares: tabs, each tab a scrolling column of section cards with an index
+  on the left, each card ending in its own action bar, and a search in the title bar over
+  every tab, section and config (`DevSearch`). `DevCatalog` is the single place that
+  declares content. A plain tuning section is one chain (`tab(..).section(..).number(..)
+  .toggle(..).choice(..).tuning(..)`) over `DevValue`s and needs no interface code; a special
+  body implements `DevBody` and registers its controls on the `DevCanvas`
+  (`BattleTestingBody`). Sections marked `example()` are placeholders whose values live only
+  in the panel; wire one by giving its rows a `DevValue` that reads and writes the real
+  number. `DevLayout` holds the arithmetic; `:fabric:devPanelTest` pins declarations, search,
+  cards, the tab row and number rows. Server side: `DevPanel.handle` (common) admits, in a
+  development environment only, an operator or the singleplayer world owner (a survival
+  world made without cheats gives its host no permission level, and survival is where the
+  balance testing happens); `DevActions` is the registry of server actions, each a
+  `(server, player, args) -> reply` lambda. The two payloads (`DevActionPayload`: action id
+  + argument tag, `DevStatePayload`: state tag + reply) never change when an action is
+  added. Battle Testing (`BattleTest`) stages two wild Digimon in front of the player, keeps
+  them on each other and lets them fight to a knockout with their real stats; the readout
+  travels in the state tag every five ticks and `BattleReadout` draws it as a HUD bar.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at

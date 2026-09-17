@@ -315,6 +315,25 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private final DamageLedger contributions = new DamageLedger();
     private boolean experienceAwarded;
 
+    /** Ordered to stand still: no following, no catch-up teleport. Not saved, so a fresh deployment follows again. */
+    private boolean holding;
+    /** What the party sync last reported for {@link #hasLiveTarget()}, so a change can trigger a snapshot. */
+    private boolean reportedTarget;
+
+    public boolean isHolding() { return holding; }
+    public void setHolding(boolean holding) { this.holding = holding; if (holding) { getNavigation().stop(); setRunningToOwner(false); } }
+    public boolean hasLiveTarget() { return getTarget() != null && getTarget().isAlive(); }
+    /** @return whether the target state changed since the last call */
+    public boolean targetStateChanged() { boolean now = hasLiveTarget(); boolean changed = now != reportedTarget; reportedTarget = now; return changed; }
+    /** The owner called the attack off: forget the target and whoever provoked it. */
+    public void cancelTarget() {
+        // A running target goal re-asserts its remembered victim every tick, so stop the goals, not just the field.
+        targetSelector.getAvailableGoals().stream().filter(net.minecraft.world.entity.ai.goal.WrappedGoal::isRunning).forEach(net.minecraft.world.entity.ai.goal.WrappedGoal::stop);
+        setTarget(null);
+        setLastHurtByMob(null);
+        getNavigation().stop();
+    }
+
     public long getPartyGeneration() { return partyGeneration; }
     public void setPartyGeneration(long generation) { partyGeneration = generation; }
 

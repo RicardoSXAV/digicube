@@ -29,7 +29,9 @@ public final class PartyMember {
             Codec.LONG.fieldOf("generation").forGetter(PartyMember::generation),
             CompoundTag.CODEC.fieldOf("entity").forGetter(PartyMember::entityData),
             // Optional so rosters saved before defeat rest existed load rested.
-            Codec.INT.optionalFieldOf("rest_ticks", 0).forGetter(PartyMember::restTicks)
+            Codec.INT.optionalFieldOf("rest_ticks", 0).forGetter(PartyMember::restTicks),
+            // Optional so rosters saved before the command wheel existed load deployed.
+            Codec.BOOL.optionalFieldOf("stowed", false).forGetter(PartyMember::stowed)
     ).apply(instance, PartyMember::new));
 
     private final UUID id;
@@ -44,6 +46,8 @@ public final class PartyMember {
     private long generation;
     private CompoundTag entityData;
     private int restTicks;
+    /** Recalled from the command wheel: keeps its party slot but stays in the Digivice until sent out. */
+    private boolean stowed;
 
     public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
                        int level, int xp, int slot, long generation, CompoundTag entityData) {
@@ -52,6 +56,11 @@ public final class PartyMember {
 
     public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
                        int level, int xp, int slot, long generation, CompoundTag entityData, int restTicks) {
+        this(id, owner, species, nickname, health, maxHealth, level, xp, slot, generation, entityData, restTicks, false);
+    }
+
+    public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
+                       int level, int xp, int slot, long generation, CompoundTag entityData, int restTicks, boolean stowed) {
         this.id = id;
         this.owner = owner;
         this.species = species;
@@ -64,6 +73,7 @@ public final class PartyMember {
         this.generation = generation;
         this.entityData = entityData.copy();
         this.restTicks = Math.max(0, restTicks);
+        this.stowed = stowed;
     }
 
     public UUID id() { return id; }
@@ -98,7 +108,11 @@ public final class PartyMember {
     /** Defeated and still waiting out its rest. */
     public boolean resting() { return defeated() && restTicks > 0; }
 
-    void setSlot(int slot) { this.slot = slot; }
+    public boolean stowed() { return stowed; }
+    void setStowed(boolean stowed) { this.stowed = stowed; }
+
+    /** A new slot is a fresh start: whoever is placed in the party comes out. */
+    void setSlot(int slot) { this.slot = slot; this.stowed = false; }
 
     /** Invalidates any older incarnation still present in an unloaded chunk. */
     long nextGeneration() { return ++generation; }

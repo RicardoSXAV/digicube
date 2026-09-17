@@ -222,6 +222,7 @@ public final class PartyManager {
                 continue;
             }
             data.session(member.owner()).sync.recordHealth(member.id(), entity.getHealth(), entity.getMaxHealth());
+            if (entity.targetStateChanged()) data.session(member.owner()).sync.invalidate();
             ServerPlayer owner = server.getPlayerList().getPlayer(member.owner());
             if (!entity.isOwnedBy(owner) || owner == null || !owner.isAlive() || owner.isSpectator()
                     || entity.level() != owner.level() || entity.distanceToSqr(owner) > 4096 || !member.active()) {
@@ -236,7 +237,7 @@ public final class PartyManager {
             if (!player.isAlive() || player.isSpectator()) continue;
             if (regenerate) regenerateReserve(data, player.getUUID());
             for (PartyMember member : data.roster().party(player.getUUID())) {
-                if (!data.live.containsKey(member.id())) deploy(data, member, player);
+                if (!member.stowed() && !data.live.containsKey(member.id())) deploy(data, member, player);
             }
         }
     }
@@ -295,6 +296,61 @@ public final class PartyManager {
         data.session(member.owner()).sync.invalidate();
         data.setDirty();
         return "";
+    }
+
+    /** Command wheel orders. Each returns a translation key on failure, or the empty string on success. */
+    public static String stow(ServerPlayer player, UUID memberId) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        if (member == null) return "gui.digicube.party.invalid";
+        DigimonEntity live = data.live.get(member.id());
+        if (live == null) return "gui.digicube.party.unavailable";
+        if (busy(data, member)) return "gui.digicube.party.riding";
+        var phase = live.evolution().phase;
+        if (phase != com.digicube.digimon.EvolutionState.Phase.RESTING && phase != com.digicube.digimon.EvolutionState.Phase.EVOLVED) return "gui.digicube.party.unavailable";
+        member.setStowed(true);
+        recall(data, member);
+        data.session(member.owner()).sync.invalidate();
+        data.setDirty();
+        return "";
+    }
+
+    /** Clears the recalled state; a cramped spot leaves the partner waiting for space like any other deployment. */
+    public static String sendOut(ServerPlayer player, UUID memberId) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        if (member == null) return "gui.digicube.party.invalid";
+        if (member.defeated()) return "gui.digicube.party.defeated";
+        member.setStowed(false);
+        data.session(member.owner()).sync.invalidate();
+        data.setDirty();
+        return data.live.containsKey(member.id()) || deploy(data, member, player) ? "" : "gui.digicube.party.no_space";
+    }
+
+    public static String hold(ServerPlayer player, UUID memberId, boolean holding) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        DigimonEntity live = member == null ? null : data.live.get(member.id());
+        if (live == null) return "gui.digicube.party.unavailable";
+        live.setHolding(holding);
+        data.session(member.owner()).sync.invalidate();
+        return "";
+    }
+
+    public static String cancelTarget(ServerPlayer player, UUID memberId) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        DigimonEntity live = member == null ? null : data.live.get(member.id());
+        if (live == null) return "gui.digicube.party.unavailable";
+        live.cancelTarget();
+        data.session(member.owner()).sync.invalidate();
+        return "";
+    }
+
+    /** The sender's own party member, or null: orders never reach the collection or another player's roster. */
+    private static PartyMember commanded(PartySavedData data, ServerPlayer player, UUID memberId) {
+        PartyMember member = data.roster().get(memberId);
+        return member != null && member.owner().equals(player.getUUID()) && member.active() ? member : null;
     }
 
     private static boolean busy(PartySavedData data, PartyMember member) {

@@ -1,6 +1,7 @@
 package com.digicube.fabric.client.party;
 
 import com.digicube.Constants;
+import com.digicube.registry.DCItems;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyMemberView;
@@ -21,7 +22,8 @@ import java.util.List;
 /**
  * Client receiver, party keys and HUD registration. State is connection-scoped and reset
  * on disconnect. One party slot is <em>selected</em>: the arrow keys move the selection
- * through the filled slots and the Digivolve key acts on the selected partner.
+ * through the filled slots, the Digivolve key acts on the selected partner and holding the
+ * command wheel key opens {@link CommandWheelScreen} for it.
  */
 public final class PartyClient {
     private PartySnapshotPayload snapshot = empty();
@@ -33,6 +35,7 @@ public final class PartyClient {
     private KeyMapping evolveKey;
     private KeyMapping previousKey;
     private KeyMapping nextKey;
+    private KeyMapping wheelKey;
 
     private static PartySnapshotPayload empty() {
         return new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "");
@@ -43,6 +46,7 @@ public final class PartyClient {
         evolveKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.evolve", InputConstants.KEY_V, category));
         previousKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_previous", InputConstants.KEY_UP, category));
         nextKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_next", InputConstants.KEY_DOWN, category));
+        wheelKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.command_wheel", InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_MIDDLE, category));
         ClientTickEvents.END_CLIENT_TICK.register(this::handleKeys);
         ClientPlayNetworking.registerGlobalReceiver(PartySnapshotPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
@@ -79,6 +83,12 @@ public final class PartyClient {
         boolean inWorld = client.player != null && client.gui.screen() == null;
         while (previousKey.consumeClick()) if (inWorld) selected = PartyHudReadout.nextSelection(filled(), selected, -1);
         while (nextKey.consumeClick()) if (inWorld) selected = PartyHudReadout.nextSelection(filled(), selected, 1);
+        while (wheelKey.consumeClick()) {
+            // The wheel is the Digivice's: no device in the inventory, no wheel. The server checks the same.
+            if (inWorld && member(selected) != null && client.player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) {
+                client.gui.setScreen(new CommandWheelScreen(this));
+            }
+        }
         while (evolveKey.consumeClick()) {
             if (!inWorld) continue;
             snapshot.party().stream().filter(m -> m.slot() == selected && m.phase().equals("RESTING")).findFirst()
@@ -93,6 +103,18 @@ public final class PartyClient {
         }
         return filled;
     }
+
+    /** The party member in {@code slot}, or null for an empty slot. */
+    PartyMemberView member(int slot) {
+        for (PartyMemberView member : snapshot.party()) if (member.slot() == slot) return member;
+        return null;
+    }
+
+    /** The filled slot {@code step} places from the selection, wrapping; the selection itself when it is the only one. */
+    int neighbour(int step) { return PartyHudReadout.nextSelection(filled(), selected, step); }
+    void selectNext() { selected = neighbour(1); }
+    int selected() { return selected; }
+    KeyMapping wheelKey() { return wheelKey; }
 
     PartySnapshotPayload snapshot() { return snapshot; }
     int snapshotAge() { return snapshotAge; }
