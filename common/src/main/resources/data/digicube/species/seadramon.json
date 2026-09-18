@@ -10,6 +10,15 @@
     "ice_blast"
   ],
   "evolutions": [],
+  "tactics": {
+    "hold_range": [5.5, 9],
+    "dodge_chance": 0.6,
+    "reaction_ticks": 3,
+    "strafe": true,
+    "lead_ticks": 6,
+    "press_impaired": false,
+    "prefer_close": false
+  },
   "locomotion": {
     "follow_start_distance": 5,
     "follow_stop_distance": 2.5,

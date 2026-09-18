@@ -470,6 +470,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         this.goalSelector.addGoal(1, new DigimonFlightGoal(this));
         this.goalSelector.addGoal(1, new WildPanicGoal(this, 1.4));
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
+        this.goalSelector.addGoal(2, new com.digicube.entity.ai.BlindGuardGoal(this, 1.25));
         this.goalSelector.addGoal(3, new FollowOwnerGoal(this));
         this.goalSelector.addGoal(5, new RandomSwimmingGoal(this, 1.0, 60) {
             @Override public boolean canUse() { return canSwim() && isInWater() && super.canUse(); }
@@ -792,11 +793,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (species == null) return;
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(Progression.maxHealth(species.baseHealth(), getLevel()));
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(Progression.attack(species.baseAttack(), getLevel()));
+        getAttribute(Attributes.ARMOR).setBaseValue(Progression.armor(species.baseDefence()));
     }
 
     private void celebrateLevelUp(ServerLevel level) {
         level.playSound(null, getX(), getY(), getZ(), SoundEvents.PLAYER_LEVELUP, SoundSource.NEUTRAL, 0.8F, 1.0F);
-        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY(0.5), getZ(), 12,
+        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, true, true, getX(), getY(0.5), getZ(), 12,
                 getBbWidth() * 0.5, getBbHeight() * 0.3, getBbWidth() * 0.5, 0.05);
         if (getOwner() instanceof ServerPlayer tamer) {
             tamer.sendSystemMessage(Component.translatable("digimon.digicube.level_up", getDisplayName(), getLevel()));
@@ -1025,6 +1027,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (target instanceof DigimonEntity other && isOwned() && other.isOwnedBy(getOwner())) {
             return false;
         }
+        // Ink: what it cannot see it cannot target, so the hurt-by goal does not hand the target back every few ticks.
+        if (DCEffects.blindTo(this, target)) return false;
         return super.canAttack(target);
     }
 
@@ -1118,6 +1122,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return !attacks().isEmpty();
     }
 
+    /** Whether any of its moves reaches beyond contact: what makes strafing worth it for an opponent. */
+    public boolean hasRangedAttack() {
+        return attacks().stream().anyMatch(DigimonAttack::isRanged);
+    }
+
     public boolean isAttacking() {
         return activeAttack != null;
     }
@@ -1144,7 +1153,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             resetConstrictionApproach();
             return false;
         }
-        double pace = target.hasEffect(DCEffects.FROZEN) ? speed * com.digicube.digimon.ConstrictionMotion.FROZEN_PURSUIT_SPEED : speed;
+        double pace = target.hasEffect(DCEffects.FROZEN) || target.hasEffect(DCEffects.COLD) ? speed * com.digicube.digimon.ConstrictionMotion.FROZEN_PURSUIT_SPEED : speed;
         return approachingConstriction(target) != null && constrictionPlanner.steer(pace);
     }
 
@@ -1165,16 +1174,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private static String fmt(Vec3 v) { return String.format("(%.2f %.2f %.2f)", v.x, v.y, v.z); }
     private static String fmt(AABB b) { return String.format("[%.2f..%.2f, %.2f..%.2f, %.2f..%.2f]", b.minX, b.maxX, b.minY, b.maxY, b.minZ, b.maxZ); }
 
-    /** Development trace, once a second: why a freeze-loop caster is or is not wrapping its target. */
+    /** Development trace, once a second: why a chill-loop caster is or is not wrapping its target. */
     public void traceCombat(LivingEntity target) {
-        if (!COMBAT_TRACE || tickCount - traceTick < 20 || !freezeLoop()) return;
+        if (!COMBAT_TRACE || tickCount - traceTick < 20 || !chillLoop()) return;
         traceTick = tickCount;
         DigimonAttack wrap = wrapMove();
         DigimonAttack stream = attacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_STREAM).findFirst().orElse(null);
-        Constants.LOG.info("[wrap-trace] {} -> {} d={} dy={} frozen={} frostRes={} holdRes={} water={}/{} ground={}/{} attacking={} fuel={}/{} wrapReadyIn={} planner=[{}] castFromHere={}",
+        Constants.LOG.info("[wrap-trace] {} -> {} d={} dy={} cold={} frozen={} holdRes={} water={}/{} ground={}/{} attacking={} fuel={}/{} wrapReadyIn={} planner=[{}] castFromHere={}",
                 getSpeciesId(), target.getType().toShortString(),
                 String.format("%.1f", position().distanceTo(target.position())), String.format("%.2f", target.getY() - getY()),
-                target.hasEffect(DCEffects.FROZEN), target.hasEffect(DCEffects.FROST_RESISTANCE), target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE),
+                target.hasEffect(DCEffects.COLD), target.hasEffect(DCEffects.FROZEN), target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE),
                 isInWater(), target.isInWater(), onGround(), target.onGround(),
                 activeAttack == null ? "-" : activeAttack.id().getPath() + "@" + attackTick,
                 stream == null ? 0 : fuelFor(stream).availableTicks(), stream == null ? 0 : stream.fuel().capacityTicks(),
@@ -1233,59 +1242,78 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 case APPROACH -> null;
             };
         }
+        DigimonAttack chosen = null;
         for (DigimonAttack attack : attacks()) {
-            if (attack.kind() == DigimonAttack.Kind.CONSTRICTION) continue;
-            if (usefulShot(attack, target)) {
-                return attack;
-            }
+            if (attack.kind() == DigimonAttack.Kind.CONSTRICTION || !usefulShot(attack, target)) continue;
+            // A brawler lands its melee when it can; its opener is for the walk in. Others keep the sheet's order.
+            if (chosen == null || tactics().preferClose() && attack.range() < chosen.range()) chosen = attack;
+            if (!tactics().preferClose()) break;
         }
-        return null;
+        return chosen;
+    }
+
+    /** Where the enemy was when sight was lost; what a blind Digimon acts on. Server only, not saved. */
+    private Vec3 lastSeenThreat;
+    private int lastSeenTick;
+    public void rememberThreat(Vec3 where) { lastSeenThreat = where; lastSeenTick = tickCount; }
+    public Vec3 lastSeenThreat() { return lastSeenThreat != null && tickCount - lastSeenTick < 200 ? lastSeenThreat : null; }
+
+    public com.digicube.digimon.DigimonTactics tactics() {
+        return getSpecies().map(DigimonSpecies::tactics).orElse(com.digicube.digimon.DigimonTactics.DEFAULT);
+    }
+
+    /** Blind, inked, Cold, frozen or held: a target a presser rushes. */
+    public static boolean impaired(LivingEntity target) {
+        return target.hasEffect(net.minecraft.world.effect.MobEffects.BLINDNESS) || target.hasEffect(DCEffects.INKED)
+                || target.hasEffect(DCEffects.COLD) || target.hasEffect(DCEffects.FROZEN) || target.hasEffect(DCEffects.CONSTRICTED);
     }
 
     private DigimonAttack wrapMove() {
         return attacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.CONSTRICTION).findFirst().orElse(null);
     }
 
-    /** A stream without a marking bite freezes prey on its own. */
-    private boolean selfFreezing() {
+    /** A stream without a marking bite never freezes; its contact charges Cold instead. */
+    private boolean chilling() {
         return attacks().stream().noneMatch(a -> a.kind() == DigimonAttack.Kind.FROST_BITE);
     }
 
-    /** Freeze, wrap the frozen prey, then spend spare fuel on the resistant prey: the self-freezing wrap loop. */
-    private boolean freezeLoop() {
-        return selfFreezing() && wrapMove() != null;
+    /** Chill, wrap the slowed prey, then spend spare fuel while it stays Cold: the chilling wrap loop. */
+    private boolean chillLoop() {
+        return chilling() && wrapMove() != null;
     }
 
-    private boolean frostResistant(LivingEntity target) {
-        return target.hasEffect(DCEffects.FROST_RESISTANCE)
-                || !target.canBeAffected(new MobEffectInstance(DCEffects.FROZEN, IceCombo.FREEZE_TICKS));
+    /** Cold is already running, or can never take hold. */
+    private boolean coldOrImmune(LivingEntity target) {
+        return target.hasEffect(DCEffects.COLD)
+                || !target.canBeAffected(new MobEffectInstance(DCEffects.COLD, IceCombo.COLD_TICKS));
     }
 
-    /** Frost ends at once against frozen prey; a wrap loop also banks fuel for its next freeze. */
+    /** Frost ends at once against frozen prey; a wrap loop also banks fuel for its next Cold charge. */
     private boolean usefulShot(DigimonAttack attack, LivingEntity target) {
         return isAttackReady(attack) && inRange(attack, target)
                 && (attack.kind() != DigimonAttack.Kind.FROST_STREAM || streamWorthStarting(attack, target));
     }
 
-    /** Frozen prey needs the wrap, freezable prey a freeze's worth of fuel, resistant prey only a full tank's spare. */
+    /** Frozen prey needs the wrap, chillable prey a charge's worth of fuel, Cold prey only a full tank's spare. */
     private boolean streamWorthStarting(DigimonAttack stream, LivingEntity target) {
         if (target.hasEffect(DCEffects.FROZEN)) return false;
-        if (!freezeLoop()) return true;
+        if (!chillLoop()) return true;
         int available = fuelFor(stream).availableTicks();
-        if (frostResistant(target)) return available >= stream.fuel().capacityTicks();
-        return available >= IceCombo.selfFreezeFuelTicks(stream.fuel()) && !closingInBeforeFreeze(target);
+        if (coldOrImmune(target)) return available >= stream.fuel().capacityTicks();
+        return available >= IceCombo.chillFuelTicks(stream.fuel()) && !closingInBeforeChill(target);
     }
 
     private int closeInTargetId = -1, closeInCheckTick, closeInDeadline;
     private boolean closeInFound;
 
     /**
-     * Prey beyond wrap reach would freeze, thaw and be walked to. When a stance inside reach on the
-     * same level is reachable, close in first; a walk that never arrives withholds the freeze only briefly.
+     * Prey chilled beyond wrap reach spends its Cold being walked to. When a stance inside reach on the
+     * same level is reachable, close in first; a walk that never arrives withholds the stream only briefly.
      */
-    private boolean closingInBeforeFreeze(LivingEntity target) {
+    private boolean closingInBeforeChill(LivingEntity target) {
         DigimonAttack wrap = wrapMove();
-        if (wrap == null || Math.abs(target.getY() - getY()) > .4 && !afloatWith(target)
+        // A range holder chills from its band and walks in on the slowed prey instead.
+        if (wrap == null || tactics().holdsRange() || Math.abs(target.getY() - getY()) > .4 && !afloatWith(target)
                 || position().distanceToSqr(target.position()) <= wrap.range() * wrap.range()) {
             closeInTargetId = -1;
             return false;
@@ -1310,18 +1338,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return isInWater() && target.isInWater();
     }
 
-    /** Stances for a freezing stream are best inside wrap range, so the wrap follows without a walk. */
+    /** Stances for a chilling stream are best inside wrap range, so the wrap follows without a walk. */
     public double preferredStanceRange(DigimonAttack attack) {
         DigimonAttack wrap = wrapMove();
-        return attack.kind() == DigimonAttack.Kind.FROST_STREAM && wrap != null && selfFreezing()
+        return attack.kind() == DigimonAttack.Kind.FROST_STREAM && wrap != null && chilling() && !tactics().holdsRange()
                 ? wrap.range() : Double.POSITIVE_INFINITY;
     }
 
-    /** A freeze is on the table when the stream is ready with enough fuel; range is navigation's job. */
-    private boolean freezeAvailable(LivingEntity target) {
-        if (!freezeLoop() || target.hasEffect(DCEffects.FROZEN) || frostResistant(target)) return false;
+    /** A Cold charge is on the table when the stream is ready with enough fuel; range is navigation's job. */
+    private boolean chillAvailable(LivingEntity target) {
+        if (!chillLoop() || target.hasEffect(DCEffects.FROZEN) || coldOrImmune(target)) return false;
         return attacks().stream().anyMatch(a -> a.kind() == DigimonAttack.Kind.FROST_STREAM && isAttackReady(a)
-                && fuelFor(a).availableTicks() >= IceCombo.selfFreezeFuelTicks(a.fuel()));
+                && fuelFor(a).availableTicks() >= IceCombo.chillFuelTicks(a.fuel()));
     }
 
     /** Navigation must prepare the same combo phase as attack selection, rather than backing away from frozen prey. */
@@ -1330,8 +1358,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         DigimonAttack wrap = approachingConstriction(target);
         if (wrap != null) return List.of(wrap);
         boolean frozen = target.hasEffect(DCEffects.FROZEN);
-        // Frozen prey is the wrap's opening: close in and hold beside it even before the wrap can be rehearsed.
-        if (frozen && wrapMove() != null) return List.of(wrapMove());
+        // Frozen or Cold prey is the wrap's opening: close in and hold beside it even before the wrap can be rehearsed,
+        // but only when the wrap will be ready while the opening still lasts; otherwise waiting beside it is a free hit.
+        if ((frozen || target.hasEffect(DCEffects.COLD)) && wrapMove() != null && wrapOpening(target)) return List.of(wrapMove());
         moves = moves.stream().filter(a -> a.kind() != DigimonAttack.Kind.CONSTRICTION && a.kind() != DigimonAttack.Kind.RETREAT_KICK).toList();
         var bite = moves.stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_BITE).findFirst().orElse(null);
         var breath = moves.stream().filter(a -> a.kind() == DigimonAttack.Kind.FROST_STREAM).findFirst().orElse(null);
@@ -1347,15 +1376,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return moves;
     }
 
+    /** The opening's remaining ticks cover the wrap's cooldown and its capture. */
+    private boolean wrapOpening(LivingEntity target) {
+        var opening = target.getEffect(DCEffects.FROZEN) != null ? target.getEffect(DCEffects.FROZEN) : target.getEffect(DCEffects.COLD);
+        if (opening == null) return false;
+        return constrictionReadyIn(wrapMove()) + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK <= opening.getDuration();
+    }
+
     /** Only reserve a wrap when its complete body path has a reachable stance. */
     private DigimonAttack approachingConstriction(LivingEntity target) {
         DigimonAttack move = wrapMove();
         if (move == null) return null;
-        // Freeze first: while a freeze is on the table the wrap waits for frozen prey.
-        // Otherwise use a clear ranged shot across elevations instead of spending
+        // Chill first: while a Cold charge is on the table the wrap waits for slowed prey; any prey
+        // may be wrapped once it is not. Otherwise use a clear ranged shot across elevations instead of spending
         // several seconds climbing to a wrap. Preparing a cooling wrap must not delay
         // a ready shot either; preparation fills recovery time, not attack time.
-        if (target != null && (freezeAvailable(target)
+        if (target != null && (chillAvailable(target)
                 || (!isAttackReady(move) || Math.abs(target.getY()-getY()) > .4 && !afloatWith(target))
                 && attacks().stream().anyMatch(a -> a != move && a.isRanged() && usefulShot(a,target)))) {
             resetConstrictionApproach();
@@ -1550,7 +1586,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (activeAttack == null) {
             return;
         }
-        if (constriction != null && !constriction.tick(attackTick)) { cancelAttack();return; }
+        if (constriction != null && !constriction.tick(attackTick)) {
+            if (COMBAT_TRACE) Constants.LOG.info("[wrap-trace] {} wrap interrupted at tick {}: {}", getSpeciesId(), attackTick, constriction.interruption());
+            cancelAttack();return;
+        }
         if (constriction != null) syncConstrictionAnchor();
         if (activeAttack == null) return;
         if (isVehicle() || !isAlive() || (activeAttack.fuel() == null && attackTick < activeAttack.hitTick()
@@ -1595,7 +1634,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (activeAttack.fuel() != null) tickFlameStream(level);
         if (activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && attackTick <= activeAttack.motion().activeUntil()) {
             Vec3 fang = authoredPoint(activeAttack.motion().sample(attackTick).hornTip());
-            level.sendParticles(ParticleTypes.SNOWFLAKE, fang.x, fang.y, fang.z, 3, .16, .07, .13, .01);
+            level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, fang.x, fang.y, fang.z, 3, .16, .07, .13, .01);
         }
         if (attackTick == activeAttack.hitTick()) {
             deliver(level, activeAttack);
@@ -1665,9 +1704,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             finishStream();
             return;
         }
-        // Resistant prey only gets the spare fuel; the next freeze keeps its reserve.
-        if (frost && freezeLoop() && attackTarget != null && frostResistant(attackTarget)
-                && fuelFor(activeAttack).availableTicks() <= IceCombo.selfFreezeFuelTicks(activeAttack.fuel())) {
+        // Prey that is already Cold only gets the spare fuel; the next charge keeps its reserve.
+        if (frost && chillLoop() && attackTarget != null && coldOrImmune(attackTarget)
+                && fuelFor(activeAttack).availableTicks() <= IceCombo.chillFuelTicks(activeAttack.fuel())) {
             finishStream();
             return;
         }
@@ -1703,19 +1742,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (pulse && victim.hurtServer(level, source, damageAgainst(activeAttack, victim))) {
                     setLastHurtMob(victim);
                 }
-                boolean marked = victim.hasEffect(DCEffects.ICE_MARK);
-                if (frost && victim.isAlive() && iceExposure.touch(victim.getUUID(), elapsed,
-                        marked || selfFreezing(), victim.hasEffect(DCEffects.FROST_RESISTANCE)
+                if (!frost && victim.isAlive()) ((CombatMarkState) victim).digicube$thaw();
+                if (frost && victim.isAlive() && chilling()) {
+                    chill(level, victim);
+                } else if (frost && victim.isAlive() && iceExposure.touch(victim.getUUID(), elapsed,
+                        victim.hasEffect(DCEffects.ICE_MARK), victim.hasEffect(DCEffects.FROST_RESISTANCE)
                                 || victim.hasEffect(DCEffects.FROZEN),
-                        marked ? IceCombo.requiredContactTicks(activeAttack.fuel()) : IceCombo.SELF_FREEZE_CONTACT_TICKS)) {
-                    int freeze = marked ? IceCombo.FREEZE_TICKS : IceCombo.SELF_FREEZE_TICKS;
-                    if (victim.addEffect(new MobEffectInstance(DCEffects.FROZEN, freeze, 0, false, true), this)) {
+                        IceCombo.requiredContactTicks(activeAttack.fuel()))) {
+                    if (victim.addEffect(new MobEffectInstance(DCEffects.FROZEN, IceCombo.FREEZE_TICKS, 0, false, true), this)) {
                         victim.removeEffect(DCEffects.ICE_MARK);
                         victim.addEffect(new MobEffectInstance(DCEffects.FROST_RESISTANCE,
                                 IceCombo.RESISTANCE_TICKS, 0, false, false, true), this);
                         if (victim instanceof DigimonEntity digimon) digimon.interruptAttack();
                         frozeTarget |= victim == attackTarget;
-                        level.sendParticles(ParticleTypes.SNOWFLAKE, victim.getX(), victim.getY(.5), victim.getZ(),
+                        level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, victim.getX(), victim.getY(.5), victim.getZ(),
                                 35, victim.getBbWidth() * .55, victim.getBbHeight() * .5, victim.getBbWidth() * .55, .06);
                         level.playSound(null, victim.getX(), victim.getY(), victim.getZ(),
                                 SoundEvents.GLASS_BREAK, SoundSource.NEUTRAL, .8F, .65F);
@@ -1727,7 +1767,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (elapsed % 3 == 0) {
             Vec3 end = stream.end();
-            level.sendParticles(ParticleTypes.SNOWFLAKE, end.x, end.y, end.z, frost ? 8 : 3,
+            level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, end.x, end.y, end.z, frost ? 8 : 3,
                     frost ? .45 : .18, frost ? .45 : .18, frost ? .45 : .18, frost ? .035 : .015);
         }
         if (frozeTarget) finishStream();
@@ -1879,7 +1919,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (hurt) {
                     if (shatter) {
                         victim.removeEffect(DCEffects.FROZEN);
-                        level.sendParticles(ParticleTypes.SNOWFLAKE, end.x, end.y, end.z, 24, .3, .3, .3, .06);
+                        level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, end.x, end.y, end.z, 24, .3, .3, .3, .06);
                         level.playSound(null, end.x, end.y, end.z, SoundEvents.GLASS_BREAK, SoundSource.NEUTRAL, .9F, .9F);
                     }
                     if (!shatter && activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && victim.isAlive()
@@ -1894,7 +1934,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                             activeAttack.knockback() > 0 ? SoundEvents.PLAYER_ATTACK_KNOCKBACK : SoundEvents.PLAYER_ATTACK_STRONG,
                             SoundSource.NEUTRAL, activeAttack.knockback() > 0 ? 1.0F : 0.8F,
                             activeAttack.knockback() > 0 ? 0.65F : 1.1F);
-                    level.sendParticles(ParticleTypes.CRIT, end.x, end.y, end.z, 12, .2, .2, .2, .08);
+                    level.sendParticles(ParticleTypes.CRIT, true, true, end.x, end.y, end.z, 12, .2, .2, .2, .08);
                 }
                 hornConnected = true;
                 break;
@@ -1933,7 +1973,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         Vec3 mouth = mouthPosition();
         int count = 1 + (FIREBALL_CHARGE_TICKS - ticksToFire) / 2;
-        level.sendParticles(ParticleTypes.SMALL_FLAME, mouth.x, mouth.y, mouth.z, count, 0.12, 0.08, 0.12, 0.01);
+        level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, mouth.x, mouth.y, mouth.z, count, 0.12, 0.08, 0.12, 0.01);
         if (ticksToFire == FIREBALL_CHARGE_TICKS) {
             level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_AMBIENT, SoundSource.NEUTRAL, 0.6F, 1.4F);
         }
@@ -1952,7 +1992,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 }
                 if (target.hurtServer(level, damageSources().mobAttack(this), damageAgainst(attack, target))) {
                     setLastHurtMob(target);
-                    level.sendParticles(ParticleTypes.SWEEP_ATTACK,
+                    level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true,
                             target.getX(), target.getY(0.5), target.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
                 }
             }
@@ -1967,7 +2007,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 fireball.shoot(direction.x, direction.y, direction.z, PepperBreathEntity.SPEED, 0.0F);
                 level.addFreshEntity(fireball);
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.0F, 1.15F);
-                level.sendParticles(ParticleTypes.FLAME, mouth.x, mouth.y, mouth.z, 12, 0.2, 0.2, 0.2, 0.1);
+                level.sendParticles(ParticleTypes.FLAME, true, true, mouth.x, mouth.y, mouth.z, 12, 0.2, 0.2, 0.2, 0.1);
             }
             case BUBBLES -> {
                 // Use the same facing and predicted point as the windup, with the
@@ -2016,7 +2056,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (obstruction.getType() != HitResult.Type.MISS) wave.splash(level, false);
                 level.playSound(null, origin.x, origin.y, origin.z, SoundEvents.PLAYER_SPLASH_HIGH_SPEED,
                         SoundSource.NEUTRAL, 0.85F, 1.25F);
-                level.sendParticles(ParticleTypes.SPLASH, origin.x, origin.y, origin.z,
+                level.sendParticles(ParticleTypes.SPLASH, true, true, origin.x, origin.y, origin.z,
                         18, 0.5, 0.15, 0.3, 0.08);
             }
             case GROUND_WAVE -> {
@@ -2026,18 +2066,34 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
     }
 
-    /** Attack power times this Digimon's attack attribute, with the attribute triangle vs other Digimon. */
+    /** One tick of landed chilling frost: pay into the victim's Cold charge, or keep a running Cold topped up. */
+    private void chill(ServerLevel level, LivingEntity victim) {
+        var cold = new MobEffectInstance(DCEffects.COLD, IceCombo.COLD_TICKS, 0, false, true);
+        if (victim.hasEffect(DCEffects.FROZEN) || !victim.canBeAffected(cold)) return;
+        MobEffectInstance running = victim.getEffect(DCEffects.COLD);
+        if (running != null) {
+            if (running.getDuration() <= IceCombo.COLD_TICKS - IceCombo.COLD_REFRESH_STEP_TICKS) victim.addEffect(cold, this);
+            return;
+        }
+        if (!((CombatMarkState) victim).digicube$chill() || !victim.addEffect(cold, this)) return;
+        level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, victim.getX(), victim.getY(.5), victim.getZ(),
+                20, victim.getBbWidth() * .55, victim.getBbHeight() * .5, victim.getBbWidth() * .55, .04);
+        level.playSound(null, victim.getX(), victim.getY(), victim.getZ(),
+                SoundEvents.POWDER_SNOW_STEP, SoundSource.NEUTRAL, 1.0F, .6F);
+    }
+
+    /** The damage of one hit, critical roll included; the triangle lives in that roll. */
     private float damageAgainst(DigimonAttack attack, LivingEntity target) {
         float damage = (float) (getAttributeValue(Attributes.ATTACK_DAMAGE) * attack.power());
-        if (target instanceof DigimonEntity other) {
-            Optional<DigimonSpecies> mine = getSpecies();
-            Optional<DigimonSpecies> theirs = other.getSpecies();
-            if (mine.isPresent() && theirs.isPresent()) {
-                damage *= mine.get().attribute().damageMultiplierAgainst(theirs.get().attribute());
-            }
-        }
-        return damage;
+        return level() instanceof ServerLevel server ? com.digicube.digimon.CriticalHits.roll(server, this, target, damage) : damage;
     }
+
+    /** Server-side tallies for balance runs. */
+    private int criticalHits, dodges;
+    public void countCriticalHit() { criticalHits++; }
+    public int criticalHits() { return criticalHits; }
+    public void countDodge() { dodges++; }
+    public int dodges() { return dodges; }
 
     /** Delayed authored area attacks retain the caster's attribute triangle and ally rules. */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim) {

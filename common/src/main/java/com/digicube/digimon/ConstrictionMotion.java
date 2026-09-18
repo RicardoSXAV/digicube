@@ -26,14 +26,14 @@ public final class ConstrictionMotion {
     public static final int FROZEN_TAIL_TICKS = 20;
     /** How long a freezing caster walks toward wrap reach before it freezes from where it stands. */
     public static final int CLOSE_IN_TICKS = 60;
-    /** Frozen prey is approached at a hurry; it cannot get away, but its ice can. */
+    /** Frozen or Cold prey is approached at a hurry; the opening runs out before the prey does. */
     public static final double FROZEN_PURSUIT_SPEED = 1.3;
     public static final int PREPARE_TICKS = 40;
     public static final float ALIGN_DEGREES_PER_TICK = 20;
     public static final double ESCAPE_DISTANCE = .45;
     public static final int APPROACH_TICKS = 80;
     public static final int APPROACH_RETRY_TICKS = 40;
-    /** Frozen prey cannot walk off, so a refused stance is retried almost at once. */
+    /** Frozen prey cannot walk off and Cold prey barely can, so a refused stance is retried almost at once. */
     public static final int FROZEN_RETRY_TICKS = 10;
     public static final double MAX_APPROACH_DRIFT = 2.5;
     public static final double MAX_TARGET_STEP = .25;
@@ -165,8 +165,13 @@ public final class ConstrictionMotion {
         return new Variant(clip, roots.toArray(double[][]::new), boxes.toArray(double[][][]::new));
     }
 
-    /** Bulky prey is coiled at the lattice's largest size; beyond this the body would vanish inside it. */
-    public static final double OVERSIZE_RADIUS = 1.35, OVERSIZE_HEIGHT = 1.45;
+    /**
+     * Bulky prey is coiled at the lattice's largest size. The limits are generous on purpose (Ricardo,
+     * 2026-09-18: refuse only prey it would look ridiculous to wrap): a Champion such as Gesomon, 2.25
+     * wide and 3.7 tall, is held around its lower body; a body over about 3.2 blocks across or 4.9
+     * tall at Seadramon's scale is refused.
+     */
+    public static final double OVERSIZE_RADIUS = 1.6, OVERSIZE_HEIGHT = 2.35;
 
     /**
      * Reject bodies which cannot fit inside the creature's original fixed length. Prey somewhat

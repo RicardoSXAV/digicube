@@ -2,7 +2,8 @@ package com.digicube.digimon;
 
 /**
  * The attribute triangle. VACCINE beats VIRUS, VIRUS beats DATA, DATA beats VACCINE.
- * FREE, VARIABLE and UNKNOWN take and deal neutral damage.
+ * FREE, VARIABLE and UNKNOWN take and deal neutral damage. Since 2026-09-18 the edge is a
+ * critical-hit chance ({@link CriticalHits}), not a damage multiplier.
  */
 public enum DigimonAttribute {
 
@@ -33,18 +34,9 @@ public enum DigimonAttribute {
         };
     }
 
-    /**
-     * Damage multiplier when this attribute attacks {@code defender}.
-     * Tune the numbers here rather than scattering them through combat code.
-     */
-    public float damageMultiplierAgainst(DigimonAttribute defender) {
-        if (strongAgainst() == defender) {
-            return 2.0F;
-        }
-        if (defender.strongAgainst() == this) {
-            return 0.5F;
-        }
-        return 1.0F;
+    /** The triangle no longer multiplies damage; it moves the critical-hit chance, see {@link CriticalHits}. */
+    public float criticalChanceAgainst(DigimonAttribute defender) {
+        return CriticalHits.chance(this, defender);
     }
 
     public static DigimonAttribute byId(String id) {

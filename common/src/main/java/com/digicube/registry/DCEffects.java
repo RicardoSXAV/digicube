@@ -1,6 +1,7 @@
 package com.digicube.registry;
 
 import com.digicube.Constants;
+import com.digicube.digimon.IceCombo;
 import com.digicube.entity.DigimonEntity;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -20,9 +21,9 @@ public final class DCEffects {
     public static final Holder<MobEffect> INKED = register("inked",new MobEffect(MobEffectCategory.HARMFUL,0x311B42) {
         @Override public boolean shouldApplyEffectTickThisTick(int ticks,int amplifier) { return true; }
         @Override public boolean applyEffectTick(ServerLevel level,LivingEntity entity,int amplifier) {
-            if(entity instanceof Mob mob && mob.getTarget()!=null && mob.distanceToSqr(mob.getTarget())>9) {
+            if(entity instanceof Mob mob && mob.getTarget()!=null && blindTo(mob,mob.getTarget())) {
+                if(mob instanceof DigimonEntity digimon) { digimon.rememberThreat(mob.getTarget().position()); digimon.interruptAttack(); }
                 mob.setTarget(null);
-                if(mob instanceof DigimonEntity digimon)digimon.interruptAttack();
             }
             return true;
         }
@@ -32,6 +33,10 @@ public final class DCEffects {
             .addAttributeModifier(Attributes.MOVEMENT_SPEED, Constants.id("frozen_movement"), -1,
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)
             .addAttributeModifier(Attributes.JUMP_STRENGTH, Constants.id("frozen_jump"), -1,
+                    AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+    /** Slowed, never stopped: what a chilling stream charges up instead of a freeze. */
+    public static final Holder<MobEffect> COLD = register("cold", new FrostEffect(false, 0x4CC7C0)
+            .addAttributeModifier(Attributes.MOVEMENT_SPEED, Constants.id("cold_movement"), IceCombo.COLD_SLOW,
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
     public static final Holder<MobEffect> FROST_RESISTANCE = register("frost_resistance",
             new MobEffect(MobEffectCategory.NEUTRAL, 0x6685AE) {});
@@ -52,6 +57,11 @@ public final class DCEffects {
             AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 
     private DCEffects() {}
+
+    /** Ink's reach of sight: an inked mob neither keeps nor takes a target further than three blocks. */
+    public static boolean blindTo(LivingEntity mob, LivingEntity target) {
+        return mob.hasEffect(INKED) && mob.distanceToSqr(target) > 9;
+    }
 
     /** Pin the victim in place: it may still fall, but afloat it neither sinks nor drifts. */
     private static void hold(LivingEntity entity) {
@@ -86,7 +96,7 @@ public final class DCEffects {
             if (entity.tickCount % (frozen ? 2 : 8) == 0) {
                 var box = entity.getBoundingBox();
                 var center = box.getCenter();
-                level.sendParticles(ParticleTypes.SNOWFLAKE, center.x, center.y, center.z,
+                level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, center.x, center.y, center.z,
                         frozen ? 7 : 2, entity.getBbWidth() * .5, entity.getBbHeight() * .45,
                         entity.getBbWidth() * .5, frozen ? .025 : .005);
             }

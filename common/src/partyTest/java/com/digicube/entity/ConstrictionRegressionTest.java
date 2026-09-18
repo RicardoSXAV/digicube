@@ -48,7 +48,8 @@ public final class ConstrictionRegressionTest {
         var motion=DigimonSpeciesBootstrap.CONSTRICTION_MOTION;
         check(motion.fit(new AABB(-.3,0,-.3,.3,1.8,.3),.6F)!=null,"player fits");
         check(motion.fit(new AABB(-.7,0,-.7,.7,1,.7),.6F)!=null,"wide spider-sized body fits");
-        check(motion.fit(new AABB(-1.4,0,-1.4,1.4,2.8,1.4),.6F)==null,"oversized adult selects breath");
+        check(motion.fit(new AABB(-1.125,0,-1.125,1.125,3.7,1.125),.6F)!=null,"a Champion as big as Gesomon is held around its lower body");
+        check(motion.fit(new AABB(-2,0,-2,2,5,2),.6F)==null,"prey it would be ridiculous to wrap selects breath");
         check(motion.fit(new AABB(-.2,0,-.2,.2,.5,.2),.6F)==null,"tiny prey does not waste a wrap");
         for(float radius:new float[]{27,33,39,47})for(float pitch:new float[]{22,26,34}) {
             var fit=new ConstrictionMotion.Fit(radius,pitch);check(Math.abs(motion.blends(fit).stream().mapToDouble(ConstrictionMotion.Blend::weight).sum()-1)<1e-6,"interpolation normalized");
@@ -57,15 +58,12 @@ public final class ConstrictionRegressionTest {
         }
         var owner=fixture(0,.9,2.65);var target=fixture(2,.9,1.4);target.world=owner.world;
         place(target,new Vec3(0,0,6));
-        check(owner.chooseAttack(target)==null&&!owner.tickConstrictionApproach(target,1),"freeze first: close to wrap reach before freezing distant prey, without planning the wrap");
-        check(owner.positioningAttacks(target).equals(List.of(ice)),"navigation prepares the freezing stream rather than the wrap");
-        var closeIn=com.digicube.entity.ai.DigimonCombatPosition.find(owner,target);
-        check(closeIn!=null&&closeIn.getEntityPosAtNode(owner,closeIn.getNodeCount()-1).distanceTo(target.position())<=wrap.range(),"the freezing stance sits inside wrap reach");
-        owner.tickCount+=ConstrictionMotion.CLOSE_IN_TICKS;
-        check(owner.chooseAttack(target)==ice,"a walk that never arrives withholds the freeze only briefly");
-        owner.tickCount-=ConstrictionMotion.CLOSE_IN_TICKS;
+        check(species.tactics().holdsRange()&&species.tactics().holdMin()>wrap.range(),"Seadramon holds a band outside its own wrap reach");
+        check(owner.chooseAttack(target)==ice&&!owner.tickConstrictionApproach(target,1),"a range holder chills distant prey from where it stands, without planning the wrap");
+        check(owner.positioningAttacks(target).equals(List.of(ice)),"navigation prepares the chilling stream rather than the wrap");
+        check(owner.preferredStanceRange(ice)==Double.POSITIVE_INFINITY,"a band holder's stream stance is not pulled inside wrap reach");
         place(target,new Vec3(0,0,3));
-        check(owner.chooseAttack(target)==ice,"prey inside wrap reach is frozen at once");
+        check(owner.chooseAttack(target)==ice,"prey inside wrap reach is chilled at once");
         place(target,new Vec3(0,0,6));
         freeze(target);
         check(owner.chooseAttack(target)==null,"approach frozen prey for the wrap instead of puffing frost at it");
@@ -111,7 +109,7 @@ public final class ConstrictionRegressionTest {
             check(target.hasEffect(DCEffects.CONSTRICTED)==(t>=40&&t<80),"exact two-second hold");
         }
         check(owner.pulses==4,"four evenly spaced damage pulses");
-        check(Math.abs(owner.damage-14*.22*4)<.001,"12.32 raw champion damage over two seconds");
+        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.28F)<1e-6,"15.68 raw champion damage over two seconds");
         check(target.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,
                 "wrapping frozen prey re-ices it through the hold plus a one-second tail");
         check(target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&target.hasEffect(DCEffects.FROST_RESISTANCE),"capture grants shared anti-chain resistance");
@@ -170,7 +168,7 @@ public final class ConstrictionRegressionTest {
         owner.tickCount=40;goal.tick();
         check(owner.isAttacking(),"prepared wrap starts on the exact cooldown-ready tick");
 
-        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.world=owner.world;owner.target=cow;
+        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
         owner.world.plateau=new AABB(-100,0,3,100,3,100);place(cow,new Vec3(0,3,10));
         field(owner,DigimonEntity.class,"cooldownUntil",new HashMap<>(Map.of(wrap.id(),500)));
         var path=com.digicube.entity.ai.DigimonCombatPosition.find(owner,cow);
@@ -181,14 +179,14 @@ public final class ConstrictionRegressionTest {
         check(com.digicube.entity.ai.DigimonCombatPosition.find(owner,cow)==null,"unreachable upper platform cannot be used as a firing stance");
 
         for(double height:new double[]{1,3,-1,-3}) {
-            owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.world=owner.world;owner.target=cow;
+            owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
             if(height>0) {owner.world.plateau=new AABB(-1,0,9,1,height,11);place(cow,new Vec3(0,height,10));}
             else {owner.world.plateau=new AABB(-100,0,-100,100,-height,3);place(owner,new Vec3(0,-height,0));}
             check(owner.canAttackFrom(ice,cow,owner.position()),"authored breath can aim across Y difference "+height);
             check(owner.chooseAttack(cow)==ice&&owner.nav.requests==0,"clear shot across Y difference fires without waiting for a wrap path: "+height);
         }
 
-        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.world=owner.world;owner.target=cow;
+        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
         owner.world.plateau=new AABB(-100,0,3,100,3,100);place(cow,new Vec3(0,3,10));
         owner.world.wall=new AABB(-1,0,1.5,1,5,2.1);
         field(owner,DigimonEntity.class,"cooldownUntil",new HashMap<>(Map.of(wrap.id(),500)));
@@ -345,6 +343,7 @@ public final class ConstrictionRegressionTest {
         @Override public BlockState getBlockState(BlockPos p){return p.getY()<0?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState();}
         @Override public boolean noCollision(Entity entity,AABB box){return !getBlockCollisions(entity,box).iterator().hasNext();}
         @Override public void broadcastEntityEvent(Entity entity,byte event){} // no chunk tracking offline
+        @Override public <T extends Entity> List<T> getEntitiesOfClass(Class<T> type,AABB box,java.util.function.Predicate<? super T> predicate){return List.of();} // no shots in flight offline
         @Override public Iterable<VoxelShape> getBlockCollisions(Entity entity,AABB box){
             var floor=new AABB(-100,-1,-100,100,0,100);var hits=new ArrayList<VoxelShape>();
             if(floor.intersects(box))hits.add(Shapes.create(floor));
@@ -365,6 +364,9 @@ public final class ConstrictionRegressionTest {
         LivingEntity target;
         private Fixture(){super(null,null);}
         @Override public Level level(){return world;}
+        boolean harmless; // a cow: nothing a range holder needs to keep a band from
+        @Override public boolean hasAttacks(){return !harmless&&super.hasAttacks();}
+        @Override public boolean hasRangedAttack(){return !harmless&&super.hasRangedAttack();}
         @Override public Optional<DigimonSpecies> getSpecies(){return Optional.of(DigimonSpeciesRegistry.getOrThrow(Constants.id("seadramon")));}
         @Override public DigimonBody getBody(){return getSpecies().orElseThrow().body();}
         @Override public com.digicube.entity.ai.FlightPhase getFlightPhase(){return com.digicube.entity.ai.FlightPhase.GROUNDED;}

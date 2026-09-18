@@ -9,7 +9,12 @@
     "electric_shock",
     "headbutt"
   ],
-  "evolutions": [],
+  "evolutions": [
+    {
+      "target": "digicube:seadramon",
+      "min_level": 20
+    }
+  ],
   "body": {
     "model_scale": 0.32,
     "width": 1.1,

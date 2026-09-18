@@ -35,7 +35,7 @@
   },
   "deadly_shade": {
     "kind": "KINETIC_SHOT",
-    "power": 0.8,
+    "power": 1.0,
     "cooldown": 120,
     "duration": 22,
     "hit_tick": 7,

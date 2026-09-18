@@ -68,6 +68,8 @@ public final class BubbleBlowEntity extends ThrowableProjectile {
         this.target = target;
     }
 
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(DATA_POPPED, false);

@@ -23,6 +23,7 @@ import java.util.Objects;
  * @param attacks      moves in priority order (first usable one wins); empty = cannot fight
  * @param body         physical dimensions, model scale and optional mount settings
  * @param locomotion   follow distances and walking/running speed modifiers
+ * @param tactics      how it fights between attacks: range holding, dodging, prediction
  */
 public record DigimonSpecies(
         Identifier id,
@@ -35,7 +36,8 @@ public record DigimonSpecies(
         List<Evolution> evolutions,
         List<DigimonAttack> attacks,
         DigimonBody body,
-        DigimonLocomotion locomotion
+        DigimonLocomotion locomotion,
+        DigimonTactics tactics
 ) {
 
     public DigimonSpecies {
@@ -44,6 +46,7 @@ public record DigimonSpecies(
         Objects.requireNonNull(attribute, "species attribute");
         Objects.requireNonNull(body, "species body");
         Objects.requireNonNull(locomotion, "species locomotion");
+        Objects.requireNonNull(tactics, "species tactics");
         if (body.mount().map(m -> m.flight()!=null).orElse(false) && !locomotion.canFly()) {
             throw new IllegalArgumentException("Aerial riding requires a flight reserve and locomotion definition");
         }

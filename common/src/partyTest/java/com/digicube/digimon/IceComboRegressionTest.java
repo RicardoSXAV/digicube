@@ -68,20 +68,28 @@ final class IceComboRegressionTest {
         check(IceCombo.FREEZE_TICKS == 60 && IceCombo.RESISTANCE_TICKS == 140,
                 "short freeze is followed by a longer recovery window");
         var ice = DigimonSpeciesBootstrap.ICE_BLAST;
-        check(IceCombo.SELF_FREEZE_CONTACT_TICKS == 10 && IceCombo.selfFreezeFuelTicks(ice.fuel()) == 18
-                        && ice.fuel().capacityTicks() - IceCombo.selfFreezeFuelTicks(ice.fuel()) >= 2 * ice.fuel().damageIntervalTicks(),
-                "an unmarked self-freeze costs half a second of contact and leaves a damage burst above the reserve");
+        check(IceCombo.COLD_CHARGE_TICKS == 20 && IceCombo.chillFuelTicks(ice.fuel()) == 28
+                        && ice.fuel().capacityTicks() - IceCombo.chillFuelTicks(ice.fuel()) >= ice.fuel().damageIntervalTicks(),
+                "a Cold charge costs a second of contact and one tank pays for it with a damage pulse to spare");
         int wrapExhale = ice.durationTicks() - ice.motion().activeUntil() - 1;
-        check(wrapExhale + 8 + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK < IceCombo.SELF_FREEZE_TICKS,
-                "exhale, alignment and the wrap wind-up all fit inside the self-freeze");
-        check(IceCombo.SELF_FREEZE_TICKS < IceCombo.RESISTANCE_TICKS, "resistance still outlasts the self-freeze");
-        var selfExposure = new IceExposure();
-        for (int i = 0; i < IceCombo.SELF_FREEZE_CONTACT_TICKS - 1; i++)
-            check(!selfExposure.touch(first, i, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "self-freeze needs its full contact");
-        check(selfExposure.touch(first, 50, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "tenth contact tick freezes unmarked prey");
+        check(wrapExhale + 8 + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK < IceCombo.COLD_TICKS,
+                "exhale, alignment and the wrap wind-up all fit inside one Cold");
+        check(IceCombo.COLD_SLOW > -1 && IceCombo.COLD_SLOW < 0, "Cold slows and never stops");
+        check(IceCombo.COLD_DECAY_DELAY_TICKS >= 2 * ice.fuel().damageIntervalTicks(), "a brief miss does not drain the charge");
+        int marks = com.digicube.entity.CombatMarkState.pack(true, false, 10, 118, .5F);
+        check(com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.ICE_MARK)
+                        && !com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.HELD)
+                        && com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.INKED)
+                        && com.digicube.entity.CombatMarkState.coldCharge(marks) == .5F
+                        && com.digicube.entity.CombatMarkState.coldRemainingTicks(marks) == 120
+                        && Math.abs(com.digicube.entity.CombatMarkState.inkRemaining(marks) - .5F) < .01F
+                        && marks > 0,
+                "the tracked readout carries flags, half a charge, remaining Cold rounded up to its step and half an ink");
+        check(!com.digicube.entity.CombatMarkState.has(com.digicube.entity.CombatMarkState.pack(false, false, 0, 0, 0),
+                com.digicube.entity.CombatMarkState.INKED), "no ink, no Inked flag");
         var lateMark = new IceExposure();
         for (int i = 0; i < 15; i++) check(!lateMark.touch(first, i, true, false, required), "marked contact short of a second does not freeze");
-        check(lateMark.touch(first, 15, true, false, IceCombo.SELF_FREEZE_CONTACT_TICKS), "a threshold that drops below banked contact still freezes");
+        check(lateMark.touch(first, 15, true, false, 10), "a threshold that drops below banked contact still freezes");
         var bite = DigimonSpeciesBootstrap.FREEZE_FANG;
         check(bite.cooldownTicks() == bite.durationTicks() && bite.cooldownTicks() == 28,
                 "the bite is ready as soon as its existing performance finishes");

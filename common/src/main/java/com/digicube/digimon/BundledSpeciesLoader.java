@@ -108,7 +108,19 @@ public final class BundledSpeciesLoader {
         return new DigimonSpecies(id, DigimonStage.byId(GsonHelper.getAsString(json, "stage")),
                 DigimonAttribute.byId(GsonHelper.getAsString(json, "attribute")), health, attack, defence, speed,
                 evolutions, moves, json.has("body") ? body(GsonHelper.getAsJsonObject(json, "body")) : DigimonBody.DEFAULT,
-                json.has("locomotion") ? locomotion(GsonHelper.getAsJsonObject(json, "locomotion")) : DigimonLocomotion.DEFAULT);
+                json.has("locomotion") ? locomotion(GsonHelper.getAsJsonObject(json, "locomotion")) : DigimonLocomotion.DEFAULT,
+                (json.has("tactics") ? tactics(GsonHelper.getAsJsonObject(json, "tactics")) : DigimonTactics.DEFAULT).overridden(id.getPath()));
+    }
+
+    private static DigimonTactics tactics(JsonObject json) {
+        double holdMin = 0, holdMax = 0;
+        if (json.has("hold_range")) {
+            var range = GsonHelper.getAsJsonArray(json, "hold_range");
+            holdMin = range.get(0).getAsDouble(); holdMax = range.get(1).getAsDouble();
+        }
+        return new DigimonTactics(holdMin, holdMax, GsonHelper.getAsFloat(json, "dodge_chance", 0), GsonHelper.getAsInt(json, "reaction_ticks", 0),
+                GsonHelper.getAsBoolean(json, "strafe", false), GsonHelper.getAsInt(json, "lead_ticks", 0),
+                GsonHelper.getAsBoolean(json, "press_impaired", false), GsonHelper.getAsBoolean(json, "prefer_close", false));
     }
 
     private static DigimonLocomotion locomotion(JsonObject json) {

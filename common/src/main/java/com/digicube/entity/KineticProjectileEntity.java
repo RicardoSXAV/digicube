@@ -35,6 +35,8 @@ public final class KineticProjectileEntity extends Projectile {
         String name = entityData.get(ATTACK);
         return name.isEmpty() ? null : KineticAttacks.get(Constants.id(name));
     }
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(ATTACK, "");builder.define(IMPACT,-1);builder.define(AGE,0); }
 
     private void impact(Vec3 point) {

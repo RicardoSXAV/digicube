@@ -287,12 +287,29 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   migration**, not a rename.
 - `Evolution` lists are evaluated **in order, first match wins**. Put the rarest and most
   specific branch first, the plain level-gated fallback last.
-- Attribute damage multipliers live in `DigimonAttribute.damageMultiplierAgainst`. Keep
-  balance numbers there rather than scattered through combat code.
+- The attribute triangle is a **critical-hit chance**, not a damage multiplier:
+  `CriticalHits` (base 10 %, favoured 25 %, countered 5 %, ×1.5) rolls on every Digimon hit
+  through `DigimonEntity.damageAgainst` and the projectile impacts. Defence is the vanilla
+  `ARMOR` attribute at half `base_defence` (`Progression.armor`). Keep those numbers there.
+- How a species fights *between* attacks is data too: the optional `tactics` block on the
+  species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
+  `lead_ticks`, `press_impaired`, `prefer_close`), read by `DigimonAttackGoal` and
+  `BlindGuardGoal`. A species without one closes in, never dodges and keeps list order.
+  Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`) and inbound
+  projectiles server-side; an inked mob cannot take or keep a target beyond three blocks
+  (`DCEffects.blindTo`) and acts on `lastSeenThreat` instead. `DIGICUBE_TACTICS=<species>:
+  key=value,...;<species>:...` overrides knobs per process for sweeps. Design and numbers:
+  `../design/combat-ai.md`.
 - Attacks are data on the species too: `DigimonSpecies.attacks` is a list of
   `DigimonAttack` in **fallback priority order** (first ready + in range wins for ordinary
   move sets). Frost bite/stream pairs use `IceCombo` to choose from target mark,
   resistance, fuel and range; they reposition to clear the muzzle before emission.
+  A frost stream with no bite beside it (Seadramon) never freezes: a second of landed
+  contact charges **Cold** on the victim (`CombatMarkState`, slowed movement for
+  `IceCombo.COLD_TICKS`, topped up by further contact, melted by fire), and its wrap may
+  take any prey, Cold or not. Combat marks are tracked for every living entity in one
+  packed int (`MixinLivingEntity`) and drawn as emblems above the head by
+  `fabric/.../client/render/CombatMarkBadges`; add a mark there, not as a new synced field.
   Readiness also requires a viable attack path: `AttackGeometry` checks authored
   contact and launch clearance; `DigimonCombatPosition` finds reachable attack spots
   when elevation or cover makes the current position unusable. Preserve these checks
@@ -477,11 +494,12 @@ $env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runSe
   `+behind` turns its back (and any long body) toward the caster. The arena is walled,
   evicted of leftovers from earlier runs on start, and purged of natural spawns every
   two seconds, so a run only ever contains the two fighters.
-- Verdict: a caster with a wrap move passes when its prey is frozen, captured and
-  released, reporting the freeze-to-capture ticks; any other caster passes after
+- Verdict: a caster with a wrap move passes when its prey is captured and released,
+  reporting when the prey turned Cold or frozen (its opening) and the ticks from that
+  opening to the capture; any other caster passes after
   three landed hits, reporting the tick of the first one. Compare the numbers before
   and after a change, not just PASS.
-- Read `fabric/runs/server/logs/latest.log`. Freeze-loop casters also log a
+- Read `fabric/runs/server/logs/latest.log`. Chill-loop casters also log a
   `[wrap-trace]` line every second (distance, level, status flags, fuel, planner state
   with its last failure, and the exact gate refusing a cast from the current position).
   The trace turns "it hesitates sometimes" into the name of a gate; fix the gate, rerun.
@@ -490,6 +508,26 @@ $env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runSe
   deterministic: fixed positions, healed combatants, no wild spawns nearby.
 - The server EULA under `fabric/runs/server/eula.txt` is accepted; it is a run
   directory and stays git-ignored.
+
+**Balance runs** (`common/.../dev/BalanceScenario`) answer a different question: not
+"does the move work" but "who wins, and how fast". `DIGICUBE_SCENARIO=balance:<a>_vs_<b>`
+fights real rounds to the death, no healing, both at `DIGICUBE_BALANCE_LEVEL` (20),
+`DIGICUBE_BALANCE_ROUNDS` (20) of them in one server start with the game sprinting
+(100 rounds in about 20 seconds). Sides alternate and each round opens from a random
+distance (6–10 blocks), lateral offset and facing, because a duel that always starts
+from the same spots is decided by whole hit counts and its "win chance" flips between
+0 and 1 on a rounding. `DIGICUBE_NEUTRAL=true` drops the attribute triangle;
+`DIGICUBE_TRIANGLE_UP` / `DIGICUBE_TRIANGLE_DOWN` override its multipliers for a sweep.
+Read the `[balance] RESULT` line (win shares, duration mean/median/min/max, retargets)
+and the two per-side lines (casts by move, crits and dodges per round, damage taken per
+round, health kept when winning, the tactics in force). Ricardo's target for a same-level
+neutral pair: about 50 % each (55–59 % is fine) and a 15-second mean. Tune from the
+per-side lines: damage taken per round shows who is short of a kill, casts show which move
+carries the fight. Use **300 rounds** (about 30 s) for a decision: 100-round runs of one
+build have ranged 38–50 % for the same side. `DIGICUBE_BALANCE_TRACE=true` logs both
+fighters every five ticks (distance, attack and tick, moving/still, target, effects); read
+one traced round before touching a number, it is where "waits beside a Cold prey for a
+wrap that is 160 ticks away" was found.
 
 What an agent still must **not** do is drive the Minecraft window: no keystrokes or
 chat commands typed into the client, no screenshots of it. Scenario runs are logs, not

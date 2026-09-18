@@ -53,8 +53,8 @@ final class ConstrictionPlanner {
             clear();
             return null;
         }
-        // Freshly frozen prey is a new opening: a backoff earned against it while mobile no longer applies.
-        boolean frozen = prey.hasEffect(DCEffects.FROZEN);
+        // Freshly frozen or Cold prey is a new opening: a backoff earned against it at full speed no longer applies.
+        boolean frozen = prey.hasEffect(DCEffects.FROZEN) || prey.hasEffect(DCEffects.COLD);
         if (frozen && !preyFrozen) retryUntil = 0;
         preyFrozen = frozen;
         if (owner.tickCount < retryUntil) return null;
@@ -125,7 +125,7 @@ final class ConstrictionPlanner {
     private DigimonAttack fail(String why) {
         clear();
         lastFail = why;
-        // Frozen prey cannot walk off; retry almost at once while the goal keeps closing in.
+        // Frozen prey cannot walk off and Cold prey barely can; retry almost at once while the goal keeps closing in.
         retryUntil = owner.tickCount + (preyFrozen ? ConstrictionMotion.FROZEN_RETRY_TICKS : ConstrictionMotion.APPROACH_RETRY_TICKS);
         return null;
     }

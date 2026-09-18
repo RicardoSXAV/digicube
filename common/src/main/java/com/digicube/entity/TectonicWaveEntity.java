@@ -29,6 +29,8 @@ public final class TectonicWaveEntity extends Entity {
         float[] h=TectonicWave.ground(level,owner,position(),getYRot());
         for(int i=0;i<6;i++)entityData.set(HEIGHTS.get(i),h[i]);
     }
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     protected void defineSynchedData(SynchedEntityData.Builder b) {
         b.define(AGE,0);for(var h:HEIGHTS)b.define(h,TectonicWave.INVALID);
     }

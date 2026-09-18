@@ -101,6 +101,8 @@ public final class PepperBreathEntity extends ThrowableProjectile {
         return centre.add(lead);
     }
 
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         // Nothing to sync: the client only needs position and rotation.
@@ -209,22 +211,22 @@ public final class PepperBreathEntity extends ThrowableProjectile {
         for (int i = 0; i < 2; i++) {
             Vec3 offset = new Vec3(random.nextDouble() - 0.5, random.nextDouble() - 0.5, random.nextDouble() - 0.5).scale(0.8);
             Vec3 drift = offset.scale(0.03).add(back.scale(0.04));
-            level().addParticle(ParticleTypes.SMALL_FLAME, centre.x + offset.x, centre.y + offset.y, centre.z + offset.z,
+            level().addAlwaysVisibleParticle(ParticleTypes.SMALL_FLAME, centre.x + offset.x, centre.y + offset.y, centre.z + offset.z,
                     drift.x, drift.y + 0.01, drift.z);
         }
         // Embers along the tail, falling away as they cool.
         Vec3 tail = centre.add(back.scale(random.nextDouble() * TAIL_LENGTH));
-        level().addParticle(ParticleTypes.FLAME,
+        level().addAlwaysVisibleParticle(ParticleTypes.FLAME,
                 tail.x + (random.nextDouble() - 0.5) * 0.4, tail.y + (random.nextDouble() - 0.5) * 0.4,
                 tail.z + (random.nextDouble() - 0.5) * 0.4, back.x * 0.02, -0.01, back.z * 0.02);
         if (tickCount % 3 == 0) {
             Vec3 end = centre.add(back.scale(TAIL_LENGTH));
-            level().addParticle(ParticleTypes.SMOKE,
+            level().addAlwaysVisibleParticle(ParticleTypes.SMOKE,
                     end.x + (random.nextDouble() - 0.5) * 0.3, end.y + (random.nextDouble() - 0.5) * 0.3,
                     end.z + (random.nextDouble() - 0.5) * 0.3, 0.0, 0.03, 0.0);
         }
         if (tickCount % 5 == 0) {
-            level().addParticle(ParticleTypes.LAVA, centre.x, centre.y, centre.z, 0.0, 0.0, 0.0);
+            level().addAlwaysVisibleParticle(ParticleTypes.LAVA, centre.x, centre.y, centre.z, 0.0, 0.0, 0.0);
         }
     }
 
@@ -253,10 +255,10 @@ public final class PepperBreathEntity extends ThrowableProjectile {
             Vec3 pos = position();
             double centreY = pos.y + getBbHeight() * 0.5;
             // Burst: a flash of flame, embers thrown out, then smoke.
-            serverLevel.sendParticles(ParticleTypes.FLAME, pos.x, centreY, pos.z, 32, 0.3, 0.3, 0.3, 0.1);
-            serverLevel.sendParticles(ParticleTypes.SMALL_FLAME, pos.x, centreY, pos.z, 24, 0.2, 0.2, 0.2, 0.15);
-            serverLevel.sendParticles(ParticleTypes.LAVA, pos.x, centreY, pos.z, 6, 0.2, 0.2, 0.2, 0.0);
-            serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, pos.x, centreY, pos.z, 8, 0.3, 0.3, 0.3, 0.02);
+            serverLevel.sendParticles(ParticleTypes.FLAME, true, true, pos.x, centreY, pos.z, 32, 0.3, 0.3, 0.3, 0.1);
+            serverLevel.sendParticles(ParticleTypes.SMALL_FLAME, true, true, pos.x, centreY, pos.z, 24, 0.2, 0.2, 0.2, 0.15);
+            serverLevel.sendParticles(ParticleTypes.LAVA, true, true, pos.x, centreY, pos.z, 6, 0.2, 0.2, 0.2, 0.0);
+            serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, pos.x, centreY, pos.z, 8, 0.3, 0.3, 0.3, 0.02);
             serverLevel.playSound(null, pos.x, pos.y, pos.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 0.7F, 1.3F);
             serverLevel.playSound(null, pos.x, pos.y, pos.z, SoundEvents.GENERIC_EXTINGUISH_FIRE, SoundSource.NEUTRAL, 0.35F, 1.6F);
             discard();

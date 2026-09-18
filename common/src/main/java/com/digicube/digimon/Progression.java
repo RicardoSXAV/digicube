@@ -115,6 +115,11 @@ public final class Progression {
         return (int) Math.round(baseHealth * (100 + HEALTH_GROWTH_PERCENT * (clampLevel(level) - 1)) / 100.0);
     }
 
+    /** Vanilla armour points of a species with {@code baseDefence}: half its value, at every level. */
+    public static double armor(int baseDefence) {
+        return baseDefence / 2.0;
+    }
+
     /** Attack of a species with {@code baseAttack} at {@code level}. */
     public static double attack(int baseAttack, int level) {
         return baseAttack * (100 + ATTACK_GROWTH_PERCENT * (clampLevel(level) - 1)) / 100.0;

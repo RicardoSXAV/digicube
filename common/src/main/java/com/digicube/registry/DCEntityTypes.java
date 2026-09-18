@@ -43,6 +43,12 @@ public final class DCEntityTypes {
                     .clientTrackingRange(8)
                     .updateInterval(2));
 
+    /**
+     * Attack entities draw to 160 blocks whatever their hitbox: vanilla scales the render
+     * distance with hitbox size, which hid a .1-block ink shot or spike wave past 6 blocks.
+     */
+    public static final double ATTACK_RENDER_DISTANCE_SQR = 160 * 160;
+
     private DCEntityTypes() {}
 
     public static final EntityType<com.digicube.entity.KineticProjectileEntity> KINETIC_PROJECTILE = register(key("kinetic_projectile"),

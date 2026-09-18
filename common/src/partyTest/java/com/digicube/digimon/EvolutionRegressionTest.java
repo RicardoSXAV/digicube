@@ -18,7 +18,8 @@ public final class EvolutionRegressionTest {
             check(!EvolutionRules.supported(new Evolution(adult,20,1,-1,0,null)),"unsupported bond fails closed");
             check(EvolutionRules.target(Constants.id("koromon"),50).isEmpty(),"baby growth separate");
             int routes=0;for(var s:DigimonSpeciesRegistry.all())if(s.stage()==DigimonStage.CHILD)for(var e:s.evolutions())if(EvolutionRules.supported(e)){routes++;check(EvolutionRules.validOrigin(s.id(),e.target()),"valid authored origin");}
-            check(routes==4,"all four authored routes enumerated; update coverage deliberately when content changes");
+            check(routes==5,"all five authored routes enumerated; update coverage deliberately when content changes");
+            check(EvolutionRules.target(Constants.id("betamon"),20).orElseThrow().equals(Constants.id("seadramon")),"betamon routes to seadramon at 20");
             var state=new EvolutionState();state.unlock(rookie,19);check(!state.initialized,"not early");state.unlock(rookie,20);check(state.charge==3600&&state.initialized,"first unlock");
             state.charge=0;state.unlock(rookie,21);check(state.charge==0,"no repeated refill");state.recover(false);check(state.charge==0,"combat blocks recovery");
             for(int i=0;i<7199;i++)state.recover(true);check(state.charge==3599,"exact recharge interval");state.recover(true);check(state.charge==3600,"six minutes full");

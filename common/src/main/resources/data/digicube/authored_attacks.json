@@ -52,7 +52,7 @@
   },
   "devil_bashing": {
     "kind": "BOX_SWEEP",
-    "power": 0.48,
+    "power": 0.26,
     "cooldown": 32,
     "duration": 20,
     "hit_tick": 5,

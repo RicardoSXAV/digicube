@@ -20,7 +20,7 @@ final class ConstrictionSession {
     private final double distance;
     private final float yaw, scale;
     private final ConstrictionMotion.SweptBody body;
-    private Vec3 approachOffset = Vec3.ZERO;
+    private Vec3 approachOffset = Vec3.ZERO, preySeen = Vec3.ZERO;
     private final boolean afloat;
     private boolean captured, released;
 
@@ -75,7 +75,9 @@ final class ConstrictionSession {
         for(int t=0;t<=ConstrictionMotion.DURATION;t+=4) {
             Vec3 p=cast.at(t);
             if (!cast.supported(p)) return new Rehearsal(null,"unsupported at tick "+t);
-            if (owner.level().getBlockCollisions(owner,owner.getBoundingBox().move(p.subtract(owner.position())).deflate(.01)).iterator().hasNext()) return new Rehearsal(null,"root blocked at tick "+t);
+            // Sweep to the next sample, as the cast itself sweeps every step: a block between two samples must not pass.
+            Vec3 ahead=cast.at(Math.min(t+4,ConstrictionMotion.DURATION)).subtract(p).multiply(1,0,1);
+            if (owner.level().getBlockCollisions(owner,owner.getBoundingBox().move(p.subtract(owner.position())).expandTowards(ahead).deflate(.01)).iterator().hasNext()) return new Rehearsal(null,"root blocked at tick "+t);
         }
         return new Rehearsal(cast,null);
     }
@@ -121,36 +123,53 @@ final class ConstrictionSession {
         return afloat && owner.level().getFluidState(net.minecraft.core.BlockPos.containing(p)).is(net.minecraft.tags.FluidTags.WATER);
     }
 
+    private String interruption;
+    /** Why the last tick interrupted the wrap; development traces name the gate. */
+    String interruption() { return interruption; }
+    private boolean interrupt(String why) { interruption = why; return false; }
+
+    private boolean lineBlocked(int tick) {
+        Vec3 step=at(tick+1).subtract(owner.position()).multiply(1,0,1);
+        return owner.level().getBlockCollisions(owner,owner.getBoundingBox().expandTowards(step).deflate(.01)).iterator().hasNext()
+                || sampleObstructed(tick/4,approachOffset);
+    }
+
     /** False interrupts immediately: no hold survives a dead caster, escape, teleport or obstruction. */
     boolean tick(int tick) {
-        if (!owner.isAlive() || owner.isRemoved()) return false;
+        if (!owner.isAlive() || owner.isRemoved()) return interrupt("caster gone");
         if (tick < ConstrictionMotion.CAPTURE_TICK) {
             // Follow ordinary walking during the approach. A sprint, teleport or
             // large displacement still evades capture; the hold never drags prey.
             Vec3 wanted = target.position().subtract(center);
-            if (Math.abs(wanted.y) > .25
-                    || wanted.horizontalDistanceSqr() > ConstrictionMotion.MAX_APPROACH_DRIFT * ConstrictionMotion.MAX_APPROACH_DRIFT
-                    || wanted.subtract(approachOffset).horizontalDistanceSqr() > ConstrictionMotion.MAX_TARGET_STEP * ConstrictionMotion.MAX_TARGET_STEP) return false;
-            approachOffset = wanted.multiply(1, 0, 1);
+            if (Math.abs(wanted.y) > .25) return interrupt(String.format("prey level moved %.2f", wanted.y));
+            if (wanted.horizontalDistanceSqr() > ConstrictionMotion.MAX_APPROACH_DRIFT * ConstrictionMotion.MAX_APPROACH_DRIFT) return interrupt("prey drifted too far");
+            if (wanted.subtract(preySeen).horizontalDistanceSqr() > ConstrictionMotion.MAX_TARGET_STEP * ConstrictionMotion.MAX_TARGET_STEP)
+                return interrupt(String.format("prey stepped %.2f in a tick", Math.sqrt(wanted.subtract(preySeen).horizontalDistanceSqr())));
+            preySeen = wanted.multiply(1, 0, 1);
+            // Follow only along clear ground. Nudged prey can shift the line into a block the rehearsal never
+            // saw; the rehearsed line is known clear and still captures whatever stays within the coil's reach.
+            approachOffset = preySeen;
+            if (!preySeen.equals(Vec3.ZERO) && lineBlocked(tick)) approachOffset = Vec3.ZERO;
         }
         var currentFit=motion.fit(target.getBoundingBox(),scale);
-        if(tick<ConstrictionMotion.RELEASE_TICK && (currentFit==null || Math.abs(currentFit.radius()-fit.radius())>.1))return false;
+        if(tick<ConstrictionMotion.RELEASE_TICK && (currentFit==null || Math.abs(currentFit.radius()-fit.radius())>.1))return interrupt("prey size changed");
         if (tick<ConstrictionMotion.RELEASE_TICK && (!target.isAlive() || target.isRemoved()
                 || target.level()!=owner.level() || !owner.canAttack(target) || owner.isAllyOf(target)
                 || target.position().distanceToSqr(center.add(approachOffset))>ConstrictionMotion.ESCAPE_DISTANCE*ConstrictionMotion.ESCAPE_DISTANCE
-                || target.isPassenger() || target.isVehicle())) return false;
+                || target.isPassenger() || target.isVehicle())) return interrupt(String.format("prey escaped, %.2f from the coil", target.position().distanceTo(center.add(approachOffset))));
         owner.setYRot(yaw);owner.yBodyRot=yaw;owner.yHeadRot=yaw;
         owner.getNavigation().stop();owner.setDeltaMovement(0,0,0);
         Vec3 next=at(tick+1),step=next.subtract(owner.position()).multiply(1,0,1);
         // External knockback cannot be turned into a teleport back to the path.
-        if (step.lengthSqr()>1 || !supported(next)) return false;
-        if (owner.level().getBlockCollisions(owner,owner.getBoundingBox().expandTowards(step).deflate(.01)).iterator().hasNext()) return false;
-        if (sampleObstructed(tick/4,approachOffset)) return false;
+        if (step.lengthSqr()>1 || !supported(next)) return interrupt(step.lengthSqr()>1 ? "caster displaced" : "path unsupported");
+        if (owner.level().getBlockCollisions(owner,owner.getBoundingBox().expandTowards(step).deflate(.01)).iterator().hasNext()) return interrupt(String.format("root blocked, following the prey by (%.2f, %.2f)", approachOffset.x, approachOffset.z));
+        if (sampleObstructed(tick/4,approachOffset)) return interrupt("body obstructed");
         owner.move(MoverType.SELF,step);
-        if (owner.position().subtract(next).horizontalDistanceSqr()>.0025) return false;
+        if (owner.position().subtract(next).horizontalDistanceSqr()>.0025) return interrupt("caster off its path");
         if (tick==ConstrictionMotion.CAPTURE_TICK) {
             if (!eligible(owner,target,owner.activeAttackDefinition(),start)
-                    || !target.addEffect(new MobEffectInstance(DCEffects.CONSTRICTED,3,0,false,false,true),owner)) return false;
+                    || !target.addEffect(new MobEffectInstance(DCEffects.CONSTRICTED,3,0,false,false,true),owner))
+                return interrupt("capture refused: " + whyIneligible(owner,target,owner.activeAttackDefinition(),start));
             captured=true;
             // Wrapping frozen prey keeps the ice through the hold and a short tail after release.
             if (target.hasEffect(DCEffects.FROZEN)) target.addEffect(new MobEffectInstance(DCEffects.FROZEN,
@@ -160,7 +179,7 @@ final class ConstrictionSession {
             if (target instanceof DigimonEntity digimon) digimon.interruptAttack();
         }
         if (captured && tick<ConstrictionMotion.RELEASE_TICK) {
-            if (!target.hasEffect(DCEffects.CONSTRICTED)) return false; // cleansing breaks the hold
+            if (!target.hasEffect(DCEffects.CONSTRICTED)) return interrupt("hold cleansed"); // cleansing breaks the hold
             target.addEffect(new MobEffectInstance(DCEffects.CONSTRICTED,3,0,false,false,true),owner);
             target.setDeltaMovement(0,Math.min(0,target.getDeltaMovement().y),0);
             if ((tick-ConstrictionMotion.CAPTURE_TICK)%ConstrictionMotion.INTERVAL==0) owner.damageWithActiveAttack(target);

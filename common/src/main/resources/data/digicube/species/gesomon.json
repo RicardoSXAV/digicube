@@ -10,6 +10,14 @@
     "devil_bashing"
   ],
   "evolutions": [],
+  "tactics": {
+    "dodge_chance": 0.4,
+    "reaction_ticks": 5,
+    "strafe": false,
+    "lead_ticks": 8,
+    "press_impaired": true,
+    "prefer_close": true
+  },
   "locomotion": {
     "follow_start_distance": 6,
     "follow_stop_distance": 3,

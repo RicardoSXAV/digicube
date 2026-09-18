@@ -53,7 +53,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
                         () -> com.digicube.fabric.client.model.NativeFlyingMountModel.createLayer(id));
             }
         }
-        com.digicube.fabric.client.render.IceMarkBadge.init();
+        com.digicube.fabric.client.render.CombatMarkBadges.init();
         ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);

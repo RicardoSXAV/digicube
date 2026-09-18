@@ -51,6 +51,8 @@ public final class MarchingFishesEntity extends ThrowableProjectile {
         this.target = target;
     }
 
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(DATA_SPLASH, false);
@@ -100,7 +102,7 @@ public final class MarchingFishesEntity extends ThrowableProjectile {
             }
             if (sweep(server)) return;
             if (flightTicks % 3 == 0) {
-                server.sendParticles(ParticleTypes.SPLASH, getX(), getY() + 0.4, getZ(),
+                server.sendParticles(ParticleTypes.SPLASH, true, true, getX(), getY() + 0.4, getZ(),
                         4, 0.7, 0.2, 0.4, 0.035);
             }
         }
@@ -163,11 +165,7 @@ public final class MarchingFishesEntity extends ThrowableProjectile {
                 Vec3 near = new Vec3(Mth.clamp(center.x, b.minX, b.maxX), Mth.clamp(center.y, b.minY, b.maxY),
                         Mth.clamp(center.z, b.minZ, b.maxZ));
                 if (center.distanceToSqr(near) > IMPACT_RADIUS * IMPACT_RADIUS || !visible(center, victim)) continue;
-                float power = damage;
-                if (shooter instanceof DigimonEntity digimon && victim instanceof DigimonEntity other
-                        && digimon.getSpecies().isPresent() && other.getSpecies().isPresent()) {
-                    power *= digimon.getSpecies().get().attribute().damageMultiplierAgainst(other.getSpecies().get().attribute());
-                }
+                float power = shooter instanceof DigimonEntity digimon ? com.digicube.digimon.CriticalHits.roll(level, digimon, victim, damage) : damage;
                 var source = damageSources().mobProjectile(this, shooter);
                 if (victim.hurtServer(level, source, power)) {
                     Vec3 push = forward.lengthSqr() > 1.0E-6 ? forward : victim.position().subtract(shooter.position()).normalize();
@@ -180,8 +178,8 @@ public final class MarchingFishesEntity extends ThrowableProjectile {
         splashTicks = 0;
         setDeltaMovement(Vec3.ZERO);
         level.playSound(null, getX(), getY(), getZ(), SoundEvents.GENERIC_SPLASH, SoundSource.NEUTRAL, 1.0F, 1.2F);
-        level.sendParticles(ParticleTypes.SPLASH, center.x, center.y, center.z, 28, 0.9, 0.45, 0.7, 0.12);
-        level.sendParticles(ParticleTypes.BUBBLE_POP, center.x, center.y, center.z, 12, 0.7, 0.4, 0.7, 0.04);
+        level.sendParticles(ParticleTypes.SPLASH, true, true, center.x, center.y, center.z, 28, 0.9, 0.45, 0.7, 0.12);
+        level.sendParticles(ParticleTypes.BUBBLE_POP, true, true, center.x, center.y, center.z, 12, 0.7, 0.4, 0.7, 0.04);
     }
 
     @Override

@@ -21,7 +21,7 @@ import java.util.Locale;
  * <p>Set {@code DIGICUBE_SCENARIO=<caster>_vs_<prey>[@flat|@steps|@ledge|@down|@wall|@water]} (for example
  * {@code seadramon_vs_golemon@steps}) and start the dedicated server. A platform is built high
  * above the world, both Digimon are spawned facing each other eight blocks apart, healed every
- * tick so the fight never ends early, and the log records each phase of the caster's freeze-and-
+ * tick so the fight never ends early, and the log records each phase of the caster's chill-and-
  * wrap loop. The server halts with a {@code [scenario] PASS} or {@code FAIL} verdict.
  * {@code ledge} raises the prey's half one block; {@code down} raises the caster's half.
  * {@code wall} requires zero damage through solid cover.
@@ -30,10 +30,13 @@ import java.util.Locale;
  * {@code +escape} checks a wounded flyer's complete escape and grounded recovery.
  * {@code DIGICUBE_BENCHMARK=true} measures 600 combat ticks instead of stopping after three hits;
  * {@code DIGICUBE_NEUTRAL=true} removes attribute advantage in that test process only.
+ *
+ * <p>{@code balance:<a>_vs_<b>} hands over to {@link BalanceScenario}: real fights to the death, many rounds.
  */
 public final class CombatScenario {
     private static final String NAME = System.getenv("DIGICUBE_SCENARIO");
-    private static final int FLOOR_Y = 300, HALF = 14, TIMEOUT_TICKS = 20 * 90, SETTLE_TICKS = 40, REQUIRED_HITS = 3;
+    static final int FLOOR_Y = 300;
+    private static final int HALF = 14, TIMEOUT_TICKS = 20 * 90, SETTLE_TICKS = 40, REQUIRED_HITS = 3;
     private static final boolean BENCHMARK=Boolean.parseBoolean(System.getenv("DIGICUBE_BENCHMARK"));
     private static final String MOVE=System.getenv("DIGICUBE_SCENARIO_ATTACK");
     private static double damage;
@@ -43,7 +46,7 @@ public final class CombatScenario {
     private static int preyCasts,preyHits;
     private static boolean blockedScenario;
     private static boolean started, done;
-    private static int startTick, freezeTick = -1, captureTick = -1, releaseTick = -1, firstHitTick = -1, casts, hits;
+    private static int startTick, coldTick = -1, freezeTick = -1, captureTick = -1, releaseTick = -1, firstHitTick = -1, casts, hits;
     private static boolean casterWasAttacking, wrapCaster, oversizedWrapPrey, duel, preyFacesAway;
     private static boolean escapeScenario;
     private static final java.util.Set<com.digicube.entity.ai.FlightPhase> flightPhases = java.util.EnumSet.noneOf(com.digicube.entity.ai.FlightPhase.class);
@@ -59,6 +62,7 @@ public final class CombatScenario {
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
+        if (NAME.startsWith("balance:")) { BalanceScenario.tick(level, NAME.substring(8)); return; }
         try {
             if (!started) start(level);
             else observe(level);
@@ -86,7 +90,7 @@ public final class CombatScenario {
         if (names.length != 2) { finish(level, "FAIL bad scenario name " + NAME); return; }
         for (int cx = -1; cx <= 0; cx++) for (int cz = -1; cz <= 0; cz++) level.setChunkForced(cx, cz, true);
         // The dev world persists between runs: evict every earlier fighter and anything else that wandered in.
-        int evicted = com.digicube.spawn.WildSpawner.clear(level) + purge(level);
+        int evicted = com.digicube.spawn.WildSpawner.clear(level) + purge(level, null, null);
         if (evicted > 0) Constants.LOG.info("[scenario] evicted {} leftover mobs from the arena", evicted);
         build(level, terrain);
         DigimonSpecies casterSpecies = DigimonSpeciesRegistry.getOrThrow(Constants.id(names[0]));
@@ -96,17 +100,13 @@ public final class CombatScenario {
             if(selected.isEmpty())throw new IllegalArgumentException("Unknown scenario attack "+MOVE);
             casterSpecies=new DigimonSpecies(casterSpecies.id(),casterSpecies.stage(),casterSpecies.attribute(),casterSpecies.baseHealth(),
                     casterSpecies.baseAttack(),casterSpecies.baseDefence(),casterSpecies.baseSpeed(),casterSpecies.evolutions(),selected,
-                    casterSpecies.body(),casterSpecies.locomotion());
+                    casterSpecies.body(),casterSpecies.locomotion(),casterSpecies.tactics());
             DigimonSpeciesRegistry.replace(casterSpecies);
         }
         if(Boolean.parseBoolean(System.getenv("DIGICUBE_NEUTRAL"))) {
-            for(var species:new DigimonSpecies[]{casterSpecies,preySpecies}) {
-                DigimonSpeciesRegistry.replace(new DigimonSpecies(species.id(),species.stage(),com.digicube.digimon.DigimonAttribute.FREE,
-                        species.baseHealth(),species.baseAttack(),species.baseDefence(),species.baseSpeed(),species.evolutions(),species.attacks(),species.body(),species.locomotion()));
-            }
-            casterSpecies=DigimonSpeciesRegistry.getOrThrow(casterSpecies.id());preySpecies=DigimonSpeciesRegistry.getOrThrow(preySpecies.id());
+            casterSpecies=neutralize(casterSpecies.id());preySpecies=neutralize(preySpecies.id());
         }
-        // A wrap caster is judged on freeze, capture and release; anyone else on landing hits.
+        // A wrap caster is judged on its opening (Cold or a freeze), capture and release; anyone else on landing hits.
         wrapCaster = casterSpecies.attacks().stream().anyMatch(a -> a.kind() == com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION);
         double y = terrain.equals("water") ? FLOOR_Y - 3 : FLOOR_Y;
         caster = DigimonEntity.spawnWild(level, casterSpecies, 20, new Vec3(.5, terrain.equals("down") ? y+1:y, -3.5));
@@ -131,8 +131,16 @@ public final class CombatScenario {
         Constants.LOG.info("[scenario] {} vs {} on {} terrain: start at tick {}", names[0], names[1], terrain, startTick);
     }
 
+    /** Re-registers the species with the FREE attribute: neutral damage both ways, in this process only. */
+    static DigimonSpecies neutralize(net.minecraft.resources.Identifier id) {
+        var species = DigimonSpeciesRegistry.getOrThrow(id);
+        DigimonSpeciesRegistry.replace(new DigimonSpecies(species.id(), species.stage(), com.digicube.digimon.DigimonAttribute.FREE,
+                species.baseHealth(), species.baseAttack(), species.baseDefence(), species.baseSpeed(), species.evolutions(), species.attacks(), species.body(), species.locomotion(), species.tactics()));
+        return DigimonSpeciesRegistry.getOrThrow(id);
+    }
+
     /** A stone platform far above the world, with optional one-block steps or a pool. */
-    private static void build(ServerLevel level, String terrain) {
+    static void build(ServerLevel level, String terrain) {
         BlockState stone = Blocks.STONE.defaultBlockState(), air = Blocks.AIR.defaultBlockState(), water = Blocks.WATER.defaultBlockState();
         boolean pool = terrain.equals("water");
         for (int x = -HALF; x <= HALF; x++) for (int z = -HALF; z <= HALF; z++) {
@@ -217,7 +225,7 @@ public final class CombatScenario {
             prey.getNavigation().stop();
             return;
         }
-        if (elapsed % 40 == 0) purge(level);
+        if (elapsed % 40 == 0) purge(level, caster, prey);
         if (elapsed % 20 == 0 && Boolean.parseBoolean(System.getenv("DIGICUBE_SCENARIO_TRACE"))) {
             Constants.LOG.info("[scenario-trace] t={} caster={} prey={} velocity={} water={}/{} active={} ready={}",
                     elapsed,caster.position(),prey.position(),prey.getDeltaMovement(),caster.isInWater(),prey.isInWater(),
@@ -255,14 +263,19 @@ public final class CombatScenario {
             finish(level,(hits==0?"PASS":"FAIL")+" solid cover hits="+hits+" casts="+casts);return;
         }
         if(BENCHMARK && elapsed>=640) {
-            float triangle=caster.getSpecies().orElseThrow().attribute().damageMultiplierAgainst(prey.getSpecies().orElseThrow().attribute());
-            finish(level,String.format(java.util.Locale.ROOT,"%s benchmark firstHit=%d hits=%d damage=%.2f neutralEquivalent=%.2f duration=600 moves=%s",
-                    hits>=REQUIRED_HITS?"PASS":"FAIL",firstHitTick,hits,damage,damage/triangle,moves));return;
+            finish(level,String.format(java.util.Locale.ROOT,"%s benchmark firstHit=%d hits=%d damage=%.2f crits=%d duration=600 moves=%s",
+                    hits>=REQUIRED_HITS?"PASS":"FAIL",firstHitTick,hits,damage,caster.criticalHits(),moves));return;
         }
         if (!wrapCaster) {
             if (elapsed >= TIMEOUT_TICKS) finish(level, String.format("FAIL only %d hits within %d ticks (casts=%d caster=%s prey=%s)",
                     hits, TIMEOUT_TICKS, casts, caster.position(), prey.position()));
             return;
+        }
+        if (coldTick < 0 && prey.hasEffect(DCEffects.COLD)) {
+            coldTick = elapsed;
+            var speed = prey.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+            Constants.LOG.info("[scenario] t={} prey cold (movement speed {} of base {})", elapsed,
+                    String.format("%.3f", speed.getValue()), String.format("%.3f", speed.getBaseValue()));
         }
         if (freezeTick < 0 && prey.hasEffect(DCEffects.FROZEN)) {
             freezeTick = elapsed;
@@ -270,23 +283,24 @@ public final class CombatScenario {
         }
         if (captureTick < 0 && prey.hasEffect(DCEffects.CONSTRICTED)) {
             captureTick = elapsed;
-            Constants.LOG.info("[scenario] t={} prey captured ({} ticks after the freeze)", elapsed, freezeTick < 0 ? -1 : elapsed - freezeTick);
+            int opening = Math.max(coldTick, freezeTick);
+            Constants.LOG.info("[scenario] t={} prey captured ({} ticks after its opening)", elapsed, opening < 0 ? -1 : elapsed - opening);
         }
         if (captureTick >= 0 && releaseTick < 0 && !prey.hasEffect(DCEffects.CONSTRICTED)) {
             releaseTick = elapsed;
-            finish(level, String.format("PASS freeze=%d capture=%d (%d after freeze) release=%d casts=%d",
-                    freezeTick, captureTick, captureTick - Math.max(freezeTick, 0), releaseTick, casts));
+            finish(level, String.format("PASS cold=%d freeze=%d capture=%d (%d after opening) release=%d casts=%d",
+                    coldTick, freezeTick, captureTick, captureTick - Math.max(Math.max(coldTick, freezeTick), 0), releaseTick, casts));
         } else if (elapsed >= TIMEOUT_TICKS) {
-            finish(level, String.format("FAIL no capture within %d ticks (freeze=%d casts=%d caster=%s prey=%s)",
-                    TIMEOUT_TICKS, freezeTick, casts, caster.position(), prey.position()));
+            finish(level, String.format("FAIL no capture within %d ticks (cold=%d freeze=%d casts=%d caster=%s prey=%s)",
+                    TIMEOUT_TICKS, coldTick, freezeTick, casts, caster.position(), prey.position()));
         }
     }
 
     /** Remove every mob in the arena other than the two fighters; natural spawns keep arriving at night. */
-    private static int purge(ServerLevel level) {
+    static int purge(ServerLevel level, DigimonEntity first, DigimonEntity second) {
         var arena = new net.minecraft.world.phys.AABB(-HALF - 2, FLOOR_Y - 8, -HALF - 2, HALF + 2, FLOOR_Y + 12, HALF + 2);
         var intruders = level.getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.Mob.class), arena,
-                mob -> mob != caster && mob != prey);
+                mob -> mob != first && mob != second);
         intruders.forEach(net.minecraft.world.entity.Entity::discard);
         return intruders.size();
     }

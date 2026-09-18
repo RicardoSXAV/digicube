@@ -69,6 +69,8 @@ public final class MegaFlameEntity extends ThrowableProjectile {
         this.target = target;
     }
 
+    /** Attack visuals are never culled by hitbox size (vanilla hides a .1-block entity past 6 blocks); tracking range decides. */
+    @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(DATA_BURST, false);
@@ -199,10 +201,7 @@ public final class MegaFlameEntity extends ThrowableProjectile {
             if (distance > BLAST_RADIUS || level.clip(new ClipContext(center, bounds.getCenter(),
                     ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) continue;
             float power = damage * (float) (1.0 - 0.45 * distance / BLAST_RADIUS);
-            if (shooter instanceof DigimonEntity digimon && entity instanceof DigimonEntity victim
-                    && digimon.getSpecies().isPresent() && victim.getSpecies().isPresent()) {
-                power *= digimon.getSpecies().get().attribute().damageMultiplierAgainst(victim.getSpecies().get().attribute());
-            }
+            if (shooter instanceof DigimonEntity digimon && entity instanceof LivingEntity victim) power = com.digicube.digimon.CriticalHits.roll(level, digimon, victim, power);
             if (entity.hurtServer(level, damageSources().mobProjectile(this, shooter), power)) {
                 entity.setRemainingFireTicks(Math.max(entity.getRemainingFireTicks(), 120));
                 if (shooter != null) shooter.setLastHurtMob(entity);

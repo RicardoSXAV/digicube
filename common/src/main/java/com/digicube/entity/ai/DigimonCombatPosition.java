@@ -66,6 +66,9 @@ public final class DigimonCombatPosition {
                         // A stance outside the follow-up's reach costs a walk after the freeze; rank it behind every closer one.
                         double preferred = mob.preferredStanceRange(attack);
                         double walk = feet.distanceToSqr(target.position()) > preferred * preferred ? 1000 : 0;
+                        // A range holder ranks stances inside its band first; a wrap or melee has no band.
+                        var tactics = mob.tactics();
+                        if (tactics.holdsRange() && attack.isRanged() && feet.distanceToSqr(target.position()) < tactics.holdMin() * tactics.holdMin()) walk += 1000;
                         double cost = feet.distanceToSqr(mob.position()) + Math.abs(feet.y - mob.getY()) + combo + walk;
                         candidates.add(new Candidate(feet, attack, cost));
                     }

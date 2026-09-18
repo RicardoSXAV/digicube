@@ -79,15 +79,15 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("tectonic_fist"), DigimonAttack.Kind.GROUND_WAVE,
             2.4F, 240, 84, 28, 7.5, false, AttackMotion.load(Constants.id("tectonic_fist")), null, 1.15);
 
-    /** A short freezing jet: two-second tank, four-second empty-to-full refill, Howling Blaster's pulse cadence. */
+    /** A short chilling jet that charges Cold and never freezes: two-second tank, four-second empty-to-full refill, Howling Blaster's pulse cadence. */
     public static final DigimonAttack ICE_BLAST = new DigimonAttack(
             Constants.id("ice_blast"), DigimonAttack.Kind.FROST_STREAM,
-            .30F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
+            .48F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
             new AttackFuel(40, 80, 10), 0);
 
     public static final DigimonAttack CONSTRICTION = new DigimonAttack(
             Constants.id("constriction"), DigimonAttack.Kind.CONSTRICTION,
-            .22F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
+            .28F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
     public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
 
     public static Map<Identifier, DigimonAttack> attacks() {

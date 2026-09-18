@@ -3,8 +3,7 @@ package com.digicube.fabric.mixin;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.render.DigimonRenderer;
 import com.digicube.fabric.client.render.RiderVisuals;
-import com.digicube.fabric.client.render.IceMarkBadge;
-import com.digicube.entity.IceMarkState;
+import com.digicube.fabric.client.render.CombatMarkBadges;
 import net.minecraft.world.entity.LivingEntity;
 import net.fabricmc.fabric.api.client.rendering.v1.FabricRenderState;
 import net.minecraft.client.Minecraft;
@@ -23,8 +22,8 @@ public class MixinEntityRenderer {
     @Inject(method = "extractRenderState", at = @At("TAIL"))
     private void digicube$extractRider(Entity entity, EntityRenderState state, float partialTick, CallbackInfo ci) {
         var extra = (FabricRenderState) state;
-        extra.setData(IceMarkBadge.MARKED, !Minecraft.getInstance().gui.hud.isHidden()
-                && entity instanceof LivingEntity living && living.isAlive() && ((IceMarkState) living).digicube$hasIceMark());
+        extra.setData(CombatMarkBadges.MARKS, !Minecraft.getInstance().gui.hud.isHidden()
+                && entity instanceof LivingEntity living ? CombatMarkBadges.read(living, partialTick) : null);
         extra.setData(RiderVisuals.POSE, null);
         if (entity.getVehicle() instanceof DigimonEntity mount
                 && Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(mount) instanceof DigimonRenderer renderer) {
