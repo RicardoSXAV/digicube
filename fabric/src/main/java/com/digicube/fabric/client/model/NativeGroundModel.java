@@ -133,6 +133,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         rootPart.y-=Math.max(0,lowest[0]-1.5F)*16;
     }
 
+    private static final String[] DIRECTIONS={"walk","walk_back","strafe_left","strafe_right"};
     private void applyGround(DigimonRenderState state,float weight) {
         if(weight<=0)return;
         float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
@@ -150,7 +151,10 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         animations.apply("idle", state.ageInTicks, (1 - amount)*(1-water)*weight);
         // The lattice excludes the idle-at-zero contribution. Its amplitude zero
         // is rest, so the independent idle clock never doubles body or tail motion.
-        if(definition.walkBlend()) animations.blend("walk", amount, state.groundAnimationPhase, (1-water)*weight);
+        if(definition.walkBlend() && animations.blendNames().contains("walk_back")) {
+            // Directional gait: planted clips per direction on one phase, mixed by the share of the movement each one carries.
+            for(int i=0;i<DIRECTIONS.length;i++) animations.blend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight);
+        } else if(definition.walkBlend()) animations.blend("walk", amount, state.groundAnimationPhase, (1-water)*weight);
         else animations.apply("walk",state.groundAnimationPhase,amount*(1-water)*weight);
         if(definition.amphibious()) {
             float power=Math.clamp(state.swimMotionAmount,0,1);

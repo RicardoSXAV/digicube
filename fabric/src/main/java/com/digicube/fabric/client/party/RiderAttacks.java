@@ -28,8 +28,15 @@ public final class RiderAttacks {
     static final String[] KEYS = {"Q", "E"};
     static final int TEXTURE = 32;
     private static final int HUD_TILE = 16, HUD_GAP = 2;
+    /** Mouse glyphs: the wheel lit (open the command wheel), the left button lit, the right button lit. */
     private static final String[] MOUSE = {
             "...#####...", "..#..+..#..", ".#..+++..#.", ".#..+++..#.", ".#..+++..#.", ".#...+...#.", ".#########.",
+            ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
+    private static final String[] MOUSE_LEFT = {
+            "...#####...", "..#++#..#..", ".#+++#...#.", ".#+++#...#.", ".#+++#...#.", ".#+++#...#.", ".#########.",
+            ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
+    private static final String[] MOUSE_RIGHT = {
+            "...#####...", "..#..#++#..", ".#...#+++#.", ".#...#+++#.", ".#...#+++#.", ".#...#+++#.", ".#########.",
             ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
 
     /** The Digimon whose attacks the local player casts, or null. */
@@ -49,15 +56,28 @@ public final class RiderAttacks {
         if (mount == null || minecraft.gui.hud.isHidden()) return;
         List<DigimonAttack> attacks = mount.riderAttacks();
         float partial = delta.getGameTimeDeltaPartialTick(false);
-        int right = g.guiWidth() / 2 + 91, y = g.guiHeight() - 31 - HUD_TILE;
-        int x = right - attacks.size() * HUD_TILE - (attacks.size() - 1) * HUD_GAP;
-        int mx = x - MOUSE[0].length() - 3, my = y + (HUD_TILE - MOUSE.length) / 2;
-        CommandIcons.draw(g, MOUSE, mx + 1, my + 1, DigiTheme.withAlpha(DigiTheme.VOID, 0xC0), DigiTheme.withAlpha(DigiTheme.VOID, 0xC0), 0);
-        CommandIcons.draw(g, MOUSE, mx, my, DigiTheme.WHITE, DigiTheme.AMBER, 0);
-        for (DigimonAttack attack : attacks) {
-            tile(g, minecraft.font, mount, attack, x, y, HUD_TILE, partial, 0xFF);
-            x += HUD_TILE + HUD_GAP;
+        int right = g.guiWidth() / 2 + 91, y = g.guiHeight() - 31 - HUD_TILE, glyph = MOUSE[0].length();
+        // The glyphs follow the hand: free, each tile shows the mouse button that casts it; holding something, the wheel.
+        boolean buttons = RiderControls.handsFree(minecraft.player) && attacks.size() <= 2;
+        int x = right - attacks.size() * HUD_TILE - (attacks.size() - 1) * HUD_GAP - (buttons ? attacks.size() * (glyph + 2) + (attacks.size() - 1) * 2 : glyph + 3);
+        if (!buttons) {
+            mouse(g, MOUSE, x, y);
+            x += glyph + 3;
         }
+        for (int slot = 0; slot < attacks.size(); slot++) {
+            if (buttons) {
+                mouse(g, slot == 0 ? MOUSE_LEFT : MOUSE_RIGHT, x, y);
+                x += glyph + 2;
+            }
+            tile(g, minecraft.font, mount, attacks.get(slot), x, y, HUD_TILE, partial, 0xFF);
+            x += HUD_TILE + HUD_GAP + (buttons ? 2 : 0);
+        }
+    }
+
+    private static void mouse(GuiGraphicsExtractor g, String[] rows, int x, int tileY) {
+        int y = tileY + (HUD_TILE - rows.length) / 2, shade = DigiTheme.withAlpha(DigiTheme.VOID, 0xC0);
+        CommandIcons.draw(g, rows, x + 1, y + 1, shade, shade, 0);
+        CommandIcons.draw(g, rows, x, y, DigiTheme.WHITE, DigiTheme.AMBER, 0);
     }
 
     /**

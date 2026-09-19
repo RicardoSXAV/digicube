@@ -169,9 +169,15 @@ public final class LocomotionRegressionTest {
             }
         }
         var gait=species.locomotion().groundGait();
-        check(gait.advance(.216,1,species.body().modelScale())==gait.maxPlaybackRate()
-                && Math.abs(gait.cycleTicks()/gait.maxPlaybackRate()-20)<1e-5,
-                "player-speed travel keeps one readable walk cycle per second");
+        float scale=species.body().modelScale();
+        check(gait.advance(.216,1,scale)<gait.maxPlaybackRate() && gait.advance(.216*1.45,1,scale)<gait.maxPlaybackRate()
+                && Math.abs(gait.advance(.216,1,scale)*gait.fullSpeed(scale)-.216)<1e-6,
+                "at the player's pace and at the mounted charge the walk cycle is never capped: the feet cover exactly the ground travelled");
+        check(gait.directional() && gait.sideStride()<gait.stride() && gait.backStride()<gait.stride(),"sideways and backwards steps are shorter than forward ones");
+        double[] diagonal=gait.directions(.1,.1);
+        check(Math.abs(diagonal[0]+diagonal[1]+diagonal[2]+diagonal[3]-1)<1e-9 && diagonal[1]==0 && diagonal[3]==0
+                && Math.abs(diagonal[0]*diagonal[4]-.1)<1e-9 && Math.abs(diagonal[2]*diagonal[4]*gait.sideStride()/gait.stride()-.1)<1e-9,
+                "a diagonal splits the cycle so each direction's clip covers exactly its part of the travel");
     }
 
     private static void check(boolean condition, String message) {

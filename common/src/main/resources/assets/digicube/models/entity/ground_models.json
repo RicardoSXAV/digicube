@@ -7,7 +7,20 @@
       "gallop": true
     },
     "golemon": {
-      "culling_margin": 1.5
+      "culling_margin": 1.5,
+      "rider": {
+        "path": [
+          "golemon",
+          "pelvis",
+          "torso",
+          "back"
+        ],
+        "point": [
+          0,
+          0.19,
+          1.16
+        ]
+      }
     },
     "seadramon": {
       "culling_margin": 18,

@@ -47,6 +47,7 @@ public final class PartyClient {
         previousKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_previous", InputConstants.KEY_UP, category));
         nextKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.party_next", InputConstants.KEY_DOWN, category));
         wheelKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.command_wheel", InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_MIDDLE, category));
+        RiderControls.init(category);
         ClientTickEvents.END_CLIENT_TICK.register(this::handleKeys);
         ClientPlayNetworking.registerGlobalReceiver(PartySnapshotPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {

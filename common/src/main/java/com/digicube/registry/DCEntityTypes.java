@@ -32,7 +32,10 @@ public final class DCEntityTypes {
                     // Agumon's model is 28 px tall, rendered at 0.75 scale: ~1.3 blocks.
                     .sized(0.7F, 1.3F)
                     .eyeHeight(1.15F)
-                    .clientTrackingRange(10));
+                    .clientTrackingRange(10)
+                    // Scripted lunges and dodges cover blocks in a few ticks; the vanilla 3-tick cadence
+                    // leaves remote clients interpolating stale targets, which reads as stutter under jitter.
+                    .updateInterval(1));
 
     public static final ResourceKey<EntityType<?>> PEPPER_BREATH_KEY = key("pepper_breath");
     /** Agumon's fireball: a one-block ball that bends toward its target, so clients get velocity every other tick. */

@@ -172,6 +172,8 @@
   "key.digicube.party_previous": "Select the previous partner",
   "key.digicube.party_next": "Select the next partner",
   "key.digicube.command_wheel": "Command wheel (hold)",
+  "key.digicube.rider_quick": "Mounted: quick attack",
+  "key.digicube.rider_special": "Mounted: special attack (hold to aim)",
   "key.category.digicube.party": "DigiCube party",
   "subtitles.digicube.evolution": "Digimon transforms",
   "gui.digicube.evolution.stale": "Party changed. Try again.",

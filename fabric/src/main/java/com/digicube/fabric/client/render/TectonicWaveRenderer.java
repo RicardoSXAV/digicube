@@ -28,10 +28,14 @@ public final class TectonicWaveRenderer extends EntityRenderer<TectonicWaveEntit
         submitEffect(model,"tectonic_fist_fx",s,pose,collector);super.submit(s,pose,collector,camera);
     }
     public static void submitEffect(NativeEffectModel model,String name,NativeEffectState s,PoseStack pose,SubmitNodeCollector collector) {
+        submitEffect(model,name,s,pose,collector,0xFFFFFFFF);
+    }
+    /** {@code tint} is ARGB over the texture; a low alpha with an outline colour in the state draws a phantom. */
+    public static void submitEffect(NativeEffectModel model,String name,NativeEffectState s,PoseStack pose,SubmitNodeCollector collector,int tint) {
         pose.pushPose();applyWorldTransform(pose,s.yaw,s.scale);
         pose.translate(0,EntityModel.MODEL_Y_OFFSET,0);
         collector.submitModel(model,s,pose,RenderTypes.entityTranslucent(Constants.id("textures/entity/digimon/"+name+".png")),
-                s.lightCoords,OverlayTexture.NO_OVERLAY,0xFFFFFFFF,null,s.outlineColor,null);
+                s.lightCoords,OverlayTexture.NO_OVERLAY,tint,null,s.outlineColor,null);
         pose.popPose();
     }
     /** Same world-facing convention as vanilla LivingEntityRenderer and the caster. */

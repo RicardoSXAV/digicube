@@ -58,12 +58,17 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
      * @param standing whether seat denotes the feet instead of the vanilla riding attachment
      * @param waterSeatOffset change in attachment position in the swimming posture
      * @param combat          whether the rider casts this Digimon's attacks (mounted combat)
+     * @param turnRate        degrees a tick the mount turns toward the rider's view; 0 follows it instantly.
+     *                        Above zero the mount also gathers pace instead of starting at full speed
+     * @param sprint          pace multiplier while the rider sprints; 1 for a mount that cannot
      */
     public record Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset,
-                        AerialMount flight, boolean combat) {
+                        AerialMount flight, java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint) {
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight) {
-            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, false);
+            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, java.util.List.of(), 0, 1);
         }
+        /** Mounted combat is opt-in: a mount fights for its rider when its sheet lists rider attacks. */
+        public boolean combat() { return !riderAttacks.isEmpty(); }
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset) {
             this(seat, speed, stepHeight, standing, waterSeatOffset, null);
         }
@@ -77,10 +82,12 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
         public Mount {
             Objects.requireNonNull(seat, "seat");
             Objects.requireNonNull(waterSeatOffset, "waterSeatOffset");
+            riderAttacks = java.util.List.copyOf(riderAttacks);
             if (!Double.isFinite(seat.x) || !Double.isFinite(seat.y) || !Double.isFinite(seat.z)
                     || !Double.isFinite(waterSeatOffset.x) || !Double.isFinite(waterSeatOffset.y) || !Double.isFinite(waterSeatOffset.z)
                     || !Float.isFinite(speed) || speed <= 0.0F
-                    || !Float.isFinite(stepHeight) || stepHeight < 0.0F) {
+                    || !Float.isFinite(stepHeight) || stepHeight < 0.0F
+                    || !Float.isFinite(turnRate) || turnRate < 0 || !Float.isFinite(sprint) || sprint < 1) {
                 throw new IllegalArgumentException("Invalid mount dimensions or speed");
             }
         }

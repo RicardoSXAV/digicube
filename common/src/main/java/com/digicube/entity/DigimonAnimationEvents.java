@@ -11,6 +11,8 @@ public final class DigimonAnimationEvents {
     private static final int START = Byte.MIN_VALUE;
     /** Stops the current animation without entering any vanilla event handler. */
     public static final byte CANCEL = START + 2 * MAX_ATTACKS;
+    /** Mounted combat feedback for the rider's client: a swing connected; a ground slam landed. */
+    public static final byte IMPACT = CANCEL + 1, SLAM = CANCEL + 2;
 
     private DigimonAnimationEvents() {}
 

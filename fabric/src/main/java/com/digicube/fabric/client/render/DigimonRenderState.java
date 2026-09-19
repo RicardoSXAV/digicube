@@ -11,6 +11,10 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public final NativeEffectState authoredEffect = new NativeEffectState();
 
     public float groundRunAmount;
+    /** Directional gait: shares forwards, backwards, left, right. */
+    public float[] gaitShares = {1, 0, 0, 0};
+    /** The spike wave its rider is aiming, drawn as a phantom; heights null when there is none. */
+    public final NativeEffectState riderAim = new NativeEffectState();
     public net.minecraft.world.phys.Vec3 kineticOffset = net.minecraft.world.phys.Vec3.ZERO;
     public com.digicube.entity.ai.FlightPhase flightPhase = com.digicube.entity.ai.FlightPhase.GROUNDED;
     public float flightPhaseTime;

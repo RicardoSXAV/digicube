@@ -356,6 +356,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private float groundAnimationAmount;
     private float groundRunAmount, previousGroundRunAmount;
     public float getGroundRunAmount(float partial) { return Mth.lerp(partial, previousGroundRunAmount, groundRunAmount); }
+    /** Client: shares of a directional gait spent forwards, backwards, left and right; they sum to one. */
+    private final float[] gaitShares = {1, 0, 0, 0}, previousGaitShares = {1, 0, 0, 0};
+    public float[] getGaitShares(float partial) {
+        float[] shares = new float[4];
+        float sum = 0;
+        for (int i = 0; i < 4; i++) sum += shares[i] = Mth.lerp(partial, previousGaitShares[i], gaitShares[i]);
+        if (sum < 1.0E-4F) return new float[]{1, 0, 0, 0};
+        for (int i = 0; i < 4; i++) shares[i] /= sum;
+        return shares;
+    }
     private float previousGroundAnimationAmount;
     private float mountWaterAmount;
     private float previousMountWaterAmount;
@@ -898,14 +908,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             aerialRiding().steer(player);
             return;
         }
+        float turnRate = getBody().mount().map(DigimonBody.Mount::turnRate).orElse(0F);
+        rideMomentum = Mth.approach(rideMomentum, player.zza > 0 ? 1 : 0, player.zza > 0 ? .07F : .2F);
         if (riderAttackLocked()) {
-            // The strike keeps the facing it was cast with; the rider is free to look around.
-            setYRot(riderLockYaw);
+            // The strike owns the facing (a soft target may pull it); the rider is free to look around.
+            float attackYaw = this.entityData.get(DATA_ATTACK_YAW);
+            if (attackYaw != riderStaleYaw || tickCount - attackAnimationStartTick > 3) riderLockYaw = attackYaw;
+            setYRot(Mth.approachDegrees(getYRot(), riderLockYaw, 18));
             yBodyRot = yHeadRot = getYRot();
+            rideMomentum = 0;
+            if (level().isClientSide()) riderLunge();
             return;
         }
-        riderLockYaw = player.getYRot();
-        setYRot(player.getYRot());
+        riderLockYaw = turnRate > 0 ? Mth.approachDegrees(getYRot(), player.getYRot(), turnRate) : player.getYRot();
+        setYRot(riderLockYaw);
         setXRot(player.getXRot() * (canSwim() && isInWater() ? 0.7F : 0.35F));
         yBodyRot = getYRot();
         yHeadRot = getYRot();
@@ -925,8 +941,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected float getRiddenSpeed(Player player) {
         if (canSwim() && isInWater()) return (float) (getLocomotion().swimSpeed() * (1 - DigimonMoveControl.WATER_DRAG));
-        return getBody().mount().map(DigimonBody.Mount::speed).orElseGet(() -> super.getRiddenSpeed(player));
+        return getBody().mount().map(mount -> mount.turnRate() <= 0 ? mount.speed()
+                // a heavy mount gathers pace, and breaks into its charge while the rider sprints
+                : mount.speed() * (.45F + .55F * rideMomentum) * (player.isSprinting() ? mount.sprint() : 1)).orElseGet(() -> super.getRiddenSpeed(player));
     }
+
+    /** Lets the rider's sprint key work from the saddle; what it does is {@link DigimonBody.Mount#sprint}. */
+    @Override public boolean canSprint() { return getBody().mount().map(mount -> mount.sprint() > 1).orElse(false); }
 
     @Override
     public float maxUpStep() {
@@ -970,8 +991,21 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     // --- mounted combat: the rider casts, the way the mount faces is the aim ---------------------
 
+    /** A press this close to the end of a strike or a cooldown is kept and cast on the first ready tick. */
+    public static final int RIDER_BUFFER_TICKS = 6;
+    /** Half angle of the soft-target cone around the rider's view, and ticks a swing's pose holds on contact. */
+    public static final float SOFT_TARGET_CONE = 35;
+    public static final int HIT_STOP_TICKS = 3;
     private boolean riderAttack;
-    private float riderLockYaw;
+    private float riderLockYaw, riderStaleYaw, rideMomentum;
+    private int bufferedRiderSlot = -1, bufferedRiderUntil;
+    /** Client only: the running attack animation's first tick, moved forward while a hit-stop holds the pose. */
+    private int attackAnimationStartTick, hitStopTicks;
+    private boolean swingConnected;
+    /** Client only: when the last connected swing and the last ground slam were seen, for the camera. */
+    private int seenImpactTick = -1000, seenSlamTick = -1000;
+    public int ticksSinceImpact() { return tickCount - seenImpactTick; }
+    public int ticksSinceSlam() { return tickCount - seenSlamTick; }
     /** Client only: when each attack this client saw start is ready again, in this entity's ticks. */
     private final Map<Identifier, Integer> seenCooldownUntil = new HashMap<>();
 
@@ -988,38 +1022,93 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return Math.max(0, seenCooldownUntil.getOrDefault(attack.id(), 0) - tickCount);
     }
 
-    /** Server only. The controlling rider casts rider slot {@code slot}, aimed where the mount faces. */
-    public void startRiderAttack(Player rider, int slot) {
+    /**
+     * What a rider's swing would go for: the nearest hostile inside the attack's reach and within
+     * {@link #SOFT_TARGET_CONE} of the rider's view. Both sides: the client outlines it, the server turns the
+     * swing to it. Players are never soft targets, so a duel between riders stays a matter of aim.
+     */
+    public LivingEntity softTarget(Player rider, DigimonAttack attack) {
+        if (attack.kind() != DigimonAttack.Kind.FIST) return null;
+        double reach = attack.range() + getBbWidth() * .5;
+        Vec3 view = Vec3.directionFromRotation(0, rider.getYRot());
+        LivingEntity best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(reach + 1, 2, reach + 1),
+                e -> e.isAlive() && e != this && e != rider && !(e instanceof Player) && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
+            Vec3 to = candidate.position().subtract(position()).multiply(1, 0, 1);
+            double distance = Math.max(0, to.length() - candidate.getBbWidth() * .5);
+            if (distance > reach || to.lengthSqr() < 1.0E-6) continue;
+            double angle = Math.toDegrees(Math.acos(Mth.clamp(to.normalize().dot(view), -1, 1)));
+            if (angle > SOFT_TARGET_CONE || !hasLineOfSight(candidate)) continue;
+            double score = angle + distance * 6;
+            if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        return best;
+    }
+
+    /**
+     * Server only. The controlling rider casts rider slot {@code slot}: a swing turns to its soft target, anything
+     * else goes where the rider looks. A press just before the mount is free is buffered.
+     * @return whether the attack started now
+     */
+    public boolean startRiderAttack(Player rider, int slot) {
         List<DigimonAttack> usable = riderAttacks();
-        if (level().isClientSide() || getControllingPassenger() != rider || slot < 0 || slot >= usable.size() || activeAttack != null
-                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED
-                || !onGround() || !isAttackReady(usable.get(slot))) return;
+        if (level().isClientSide() || getControllingPassenger() != rider || slot < 0 || slot >= usable.size()
+                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED || !onGround()) return false;
         DigimonAttack attack = usable.get(slot);
+        int wait = Math.max(activeAttack == null ? 0 : activeAttack.durationTicks() - attackTick,
+                cooldownUntil.getOrDefault(attack.id(), 0) - tickCount);
+        if (wait > 0 || !isAttackReady(attack)) {
+            if (wait > 0 && wait <= RIDER_BUFFER_TICKS) { bufferedRiderSlot = slot; bufferedRiderUntil = tickCount + wait + 2; }
+            return false;
+        }
+        bufferedRiderSlot = -1;
         int index = attacks().indexOf(attack);
-        if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS) return;
+        if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS) return false;
+        LivingEntity soft = softTarget(rider, attack);
         activeAttack = attack;
         riderAttack = true;
-        attackTarget = null;
+        attackTarget = soft;
         attackTick = 0;
         bubbleAimPoint = authoredAimPoint = null;
         hornConnected = chargeBlocked = false;
         attackMirrored = attack.alternateSides() && nextAttackMirrored;
         if (attack.alternateSides()) nextAttackMirrored = !nextAttackMirrored;
         cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
-        setYRot(rider.getYRot());
-        yHeadRot = yBodyRot = getYRot();
+        // The turn itself is played out by the rider's client (it owns the mount's facing), a wind-up's worth of degrees a tick.
+        float yaw = soft == null ? rider.getYRot() : AttackGeometry.contactYaw(attack, position(), soft.getBoundingBox().getCenter());
         this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
-        this.entityData.set(DATA_ATTACK_YAW, getYRot());
+        this.entityData.set(DATA_ATTACK_YAW, yaw);
         level().playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_AMBIENT, SoundSource.NEUTRAL, 0.65F, 0.72F);
         level().broadcastEntityEvent(this, DigimonAnimationEvents.start(index, attackMirrored));
+        return true;
     }
 
-    /** Both sides: while a rider's strike plays the mount stands and keeps its facing. */
+    /**
+     * Both sides: while a rider's strike plays the mount stands and the strike owns its facing. A swing lets go
+     * soon after its hit frames, so a punch flows back into movement; a ground slam is a full commitment.
+     */
     private boolean riderAttackLocked() {
-        if (activeAttack != null) return true;
         // Offline fixtures have no level and skip field initialisers.
-        return level() != null && level().isClientSide() && attackAnimationState != null
-                && attackAnimationState.isStarted() && tickCount < attackAnimationEndTick;
+        if (level() == null || !level().isClientSide()) return activeAttack != null;
+        if (attackAnimationState == null || !attackAnimationState.isStarted() || tickCount >= attackAnimationEndTick) return false;
+        DigimonAttack attack = getAnimatingAttack();
+        return attack == null || attack.kind() != DigimonAttack.Kind.FIST || attack.motion() == null
+                || tickCount - attackAnimationStartTick <= attack.motion().activeUntil() + 3;
+    }
+
+    /** Client: the swing's authored root travel, applied where the position is owned. Stops at walls and ledges. */
+    private void riderLunge() {
+        DigimonAttack attack = getAnimatingAttack();
+        if (attack == null || attack.kind() != DigimonAttack.Kind.FIST || attack.motion() == null || !onGround() || hitStopTicks > 0) return;
+        int tick = tickCount - attackAnimationStartTick;
+        double travel = attack.motion().sample(tick + 1).travel() - attack.motion().sample(tick).travel();
+        if (travel <= 0 || swingConnected) return;
+        Vec3 step = new Vec3(0, 0, travel).yRot(-getYRot() * Mth.DEG_TO_RAD);
+        Vec3 probe = position().add(step).add(0, .15, 0);
+        if (level().clip(new ClipContext(probe, probe.add(0, -1.25, 0), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this)).getType() != HitResult.Type.MISS) {
+            move(MoverType.SELF, step);
+        }
     }
 
     /** Reserve movement and look controls while the tamer drives the vanilla ridden path. */
@@ -2007,6 +2096,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                         entity instanceof DigimonPart part ? "part " + part.index : "body", fmt(end), String.format("%.1f", damage), hurt,
                         String.format("%.1f", victim.getHealth()));
                 if (hurt) {
+                    if (riderAttack) {
+                        level.broadcastEntityEvent(this, DigimonAnimationEvents.IMPACT);
+                        level.playSound(null, end.x, end.y, end.z, SoundEvents.MACE_SMASH_GROUND, SoundSource.NEUTRAL, .7F, .7F);
+                    }
                     if (shatter) {
                         victim.removeEffect(DCEffects.FROZEN);
                         level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, end.x, end.y, end.z, 24, .3, .3, .3, .06);
@@ -2151,7 +2244,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                         18, 0.5, 0.15, 0.3, 0.08);
             }
             case GROUND_WAVE -> {
-                if (onGround() && !isInWater() && !isInLava()) level.addFreshEntity(new TectonicWaveEntity(level, this, attack));
+                if (onGround() && !isInWater() && !isInLava()) {
+                    level.addFreshEntity(new TectonicWaveEntity(level, this, attack));
+                    if (riderAttack) level.broadcastEntityEvent(this, DigimonAnimationEvents.SLAM);
+                }
             }
             case HORN_RAM, FROST_BITE, FLAME_STREAM, FROST_STREAM, FIST, CONSTRICTION, BOX_SWEEP, BOX_BURST -> { /* Continuous contact is evaluated by the timeline. */ }
         }
@@ -2251,6 +2347,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             attackAnimationName = null;
             return;
         }
+        if (id == DigimonAnimationEvents.IMPACT) {
+            seenImpactTick = tickCount;
+            swingConnected = true;
+            hitStopTicks = HIT_STOP_TICKS;
+            return;
+        }
+        if (id == DigimonAnimationEvents.SLAM) {
+            seenSlamTick = tickCount;
+            return;
+        }
         int index = DigimonAnimationEvents.attackIndex(id);
         if (index >= 0) {
             boolean mirrored = DigimonAnimationEvents.mirrored(id);
@@ -2260,6 +2366,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 attackAnimationName = attack.animationName(mirrored);
                 attackAnimationEndTick = tickCount + attack.durationTicks();
                 seenCooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+                attackAnimationStartTick = tickCount;
+                riderStaleYaw = this.entityData.get(DATA_ATTACK_YAW);
+                hitStopTicks = 0;
+                swingConnected = false;
                 attackAnimationState.start(tickCount);
             }
             return;
@@ -2281,6 +2391,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         super.tick();
         if(evolutionLocked())setDeltaMovement(Vec3.ZERO);
         if (riderAttack && level() instanceof ServerLevel serverLevel && !isEffectiveAi() && !evolutionLocked()) tickAttackTimeline(serverLevel);
+        if (bufferedRiderSlot >= 0 && !level().isClientSide()) {
+            if (tickCount > bufferedRiderUntil || !(getControllingPassenger() instanceof Player rider)) bufferedRiderSlot = -1;
+            else startRiderAttack(rider, bufferedRiderSlot);
+        }
+        if (hitStopTicks > 0 && level().isClientSide() && attackAnimationState.isStarted()) {
+            // Hit-stop: the pose holds for a moment on contact; the clip resumes where it stopped.
+            hitStopTicks--;
+            attackAnimationState.start(++attackAnimationStartTick);
+            attackAnimationEndTick++;
+        }
         placeParts();
         if (!level().isClientSide() && !isAlive()) {
             cancelAttack();
@@ -2331,6 +2451,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());
                 if (attackAnimationState.isStarted() && getAnimatingAttack()!=null
                         && getAnimatingAttack().kind()==DigimonAttack.Kind.CONSTRICTION) groundSpeed=0;
+                System.arraycopy(gaitShares, 0, previousGaitShares, 0, 4);
+                if (gait.directional() && groundSpeed > 1.0E-4) {
+                    // Which way the body moves in its own frame decides which planted clips play, and how fast the shared phase runs.
+                    Vec3 moved = dx * dx + dz * dz > 1.0E-8 ? new Vec3(dx, 0, dz) : getDeltaMovement().multiply(1, 0, 1);
+                    double yaw = yBodyRot * Mth.DEG_TO_RAD, scale = groundSpeed / Math.max(1.0E-6, moved.length());
+                    double[] directions = gait.directions((-moved.x * Math.sin(yaw) + moved.z * Math.cos(yaw)) * scale,
+                            (moved.x * Math.cos(yaw) + moved.z * Math.sin(yaw)) * scale);
+                    for (int i = 0; i < 4; i++) gaitShares[i] = Mth.approach(gaitShares[i], (float) directions[i], .2F);
+                    groundSpeed = directions[4];
+                }
                 float wanted = onGround() && !isSwimmingMovement()
                         ? (float) Mth.clamp(groundSpeed / gait.fullSpeed(getBody().modelScale()), 0, 1) : 0;
                 groundAnimationAmount = Mth.approach(groundAnimationAmount, wanted, .125F);

@@ -135,7 +135,9 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"),
                         GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "max_playback_rate", Float.MAX_VALUE),
                         GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "run_cycle_ticks", GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "cycle_ticks")),
-                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))) : null);
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))) : null);
     }
 
     private static DigimonFlight flight(JsonObject json) {
@@ -167,7 +169,7 @@ public final class BundledSpeciesLoader {
                     GsonHelper.getAsBoolean(m, "standing", false),
                     m.has("water_seat_offset") ? vector(GsonHelper.getAsJsonArray(m, "water_seat_offset")) : Vec3.ZERO,
                     m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null,
-                    GsonHelper.getAsBoolean(m, "combat", false)));
+                    riderAttacks(m), GsonHelper.getAsFloat(m, "turn_rate", 0), GsonHelper.getAsFloat(m, "sprint", 1)));
         }
         var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
         if (json.has("hit_parts")) {
@@ -215,5 +217,20 @@ public final class BundledSpeciesLoader {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read bundled species resource " + path, e);
         }
+    }
+
+    /** {@code body.mount.rider_attacks}: what the rider casts, in slot order, and how each is aimed without a target. */
+    private static java.util.List<RiderAttack> riderAttacks(com.google.gson.JsonObject mount) {
+        var list = new java.util.ArrayList<RiderAttack>();
+        if (!mount.has("rider_attacks")) return list;
+        for (var element : GsonHelper.getAsJsonArray(mount, "rider_attacks")) {
+            var entry = GsonHelper.convertToJsonObject(element, "rider attack");
+            list.add(new RiderAttack(Constants.id(GsonHelper.getAsString(entry, "attack")),
+                    RiderAttack.parse(RiderAttack.Aim.class, GsonHelper.getAsString(entry, "aim")),
+                    RiderAttack.parse(RiderAttack.Input.class, GsonHelper.getAsString(entry, "input", "tap")),
+                    GsonHelper.getAsFloat(entry, "cone", 0), GsonHelper.getAsFloat(entry, "reach", 0),
+                    GsonHelper.getAsBoolean(entry, "move", false)));
+        }
+        return list;
     }
 }

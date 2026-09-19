@@ -53,6 +53,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final HowlingBlasterModel howlingBlaster;
     private final com.digicube.fabric.client.model.IceBlastModel iceBlast;
     private final com.digicube.fabric.client.model.NativeEffectModel fistEffect;
+    private final com.digicube.fabric.client.model.NativeEffectModel aimedWave;
+    /** The wave's clip with every spike risen and the impact debris gone. */
+    private static final float AIMED_WAVE_TICK = 50;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
@@ -66,6 +69,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         iceBlast = new com.digicube.fabric.client.model.IceBlastModel(context.bakeLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER));
         fistEffect = new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(
                 com.digicube.fabric.client.model.NativeEffectModel.layer("rock_punch_fx")), "rock_punch_fx");
+        aimedWave = new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(
+                com.digicube.fabric.client.model.NativeEffectModel.layer("tectonic_fist_fx")), "tectonic_fist_fx");
         this.models = new java.util.HashMap<>(Map.of(
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
@@ -103,6 +108,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             var fx=state.fistEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=state.bodyRot;fx.scale=state.modelScale;fx.lightCoords=state.lightCoords;
             TectonicWaveRenderer.submitEffect(fistEffect,"rock_punch_fx",fx,poseStack,collector);
+        }
+        if (state.riderAim.heights != null) {
+            // A ghost of the stone with the white outline a targeted enemy gets: what would rise, where, before it is cast.
+            TectonicWaveRenderer.submitEffect(aimedWave,"tectonic_fist_fx",state.riderAim,poseStack,collector,0x38FFFFFF);
         }
         if (!state.isInvisible && state.attackDefinition!=null && state.attackAnimation.isStarted()) {
             var d=com.digicube.digimon.AuthoredAttacks.get(state.attackDefinition);
@@ -161,6 +170,14 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
         state.groundRunAmount = entity.getGroundRunAmount(partialTick);
+        state.gaitShares = entity.getGaitShares(partialTick);
+        state.riderAim.heights = com.digicube.fabric.client.party.RiderControls.aimedWave(entity);
+        if (state.riderAim.heights != null && entity.getControllingPassenger() instanceof net.minecraft.world.entity.player.Player rider) {
+            var aim = state.riderAim;
+            aim.tick = AIMED_WAVE_TICK; aim.yaw = rider.getViewYRot(partialTick);
+            aim.hidden = java.util.Set.of("Ground cracks");
+            aim.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT; aim.outlineColor = 0xFFFFFFFF;
+        } else state.riderAim.heights = null;
         state.mountAnchor = entity.getMountAnchor(partialTick);
         state.flightPhase = entity.getFlightPhase();
         state.flightPhaseTime = entity.getFlightPhaseTime(partialTick);

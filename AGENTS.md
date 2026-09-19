@@ -296,13 +296,29 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   waves fill a 3-charge gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every
   source (a `@ModifyVariable` on `hurtServer`). Which attacks crack is by `DigimonAttack.Kind`.
   The readout has no spare bits left but one; read `../design/combat-marks.md` before adding a mark.
+- A ground gait only looks planted when the clip's stride matches the ground covered: the phase advances by
+  travel / stride (`DigimonGait`), so a stride far shorter than the species' real pace hits `max_playback_rate`
+  and the feet slide (Golemon walked at the player's .216 blocks/tick on a .043 stride). Golemon's gait is
+  generated, not keyed: `../harness/v2/tools/make_gait.py golemon` solves leg IK so the stance foot is fixed
+  to the ground (drift < .05 model px, verified on the written keys) and writes four lattices on one phase:
+  `walk`, `walk_back`, `strafe_left`, `strafe_right`. Forwards the foot rolls (heel edge, flat, front edge with
+  the toes still flat; the edge on the ground is the fixed point) and the stance shortens into a bound above half
+  amplitude, because his legs (45 px, ankle resting 13 px ahead of the hip) only sweep about 44 px under a
+  pelvis at rest height: a flat foot and a dropped pelvis bent the supporting knee 105 degrees. Thigh yaw holds
+  the knee's width. The clip is 27 ticks (`cycle_ticks`), keys every half tick. A gait with `side_stride` / `back_stride` is
+  directional: the entity splits its movement in the body's frame into shares (`DigimonGait.directions`) and
+  `NativeGroundModel` mixes the lattices by them. Change strides in the script and the species sheet together.
 - Mounted combat is opt-in per species (`body.mount.combat`, Golemon only so far): the rider keeps
   their hands and casts the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E
   inside the command wheel (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a
   ridden mob's server AI step, so `tick()` drives a rider's attack through `tickAttackTimeline`; never
   put attack timing back into `customServerAiStep` alone. `RiderAttacks` replaces vanilla's mount
   hearts with the attack tiles (`textures/gui/attack/<attack>[_off].png`, made by
-  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`). Design: `../design/mounted-combat.md`.
+  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`). `RiderControls` is the direct input: with a
+  free hand the mouse casts (attack hook + `MixinMinecraft.startUseItem`), R/G always, aimed attacks are
+  held and released. The rider's client owns a ridden mount's position and facing, so turn rate, the
+  swing's lunge and the strike's facing are played in `tickRidden`; the server owns targets, hits and
+  the input buffer. Design: `../design/mounted-combat.md`.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
   `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`), read by

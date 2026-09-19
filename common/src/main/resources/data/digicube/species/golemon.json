@@ -13,8 +13,12 @@
     "follow_stop_distance": 2.5,
     "walk_speed": 1.25,
     "run_speed": 1.25,
-    "ground_gait": { "cycle_ticks": 48, "stride": 1.71875, "max_playback_rate": 2.4 }
+    "ground_gait": { "cycle_ticks": 27, "stride": 9.0, "side_stride": 2.5, "back_stride": 3.5, "max_playback_rate": 4.0 }
   },
   "body": { "model_scale": 0.5, "width": 2.1, "height": 2.75, "eye_height": 2.35,
-    "mount": { "seat": [0.0, 2.9, -0.4], "speed": 0.2, "step_height": 1.0, "combat": true } }
+    "mount": { "seat": [0.0, 2.9, -0.4], "speed": 0.085, "step_height": 1.0, "turn_rate": 7.0, "sprint": 1.45,
+      "rider_attacks": [
+        { "attack": "rock_punch", "aim": "sweep", "input": "tap", "cone": 35 },
+        { "attack": "tectonic_fist", "aim": "line", "input": "hold" }
+      ] } }
 }
