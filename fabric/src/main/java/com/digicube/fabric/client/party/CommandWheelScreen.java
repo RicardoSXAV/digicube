@@ -122,6 +122,16 @@ public final class CommandWheelScreen extends Screen {
             client.selectNext();
             return true;
         }
+        // Mounted combat: the rider's attack keys. A cast closes the wheel so the strike is seen; a cooling attack does nothing.
+        com.digicube.entity.DigimonEntity mount = RiderAttacks.mount(minecraft);
+        int slot = event.key() == InputConstants.KEY_Q ? 0 : event.key() == InputConstants.KEY_E ? 1 : -1;
+        if (mount != null && slot >= 0 && slot < mount.riderAttacks().size()) {
+            if (mount.seenCooldown(mount.riderAttacks().get(slot)) == 0) {
+                client.send(new PartyActionPayload(PartyActionPayload.RIDER_ATTACK, PartyActionPayload.NO_MEMBER, slot));
+                onClose();
+            }
+            return true;
+        }
         return super.keyPressed(event);
     }
 
@@ -180,6 +190,7 @@ public final class CommandWheelScreen extends Screen {
             rect(g, cx, bottomRow + 4 + i, 1, 4, color);
         }
         groupLabel(g, cx, topRow - 12, Component.translatable("gui.digicube.wheel.behavior").getString(), fade);
+        attacks(g, cx, cy, partialTick, fade);
         groupLabel(g, cx, bottomRow + H + 5, Component.translatable("gui.digicube.wheel.basic").getString(), fade);
         if (latched) {
             String hint = Component.translatable("gui.digicube.wheel.click_hint").getString();
@@ -243,6 +254,26 @@ public final class CommandWheelScreen extends Screen {
         DigiPanels.icon(g, m.species(), x + 3, y + 2, 20, DigiTheme.withAlpha(DigiTheme.WHITE, Math.round(150 * fade)));
         rect(g, x + 18, y + 17, 7, 8, tint(DigiTheme.PANEL_RAISED, 0xFF, fade));
         DigiPanels.readout(g, x + 20, y + 19, Integer.toString(m.slot() + 1), tint(DigiTheme.MUTED, 0xFF, fade));
+    }
+
+    /**
+     * Mounted combat: the mount's attack tiles either side of the orders, level with the hub, each with the key
+     * that casts it (Q left, E right, as on the keyboard). The sides always have room; above the orders they
+     * were cut off on short screens.
+     */
+    private void attacks(GuiGraphicsExtractor g, int cx, int cy, float partialTick, float fade) {
+        com.digicube.entity.DigimonEntity mount = RiderAttacks.mount(minecraft);
+        if (mount == null) return;
+        java.util.List<com.digicube.digimon.DigimonAttack> attacks = mount.riderAttacks();
+        int count = Math.min(attacks.size(), RiderAttacks.KEYS.length), tile = RiderAttacks.TEXTURE, alpha = Math.round(0xFF * fade);
+        int reach = CommandWheelReadout.COLUMN_GAP / 2 + W + 14, y = cy - (tile + 15) / 2;
+        for (int slot = 0; slot < count; slot++) {
+            int x = slot == 0 ? Math.max(4, cx - reach - tile) : Math.min(width - 4 - tile, cx + reach);
+            DigiPanels.frame(g, x - 2, y - 2, tile + 4, tile + 4, 0, tint(DigiTheme.VOID, 0xB0, fade), 2);
+            RiderAttacks.tile(g, font, mount, attacks.get(slot), x, y, tile, partialTick, alpha);
+            String key = RiderAttacks.KEYS[slot];
+            RiderAttacks.keyCap(g, font, key, x + (tile - font.width(key) - 6) / 2, y + tile + 5, alpha);
+        }
     }
 
     /** One order: group stripe, icon well, the order's name, and a second line only when it says something. */

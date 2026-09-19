@@ -74,6 +74,8 @@ public final class PartyClient {
             snapshotAge++;
             hud.tick(snapshot);
         });
+        HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, vanilla ->
+                (graphics, delta) -> RiderAttacks.hud(graphics, delta, () -> vanilla.extractRenderState(graphics, delta)));
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, Constants.id("party"),
                 (graphics, delta) -> hud.draw(graphics, delta, snapshot, snapshotAge, selected, evolveKey));
     }
@@ -86,6 +88,10 @@ public final class PartyClient {
         while (wheelKey.consumeClick()) {
             // The wheel is the Digivice's: no device in the inventory, no wheel. The server checks the same.
             if (inWorld && member(selected) != null && client.player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) {
+                // From the saddle the wheel opens on the Digimon under the rider: its attacks are cast from there.
+                if (client.player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) {
+                    for (PartyMemberView member : snapshot.party()) if (member.id().equals(mount.getUUID())) selected = member.slot();
+                }
                 client.gui.setScreen(new CommandWheelScreen(this));
             }
         }

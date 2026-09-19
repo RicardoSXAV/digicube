@@ -57,9 +57,13 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
      * @param stepHeight maximum automatic step height in blocks
      * @param standing whether seat denotes the feet instead of the vanilla riding attachment
      * @param waterSeatOffset change in attachment position in the swimming posture
+     * @param combat          whether the rider casts this Digimon's attacks (mounted combat)
      */
     public record Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset,
-                        AerialMount flight) {
+                        AerialMount flight, boolean combat) {
+        public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight) {
+            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, false);
+        }
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset) {
             this(seat, speed, stepHeight, standing, waterSeatOffset, null);
         }

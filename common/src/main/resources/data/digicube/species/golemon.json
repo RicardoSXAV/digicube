@@ -1,9 +1,9 @@
 {
   "stage": "adult",
   "attribute": "virus",
-  "base_health": 56,
-  "base_attack": 12,
-  "base_defence": 16,
+  "base_health": 68,
+  "base_attack": 10,
+  "base_defence": 18,
   "base_speed": 0.252982213,
   "attacks": ["tectonic_fist", "rock_punch"],
   "tactics": { "lead_ticks": 6, "charge_distance": 4.0, "charge_speed": 1.6 },
@@ -15,5 +15,6 @@
     "run_speed": 1.25,
     "ground_gait": { "cycle_ticks": 48, "stride": 1.71875, "max_playback_rate": 2.4 }
   },
-  "body": { "model_scale": 0.5, "width": 2.1, "height": 2.75, "eye_height": 2.35 }
+  "body": { "model_scale": 0.5, "width": 2.1, "height": 2.75, "eye_height": 2.35,
+    "mount": { "seat": [0.0, 2.9, -0.4], "speed": 0.2, "step_height": 1.0, "combat": true } }
 }

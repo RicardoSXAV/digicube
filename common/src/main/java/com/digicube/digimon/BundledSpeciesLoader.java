@@ -166,7 +166,8 @@ public final class BundledSpeciesLoader {
                     GsonHelper.getAsFloat(m, "speed"), GsonHelper.getAsFloat(m, "step_height"),
                     GsonHelper.getAsBoolean(m, "standing", false),
                     m.has("water_seat_offset") ? vector(GsonHelper.getAsJsonArray(m, "water_seat_offset")) : Vec3.ZERO,
-                    m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null));
+                    m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null,
+                    GsonHelper.getAsBoolean(m, "combat", false)));
         }
         var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
         if (json.has("hit_parts")) {

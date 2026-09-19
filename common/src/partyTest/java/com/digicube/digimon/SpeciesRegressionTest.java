@@ -149,7 +149,7 @@ public final class SpeciesRegressionTest {
                     "Agumon stats and dimensions preserved");
             check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, DigimonSpeciesBootstrap.CLAW)),
                     "Agumon attack priority preserved");
-            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20))), "Champion prototype has one level-20 route");
+            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("golemon"), 20), Evolution.atLevel(Constants.id("greymon"), 20))), "temporary Golemon route first, the Greymon route kept behind it");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10
                     && greymon.baseSpeed() == .32F, "Greymon stats preserved");

@@ -60,7 +60,10 @@ final class CommandIcons {
 
     /** Draws the icon with horizontal runs merged, so a row costs a few fills rather than twenty. */
     static void draw(GuiGraphicsExtractor graphics, Order order, int x, int y, int body, int accent, int shade) {
-        String[] rows = rows(order);
+        draw(graphics, rows(order), x, y, body, accent, shade);
+    }
+
+    static void draw(GuiGraphicsExtractor graphics, String[] rows, int x, int y, int body, int accent, int shade) {
         for (int row = 0; row < rows.length; row++) {
             String line = rows[row];
             int start = 0;

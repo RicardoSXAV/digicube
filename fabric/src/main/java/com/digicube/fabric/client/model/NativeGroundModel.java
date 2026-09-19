@@ -50,7 +50,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
         animations.hideMembranes();
-        if (!state.isBeingRidden && state.attackAnimationName != null && state.attackAnimation.isStarted()) {
+        // Also under a rider: mounted combat casts from the saddle, and a mount that does not fight never starts one.
+        if (state.attackAnimationName != null && state.attackAnimation.isStarted()) {
             String attackClip=state.attackInWater && animations.has(state.attackAnimationName+"_water")
                     ? state.attackAnimationName+"_water" : state.attackAnimationName;
             float tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;

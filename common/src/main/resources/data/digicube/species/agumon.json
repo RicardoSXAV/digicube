@@ -11,6 +11,10 @@
   ],
   "evolutions": [
     {
+      "target": "digicube:golemon",
+      "min_level": 20
+    },
+    {
       "target": "digicube:greymon",
       "min_level": 20
     }

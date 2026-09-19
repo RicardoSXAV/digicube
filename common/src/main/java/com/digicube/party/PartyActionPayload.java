@@ -22,6 +22,8 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
     public static final int CANCEL_TARGET = 8;
     public static final int STOW = 9;
     public static final int SEND_OUT = 10;
+    /** Mounted combat: the rider casts the attack in rider slot {@code value} of the Digimon it sits on; {@code member} is unused. */
+    public static final int RIDER_ATTACK = 11;
     public static final UUID NO_MEMBER = new UUID(0, 0);
     public static final Type<PartyActionPayload> TYPE = new Type<>(Constants.id("party_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartyActionPayload> STREAM_CODEC =

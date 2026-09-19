@@ -296,6 +296,13 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   waves fill a 3-charge gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every
   source (a `@ModifyVariable` on `hurtServer`). Which attacks crack is by `DigimonAttack.Kind`.
   The readout has no spare bits left but one; read `../design/combat-marks.md` before adding a mark.
+- Mounted combat is opt-in per species (`body.mount.combat`, Golemon only so far): the rider keeps
+  their hands and casts the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E
+  inside the command wheel (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a
+  ridden mob's server AI step, so `tick()` drives a rider's attack through `tickAttackTimeline`; never
+  put attack timing back into `customServerAiStep` alone. `RiderAttacks` replaces vanilla's mount
+  hearts with the attack tiles (`textures/gui/attack/<attack>[_off].png`, made by
+  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`). Design: `../design/mounted-combat.md`.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
   `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`), read by
