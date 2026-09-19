@@ -19,6 +19,12 @@ public final class DCDamageTypes {
         return new DamageSource(attacker.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(VOLLEY_ATTACK),attacker);
     }
 
+    /** A squeeze: no hurt impulse, and armour does not help against being crushed (tagged bypasses_armor). */
+    public static final ResourceKey<DamageType> CRUSH_ATTACK = ResourceKey.create(Registries.DAMAGE_TYPE,Constants.id("crush_attack"));
+    public static DamageSource crushAttack(LivingEntity attacker) {
+        return new DamageSource(attacker.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE).getOrThrow(CRUSH_ATTACK),attacker);
+    }
+
     /** @param attacker responsible partner @return attributed damage without a hurt impulse */
     public static DamageSource partnerAttack(LivingEntity attacker) {
         return new DamageSource(attacker.level().registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE)

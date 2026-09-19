@@ -22,6 +22,8 @@ public final class ConstrictionMotion {
     public static final int INTERVAL = 10;
     /** Expires with the caster's own cooldown, so a ready wrap never waits on its last victim's resistance. */
     public static final int RESISTANCE_TICKS = 160;
+    /** Squeezed prey needs this long to get its breath back before it can start an attack: the caster's uncoiling. */
+    public static final int WINDED_TICKS = DURATION - RELEASE_TICK;
     /** Frozen prey stays frozen for one more second after the hold releases. */
     public static final int FROZEN_TAIL_TICKS = 20;
     /** How long a freezing caster walks toward wrap reach before it freezes from where it stands. */
@@ -35,8 +37,11 @@ public final class ConstrictionMotion {
     public static final int APPROACH_RETRY_TICKS = 40;
     /** Frozen prey cannot walk off and Cold prey barely can, so a refused stance is retried almost at once. */
     public static final int FROZEN_RETRY_TICKS = 10;
-    public static final double MAX_APPROACH_DRIFT = 2.5;
-    public static final double MAX_TARGET_STEP = .25;
+    /** The coil's line follows prey that walks, runs or lunges; only a dash or a teleport outruns it. */
+    public static final double MAX_APPROACH_DRIFT = 4.0;
+    public static final double MAX_TARGET_STEP = .6;
+    /** A coiling body shrugs off the knockback of ordinary hits; an impulse this strong is a push and breaks the wrap. */
+    public static final double BREAKING_PUSH = 1.0;
     /** Stances the planner rehearses per tick rarely differ; keep the most recent sweeps. */
     private static final int SWEPT_CACHE = 32;
     private record Variant(String clip, double[][] roots, double[][][] boxes) {}

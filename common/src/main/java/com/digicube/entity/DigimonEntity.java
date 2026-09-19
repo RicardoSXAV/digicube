@@ -1236,6 +1236,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return guiPreview;
     }
 
+    /** Ordinary hits do not shake a coiling body off its prey; a push attack does, and frees the prey. */
+    @Override
+    public void knockback(double strength, double x, double z, DamageSource source, float damage, boolean flag) {
+        if (constriction != null) {
+            if (strength < com.digicube.digimon.ConstrictionMotion.BREAKING_PUSH) return;
+            if (COMBAT_TRACE) Constants.LOG.info("[wrap-trace] {} wrap broken by a push of {}", getSpeciesId(), strength);
+            cancelAttack();
+        }
+        super.knockback(strength, x, z, source, damage, flag);
+    }
+
     /**
      * Records what a wild Digimon loses to each partner, as health actually lost, and
      * splits its XP the moment the last hit lands. Vanilla decides the hit; this only
@@ -1369,12 +1380,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return attackFuel.computeIfAbsent(attack.id(), id -> new FuelReserve(attack.fuel()));
     }
 
+    /** Server: squeezed out of breath; it may move, but starts no attack before this tick. */
+    private int windedUntil;
+    void windFor(int ticks) { windedUntil = Math.max(windedUntil, tickCount + ticks); }
+
     /**
      * Frost-capable move sets plan mark then breath using fuel and target status.
      * Other move sets retain their authored species order.
      */
     public DigimonAttack chooseAttack(LivingEntity target) {
         if (getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || isAttacking() || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED)
+                || tickCount < windedUntil
                 || target == null || !target.isAlive() || !canAttack(target)) return null;
         DigimonAttack wrap = approachingConstriction(target);
         if (wrap != null) return constrictionPlanner.ready() ? wrap : null;
@@ -1424,7 +1440,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     /** A stream without a marking bite never freezes; its contact charges Cold instead. */
-    private boolean chilling() {
+    boolean chilling() {
         return attacks().stream().noneMatch(a -> a.kind() == DigimonAttack.Kind.FROST_BITE);
     }
 
@@ -1527,15 +1543,32 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return moves;
     }
 
+    /** A move this strong is worth waiting out before coiling beside its owner. */
+    private static final float HEAVY_POWER = 1.0F;
+    /** Beyond the wrap's reach by more than this, a brawler has not caught us yet. */
+    private static final double CAUGHT_MARGIN = 1.0;
+
     /**
-     * A wrap takes two seconds of coiling beside the prey. A Digimon that is fighting us and has a
-     * melee move spends them hitting the coil, and the hold never pays that back: brawlers are
-     * fought from range, and wrapped only when they cannot strike (frozen, held) or are not after us.
+     * Coiling takes two seconds beside the prey in which the caster cannot dodge, so against a Digimon that is
+     * fighting us the wrap is a matter of timing. One that fights in melee is never walked into: a caster that keeps
+     * its distance loses more on the way in and out than the hold pays. Once the brawler has caught us the wrap is
+     * the answer: it stops the blows, crushes through armour and leaves the prey Cold and out of breath, which is the
+     * way out. A heavy move that is ready or under way would land for free, so the wrap waits until it is spent.
+     * Quick jabs are accepted; ordinary hits no longer shake the coil off.
      */
     private boolean wrapPunished(LivingEntity target) {
-        return target instanceof DigimonEntity other && other.getTarget() == this
-                && !other.hasEffect(DCEffects.FROZEN) && !other.hasEffect(DCEffects.CONSTRICTED)
-                && other.attacks().stream().anyMatch(a -> !a.isRanged() && a.kind() != DigimonAttack.Kind.CONSTRICTION);
+        if (!(target instanceof DigimonEntity other) || other.getTarget() != this
+                || other.hasEffect(DCEffects.FROZEN) || other.hasEffect(DCEffects.CONSTRICTED)) return false;
+        DigimonAttack wrap = wrapMove();
+        boolean brawler = other.attacks().stream().anyMatch(a -> !a.isRanged() && a.kind() != DigimonAttack.Kind.CONSTRICTION);
+        double reach = wrap.range() + CAUGHT_MARGIN;
+        if (brawler && tactics().holdsRange() && position().distanceToSqr(other.position()) > reach * reach) return true;
+        for (DigimonAttack move : other.attacks()) {
+            if (move.power() < HEAVY_POWER || move.kind() == DigimonAttack.Kind.CONSTRICTION) continue;
+            if (other.activeAttack == move && other.attackTick <= move.hitTick()) return true;
+            if (other.cooldownUntil.getOrDefault(move.id(), 0) - other.tickCount <= com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK) return true;
+        }
+        return false;
     }
 
     /** The opening's remaining ticks cover the wrap's cooldown and its capture. */
@@ -2296,7 +2329,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     boolean damageWithActiveAttack(LivingEntity target) {
         if (!(level() instanceof ServerLevel server) || activeAttack == null || !canAttack(target) || isAllyOf(target)) return false;
-        boolean hit=target.hurtServer(server,DCDamageTypes.partnerAttack(this),damageAgainst(activeAttack,target));
+        var source=activeAttack.kind()==DigimonAttack.Kind.CONSTRICTION ? DCDamageTypes.crushAttack(this) : DCDamageTypes.partnerAttack(this);
+        boolean hit=target.hurtServer(server,source,damageAgainst(activeAttack,target));
         if(hit)setLastHurtMob(target);
         return hit;
     }

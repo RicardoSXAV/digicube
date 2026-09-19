@@ -109,7 +109,7 @@ public final class ConstrictionRegressionTest {
             check(target.hasEffect(DCEffects.CONSTRICTED)==(t>=40&&t<80),"exact two-second hold");
         }
         check(owner.pulses==4,"four evenly spaced damage pulses");
-        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.28F)<1e-6,"15.68 raw champion damage over two seconds");
+        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.60F)<1e-6,"33.6 raw champion damage over two seconds, dealt as crushing");
         check(target.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,
                 "wrapping frozen prey re-ices it through the hold plus a one-second tail");
         check(target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&target.hasEffect(DCEffects.FROST_RESISTANCE),"capture grants shared anti-chain resistance");
@@ -125,8 +125,8 @@ public final class ConstrictionRegressionTest {
         check(owner.pulses==4&&!target.hasEffect(DCEffects.CONSTRICTED),"moving cow is captured, damaged and released");
         check(owner.position().distanceTo(new Vec3(1.6,0,0))<.001,"root and target use the same translated anchor");
         owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
-        cast=ConstrictionSession.prepare(owner,target,wrap);place(target,new Vec3(.5,0,2));
-        check(!cast.tick(0),"fast displacement still evades the wind-up");
+        cast=ConstrictionSession.prepare(owner,target,wrap);place(target,new Vec3(.8,0,2));
+        check(!cast.tick(0),"a dash still evades the wind-up (a run no longer does)");
         for(String reason:List.of("escape","death","cleansed","wall","interruption")) {
             owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
             cast=ConstrictionSession.prepare(owner,target,wrap);check(cast!=null,"fresh test cast");

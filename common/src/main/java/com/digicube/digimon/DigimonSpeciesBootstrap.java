@@ -87,7 +87,7 @@ public final class DigimonSpeciesBootstrap {
 
     public static final DigimonAttack CONSTRICTION = new DigimonAttack(
             Constants.id("constriction"), DigimonAttack.Kind.CONSTRICTION,
-            .28F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
+            .60F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
     public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
 
     public static Map<Identifier, DigimonAttack> attacks() {

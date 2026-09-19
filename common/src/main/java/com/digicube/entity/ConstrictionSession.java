@@ -20,7 +20,7 @@ final class ConstrictionSession {
     private final double distance;
     private final float yaw, scale;
     private final ConstrictionMotion.SweptBody body;
-    private Vec3 approachOffset = Vec3.ZERO, preySeen = Vec3.ZERO;
+    private Vec3 approachOffset = Vec3.ZERO, preySeen = Vec3.ZERO, followed = Vec3.ZERO;
     private final boolean afloat;
     private boolean captured, released;
 
@@ -161,7 +161,9 @@ final class ConstrictionSession {
         owner.getNavigation().stop();owner.setDeltaMovement(0,0,0);
         Vec3 next=at(tick+1),step=next.subtract(owner.position()).multiply(1,0,1);
         // External knockback cannot be turned into a teleport back to the path.
-        if (step.lengthSqr()>1 || !supported(next)) return interrupt(step.lengthSqr()>1 ? "caster displaced" : "path unsupported");
+        // Following the prey is not an external displacement.
+        Vec3 shifted=approachOffset.subtract(followed);followed=approachOffset;
+        if (step.subtract(shifted).lengthSqr()>1 || !supported(next)) return interrupt(step.subtract(shifted).lengthSqr()>1 ? "caster displaced" : "path unsupported");
         if (owner.level().getBlockCollisions(owner,owner.getBoundingBox().expandTowards(step).deflate(.01)).iterator().hasNext()) return interrupt(String.format("root blocked, following the prey by (%.2f, %.2f)", approachOffset.x, approachOffset.z));
         if (sampleObstructed(tick/4,approachOffset)) return interrupt("body obstructed");
         owner.move(MoverType.SELF,step);
@@ -189,6 +191,11 @@ final class ConstrictionSession {
     }
 
     void release() {
-        if(captured&&!released) {target.removeEffect(DCEffects.CONSTRICTED);released=true;}
+        if(captured&&!released) {
+            target.removeEffect(DCEffects.CONSTRICTED);released=true;
+            if (target instanceof DigimonEntity prey) prey.windFor(ConstrictionMotion.WINDED_TICKS);
+            // A chilling caster's coils leave the prey Cold, so it can regain its distance while it uncoils.
+            if (owner.chilling() && target.isAlive()) target.addEffect(new MobEffectInstance(DCEffects.COLD, com.digicube.digimon.IceCombo.COLD_TICKS, 0, false, true), owner);
+        }
     }
 }

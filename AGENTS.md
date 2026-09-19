@@ -327,8 +327,12 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `locomotion` sheet (Golemon's walk is pinned by `LocomotionRegressionTest`).
   Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`; an aimed ground
   wave is sidestepped late, just before its aim locks) and inbound projectiles server-side; a
-  wrap is never started beside a Digimon that targets us and has a melee move
-  (`DigimonEntity.wrapPunished`); an inked mob cannot take or keep a target beyond three blocks
+  wrap against a Digimon that fights us is timed (`DigimonEntity.wrapPunished`): a range-holding caster never walks
+  into a brawler for it but wraps one that has caught it (within wrap range + 1), and it waits out a heavy move
+  (power >= 1.0) that is ready or under way. The move itself: the coil follows prey up to .6 blocks a tick, ordinary
+  knockback does not shake the caster off (only a push of `ConstrictionMotion.BREAKING_PUSH` = 1.0 breaks the wrap
+  and frees the prey), squeezes are `digicube:crush_attack` (bypasses armour), and release leaves Digimon prey
+  winded (no attack for 40 ticks) and, from a chilling caster, Cold; an inked mob cannot take or keep a target beyond three blocks
   (`DCEffects.blindTo`) and acts on `lastSeenThreat` instead. `DIGICUBE_TACTICS=<species>:
   key=value,...;<species>:...` overrides knobs per process for sweeps. Design and numbers:
   `../design/combat-ai.md`.
