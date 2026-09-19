@@ -1376,8 +1376,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return moves;
     }
 
+    /**
+     * A wrap takes two seconds of coiling beside the prey. A Digimon that is fighting us and has a
+     * melee move spends them hitting the coil, and the hold never pays that back: brawlers are
+     * fought from range, and wrapped only when they cannot strike (frozen, held) or are not after us.
+     */
+    private boolean wrapPunished(LivingEntity target) {
+        return target instanceof DigimonEntity other && other.getTarget() == this
+                && !other.hasEffect(DCEffects.FROZEN) && !other.hasEffect(DCEffects.CONSTRICTED)
+                && other.attacks().stream().anyMatch(a -> !a.isRanged() && a.kind() != DigimonAttack.Kind.CONSTRICTION);
+    }
+
     /** The opening's remaining ticks cover the wrap's cooldown and its capture. */
     private boolean wrapOpening(LivingEntity target) {
+        if (wrapPunished(target)) return false;
         var opening = target.getEffect(DCEffects.FROZEN) != null ? target.getEffect(DCEffects.FROZEN) : target.getEffect(DCEffects.COLD);
         if (opening == null) return false;
         return constrictionReadyIn(wrapMove()) + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK <= opening.getDuration();
@@ -1387,6 +1399,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private DigimonAttack approachingConstriction(LivingEntity target) {
         DigimonAttack move = wrapMove();
         if (move == null) return null;
+        if (target != null && wrapPunished(target)) {
+            resetConstrictionApproach();
+            return null;
+        }
         // Chill first: while a Cold charge is on the table the wrap waits for slowed prey; any prey
         // may be wrapped once it is not. Otherwise use a clear ranged shot across elevations instead of spending
         // several seconds climbing to a wrap. Preparing a cooling wrap must not delay
@@ -1929,6 +1945,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     if (activeAttack.knockback() > 0) {
                         victim.knockback(activeAttack.knockback(), getX() - victim.getX(), getZ() - victim.getZ(), source, damage);
                     }
+                    com.digicube.digimon.CrackMark.strike(activeAttack, victim);
                     setLastHurtMob(victim);
                     level.playSound(null, end.x, end.y, end.z,
                             activeAttack.knockback() > 0 ? SoundEvents.PLAYER_ATTACK_KNOCKBACK : SoundEvents.PLAYER_ATTACK_STRONG,
@@ -2103,6 +2120,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         var source=authored!=null && !authored.hitWindows().isEmpty()?DCDamageTypes.volleyAttack(this):damageSources().mobAttack(this);
         if (!victim.hurtServer(level,source,damage)) return false;
         victim.knockback(attack.knockback(),getX()-victim.getX(),getZ()-victim.getZ(),source,damage);
+        com.digicube.digimon.CrackMark.strike(attack,victim);
         setLastHurtMob(victim);return true;
     }
 

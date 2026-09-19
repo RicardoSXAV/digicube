@@ -286,6 +286,15 @@ public final class CombatScenario {
             int opening = Math.max(coldTick, freezeTick);
             Constants.LOG.info("[scenario] t={} prey captured ({} ticks after its opening)", elapsed, opening < 0 ? -1 : elapsed - opening);
         }
+        // A brawler that fights back is not wrapped (DigimonEntity.wrapPunished): the coil's two-second wind-up beside
+        // its fists never pays. The duel then passes when it was chilled and fought from range for ten seconds.
+        boolean brawler = duel && prey.getSpecies().map(sp -> sp.attacks().stream()
+                .anyMatch(move -> !move.isRanged() && move.kind() != com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION)).orElse(false);
+        if (brawler && captureTick >= 0) { finish(level, "FAIL a brawler that was fighting back got wrapped at t=" + captureTick); return; }
+        if (brawler && coldTick >= 0 && elapsed >= SETTLE_TICKS + 200) {
+            finish(level, String.format("PASS wrap withheld from a fighting brawler: cold=%d casts=%d", coldTick, casts));
+            return;
+        }
         if (captureTick >= 0 && releaseTick < 0 && !prey.hasEffect(DCEffects.CONSTRICTED)) {
             releaseTick = elapsed;
             finish(level, String.format("PASS cold=%d freeze=%d capture=%d (%d after opening) release=%d casts=%d",

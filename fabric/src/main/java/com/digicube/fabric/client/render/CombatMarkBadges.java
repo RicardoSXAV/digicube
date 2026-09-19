@@ -34,6 +34,9 @@ public final class CombatMarkBadges {
     private static final Identifier HELD = Constants.id("textures/entity/status/mark_held.png");
     private static final Identifier INKED = Constants.id("textures/entity/status/mark_inked.png");
     private static final Identifier INKED_SPENT = Constants.id("textures/entity/status/mark_inked_spent.png");
+    private static final Identifier CRACK = Constants.id("textures/entity/status/mark_crack.png");
+    private static final Identifier CRACK_SPENT = Constants.id("textures/entity/status/mark_crack_spent.png");
+    private static final Identifier CRACK_OFF = Constants.id("textures/entity/status/mark_crack_off.png");
     /** Half an emblem's fixed world size, the gap between two, and the most one entity shows. */
     private static final float HALF = .28F, GAP = .05F;
     private static final int MAX_EMBLEMS = 3;
@@ -93,6 +96,8 @@ public final class CombatMarkBadges {
                 var emblems = new ArrayList<Emblem>();
                 if (CombatMarkState.has(packed, CombatMarkState.ICE_MARK)) emblems.add(Emblem.ICE_MARK);
                 if (cold || charge > 0) emblems.add(Emblem.COLD);
+                float cracked = CombatMarkState.crackedRemaining(packed), crackCharge = CombatMarkState.crackCharge(packed);
+                if (cracked > 0 || crackCharge > 0) emblems.add(Emblem.CRACK);
                 if (CombatMarkState.has(packed, CombatMarkState.HELD)) emblems.add(Emblem.HELD);
                 if (CombatMarkState.has(packed, CombatMarkState.INKED)) emblems.add(Emblem.INKED);
                 int count = Math.min(MAX_EMBLEMS, emblems.size());
@@ -110,6 +115,16 @@ public final class CombatMarkBadges {
                             full(collector, pose, INKED_SPENT, centre, WHITE);
                             wedge(collector, pose, INKED, centre, CombatMarkState.inkRemaining(packed));
                         }
+                        case CRACK -> {
+                            // Like Cold: the stone fills charge by charge, then the rim lights and drains with Cracked.
+                            if (cracked > 0) {
+                                full(collector, pose, CRACK_SPENT, centre, WHITE);
+                                wedge(collector, pose, CRACK, centre, cracked);
+                            } else {
+                                full(collector, pose, CRACK_OFF, centre, WHITE);
+                                risen(collector, pose, CRACK_SPENT, centre, crackCharge);
+                            }
+                        }
                         case COLD -> {
                             if (cold) {
                                 full(collector, pose, COLD_SPENT, centre, WHITE);
@@ -126,7 +141,7 @@ public final class CombatMarkBadges {
         });
     }
 
-    private enum Emblem { ICE_MARK, COLD, HELD, INKED }
+    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED }
 
     /** A small fixed world size; depth-tested so an emblem never reveals mobs through walls. */
     private static void full(SubmitNodeCollector collector, PoseStack pose, Identifier texture, float centre, int color) {

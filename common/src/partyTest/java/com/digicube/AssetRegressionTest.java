@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -28,6 +29,14 @@ public final class AssetRegressionTest {
     private static final Pattern LONG_DECIMALS = Pattern.compile("\\d\\.\\d{7,}");
     private static final Pattern LONG_MOTION_DECIMALS = Pattern.compile("\\d\\.\\d{9,}");
 
+    /**
+     * Escape hatch for the z-fighting gate: a species model listed here may keep that many part
+     * pairs whose faces share a plane in the rest pose (see {@link MeshSurfaceCheck}), and the number
+     * may only go down. Empty since 2026-09-18, when all nine species were cleaned with
+     * {@code ../harness/v2/tools/fix_coplanar.py}; keep it empty. A model that is not listed must have none.
+     */
+    private static final Map<String, Integer> KNOWN_COPLANAR_PAIRS = Map.of();
+
     /** @param args unused */
     public static void main(String[] args) throws Exception {
         Path assets = resource("/assets/digicube/models/entity/ground_models.json").getParent();
@@ -40,11 +49,36 @@ public final class AssetRegressionTest {
             }
         }
         check(animations >= 20, "every bundled species and effect ships a native animation file");
+        int surfaces = 0;
+        try (Stream<Path> files = Files.list(assets)) {
+            for (Path file : files.filter(p -> p.getFileName().toString().endsWith(".mesh.json")).toList()) {
+                if (checkSurfaces(file)) surfaces++;
+            }
+        }
+        check(surfaces >= 9, "every species model with an idle clip is checked for coplanar faces");
         checkDecimals(data.resolve("constriction_motion/constriction.json"), LONG_DECIMALS, "four");
         try (Stream<Path> files = Files.list(data.resolve("attack_motion"))) {
             for (Path file : files.toList()) checkDecimals(file, LONG_MOTION_DECIMALS, "six");
         }
-        Constants.LOG.info("Asset regression checks passed: {} native animation files reduced and rounded, motion tables rounded.", animations);
+        Constants.LOG.info("Asset regression checks passed: {} native animation files reduced and rounded, motion tables rounded, {} species meshes checked for coplanar faces.", animations, surfaces);
+    }
+
+    /** Species models only (they have an idle clip): effects stack hidden and scaled pieces by design. */
+    private static boolean checkSurfaces(Path meshFile) throws IOException {
+        String name = meshFile.getFileName().toString().replace(".mesh.json", "");
+        Path animationFile = meshFile.resolveSibling(name + ".animation.json");
+        if (!Files.exists(animationFile)) return false;
+        JsonObject mesh, animation;
+        try (var reader = Files.newBufferedReader(meshFile)) { mesh = JsonParser.parseReader(reader).getAsJsonObject(); }
+        try (var reader = Files.newBufferedReader(animationFile)) { animation = JsonParser.parseReader(reader).getAsJsonObject(); }
+        if (!animation.getAsJsonObject("clips").has("idle")) return false;
+        var pairs = MeshSurfaceCheck.restPairs(mesh, animation);
+        int allowed = KNOWN_COPLANAR_PAIRS.getOrDefault(name, 0);
+        check(pairs.size() <= allowed, name + ".mesh.json will flicker in game (z-fighting): " + pairs.size() + " part pairs have same-facing faces on one plane"
+                + " that overlap in the rest pose (allowed " + allowed + "): " + pairs.stream().limit(12).toList()
+                + ". Run ../harness/v2/tools/coplanar_poses.py on it and move one face of each pair by 0.25 px.");
+        check(pairs.size() == allowed, name + ".mesh.json improved to " + pairs.size() + " coplanar pairs; lower its entry in KNOWN_COPLANAR_PAIRS (" + allowed + ").");
+        return true;
     }
 
     private static void checkAnimation(Path file) throws IOException {

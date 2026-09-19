@@ -120,7 +120,8 @@ public final class BundledSpeciesLoader {
         }
         return new DigimonTactics(holdMin, holdMax, GsonHelper.getAsFloat(json, "dodge_chance", 0), GsonHelper.getAsInt(json, "reaction_ticks", 0),
                 GsonHelper.getAsBoolean(json, "strafe", false), GsonHelper.getAsInt(json, "lead_ticks", 0),
-                GsonHelper.getAsBoolean(json, "press_impaired", false), GsonHelper.getAsBoolean(json, "prefer_close", false));
+                GsonHelper.getAsBoolean(json, "press_impaired", false), GsonHelper.getAsBoolean(json, "prefer_close", false),
+                GsonHelper.getAsDouble(json, "charge_distance", 0), GsonHelper.getAsDouble(json, "charge_speed", 0));
     }
 
     private static DigimonLocomotion locomotion(JsonObject json) {

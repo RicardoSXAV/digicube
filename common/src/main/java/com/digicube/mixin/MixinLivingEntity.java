@@ -1,5 +1,6 @@
 package com.digicube.mixin;
 
+import com.digicube.digimon.CrackMark;
 import com.digicube.digimon.IceCombo;
 import com.digicube.registry.DCEffects;
 import com.digicube.entity.CombatMarkState;
@@ -12,6 +13,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
@@ -27,6 +29,9 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     /** The longest the current ink has been, so its emblem drains from full whatever attack applied it. */
     @Unique
     private int digicube$inkLength;
+    /** Server-side only, like the Cold charge: stone blows counted toward Cracked, and when the last one landed. */
+    @Unique
+    private int digicube$crackCharges, digicube$crackTouchTick;
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void digicube$defineMarks(SynchedEntityData.Builder builder, CallbackInfo ci) {
@@ -43,10 +48,18 @@ public abstract class MixinLivingEntity implements CombatMarkState {
         else if (digicube$coldCharge > 0 && living.tickCount - digicube$coldTouchTick > IceCombo.COLD_DECAY_DELAY_TICKS) digicube$coldCharge--;
         MobEffectInstance ink = living.getEffect(DCEffects.INKED);
         digicube$inkLength = ink == null ? 0 : Math.max(digicube$inkLength, ink.getDuration());
+        MobEffectInstance cracked = living.getEffect(DCEffects.CRACKED);
+        if (cracked != null || !living.isAlive()) digicube$crackCharges = 0;
+        else if (digicube$crackCharges > 0 && living.tickCount - digicube$crackTouchTick > CrackMark.DECAY_DELAY_TICKS) {
+            digicube$crackCharges--;
+            digicube$crackTouchTick = living.tickCount;
+        }
         living.getEntityData().set(digicube$MARKS, !living.isAlive() ? 0 : CombatMarkState.pack(
                 living.hasEffect(DCEffects.ICE_MARK), living.hasEffect(DCEffects.CONSTRICTED),
                 digicube$coldCharge, cold == null ? 0 : cold.getDuration(),
-                ink == null ? 0 : ink.isInfiniteDuration() ? 1 : ink.getDuration() / (float) Math.max(1, digicube$inkLength)));
+                ink == null ? 0 : ink.isInfiniteDuration() ? 1 : ink.getDuration() / (float) Math.max(1, digicube$inkLength),
+                digicube$crackCharges,
+                cracked == null ? 0 : cracked.isInfiniteDuration() ? 1 : Math.min(1F, cracked.getDuration() / (float) CrackMark.CRACKED_TICKS)));
     }
 
     @Override
@@ -67,6 +80,23 @@ public abstract class MixinLivingEntity implements CombatMarkState {
         digicube$coldCharge = 0;
         living.removeEffect(DCEffects.ICE_MARK);
         living.removeEffect(DCEffects.COLD);
+    }
+
+    @Override
+    public void digicube$crack(int charges) {
+        LivingEntity living = (LivingEntity) (Object) this;
+        if (living.hasEffect(DCEffects.CRACKED)) return; // the opening is already there; it is not extended
+        digicube$crackTouchTick = living.tickCount;
+        digicube$crackCharges = Math.min(CrackMark.CHARGES, digicube$crackCharges + charges);
+        if (digicube$crackCharges < CrackMark.CHARGES) return;
+        digicube$crackCharges = 0;
+        living.addEffect(new MobEffectInstance(DCEffects.CRACKED, CrackMark.CRACKED_TICKS, 0, false, true));
+    }
+
+    /** A Cracked body takes more from every source. */
+    @ModifyVariable(method = "hurtServer", at = @At("HEAD"), argsOnly = true)
+    private float digicube$crackedDamage(float amount) {
+        return ((LivingEntity) (Object) this).hasEffect(DCEffects.CRACKED) ? amount * CrackMark.DAMAGE_TAKEN : amount;
     }
 
     @Inject(method = "isImmobile", at = @At("RETURN"), cancellable = true)

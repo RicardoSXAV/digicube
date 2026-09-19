@@ -18,16 +18,20 @@ import java.util.Map;
  * @param pressImpaired  rush a blinded, inked, Cold, frozen or held target at run speed, ignoring hold range
  * @param preferClose    when several attacks are usable at once take the shortest-ranged (a brawler's
  *                       melee over its opener); otherwise the species list order decides
+ * @param chargeDistance chase at run speed while the target is further than this many blocks: how a
+ *                       slow brawler answers a kiter (0 = never)
+ * @param chargeSpeed    the pace of that charge, as a movement speed modifier; a fight-only burst that
+ *                       leaves the species' travel gait alone (0 = its locomotion run speed)
  */
 public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, int reactionTicks, boolean strafe,
-                             int leadTicks, boolean pressImpaired, boolean preferClose) {
+                             int leadTicks, boolean pressImpaired, boolean preferClose, double chargeDistance, double chargeSpeed) {
     /** The old behaviour: close in, never dodge, no prediction, list order. */
-    public static final DigimonTactics DEFAULT = new DigimonTactics(0, 0, 0, 0, false, 0, false, false);
+    public static final DigimonTactics DEFAULT = new DigimonTactics(0, 0, 0, 0, false, 0, false, false, 0, 0);
 
     public DigimonTactics {
         if (holdMin < 0 || holdMax < holdMin) throw new IllegalArgumentException("hold range " + holdMin + ".." + holdMax);
         if (dodgeChance < 0 || dodgeChance > 1) throw new IllegalArgumentException("dodge chance " + dodgeChance);
-        if (reactionTicks < 0 || leadTicks < 0) throw new IllegalArgumentException("negative ticks");
+        if (reactionTicks < 0 || leadTicks < 0 || chargeDistance < 0 || chargeSpeed < 0) throw new IllegalArgumentException("negative ticks");
     }
 
     public boolean holdsRange() { return holdMax > 0; }
@@ -35,14 +39,16 @@ public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, 
     /** The same tactics with one knob changed by name, for overrides and sweeps. */
     public DigimonTactics with(String key, String value) {
         return switch (key) {
-            case "hold_min" -> new DigimonTactics(Double.parseDouble(value), holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose);
-            case "hold_max" -> new DigimonTactics(holdMin, Double.parseDouble(value), dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose);
-            case "dodge_chance" -> new DigimonTactics(holdMin, holdMax, Float.parseFloat(value), reactionTicks, strafe, leadTicks, pressImpaired, preferClose);
-            case "reaction_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, Integer.parseInt(value), strafe, leadTicks, pressImpaired, preferClose);
-            case "strafe" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, Boolean.parseBoolean(value), leadTicks, pressImpaired, preferClose);
-            case "lead_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, Integer.parseInt(value), pressImpaired, preferClose);
-            case "press_impaired" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, Boolean.parseBoolean(value), preferClose);
-            case "prefer_close" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, Boolean.parseBoolean(value));
+            case "hold_min" -> new DigimonTactics(Double.parseDouble(value), holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "hold_max" -> new DigimonTactics(holdMin, Double.parseDouble(value), dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "dodge_chance" -> new DigimonTactics(holdMin, holdMax, Float.parseFloat(value), reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "reaction_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, Integer.parseInt(value), strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "strafe" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, Boolean.parseBoolean(value), leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "lead_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, Integer.parseInt(value), pressImpaired, preferClose, chargeDistance, chargeSpeed);
+            case "press_impaired" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, Boolean.parseBoolean(value), preferClose, chargeDistance, chargeSpeed);
+            case "prefer_close" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, Boolean.parseBoolean(value), chargeDistance, chargeSpeed);
+            case "charge_distance" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, Double.parseDouble(value), chargeSpeed);
+            case "charge_speed" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, Double.parseDouble(value));
             default -> throw new IllegalArgumentException("unknown tactics key " + key);
         };
     }
@@ -65,6 +71,7 @@ public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, 
 
     public Map<String, Object> describe() {
         return Map.of("hold_min", holdMin, "hold_max", holdMax, "dodge_chance", dodgeChance, "reaction_ticks", reactionTicks,
-                "strafe", strafe, "lead_ticks", leadTicks, "press_impaired", pressImpaired, "prefer_close", preferClose);
+                "strafe", strafe, "lead_ticks", leadTicks, "press_impaired", pressImpaired, "prefer_close", preferClose,
+                "charge_distance", chargeDistance, "charge_speed", chargeSpeed);
     }
 }

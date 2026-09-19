@@ -1,11 +1,12 @@
 {
   "stage": "adult",
   "attribute": "virus",
-  "base_health": 48,
-  "base_attack": 14,
-  "base_defence": 14,
+  "base_health": 56,
+  "base_attack": 12,
+  "base_defence": 16,
   "base_speed": 0.252982213,
   "attacks": ["tectonic_fist", "rock_punch"],
+  "tactics": { "lead_ticks": 6, "charge_distance": 4.0, "charge_speed": 1.6 },
   "evolutions": [],
   "locomotion": {
     "follow_start_distance": 5.0,

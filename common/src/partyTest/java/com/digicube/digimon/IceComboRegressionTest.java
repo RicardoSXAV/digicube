@@ -76,16 +76,21 @@ final class IceComboRegressionTest {
                 "exhale, alignment and the wrap wind-up all fit inside one Cold");
         check(IceCombo.COLD_SLOW > -1 && IceCombo.COLD_SLOW < 0, "Cold slows and never stops");
         check(IceCombo.COLD_DECAY_DELAY_TICKS >= 2 * ice.fuel().damageIntervalTicks(), "a brief miss does not drain the charge");
-        int marks = com.digicube.entity.CombatMarkState.pack(true, false, 10, 118, .5F);
+        int marks = com.digicube.entity.CombatMarkState.pack(true, false, 10, 118, .5F, 2, .5F);
         check(com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.ICE_MARK)
                         && !com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.HELD)
                         && com.digicube.entity.CombatMarkState.has(marks, com.digicube.entity.CombatMarkState.INKED)
                         && com.digicube.entity.CombatMarkState.coldCharge(marks) == .5F
                         && com.digicube.entity.CombatMarkState.coldRemainingTicks(marks) == 120
                         && Math.abs(com.digicube.entity.CombatMarkState.inkRemaining(marks) - .5F) < .01F
+                        && Math.abs(com.digicube.entity.CombatMarkState.crackCharge(marks) - 2F / CrackMark.CHARGES) < .001F
+                        && Math.abs(com.digicube.entity.CombatMarkState.crackedRemaining(marks) - .5F) < .01F
                         && marks > 0,
-                "the tracked readout carries flags, half a charge, remaining Cold rounded up to its step and half an ink");
-        check(!com.digicube.entity.CombatMarkState.has(com.digicube.entity.CombatMarkState.pack(false, false, 0, 0, 0),
+                "the tracked readout carries flags, half a charge, remaining Cold rounded up to its step, half an ink, two Crack charges and half a Cracked");
+        check(CrackMark.charges(DigimonSpeciesBootstrap.ROCK_PUNCH) == 1 && CrackMark.charges(DigimonSpeciesBootstrap.TECTONIC_FIST) == 2
+                        && CrackMark.charges(DigimonSpeciesBootstrap.ICE_BLAST) == 0 && CrackMark.CHARGES == 3 && CrackMark.DAMAGE_TAKEN > 1,
+                "stone blows fill the Crack gauge (punch one, spikes two of three), other attacks do not");
+        check(!com.digicube.entity.CombatMarkState.has(com.digicube.entity.CombatMarkState.pack(false, false, 0, 0, 0, 0, 0),
                 com.digicube.entity.CombatMarkState.INKED), "no ink, no Inked flag");
         var lateMark = new IceExposure();
         for (int i = 0; i < 15; i++) check(!lateMark.touch(first, i, true, false, required), "marked contact short of a second does not freeze");

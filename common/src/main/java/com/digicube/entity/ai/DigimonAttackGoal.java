@@ -27,6 +27,8 @@ public final class DigimonAttackGoal extends Goal {
     /** How far a sidestep goes, and how much longer than the wind-up it is kept. */
     private static final double DODGE_DISTANCE = 3.0, DODGE_SPEED = 1.35;
     private static final int DODGE_EXTRA_TICKS = 4, STRAFE_TICKS = 24;
+    /** The spike wave locks its aim four ticks before it lands; the sidestep starts this close to that, and lasts while spikes rise. */
+    private static final int LATE_DODGE_TICKS = 9, LINE_DODGE_EXTRA_TICKS = 14;
     /** A projectile this close and closing is worth a sidestep. */
     private static final double INBOUND_RANGE = 7.0;
 
@@ -88,7 +90,7 @@ public final class DigimonAttackGoal extends Goal {
         mob.traceCombat(target);
         DigimonTactics tactics = mob.tactics();
         if (mob.isAttacking()) {
-            // A stream can be cut to get out of a shot's way; anything else is committed.
+            // A stream can be cut to get out of the way of a shot or a spike wave; anything else is committed.
             if (!(mob.getActiveAttack().fuel() != null && tactics.dodgeChance() > 0 && breakStreamForShot(target, tactics))) {
                 mob.getNavigation().stop();
                 dodgeTo = null;
@@ -110,7 +112,9 @@ public final class DigimonAttackGoal extends Goal {
         boolean opening = desiredMoves.stream().anyMatch(move -> move.kind() == DigimonAttack.Kind.CONSTRICTION);
         boolean pressing = tactics.pressImpaired() && DigimonEntity.impaired(target);
         double runSpeed = mob.getLocomotion().runSpeed();
-        double pursuitSpeed = pressing || mob.getLocomotion().groundGait() != null
+        boolean charging = tactics.chargeDistance() > 0 && mob.distanceToSqr(target) > tactics.chargeDistance() * tactics.chargeDistance();
+        double pursuitSpeed = charging && tactics.chargeSpeed() > 0 ? Math.max(tactics.chargeSpeed(), speedModifier)
+                : pressing || charging || mob.getLocomotion().groundGait() != null
                 && mob.getLocomotion().groundGait().runStride() > mob.getLocomotion().groundGait().stride()
                 && mob.distanceToSqr(target) > 64 ? Math.max(runSpeed, speedModifier) : speedModifier;
         boolean preparing = desiredMoves.stream().noneMatch(mob::isAttackReady);
@@ -178,6 +182,16 @@ public final class DigimonAttackGoal extends Goal {
 
     /** Cuts the running stream when a shot is inbound and the roll says dodge; the dodge itself follows this tick. */
     private boolean breakStreamForShot(LivingEntity target, DigimonTactics tactics) {
+        // The spike wave is worth a stream too: its sidestep starts here, at the late moment, with the one roll it gets.
+        int windUp = threateningWindUp(target);
+        if (windUp >= 0 && windUp <= LATE_DODGE_TICKS && ((DigimonEntity) target).getActiveAttack().kind() == DigimonAttack.Kind.GROUND_WAVE) {
+            int started = mob.tickCount - ((DigimonEntity) target).currentAttackTick();
+            if (started == answeredWindUp) return false;
+            answeredWindUp = started;
+            if (mob.getRandom().nextFloat() >= tactics.dodgeChance()) return false;
+            mob.interruptAttack();
+            return startDodge(target, windUp + LINE_DODGE_EXTRA_TICKS, "wind-up of tectonic wave, stream cut");
+        }
         Projectile shot = inboundShot(target);
         if (shot == null || shot.getId() == answeredProjectile) return false;
         answeredProjectile = shot.getId();
@@ -200,9 +214,13 @@ public final class DigimonAttackGoal extends Goal {
             int started = mob.tickCount - other.currentAttackTick();
             if (started == answeredWindUp) return false;
             if (other.currentAttackTick() < tactics.reactionTicks()) return false;
+            // An aimed line (the spike wave) follows us until just before it lands: stepping aside early only
+            // moves the aim. Wait, then be in motion across the line when the aim locks.
+            boolean aimedLine = other.getActiveAttack().kind() == DigimonAttack.Kind.GROUND_WAVE;
+            if (aimedLine && windUp > LATE_DODGE_TICKS) return false;
             answeredWindUp = started;
             if (mob.getRandom().nextFloat() >= tactics.dodgeChance()) return false;
-            return startDodge(target, windUp + DODGE_EXTRA_TICKS, "wind-up of " + other.getActiveAttack().id().getPath());
+            return startDodge(target, windUp + (aimedLine ? LINE_DODGE_EXTRA_TICKS : DODGE_EXTRA_TICKS), "wind-up of " + other.getActiveAttack().id().getPath());
         }
         Projectile shot = inboundShot(target);
         if (shot != null) {
@@ -222,7 +240,7 @@ public final class DigimonAttackGoal extends Goal {
     private int threateningWindUp(LivingEntity target) {
         if (!(target instanceof DigimonEntity other) || !other.isAttacking()) return -1;
         DigimonAttack attack = other.getActiveAttack();
-        if (attack == null || attack.isRanged()) return -1;
+        if (attack == null || attack.isRanged() && attack.kind() != DigimonAttack.Kind.GROUND_WAVE) return -1;
         // A wrap's hit tick is its capture, two seconds in: the one wind-up worth running from.
         int remaining = attack.hitTick() - other.currentAttackTick();
         if (remaining <= 0) return -1;

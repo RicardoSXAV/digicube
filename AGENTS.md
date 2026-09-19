@@ -291,12 +291,21 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `CriticalHits` (base 10 %, favoured 25 %, countered 5 %, ×1.5) rolls on every Digimon hit
   through `DigimonEntity.damageAgainst` and the projectile impacts. Defence is the vanilla
   `ARMOR` attribute at half `base_defence` (`Progression.armor`). Keep those numbers there.
+- Combat marks live on every `LivingEntity` (`CombatMarkState`, `MixinLivingEntity`): one packed,
+  tracked int drives the emblems in `CombatMarkBadges`. **Crack** (`CrackMark`): fists and ground
+  waves fill a 3-charge gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every
+  source (a `@ModifyVariable` on `hurtServer`). Which attacks crack is by `DigimonAttack.Kind`.
+  The readout has no spare bits left but one; read `../design/combat-marks.md` before adding a mark.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
-  `lead_ticks`, `press_impaired`, `prefer_close`), read by `DigimonAttackGoal` and
-  `BlindGuardGoal`. A species without one closes in, never dodges and keeps list order.
-  Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`) and inbound
-  projectiles server-side; an inked mob cannot take or keep a target beyond three blocks
+  `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`), read by
+  `DigimonAttackGoal` and `BlindGuardGoal`. A species without one closes in, never dodges and
+  keeps list order. The charge is a fight-only pace; a species' travel gait stays on its
+  `locomotion` sheet (Golemon's walk is pinned by `LocomotionRegressionTest`).
+  Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`; an aimed ground
+  wave is sidestepped late, just before its aim locks) and inbound projectiles server-side; a
+  wrap is never started beside a Digimon that targets us and has a melee move
+  (`DigimonEntity.wrapPunished`); an inked mob cannot take or keep a target beyond three blocks
   (`DCEffects.blindTo`) and acts on `lastSeenThreat` instead. `DIGICUBE_TACTICS=<species>:
   key=value,...;<species>:...` overrides knobs per process for sweeps. Design and numbers:
   `../design/combat-ai.md`.
@@ -326,6 +335,13 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   never committed. Every export goes through that tool's `simplify` (bounded-error key
   reduction) and motion tables through `round-motion`; the `assetTest` build check fails on
   dense or unrounded tables, because they multiply the jar size for no visible gain.
+  `assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no
+  same-facing faces on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they
+  flicker in game). All nine species are clean since 2026-09-18 and
+  `AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty. Find with
+  `../harness/v2/tools/coplanar_poses.py <mesh> <animation>`, repair an export with
+  `fix_coplanar.py` next to it (rule and Blender-side check: `../harness/v2/docs/surfaces.md`);
+  `install_assets.py` refuses such a mesh too.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin

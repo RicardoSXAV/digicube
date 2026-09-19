@@ -23,7 +23,11 @@ public final class GolemonRegressionTest {
         var punch=DigimonSpeciesBootstrap.ROCK_PUNCH;var wave=DigimonSpeciesBootstrap.TECTONIC_FIST;
         check(golem.stage()==DigimonStage.ADULT && golem.attribute()==DigimonAttribute.VIRUS,"stone virus champion");
         check(golem.attacks().equals(List.of(wave,punch)),"special gets priority and fast attack fills its cooldown");
-        check(punch.cooldownTicks()==24 && punch.durationTicks()==22 && wave.cooldownTicks()==240,"fast punch and 12-second tectonic cooldown");
+        check(punch.cooldownTicks()==24 && punch.durationTicks()==22 && wave.cooldownTicks()==320,"fast punch and 16-second tectonic cooldown");
+        check(golem.baseHealth()>=56 && golem.baseDefence()>=16 && wave.power()*golem.baseAttack()*1.57*1.5<70,
+                "a tank's body, and no critical spike wave fells a full-health level-20 Seadramon (70 hp) in one hit");
+        check(golem.tactics().chargeDistance()>0 && golem.tactics().chargeSpeed()>golem.locomotion().runSpeed() && !golem.locomotion().canRun(),
+                "the charge is a fight-only burst; the travel gait stays a walk");
         check(wave.power()>punch.power()*2 && wave.knockback()>1,"champion attack strength");
         for(float yaw:new float[]{0,90,180,270}) {
             Vec3 center=new Vec3(0,0,1.8).yRot((float)-Math.toRadians(yaw));

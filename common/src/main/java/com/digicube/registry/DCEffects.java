@@ -38,6 +38,8 @@ public final class DCEffects {
     public static final Holder<MobEffect> COLD = register("cold", new FrostEffect(false, 0x4CC7C0)
             .addAttributeModifier(Attributes.MOVEMENT_SPEED, Constants.id("cold_movement"), IceCombo.COLD_SLOW,
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+    /** A broken guard: more damage from every source (the multiplier lives in {@code MixinLivingEntity}). */
+    public static final Holder<MobEffect> CRACKED = register("cracked", new MobEffect(MobEffectCategory.HARMFUL, 0x8A7F5C) {});
     public static final Holder<MobEffect> FROST_RESISTANCE = register("frost_resistance",
             new MobEffect(MobEffectCategory.NEUTRAL, 0x6685AE) {});
     public static final Holder<MobEffect> CONSTRICTION_RESISTANCE = register("constriction_resistance",

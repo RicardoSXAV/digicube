@@ -40,7 +40,8 @@ final class BalanceScenario {
         String lastMove;
         float lastHealth;
         double damageTaken;
-        int wins, crits, dodges;
+        int wins, crits, dodges, cracked;
+        boolean wasCracked;
 
         Side(DigimonSpecies species) { this.species = species; }
         String name() { return species.id().getPath(); }
@@ -101,6 +102,7 @@ final class BalanceScenario {
             side.fighter.setHealth(side.fighter.getMaxHealth());
             side.lastHealth = side.fighter.getHealth();
             side.lastMove = null;
+            side.wasCracked = false;
             side.damageTaken = 0;
         }
         roundStartTick = level.getServer().getTickCount();
@@ -129,6 +131,9 @@ final class BalanceScenario {
             String move = side.fighter.getActiveAttack() == null ? null : side.fighter.getActiveAttack().id().getPath();
             if (move != null && !move.equals(side.lastMove)) side.casts.merge(move, 1, Integer::sum);
             side.lastMove = move;
+            boolean nowCracked = side.fighter.hasEffect(com.digicube.registry.DCEffects.CRACKED);
+            if (nowCracked && !side.wasCracked) side.cracked++;
+            side.wasCracked = nowCracked;
         }
         boolean aDown = !a.fighter.isAlive(), bDown = !b.fighter.isAlive();
         if (aDown || bDown || fought >= ROUND_LIMIT_TICKS) {
@@ -187,8 +192,8 @@ final class BalanceScenario {
         for (Side side : new Side[]{a, b}) {
             double taken = rounds.stream().mapToDouble(r -> r.damage()[side == a ? 0 : 1]).average().orElse(0);
             double leftWhenWinning = rounds.stream().filter(r -> r.winner().equals(side.name())).mapToDouble(Round::winnerHealthLeft).average().orElse(0);
-            Constants.LOG.info(String.format(Locale.ROOT, "[balance] %s: casts %s, %.1f crits and %.1f dodges per round, took %.1f damage per round, kept %.0f%% health when winning; tactics %s",
-                    side.name(), side.casts, (double) side.crits / rounds.size(), (double) side.dodges / rounds.size(), taken, leftWhenWinning * 100, new TreeMap<>(side.species.tactics().describe())));
+            Constants.LOG.info(String.format(Locale.ROOT, "[balance] %s: casts %s, %.1f crits and %.1f dodges per round, Cracked %.2f times per round, took %.1f damage per round, kept %.0f%% health when winning; tactics %s",
+                    side.name(), side.casts, (double) side.crits / rounds.size(), (double) side.dodges / rounds.size(), (double) side.cracked / rounds.size(), taken, leftWhenWinning * 100, new TreeMap<>(side.species.tactics().describe())));
         }
         level.getServer().halt(false);
     }

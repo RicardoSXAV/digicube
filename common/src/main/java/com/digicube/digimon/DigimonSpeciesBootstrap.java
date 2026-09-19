@@ -73,11 +73,11 @@ public final class DigimonSpeciesBootstrap {
     /** The shared moves species sheets may reference, by id. */
     public static final DigimonAttack ROCK_PUNCH = new DigimonAttack(
             Constants.id("rock_punch"), DigimonAttack.Kind.FIST,
-            .85F, 24, 22, 9, 3.6, false, AttackMotion.load(Constants.id("rock_punch")), null, .25);
+            .62F, 24, 22, 9, 3.6, false, AttackMotion.load(Constants.id("rock_punch")), null, .25);
 
     public static final DigimonAttack TECTONIC_FIST = new DigimonAttack(
             Constants.id("tectonic_fist"), DigimonAttack.Kind.GROUND_WAVE,
-            2.4F, 240, 84, 28, 7.5, false, AttackMotion.load(Constants.id("tectonic_fist")), null, 1.15);
+            2.3F, 320, 84, 28, 7.5, false, AttackMotion.load(Constants.id("tectonic_fist")), null, 1.15);
 
     /** A short chilling jet that charges Cold and never freezes: two-second tank, four-second empty-to-full refill, Howling Blaster's pulse cadence. */
     public static final DigimonAttack ICE_BLAST = new DigimonAttack(
