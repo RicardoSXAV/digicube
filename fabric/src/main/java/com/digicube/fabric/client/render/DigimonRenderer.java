@@ -174,7 +174,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.riderAim.heights = com.digicube.fabric.client.party.RiderControls.aimedWave(entity);
         if (state.riderAim.heights != null && entity.getControllingPassenger() instanceof net.minecraft.world.entity.player.Player rider) {
             var aim = state.riderAim;
-            aim.tick = AIMED_WAVE_TICK; aim.yaw = rider.getViewYRot(partialTick);
+            // the view every frame, plus the correction for the fist the wave starts from (as the server will cast it)
+            aim.tick = AIMED_WAVE_TICK;
+            aim.yaw = rider.getViewYRot(partialTick) + Mth.wrapDegrees(com.digicube.fabric.client.party.RiderControls.aimedWaveYaw() - rider.getYRot());
             aim.hidden = java.util.Set.of("Ground cracks");
             aim.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT; aim.outlineColor = 0xFFFFFFFF;
         } else state.riderAim.heights = null;
@@ -235,7 +237,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.kineticOffset = entity.getKineticRenderOffset(partialTick).yRot(state.bodyRot * Mth.DEG_TO_RAD);
         state.blueBlaster.frost = false;
         state.blueBlaster.iceBlast = false;
-        if (entity.isAlive() && !state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
+        if (entity.isAlive() && state.attackAnimation.isStarted() && state.attackDefinition != null
                 && state.attackDefinition.fuel() != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
             var motion = state.attackDefinition.motion();

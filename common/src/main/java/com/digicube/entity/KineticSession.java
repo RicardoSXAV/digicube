@@ -17,17 +17,27 @@ public final class KineticSession {
     private final KineticAttacks.Definition definition;
     private final Vec3 start;
     private final float startYaw;
+    /** A rider's crosshair point, for a shot cast without a target; null for the AI. */
+    private final java.util.function.Supplier<Vec3> viewPoint;
+    private float aimYaw;
     private final HashSet<UUID> hit = new HashSet<>();
     private boolean kick;
     private float pitch;
 
-    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack) {
+    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack) { this(owner, target, attack, null); }
+
+    /** {@code target} may be null for a rider, whose shot then follows {@code viewPoint}. */
+    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack, java.util.function.Supplier<Vec3> viewPoint) {
         this.owner = owner;
         this.target = target;
+        this.viewPoint = viewPoint;
         definition = KineticAttacks.get(attack);
         start = owner.position();
-        startYaw = AttackGeometry.yaw(start, target.position());
+        startYaw = aimYaw = target != null ? AttackGeometry.yaw(start, target.position()) : owner.getYRot();
     }
+
+    /** The yaw the shot is aimed along; a rider's client turns the mount to it. */
+    public float aimYaw() { return aimYaw; }
 
     public boolean kick() { return kick; }
     public Vec3 start() { return start; }
@@ -68,11 +78,15 @@ public final class KineticSession {
         owner.getNavigation().stop();
         owner.setDeltaMovement(0, owner.isInWater()?0:owner.getDeltaMovement().y, 0);
         if (definition.attack().kind() == DigimonAttack.Kind.KINETIC_SHOT) {
-            if (tick <= definition.attack().hitTick() && target.isAlive()) {
-                Vec3 point = PepperBreathEntity.predictImpactPoint(target, owner.position(), definition.projectileSpeed(), definition.maxLead());
-                if(definition.projectileMotion()!=null) point=point.add(targetPoint(definition,target).subtract(AttackGeometry.chest(target.getBoundingBox())));
+            if (tick <= definition.attack().hitTick() && (target != null && target.isAlive() || viewPoint != null)) {
+                Vec3 point;
+                if (target != null && target.isAlive()) {
+                    point = PepperBreathEntity.predictImpactPoint(target, owner.position(), definition.projectileSpeed(), definition.maxLead());
+                    if(definition.projectileMotion()!=null) point=point.add(targetPoint(definition,target).subtract(AttackGeometry.chest(target.getBoundingBox())));
+                } else point = viewPoint.get();
                 var aim = KineticGeometry.aim(definition, owner.position(), point);
-                face(aim.yaw());
+                aimYaw = aim.yaw();
+                face(aimYaw);
                 pitch = aim.pitch();
             }
             return true;
@@ -106,7 +120,7 @@ public final class KineticSession {
     }
 
     private boolean opportunity() {
-        if (!target.isAlive() || !owner.canAttack(target) || owner.isAllyOf(target)) return false;
+        if (target == null || !target.isAlive() || !owner.canAttack(target) || owner.isAllyOf(target)) return false;
         for (double time = definition.attack().motion().activeFrom(); time <= definition.attack().motion().activeUntil(); time += .25) {
             var frame = definition.kickMotion().sample(time);
             Vec3 feet = AttackGeometry.world(start, frame.offset(), startYaw);
@@ -122,7 +136,8 @@ public final class KineticSession {
 
     public void fire(ServerLevel level) {
         var frame = definition.motion().sample(definition.attack().hitTick());
-        var aim = KineticGeometry.pose(frame, owner.position(), owner.getYRot(), pitch);
+        // Under a rider the facing arrives from the client a moment late; the shot leaves along the solved aim.
+        var aim = KineticGeometry.pose(frame, owner.position(), viewPoint != null ? aimYaw : owner.getYRot(), pitch);
         var pivot = clearanceOrigin(definition,owner.position(),aim);
         if (!KineticGeometry.clear(level, owner, pivot, aim.muzzle())) return;
         if (definition.projectileBoxes().stream().anyMatch(b -> KineticGeometry.blocked(level, owner,

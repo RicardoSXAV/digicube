@@ -35,7 +35,7 @@ import java.util.Locale;
  */
 public final class CombatScenario {
     private static final String NAME = System.getenv("DIGICUBE_SCENARIO");
-    static final int FLOOR_Y = 300;
+    public static final int FLOOR_Y = 300;
     private static final int HALF = 14, TIMEOUT_TICKS = 20 * 90, SETTLE_TICKS = 40, REQUIRED_HITS = 3;
     private static final boolean BENCHMARK=Boolean.parseBoolean(System.getenv("DIGICUBE_BENCHMARK"));
     private static final String MOVE=System.getenv("DIGICUBE_SCENARIO_ATTACK");
@@ -57,6 +57,7 @@ public final class CombatScenario {
     /** Per-dimension server tick hook; inert unless the environment variable names a scenario. */
     public static void tick(ServerLevel level) {
         if (NAME == null || done || level.dimension() != Level.OVERWORLD || !Services.PLATFORM.isDevelopmentEnvironment()) return;
+        if (NAME.equals("rider_checks")) return; // staged by the Fabric module, which has a fake player to ride with
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
@@ -140,7 +141,7 @@ public final class CombatScenario {
     }
 
     /** A stone platform far above the world, with optional one-block steps or a pool. */
-    static void build(ServerLevel level, String terrain) {
+    public static void build(ServerLevel level, String terrain) {
         BlockState stone = Blocks.STONE.defaultBlockState(), air = Blocks.AIR.defaultBlockState(), water = Blocks.WATER.defaultBlockState();
         boolean pool = terrain.equals("water");
         for (int x = -HALF; x <= HALF; x++) for (int z = -HALF; z <= HALF; z++) {
@@ -306,7 +307,7 @@ public final class CombatScenario {
     }
 
     /** Remove every mob in the arena other than the two fighters; natural spawns keep arriving at night. */
-    static int purge(ServerLevel level, DigimonEntity first, DigimonEntity second) {
+    public static int purge(ServerLevel level, DigimonEntity first, DigimonEntity second) {
         var arena = new net.minecraft.world.phys.AABB(-HALF - 2, FLOOR_Y - 8, -HALF - 2, HALF + 2, FLOOR_Y + 12, HALF + 2);
         var intruders = level.getEntities(net.minecraft.world.level.entity.EntityTypeTest.forClass(net.minecraft.world.entity.Mob.class), arena,
                 mob -> mob != first && mob != second);

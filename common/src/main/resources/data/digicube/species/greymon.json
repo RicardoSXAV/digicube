@@ -13,6 +13,10 @@
     "height": 4.6,
     "eye_height": 4.1,
     "mount": {
+      "rider_attacks": [
+        {"attack": "great_antler", "aim": "sweep", "input": "tap", "cone": 30},
+        {"attack": "mega_flame", "aim": "shot", "input": "tap", "cone": 8}
+      ],
       "seat": [0.0, 4.540426, 0.507345],
       "speed": 0.32,
       "step_height": 1.0

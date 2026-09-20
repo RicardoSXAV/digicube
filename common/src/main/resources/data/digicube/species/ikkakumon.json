@@ -28,6 +28,10 @@
     "height": 2.9,
     "eye_height": 2.55,
     "mount": {
+      "rider_attacks": [
+        {"attack": "heat_top", "aim": "sweep", "input": "tap", "cone": 35},
+        {"attack": "harpoon_vulcan", "aim": "shot", "input": "tap", "cone": 8}
+      ],
       "seat": [
         0.52,
         1.5,

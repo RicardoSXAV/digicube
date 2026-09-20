@@ -37,6 +37,10 @@
     "height": 2.86,
     "eye_height": 2.45,
     "mount": {
+      "rider_attacks": [
+        {"attack": "gold_rush", "aim": "sweep", "input": "tap", "cone": 35},
+        {"attack": "big_crack", "aim": "sweep", "input": "tap", "cone": 35}
+      ],
       "seat": [
         0,
         2.5,

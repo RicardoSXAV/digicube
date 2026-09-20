@@ -34,5 +34,6 @@ public class DigiCubeFabric implements ModInitializer {
         ServerTickEvents.END_LEVEL_TICK.register(WildSpawner::tick);
         // Headless combat rehearsals on a development server (DIGICUBE_SCENARIO); inert otherwise.
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.dev.CombatScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.RiderScenario::tick);
     }
 }

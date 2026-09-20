@@ -308,7 +308,12 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   the knee's width. The clip is 27 ticks (`cycle_ticks`), keys every half tick. A gait with `side_stride` / `back_stride` is
   directional: the entity splits its movement in the body's frame into shares (`DigimonGait.directions`) and
   `NativeGroundModel` mixes the lattices by them. Change strides in the script and the species sheet together.
-- Mounted combat is opt-in per species (`body.mount.combat`, Golemon only so far): the rider keeps
+- Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
+  (`sweep`/`line`/`shot`/`stream`), `input` (`tap`/`hold`), soft-target `cone`/`reach` and `move` (`RiderAttack`;
+  Golemon, Garurumon, Greymon, Ikkakumon, Digmon). A rider has no target: `startRiderAttack` shares `beginAttack`
+  with the AI, aims at the soft target or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray
+  in third person too), and commits every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing.
+  Check with `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps
   their hands and casts the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E
   inside the command wheel (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a
   ridden mob's server AI step, so `tick()` drives a rider's attack through `tickAttackTimeline`; never

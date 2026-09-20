@@ -19,6 +19,10 @@
     "height": 2.8,
     "eye_height": 2.5,
     "mount": {
+      "rider_attacks": [
+        {"attack": "freeze_fang", "aim": "sweep", "input": "tap", "cone": 35},
+        {"attack": "howling_blaster", "aim": "stream", "input": "hold", "move": true}
+      ],
       "seat": [0.0, 2.1875, -0.375],
       "speed": 0.5,
       "step_height": 1.0

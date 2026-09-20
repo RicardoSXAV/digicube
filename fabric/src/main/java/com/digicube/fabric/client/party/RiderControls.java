@@ -2,6 +2,7 @@ package com.digicube.fabric.client.party;
 
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonAttack;
+import com.digicube.digimon.RiderAttack;
 import com.digicube.entity.AttackGeometry;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.TectonicWave;
@@ -53,8 +54,10 @@ public final class RiderControls {
     private static LivingEntity softTarget;
     private static DigimonEntity aimMount;
     private static float[] aimHeights;
-    private static boolean quickWasDown, specialWasDown;
-    private static int specialHeld, lastQuickSend;
+    private static float aimYaw;
+    private static final int SLOTS = 2;
+    private static final boolean[] wasDown = new boolean[SLOTS];
+    private static final int[] held = new int[SLOTS], lastSend = new int[SLOTS];
     private static DigimonEntity lastMount;
     private static CameraType cameraBefore;
     private static boolean thirdPerson = true;
@@ -88,6 +91,8 @@ public final class RiderControls {
      * the spikes there as a phantom, turned to where the rider looks.
      */
     public static float[] aimedWave(DigimonEntity mount) { return mount == aimMount ? aimHeights : null; }
+    /** The yaw the aimed wave would run along: the rider's view, corrected for the fist it starts from. */
+    public static float aimedWaveYaw() { return aimYaw; }
 
     private static void tick(Minecraft minecraft) {
         DigimonEntity mount = RiderAttacks.mount(minecraft);
@@ -95,32 +100,47 @@ public final class RiderControls {
         aimMount = null;
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
-            quickWasDown = specialWasDown = false;
-            specialHeld = 0;
+            java.util.Arrays.fill(wasDown, false);
+            java.util.Arrays.fill(held, 0);
             return;
         }
         LocalPlayer player = minecraft.player;
         List<DigimonAttack> attacks = mount.riderAttacks();
         boolean free = handsFree(player);
-        softTarget = mount.softTarget(player, attacks.getFirst());
+        softTarget = null;
+        for (DigimonAttack attack : attacks) if (softTarget == null) softTarget = mount.softTarget(player, attack);
 
-        boolean quick = quickKey.isDown() || free && minecraft.options.keyAttack.isDown();
-        // A held button keeps punching: the press is repeated as each cooldown runs out.
-        if (quick && (!quickWasDown || mount.tickCount - lastQuickSend > DigimonEntity.RIDER_BUFFER_TICKS) && cast(mount, 0)) lastQuickSend = mount.tickCount;
-        quickWasDown = quick;
-
-        if (attacks.size() < 2) return;
-        DigimonAttack special = attacks.get(1);
-        boolean down = specialKey.isDown() || free && minecraft.options.keyUse.isDown();
-        if (special.kind() == DigimonAttack.Kind.GROUND_WAVE) {
-            if (down) {
-                if (++specialHeld >= AIM_HOLD_TICKS && mount.seenCooldown(special) <= DigimonEntity.RIDER_BUFFER_TICKS) telegraph(mount, player);
-            } else {
-                if (specialWasDown) cast(mount, 1);
-                specialHeld = 0;
+        // Slot 0 is the quick button, slot 1 the special one; what a button does comes from the attack's rider data.
+        for (int slot = 0; slot < Math.min(attacks.size(), SLOTS); slot++) {
+            DigimonAttack attack = attacks.get(slot);
+            RiderAttack spec = mount.riderSpec(attack);
+            boolean down = (slot == 0 ? quickKey : specialKey).isDown()
+                    || free && (slot == 0 ? minecraft.options.keyAttack : minecraft.options.keyUse).isDown();
+            if (spec == null) {
+                wasDown[slot] = down;
+                continue;
             }
-        } else if (down && !specialWasDown) cast(mount, 1);
-        specialWasDown = down;
+            boolean hold = spec.input() == RiderAttack.Input.HOLD;
+            if (hold && spec.aim() == RiderAttack.Aim.STREAM) {
+                // Breathes for as long as the button is held; a press while the tank refills is tried again.
+                if (down && mount.getAnimatingAttack() == null && (!wasDown[slot] || mount.tickCount - lastSend[slot] > 10) && cast(mount, slot)) lastSend[slot] = mount.tickCount;
+                if (!down && wasDown[slot] && ClientPlayNetworking.canSend(PartyActionPayload.TYPE))
+                    ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_RELEASE, PartyActionPayload.NO_MEMBER, slot));
+            } else if (hold) {
+                // Held, it shows where it will go; released, it goes.
+                if (down) {
+                    if (++held[slot] >= AIM_HOLD_TICKS && mount.seenCooldown(attack) <= DigimonEntity.RIDER_BUFFER_TICKS
+                            && attack.kind() == DigimonAttack.Kind.GROUND_WAVE) telegraph(mount, player, held[slot]);
+                } else {
+                    if (wasDown[slot]) cast(mount, slot);
+                    held[slot] = 0;
+                }
+            } else if (down && (!wasDown[slot] || mount.tickCount - lastSend[slot] > DigimonEntity.RIDER_BUFFER_TICKS) && cast(mount, slot)) {
+                // A held button keeps striking: the press is repeated as each cooldown runs out.
+                lastSend[slot] = mount.tickCount;
+            }
+            wasDown[slot] = down;
+        }
     }
 
     /** Asks the server for rider slot {@code slot} when it is ready or close enough for the server to buffer. */
@@ -135,16 +155,16 @@ public final class RiderControls {
      * would rise are drawn as a phantom of the real model by the mount's renderer; one that is blocked leaves a red
      * footprint on the ground instead.
      */
-    private static void telegraph(DigimonEntity mount, LocalPlayer player) {
+    private static void telegraph(DigimonEntity mount, LocalPlayer player, int heldTicks) {
         Vec3 feet = mount.position();
-        float yaw = player.getYRot();
+        float yaw = aimYaw = mount.riderCastYaw(player, mount.riderAttacks().stream().filter(x -> x.kind() == DigimonAttack.Kind.GROUND_WAVE).findFirst().orElseThrow());
         float[] heights = TectonicWave.ground(mount.level(), mount, feet, yaw);
         aimMount = mount;
         aimHeights = heights;
         float last = 0;
         for (int spike = 0; spike < TectonicWave.COUNT; spike++) {
             if (heights[spike] != TectonicWave.INVALID) { last = heights[spike]; continue; }
-            if (specialHeld % 2 != 0) continue;
+            if (heldTicks % 2 != 0) continue;
             AABB box = TectonicWave.local(spike, 48);
             DustParticleOptions dust = new DustParticleOptions(0xE03030, .55F);
             double[][] outline = {{box.minX, box.minZ}, {box.maxX, box.minZ}, {box.maxX, box.maxZ}, {box.minX, box.maxZ}};

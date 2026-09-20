@@ -92,9 +92,10 @@ public final class RiderAttacks {
         }
         int color = DigiTheme.withAlpha(DigiTheme.WHITE, alpha);
         g.blit(RenderPipelines.GUI_TEXTURED, ready, x, y, 0, 0, size, size, TEXTURE, TEXTURE, TEXTURE, TEXTURE, color);
-        float left = Math.max(0, mount.seenCooldown(attack) - partial);
-        if (left <= 0 || attack.cooldownTicks() <= 0) return;
-        float done = 1 - Math.min(1, left / attack.cooldownTicks());
+        // A cooldown drains as a clock; a stream's tile shows its tank the same way.
+        float left = attack.fuel() != null ? 0 : Math.max(0, mount.seenCooldown(attack) - partial);
+        float done = mount.riderReadiness(attack, partial);
+        if (done >= 1) return;
         Identifier off = attack.id().withPath(path -> "textures/gui/attack/" + path + "_off.png");
         g.pose().pushMatrix();
         g.pose().translate(x, y);

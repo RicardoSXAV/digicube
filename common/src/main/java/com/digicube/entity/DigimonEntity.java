@@ -215,6 +215,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.LONG);
     private static final EntityDataAccessor<Float> DATA_FLIGHT_FUEL =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    /** The tank of the rider's stream attack, 0..1, kept current only under a rider. */
+    private static final EntityDataAccessor<Float> DATA_RIDER_FUEL =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
     private FlightReserve flightReserve;
     private DigimonFlight flightDefinition;
     private boolean needsFlightLanding;
@@ -522,6 +525,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_FLIGHT_START, 0L);
         builder.define(DATA_FLIGHT_LOOP_START, 0L);
         builder.define(DATA_FLIGHT_FUEL, 1.0F);
+        builder.define(DATA_RIDER_FUEL, 1.0F);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -898,7 +902,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     public LivingEntity getControllingPassenger() {
         return getBody().mount().isPresent() && getFirstPassenger() instanceof Player player
-                && isOwnedBy(player) ? player : null;
+                && (isOwnedBy(player) || player == scenarioRider) ? player : null;
+    }
+
+    /** Development scenarios only: a rider who controls this mount without owning it (a party member cannot be staged headless). */
+    private Player scenarioRider;
+    public void seatScenarioRider(Player rider) {
+        if (com.digicube.platform.Services.PLATFORM.isDevelopmentEnvironment()) scenarioRider = rider;
     }
 
     @Override
@@ -996,7 +1006,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Half angle of the soft-target cone around the rider's view, and ticks a swing's pose holds on contact. */
     public static final float SOFT_TARGET_CONE = 35;
     public static final int HIT_STOP_TICKS = 3;
-    private boolean riderAttack;
+    private boolean riderAttack, riderReleased;
     private float riderLockYaw, riderStaleYaw, rideMomentum;
     private int bufferedRiderSlot = -1, bufferedRiderUntil;
     /** Client only: the running attack animation's first tick, moved forward while a hit-stop holds the pose. */
@@ -1009,12 +1019,27 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Client only: when each attack this client saw start is ready again, in this entity's ticks. */
     private final Map<Identifier, Integer> seenCooldownUntil = new HashMap<>();
 
-    /** Attacks a rider can cast, quickest first (rider slot 0, 1, ...); empty for a mount without combat. */
+    /** Attacks a rider can cast, in the sheet's slot order ({@code body.mount.rider_attacks}); empty without mounted combat. */
     public List<DigimonAttack> riderAttacks() {
-        if (!getBody().mount().map(DigimonBody.Mount::combat).orElse(false)) return List.of();
-        // Only moves that work without a target: the swing sweeps what is in front, the wave runs where the mount faces.
-        return attacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.FIST || a.kind() == DigimonAttack.Kind.GROUND_WAVE)
-                .sorted(java.util.Comparator.comparingInt(DigimonAttack::cooldownTicks)).toList();
+        var specs = getBody().mount().map(DigimonBody.Mount::riderAttacks).orElse(List.of());
+        if (specs.isEmpty()) return List.of();
+        List<DigimonAttack> own = attacks();
+        return specs.stream().map(spec -> own.stream().filter(a -> a.id().equals(spec.attack())).findFirst().orElse(null))
+                .filter(java.util.Objects::nonNull).toList();
+    }
+
+    /** How a rider aims and presses {@code attack}, or null when it is not a rider attack of this mount. */
+    public com.digicube.digimon.RiderAttack riderSpec(DigimonAttack attack) {
+        if (attack == null) return null;
+        for (var spec : getBody().mount().map(DigimonBody.Mount::riderAttacks).orElse(List.of())) if (spec.attack().equals(attack.id())) return spec;
+        return null;
+    }
+
+    /** Both sides: how full a rider attack's tile is, 0 (just used) to 1 (ready). A stream shows its tank. */
+    public float riderReadiness(DigimonAttack attack, float partial) {
+        if (attack.fuel() != null) return this.entityData.get(DATA_RIDER_FUEL);
+        if (attack.cooldownTicks() <= 0) return 1;
+        return 1 - Mth.clamp((seenCooldown(attack) - partial) / attack.cooldownTicks(), 0, 1);
     }
 
     /** Client: ticks until {@code attack} is ready again, from the attack starts this client has seen. */
@@ -1028,18 +1053,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * swing to it. Players are never soft targets, so a duel between riders stays a matter of aim.
      */
     public LivingEntity softTarget(Player rider, DigimonAttack attack) {
-        if (attack.kind() != DigimonAttack.Kind.FIST) return null;
-        double reach = attack.range() + getBbWidth() * .5;
+        var spec = riderSpec(attack);
+        if (spec == null || spec.cone() <= 0) return null;
+        double reach = (spec.reach() > 0 ? spec.reach() : attack.range()) + getBbWidth() * .5;
         Vec3 view = Vec3.directionFromRotation(0, rider.getYRot());
         LivingEntity best = null;
         double bestScore = Double.MAX_VALUE;
-        for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(reach + 1, 2, reach + 1),
+        for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(reach + 1, Math.max(2, reach * .5), reach + 1),
                 e -> e.isAlive() && e != this && e != rider && !(e instanceof Player) && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
             Vec3 to = candidate.position().subtract(position()).multiply(1, 0, 1);
             double distance = Math.max(0, to.length() - candidate.getBbWidth() * .5);
             if (distance > reach || to.lengthSqr() < 1.0E-6) continue;
             double angle = Math.toDegrees(Math.acos(Mth.clamp(to.normalize().dot(view), -1, 1)));
-            if (angle > SOFT_TARGET_CONE || !hasLineOfSight(candidate)) continue;
+            if (angle > spec.cone() || !hasLineOfSight(candidate)) continue;
             double score = angle + distance * 6;
             if (score < bestScore) { bestScore = score; best = candidate; }
         }
@@ -1064,24 +1090,67 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         bufferedRiderSlot = -1;
         int index = attacks().indexOf(attack);
-        if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS) return false;
+        if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS || riderSpec(attack) == null) return false;
+        if (attack.kind() == DigimonAttack.Kind.CONSTRICTION) return false; // a hold needs its prey; not a rider move
         LivingEntity soft = softTarget(rider, attack);
-        activeAttack = attack;
-        riderAttack = true;
-        attackTarget = soft;
-        attackTick = 0;
-        bubbleAimPoint = authoredAimPoint = null;
-        hornConnected = chargeBlocked = false;
-        attackMirrored = attack.alternateSides() && nextAttackMirrored;
-        if (attack.alternateSides()) nextAttackMirrored = !nextAttackMirrored;
-        cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+        riderReleased = false;
         // The turn itself is played out by the rider's client (it owns the mount's facing), a wind-up's worth of degrees a tick.
-        float yaw = soft == null ? rider.getYRot() : AttackGeometry.contactYaw(attack, position(), soft.getBoundingBox().getCenter());
-        this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
-        this.entityData.set(DATA_ATTACK_YAW, yaw);
-        level().playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_AMBIENT, SoundSource.NEUTRAL, 0.65F, 0.72F);
-        level().broadcastEntityEvent(this, DigimonAnimationEvents.start(index, attackMirrored));
+        this.entityData.set(DATA_ATTACK_YAW, soft == null ? riderCastYaw(rider, attack) : AttackGeometry.contactYaw(attack, position(), soft.getBoundingBox().getCenter()));
+        beginAttack(attack, index, soft, rider);
         return true;
+    }
+
+    /**
+     * Both sides: the facing a rider's cast takes without a soft target. It is the rider's view, except for the spike
+     * wave: that one starts at the fist, beside the body, so it is turned until its line crosses the view at the
+     * wave's reach, as the AI turns it through its target. The phantom preview uses the same yaw.
+     */
+    public float riderCastYaw(Player rider, DigimonAttack attack) {
+        if (attack.kind() != DigimonAttack.Kind.GROUND_WAVE) return rider.getYRot();
+        return TectonicWave.yaw(position(), position().add(Vec3.directionFromRotation(0, rider.getYRot()).scale(attack.range())), attack.motion());
+    }
+
+    /** Server only. The rider let go of a held attack: a stream stops breathing and plays its exhale. */
+    public void stopRiderAttack(Player rider) {
+        if (level().isClientSide() || getControllingPassenger() != rider) return;
+        bufferedRiderSlot = -1;
+        if (riderAttack && activeAttack != null) riderReleased = true;
+    }
+
+    /**
+     * Where a rider's shot or stream goes: the first thing under the crosshair. The third-person camera sits on the
+     * line through the rider's eye, so the eye's ray is the crosshair's ray in either view.
+     */
+    private Vec3 riderAim(Player rider, DigimonAttack attack) {
+        Vec3 eye = rider.getEyePosition(), end = eye.add(rider.getLookAngle().scale(attack.range() + 6));
+        var block = level().clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+        if (block.getType() != HitResult.Type.MISS) end = block.getLocation();
+        Vec3 best = end;
+        double nearest = eye.distanceToSqr(end);
+        for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, new AABB(eye, end).inflate(1),
+                e -> e.isAlive() && e != this && e != rider && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
+            var hit = candidate.getBoundingBox().inflate(.3).clip(eye, end);
+            if (hit.isPresent() && eye.distanceToSqr(hit.get()) < nearest) {
+                nearest = eye.distanceToSqr(hit.get());
+                best = AttackGeometry.chest(candidate.getBoundingBox());
+            }
+        }
+        return best;
+    }
+
+    /** The rider's crosshair point for the attack under way, when that attack is aimed by the view; null otherwise. */
+    private Vec3 riderAimNow() {
+        if (!riderAttack || activeAttack == null || !(getControllingPassenger() instanceof Player rider)) return null;
+        var spec = riderSpec(activeAttack);
+        boolean viewAimed = spec != null && (spec.aim() == com.digicube.digimon.RiderAttack.Aim.SHOT || spec.aim() == com.digicube.digimon.RiderAttack.Aim.STREAM
+                || activeAttack.kind() == DigimonAttack.Kind.BOX_BURST);
+        return viewAimed ? riderAim(rider, activeAttack) : null;
+    }
+
+    /** Whether the mount keeps walking under this rider attack instead of standing through it. */
+    private boolean riderMoves(DigimonAttack attack) {
+        var spec = riderSpec(attack);
+        return spec != null && spec.move();
     }
 
     /**
@@ -1090,17 +1159,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     private boolean riderAttackLocked() {
         // Offline fixtures have no level and skip field initialisers.
-        if (level() == null || !level().isClientSide()) return activeAttack != null;
+        if (level() == null || !level().isClientSide()) return activeAttack != null && !riderMoves(activeAttack);
         if (attackAnimationState == null || !attackAnimationState.isStarted() || tickCount >= attackAnimationEndTick) return false;
         DigimonAttack attack = getAnimatingAttack();
+        if (attack != null && riderMoves(attack)) return false;
         return attack == null || attack.kind() != DigimonAttack.Kind.FIST || attack.motion() == null
                 || tickCount - attackAnimationStartTick <= attack.motion().activeUntil() + 3;
     }
 
-    /** Client: the swing's authored root travel, applied where the position is owned. Stops at walls and ledges. */
+    /** Client: the authored root travel of a swing, a ram or a bite, applied where the position is owned. Stops at walls and ledges. */
     private void riderLunge() {
         DigimonAttack attack = getAnimatingAttack();
-        if (attack == null || attack.kind() != DigimonAttack.Kind.FIST || attack.motion() == null || !onGround() || hitStopTicks > 0) return;
+        if (attack == null || attack.motion() == null || !onGround() || hitStopTicks > 0 || attack.kind() != DigimonAttack.Kind.FIST
+                && attack.kind() != DigimonAttack.Kind.HORN_RAM && attack.kind() != DigimonAttack.Kind.FROST_BITE) return;
         int tick = tickCount - attackAnimationStartTick;
         double travel = attack.motion().sample(tick + 1).travel() - attack.motion().sample(tick).travel();
         if (travel <= 0 || swingConnected) return;
@@ -1731,11 +1802,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             entityData.set(DATA_WRAP_YAW,constriction.yaw());
             resetConstrictionApproach();
         }
+        beginAttack(attack, index, target, null);
+    }
+
+    /**
+     * Server only. The timeline's first tick, for the AI ({@code rider} null, {@code target} set) and for a rider
+     * ({@code target} is the soft target or null, and the attack goes where the rider looks).
+     */
+    private void beginAttack(DigimonAttack attack, int index, LivingEntity target, Player rider) {
         if (com.digicube.digimon.AuthoredAttacks.handles(attack)) authoredVolumes.reset();
         activeAttack = attack;
-        riderAttack = false;
+        riderAttack = rider != null;
         if (com.digicube.digimon.KineticAttacks.handles(attack)) {
-            kinetic = new KineticSession(this, target, attack);
+            kinetic = new KineticSession(this, target, attack, rider == null ? null : () -> riderAim(rider, attack));
             BlockPos origin = BlockPos.containing(kinetic.start());
             entityData.set(DATA_KINETIC_ORIGIN, origin);
             entityData.set(DATA_KINETIC_FRACTION, new org.joml.Vector3f((float) (kinetic.start().x - origin.getX()),
@@ -1755,7 +1834,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (attack.fuel() != null) { fuelFor(attack).begin(); closeInTargetId = -1; }
         else cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
-        lookAt(target, 60.0F, 60.0F);
+        if (rider == null) lookAt(target, 60.0F, 60.0F);
         if (kinetic != null) {
             kinetic.tick((ServerLevel) level(), 0);
             this.entityData.set(DATA_ATTACK_AIM_PITCH, kinetic.pitch());
@@ -1806,8 +1885,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             cancelAttack();
             return;
         }
+        // The AI breathes at a target; a rider breathes where they look, for as long as they hold the button.
         if (activeAttack.fuel() != null && attackTick <= activeAttack.motion().activeUntil()
-                && (attackTarget == null || !attackTarget.isAlive() || !canAttack(attackTarget)
+                && (riderAttack ? riderReleased && attackTick >= activeAttack.motion().activeFrom() || getControllingPassenger() == null
+                : attackTarget == null || !attackTarget.isAlive() || !canAttack(attackTarget)
                 || isAllyOf(attackTarget) || !inRange(activeAttack, attackTarget))) {
             finishStream();
         }
@@ -1816,11 +1897,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             if (!kinetic.tick(level, next)) { cancelAttack(); return; }
             attackTick = next;
             this.entityData.set(DATA_ATTACK_AIM_PITCH, kinetic.pitch());
+            if (riderAttack) this.entityData.set(DATA_ATTACK_YAW, kinetic.aimYaw());
             this.entityData.set(DATA_SUSTAINED_TICK, next);
             this.entityData.set(DATA_SUSTAINED_ATTACK, kinetic.animation());
             if (next == activeAttack.hitTick() && activeAttack.kind() == DigimonAttack.Kind.KINETIC_SHOT) kinetic.fire(level);
             if (next >= kinetic.duration()) {
-                kinetic = null; activeAttack = null; attackTarget = null;
+                kinetic = null; activeAttack = null; attackTarget = null; riderAttack = false;
                 this.entityData.set(DATA_SUSTAINED_ATTACK, "");
             }
             return;
@@ -2004,13 +2086,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Face the aim during anticipation, then commit to that direction through the strike. */
     private void aimAuthoredAttack() {
         boolean streaming = activeAttack.fuel() != null;
-        boolean committed = activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE || activeAttack.kind() == DigimonAttack.Kind.FIST || com.digicube.digimon.AuthoredAttacks.handles(activeAttack);
+        // A rider's client owns the facing, so every rider attack commits its yaw through the synced value.
+        boolean committed = riderAttack || activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE || activeAttack.kind() == DigimonAttack.Kind.FIST || com.digicube.digimon.AuthoredAttacks.handles(activeAttack);
         int aimUntil = activeAttack.hitTick() - (activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE ? 4 : committed ? 2 : 0);
+        LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
+        // Without a soft target a rider's shot, stream or burst goes to the point under the crosshair.
+        Vec3 viewPoint = aimed == null ? riderAimNow() : null;
         if ((attackTick <= aimUntil || streaming && attackTick <= activeAttack.motion().activeUntil())
-                && attackTarget != null && attackTarget.isAlive()) {
+                && (aimed != null || viewPoint != null)) {
             AttackMotion.Frame release = activeAttack.motion().sample(streaming ? attackTick : activeAttack.hitTick());
             Vec3 origin = authoredPoint(release.mouth());
-            authoredAimPoint = activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT
+            authoredAimPoint = viewPoint != null ? viewPoint : activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT
                     ? PepperBreathEntity.predictImpactPoint(attackTarget, origin, MegaFlameEntity.SPEED, MegaFlameEntity.MAX_AIM_LEAD)
                     : activeAttack.kind() == DigimonAttack.Kind.WATER_WAVE
                     ? MarchingFishesEntity.aimPoint(attackTarget, origin)
@@ -2018,7 +2104,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     ? TectonicWave.aimPoint(position(), attackTarget, activeAttack.hitTick()-attackTick)
                     : nearestVolume(attackTarget).getCenter();
             var authoredDefinition=com.digicube.digimon.AuthoredAttacks.get(activeAttack);
-            if(authoredDefinition!=null && !authoredDefinition.hitWindows().isEmpty()) {
+            if(aimed!=null && authoredDefinition!=null && !authoredDefinition.hitWindows().isEmpty()) {
                 double contact=authoredDefinition.hitWindows().getLast()[0];
                 Vec3 lead=attackTarget.getDeltaMovement().multiply(1,0,1).scale(Math.max(0,contact-attackTick));
                 if(lead.length()>.6)lead=lead.normalize().scale(.6);
@@ -2039,10 +2125,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 float previous = this.entityData.get(DATA_ATTACK_AIM_PITCH);
                 // Solve anticipation against the emission pose, before aimWeight has fully blended in.
                 double aimTick = Math.max(attackTick, activeAttack.hitTick());
-                var aim = AttackGeometry.streamAim(activeAttack, aimTick, position(), attackTarget.getBoundingBox(),
-                        getYRot(), this::clipAttackLine);
-                if (aim != null) authoredAimPoint = aim.target();
-                else authoredAimPoint = AttackGeometry.chest(attackTarget.getBoundingBox());
+                if (aimed != null) {
+                    var aim = AttackGeometry.streamAim(activeAttack, aimTick, position(), attackTarget.getBoundingBox(),
+                            getYRot(), this::clipAttackLine);
+                    if (aim != null) authoredAimPoint = aim.target();
+                    else authoredAimPoint = AttackGeometry.chest(attackTarget.getBoundingBox());
+                }
                 float desired = FlameStream.aimPitch(activeAttack.motion().sample(aimTick), position(), authoredAimPoint, getYRot(), previous);
                 this.entityData.set(DATA_ATTACK_AIM_PITCH, Mth.approach(previous, desired, 6));
             } else if (activeAttack.kind() == DigimonAttack.Kind.BOX_BURST) {
@@ -2424,7 +2512,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (!level().isClientSide() && aerialMount()!=null) entityData.set(DATA_FLIGHT_FUEL,flightReserve().fraction());
         super.tick();
         if(evolutionLocked())setDeltaMovement(Vec3.ZERO);
-        if (riderAttack && level() instanceof ServerLevel serverLevel && !isEffectiveAi() && !evolutionLocked()) tickAttackTimeline(serverLevel);
+        if (level() instanceof ServerLevel serverLevel && !isEffectiveAi() && !evolutionLocked()) {
+            // Vanilla skips a ridden mob's AI step, and with it the tanks' recharge and the timeline.
+            attackFuel.values().forEach(FuelReserve::tickRecharge);
+            if (riderAttack) tickAttackTimeline(serverLevel);
+            for (DigimonAttack attack : riderAttacks()) if (attack.fuel() != null) {
+                var tank = fuelFor(attack);
+                this.entityData.set(DATA_RIDER_FUEL, tank.isRecharging() ? 0F : Mth.clamp(tank.availableTicks() / (float) attack.fuel().capacityTicks(), 0, 1));
+            }
+        }
         if (bufferedRiderSlot >= 0 && !level().isClientSide()) {
             if (tickCount > bufferedRiderUntil || !(getControllingPassenger() instanceof Player rider)) bufferedRiderSlot = -1;
             else startRiderAttack(rider, bufferedRiderSlot);

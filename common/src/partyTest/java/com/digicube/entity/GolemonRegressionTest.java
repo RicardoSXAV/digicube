@@ -30,7 +30,7 @@ public final class GolemonRegressionTest {
                 "the charge is a fight-only burst; the travel gait stays a walk");
         check(wave.power()>punch.power()*2 && wave.knockback()>1,"champion attack strength");
         check(golem.body().mount().map(com.digicube.digimon.DigimonBody.Mount::combat).orElse(false),"Golemon fights under its rider");
-        check(DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon")).body().mount().map(m->!m.combat()).orElse(false),"mounted combat is opt-in per species");
+        check(DigimonSpeciesRegistry.getOrThrow(Constants.id("kabuterimon")).body().mount().map(m->!m.combat()).orElse(false),"mounted combat is opt-in per species: a sheet without rider attacks has none");
         for(float yaw:new float[]{0,90,180,270}) {
             Vec3 center=new Vec3(0,0,1.8).yRot((float)-Math.toRadians(yaw));
             AABB target=new AABB(center.x-.45,0,center.z-.45,center.x+.45,1.8,center.z+.45);
