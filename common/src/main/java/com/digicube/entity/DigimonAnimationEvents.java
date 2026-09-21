@@ -13,6 +13,8 @@ public final class DigimonAnimationEvents {
     public static final byte CANCEL = START + 2 * MAX_ATTACKS;
     /** Mounted combat feedback for the rider's client: a swing connected; a ground slam landed. */
     public static final byte IMPACT = CANCEL + 1, SLAM = CANCEL + 2;
+    /** An authored volume landed: effect cells that only a hit shows may now be drawn. */
+    public static final byte CONTACT = CANCEL + 3;
 
     private DigimonAnimationEvents() {}
 

@@ -89,7 +89,16 @@ public final class BundledSpeciesLoader {
             Identifier moveId = identifier(GsonHelper.convertToString(entry, "attack id"));
             DigimonAttack move = attacks.get(moveId);
             if (move == null) throw new IllegalArgumentException(id + ": unknown attack " + moveId);
-            if (moves.contains(move)) throw new IllegalArgumentException(id + ": duplicate attack " + moveId);
+            if (moves.stream().anyMatch(previous -> previous.id().equals(moveId)))
+                throw new IllegalArgumentException(id + ": duplicate attack " + moveId);
+            // Shared mechanics may have a different authored muzzle on each species.
+            if (json.has("attack_motion") && json.getAsJsonObject("attack_motion").has(moveId.getPath())) {
+                var motion = AttackMotion.load(identifier(json.getAsJsonObject("attack_motion").get(moveId.getPath()).getAsString()));
+                if (motion.frames().size() != move.durationTicks() * motion.samplesPerTick() + 1)
+                    throw new IllegalArgumentException(id + ": mismatched species attack clock " + moveId);
+                move = new DigimonAttack(move.id(), move.kind(), move.power(), move.cooldownTicks(), move.durationTicks(),
+                        move.hitTick(), move.range(), move.alternateSides(), motion, move.fuel(), move.knockback());
+            }
             moves.add(move);
         }
         var evolutions = new ArrayList<Evolution>();

@@ -146,3 +146,25 @@ tasks.register('devPanelTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('devPanelTest') }
+
+tasks.register('nativeMochimonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeMochimonRegressionTest'
+    if (project.hasProperty('mochimonEvidence')) args project.property('mochimonEvidence')
+    workingDir = layout.buildDirectory.dir('native-mochimon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeMochimonTest') }
+
+tasks.register('nativeGotsumonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeGotsumonRegressionTest'
+    if (project.hasProperty('gotsumonEvidence')) args project.property('gotsumonEvidence')
+    workingDir = layout.buildDirectory.dir('native-gotsumon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeGotsumonTest') }

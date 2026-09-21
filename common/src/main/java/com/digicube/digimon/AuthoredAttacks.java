@@ -14,8 +14,14 @@ import java.util.*;
 public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
                              List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows,
-                             List<AttackBox[]> waterFrames, AttackMotion waterMotion) {
+                             List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
+                             com.digicube.entity.StrikeParticles particles) {
         public boolean hasWaterVariant() { return waterMotion != null; }
+        /**
+         * A summoned strike: effect and volumes are authored around a landing point instead of the caster's feet.
+         * The point follows the target until {@link #anchorLockTick} and then stays, which is the victim's chance to move.
+         */
+        public boolean anchored() { return anchorLockTick >= 0; }
         public AttackMotion motion(boolean water) { return water && waterMotion != null ? waterMotion : attack.motion(); }
         public int beat(double tick) {
             for(int i=0;i<hitWindows.size();i++)if(tick>=hitWindows.get(i)[0] && tick<=hitWindows.get(i)[1])return i;
@@ -25,7 +31,11 @@ public final class AuthoredAttacks {
             return sample(tick, false);
         }
         public AttackBox[] sample(double tick, boolean water) {
-            var frames = water && !waterFrames.isEmpty() ? waterFrames : this.frames;
+            return sample(tick, water, false);
+        }
+        public AttackBox[] sample(double tick, boolean water, boolean mirrored) {
+            var frames = mirrored && !mirroredFrames.isEmpty() ? mirroredFrames
+                    : water && !waterFrames.isEmpty() ? waterFrames : this.frames;
             double t=Math.clamp(tick*samplesPerTick,0,frames.size()-1);
             int i=(int)t; double w=t-i;
             AttackBox[] a=frames.get(i), b=frames.get(Math.min(i+1,frames.size()-1)), result=new AttackBox[a.length];
@@ -62,7 +72,7 @@ public final class AuthoredAttacks {
             String name=entry.getKey();var c=entry.getValue().getAsJsonObject();var id=Constants.id(name);
             var attack=new DigimonAttack(id,DigimonAttack.Kind.valueOf(c.get("kind").getAsString()),c.get("power").getAsFloat(),
                     c.get("cooldown").getAsInt(),c.get("duration").getAsInt(),c.get("hit_tick").getAsInt(),
-                    c.get("range").getAsDouble(),false,AttackMotion.load(id),null,c.get("knockback").getAsDouble());
+                    c.get("range").getAsDouble(),GsonHelper.getAsBoolean(c,"alternate",false),AttackMotion.load(id),null,c.get("knockback").getAsDouble());
             var v=volumes.getAsJsonObject("attacks").getAsJsonObject(name);
             int rate=GsonHelper.getAsInt(v,"samples_per_tick",defaultRate);
             List<String> parts=new ArrayList<>();v.getAsJsonArray("parts").forEach(p->parts.add(p.getAsString()));
@@ -75,6 +85,9 @@ public final class AuthoredAttacks {
             if(visuals.isEmpty()) for(String part:parts)visuals.add(List.of(part));
             if(visuals.size()!=parts.size())throw new IllegalArgumentException("Visual volume width "+id);
             List<AttackBox[]> frames=readFrames(v.getAsJsonArray("frames"),parts.size(),id);
+            List<AttackBox[]> mirroredFrames=v.has("mirrored_frames")?readFrames(v.getAsJsonArray("mirrored_frames"),parts.size(),id):List.of();
+            if (attack.alternateSides() && mirroredFrames.size()!=frames.size())
+                throw new IllegalArgumentException("Missing mirrored contact performance "+id);
             List<AttackBox[]> waterFrames=v.has("water_frames")?readFrames(v.getAsJsonArray("water_frames"),parts.size(),id):List.of();
             AttackMotion waterMotion=c.has("water_motion")?AttackMotion.load(Constants.id(c.get("water_motion").getAsString())):null;
             if((waterMotion==null)!=waterFrames.isEmpty() || waterMotion!=null && (waterFrames.size()!=frames.size()
@@ -88,9 +101,19 @@ public final class AuthoredAttacks {
                 windows.add(new double[]{from,until});
             }
             if(rate<1 || frames.size()!=attack.durationTicks()*rate+1 || interval<1 || max<1)throw new IllegalArgumentException("Volume clock "+id);
+            int anchorLock=GsonHelper.getAsInt(c,"anchor_lock_tick",-1);
+            // Where a summoned strike comes from, relative to its landing point: the first place its leading volume hangs.
+            Vec3 approach=Vec3.ZERO;
+            for(var row:frames)if(row[0]!=null){approach=row[0].center();break;}
+            // Effect cells a miss never shows: the hit burst of a fist, as opposed to its smear.
+            var contactParts=new ArrayList<String>();
+            if(c.has("contact_parts"))c.getAsJsonArray("contact_parts").forEach(p->contactParts.add(p.getAsString()));
+            if(anchorLock>=0 && (attack.kind()!=DigimonAttack.Kind.BOX_BURST || windows.isEmpty() || anchorLock>windows.getFirst()[0] || waterMotion!=null))
+                throw new IllegalArgumentException("A landing point locks before the first hit window of a burst "+id);
             result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),
                     GsonHelper.getAsBoolean(c,"grounded",false),interval,max,
-                    List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion));
+                    List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion,List.copyOf(mirroredFrames),anchorLock,approach,List.copyOf(contactParts),
+                    com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null))));
         }
         return Collections.unmodifiableMap(result);
     }

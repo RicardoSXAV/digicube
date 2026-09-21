@@ -17,15 +17,24 @@ import java.util.Map;
 
 /** Native idle and solved ground-walk assets, registered through the client catalog. */
 public final class NativeGroundModel extends EntityModel<DigimonRenderState> implements AnimatedRiderModel {
-    public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point) {}
+    /** Where the rider is attached, and how its legs are posed there ({@code pose} in the catalog; straight legs without one). */
+    public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose) {}
     public record Definition(Identifier species, double cullingMargin, boolean amphibious, boolean walkBlend, java.util.List<String> aimPath,
-                             float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider) {
+                             float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
+                             java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
         public Identifier texture() { return species.withPath("textures/entity/digimon/" + species.getPath() + ".png"); }
+        public Identifier texture(String clip, float tick) {
+            for (var window : expressions) if (window.clip().equals(clip) && tick >= window.from() && tick < window.until())
+                return window.texture();
+            return texture();
+        }
         public LayerDefinition createLayer() { return NativeModelGeometry.createLayer(geometry()); }
     }
+
+    public record TextureWindow(String clip, float from, float until, Identifier texture) {}
 
     private static final Map<Identifier, Definition> DEFINITIONS = readDefinitions();
     private final NativeAnimationSet animations;
@@ -96,11 +105,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             return;
         }
         applyGround(state,1);
-        if (definition.rider()!=null) {
+        if (definition.pitchPath()!=null) {
+            // The part that carries a swimmer's dive and climb: the rider's by default, the neck base of a serpent.
             ModelPart back=rootPart;
-            for(String name:definition.rider().path())back=back.getChild(name);
+            for(String name:definition.pitchPath())back=back.getChild(name);
             float water=Math.clamp(state.swimAnimationAmount,0,1);
-            float limit=state.isBeingRidden?8:65;
+            float limit=state.isBeingRidden?definition.riddenPitch():65;
             back.xRot+=Math.clamp(state.xRot,-limit,limit)*((float)Math.PI/180)*water;
             back.zRot+=state.swimBank*(state.isBeingRidden?.25F:1)*((float)Math.PI/180)*water;
         }
@@ -117,7 +127,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         var p=stack.last().pose().transformPosition((float)v.x,(float)-v.z,(float)v.y,new org.joml.Vector3f());
         return new net.minecraft.world.phys.Vec3(p.x,1.5-p.y,-p.z).scale(state.modelScale).subtract(state.mountAnchor);
     }
-    @Override public RiderPose riderPose(){return new RiderPose(0,0,0);}
+    @Override public RiderPose riderPose(){return definition.rider()==null?new RiderPose(0,0,0):definition.rider().pose();}
     @Override public double cullingMargin(){return definition.cullingMargin();}
 
     private void supportFloor(DigimonRenderState state) {
@@ -180,11 +190,27 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 if(config.has("rider")) {
                     var r=config.getAsJsonObject("rider");var path=new java.util.ArrayList<String>();
                     r.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));var p=r.getAsJsonArray("point");
-                    rider=new Rider(java.util.List.copyOf(path),new net.minecraft.world.phys.Vec3(p.get(0).getAsDouble(),p.get(1).getAsDouble(),p.get(2).getAsDouble()));
+                    var legs=r.has("pose")?r.getAsJsonArray("pose"):null;
+                    rider=new Rider(java.util.List.copyOf(path),new net.minecraft.world.phys.Vec3(p.get(0).getAsDouble(),p.get(1).getAsDouble(),p.get(2).getAsDouble()),
+                            legs==null?new RiderPose(0,0,0):new RiderPose(legs.get(0).getAsFloat(),legs.get(1).getAsFloat(),legs.get(2).getAsFloat()));
+                }
+                java.util.List<String> pitch=rider==null?null:rider.path();
+                if(config.has("pitch_path")) {
+                    var names=new java.util.ArrayList<String>();config.getAsJsonArray("pitch_path").forEach(n->names.add(n.getAsString()));pitch=java.util.List.copyOf(names);
+                }
+                var expressions = new java.util.ArrayList<TextureWindow>();
+                if (config.has("expressions")) for (var item : config.getAsJsonArray("expressions")) {
+                    var e = item.getAsJsonObject();
+                    float from = e.get("from").getAsFloat(), until = e.get("until").getAsFloat();
+                    if (!Float.isFinite(from) || !Float.isFinite(until) || from < 0 || until <= from)
+                        throw new IllegalArgumentException("Invalid expression window " + species);
+                    expressions.add(new TextureWindow(e.get("clip").getAsString(), from, until,
+                            Constants.id("textures/entity/digimon/" + e.get("texture").getAsString() + ".png")));
                 }
                 definitions.put(species, new Definition(species, margin,GsonHelper.getAsBoolean(config,"amphibious",false),
                         GsonHelper.getAsBoolean(config,"walk_blend",true),java.util.List.copyOf(aim),
-                        GsonHelper.getAsFloat(config,"attack_blend_in",0),GsonHelper.getAsFloat(config,"attack_blend_out",0),GsonHelper.getAsBoolean(config,"gallop",false),GsonHelper.getAsBoolean(config,"support_floor",false),rider));
+                        GsonHelper.getAsFloat(config,"attack_blend_in",0),GsonHelper.getAsFloat(config,"attack_blend_out",0),GsonHelper.getAsBoolean(config,"gallop",false),GsonHelper.getAsBoolean(config,"support_floor",false),rider,
+                        pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

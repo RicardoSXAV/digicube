@@ -205,15 +205,21 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         if(authored!=null && authored.effect()!=null) {
             var fx=state.authoredEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=entity.getAttackYaw(partialTick);fx.scale=state.modelScale;
-            fx.clip=state.attackInWater && authored.hasWaterVariant()?"effect_water":"effect";
+            fx.clip=state.attackInWater && authored.hasWaterVariant()?"effect_water"
+                    :state.attackAnimationName!=null && state.attackAnimationName.endsWith("_mirrored") && authoredEffects.get(authored.effect()).has("effect_mirrored")?"effect_mirrored":"effect";
+            // A summoned strike is drawn where it lands, not where its caster stands.
+            var anchor=authored.anchored()?entity.strikeAnchor():null;
+            var feet=anchor!=null?anchor:entity.position();
+            fx.offset=anchor!=null?anchor.subtract(entity.getPosition(partialTick)):net.minecraft.world.phys.Vec3.ZERO;
             var frame=authored.motion(state.attackInWater).sample(fx.tick);
             fx.aimPivot=frame.head();fx.aimPitch=state.attackAimPitch*frame.aimWeight();
             fx.lightCoords=authored.emissive()?net.minecraft.util.LightCoordsUtil.FULL_BRIGHT:state.lightCoords;
             var hidden=new java.util.HashSet<String>();var boxes=authored.sample(fx.tick,state.attackInWater);
+            if(!entity.attackConnected())hidden.addAll(authored.contactParts());
             for(int i=0;i<boxes.length;i++) if(boxes[i]!=null) {
                 var world=com.digicube.entity.AuthoredVolumeAttack.aimed(boxes[i],state.attackDefinition,fx.tick,state.attackAimPitch)
-                        .world(entity.position(),fx.yaw,0);
-                if(!com.digicube.entity.AuthoredVolumeAttack.visible(entity.level(),entity,state.attackDefinition,fx.tick,entity.position(),fx.yaw,world)
+                        .world(feet,fx.yaw,0);
+                if(!com.digicube.entity.AuthoredVolumeAttack.visible(entity.level(),entity,state.attackDefinition,fx.tick,feet,fx.yaw,world)
                         || authored.grounded() && !com.digicube.entity.AuthoredVolumeAttack.supported(entity.level(),entity,world)) hidden.addAll(authored.visualParts().get(i));
             }
             fx.hidden=java.util.Set.copyOf(hidden);
@@ -279,7 +285,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     public Identifier getTextureLocation(DigimonRenderState state) {
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel) {
-            return nativeModel.definition().texture();
+            return nativeModel.definition().texture(state.attackAnimation.isStarted() ? state.attackAnimationName : null,
+                    state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F);
         }
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeFlyingMountModel) {
             return state.species.withPath("textures/entity/digimon/"+state.species.getPath()+".png");

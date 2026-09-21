@@ -10,5 +10,7 @@ public final class NativeEffectState extends EntityRenderState {
     public float pitch;
     public String projectile;
     public String clip="effect";
+    /** Where the effect stands relative to the entity drawing it; a summoned strike is drawn at its landing point. */
+    public net.minecraft.world.phys.Vec3 offset=net.minecraft.world.phys.Vec3.ZERO;
     public boolean emissive=true;
 }

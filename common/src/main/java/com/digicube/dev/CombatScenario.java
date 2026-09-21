@@ -27,6 +27,7 @@ import java.util.Locale;
  * {@code wall} requires zero damage through solid cover.
  *
  * <p>{@code DIGICUBE_SCENARIO_ATTACK=<attack>} isolates one caster move.
+ * {@code DIGICUBE_SCENARIO_DISTANCE=<blocks>} starts closer to exercise mixed melee/ranged selection.
  * {@code +escape} checks a wounded flyer's complete escape and grounded recovery.
  * {@code DIGICUBE_BENCHMARK=true} measures 600 combat ticks instead of stopping after three hits;
  * {@code DIGICUBE_NEUTRAL=true} removes attribute advantage in that test process only.
@@ -62,6 +63,7 @@ public final class CombatScenario {
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
+        if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
         if (NAME.startsWith("balance:")) { BalanceScenario.tick(level, NAME.substring(8)); return; }
         try {
@@ -110,8 +112,11 @@ public final class CombatScenario {
         // A wrap caster is judged on its opening (Cold or a freeze), capture and release; anyone else on landing hits.
         wrapCaster = casterSpecies.attacks().stream().anyMatch(a -> a.kind() == com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION);
         double y = terrain.equals("water") ? FLOOR_Y - 3 : FLOOR_Y;
+        double distance = Double.parseDouble(System.getenv().getOrDefault("DIGICUBE_SCENARIO_DISTANCE", "8"));
+        if (!Double.isFinite(distance) || distance < .5 || distance > 20)
+            throw new IllegalArgumentException("Scenario distance must be between .5 and 20 blocks");
         caster = DigimonEntity.spawnWild(level, casterSpecies, 20, new Vec3(.5, terrain.equals("down") ? y+1:y, -3.5));
-        prey = DigimonEntity.spawnWild(level, preySpecies, 20, new Vec3(.5, terrain.equals("ledge") ? y + 1 : y, 4.5));
+        prey = DigimonEntity.spawnWild(level, preySpecies, 20, new Vec3(.5, terrain.equals("ledge") ? y + 1 : y, -3.5 + distance));
         if (caster == null || prey == null) { finish(level, "FAIL could not spawn"); return; }
         if (wrapCaster && caster.constrictionMotion().fit(prey.getBoundingBox(), caster.getBody().modelScale()) == null) {
             oversizedWrapPrey = true;

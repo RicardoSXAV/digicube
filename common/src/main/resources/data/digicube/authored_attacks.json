@@ -123,5 +123,69 @@
         17
       ]
     ]
+  },
+  "mochi_punch": {
+    "kind": "BOX_SWEEP",
+    "power": 1.0,
+    "cooldown": 20,
+    "duration": 14,
+    "hit_tick": 6,
+    "range": 1.5,
+    "knockback": 0,
+    "hit_interval": 14,
+    "max_hits": 1,
+    "alternate": true,
+    "hit_windows": [
+      [
+        5,
+        7
+      ]
+    ]
+  },
+  "hardest_punch": {
+    "kind": "BOX_SWEEP",
+    "power": 1.3,
+    "cooldown": 40,
+    "duration": 22,
+    "hit_tick": 10,
+    "range": 1.5,
+    "knockback": 0.2,
+    "hit_interval": 22,
+    "max_hits": 1,
+    "alternate": true,
+    "effect": "hardest_punch_fx",
+    "emissive": false,
+    "hit_windows": [
+      [
+        8,
+        13
+      ]
+    ],
+    "particles": "stone",
+    "contact_parts": [
+      "fx_punch_hit_left",
+      "fx_punch_hit_right"
+    ]
+  },
+  "comet_hammer": {
+    "kind": "BOX_BURST",
+    "power": 2.4,
+    "cooldown": 200,
+    "duration": 48,
+    "hit_tick": 30,
+    "range": 8,
+    "knockback": 0.35,
+    "hit_interval": 48,
+    "max_hits": 1,
+    "effect": "comet_hammer_fx",
+    "emissive": false,
+    "hit_windows": [
+      [
+        24,
+        32
+      ]
+    ],
+    "anchor_lock_tick": 15,
+    "particles": "stone"
   }
 }

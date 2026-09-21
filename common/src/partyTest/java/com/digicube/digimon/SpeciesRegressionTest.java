@@ -19,7 +19,7 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 17, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 19, "all bundled species loaded");
             var betamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("betamon"));
             check(betamon.stage() == DigimonStage.CHILD && betamon.attribute() == DigimonAttribute.VIRUS
                     && betamon.locomotion().canSwim(), "Betamon is an amphibious virus rookie");
@@ -115,6 +115,7 @@ public final class SpeciesRegressionTest {
             FuelRegressionTest.run();
             com.digicube.entity.FlameStreamRegressionTest.run();
             com.digicube.entity.AttackGeometryRegressionTest.run();
+            com.digicube.entity.AttackTravelSyncRegressionTest.run();
             check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
                     && gabumon.body().dimensions().height() == 1.45F && gabumon.body().mount().isEmpty(),
                     "Gabumon uses its own non-rideable dimensions");
@@ -133,6 +134,20 @@ public final class SpeciesRegressionTest {
             check(bubble.kind() == DigimonAttack.Kind.BUBBLES && bubble.cooldownTicks() == 40
                     && bubble.durationTicks() == 24 && bubble.hitTick() == 10 && bubble.range() == 8,
                     "bubble delivery and timing retained");
+            var mochimon = DigimonSpeciesRegistry.getOrThrow(Constants.id("mochimon"));
+            check(mochimon.baseSpeed() == koromon.baseSpeed() && mochimon.baseSpeed() == tsunomon.baseSpeed()
+                    && mochimon.locomotion().walkSpeed() == koromon.locomotion().walkSpeed()
+                    && mochimon.locomotion().runSpeed() == tsunomon.locomotion().runSpeed(),
+                    "Motimon travels at the same pace as Koromon and Tsunomon");
+            var punch = mochimon.attacks().getFirst();
+            var inflatedBubbles = mochimon.attacks().get(1);
+            check(punch.alternateSides() && punch.kind() == DigimonAttack.Kind.BOX_SWEEP
+                    && AuthoredAttacks.get(punch).maxHits() == 1 && CrackMark.charges(punch) == 0,
+                    "Mochi Punch alternates physical contact without Crack or repeated damage");
+            check(inflatedBubbles.id().equals(bubble.id()) && inflatedBubbles.kind() == bubble.kind()
+                    && inflatedBubbles.power() == bubble.power() && inflatedBubbles.cooldownTicks() == bubble.cooldownTicks()
+                    && inflatedBubbles.hitTick() == bubble.hitTick() && inflatedBubbles.motion() != null && bubble.motion() == null,
+                    "Motimon changes the shared volley muzzle without changing the other babies");
             check(tsunomon.body().equals(koromon.body()) && tsunomon.baseSpeed() == koromon.baseSpeed(),
                     "shared model scale and follow speed");
             check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
@@ -166,6 +181,13 @@ public final class SpeciesRegressionTest {
                      "base_defence":2,"base_speed":0.25,"attacks":["bubble_blow"],"evolutions":[]}
                     """);
             var moves = Map.of(bubble.id(), bubble);
+            data.add("attack_motion", GsonHelper.parse("{\"bubble_blow\":\"mochimon_bubbles\"}"));
+            data.getAsJsonArray("attacks").add("bubble_blow");
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "duplicate overridden moves rejected");
+            data.getAsJsonArray("attacks").remove(1);
+            data.add("attack_motion", GsonHelper.parse("{\"bubble_blow\":\"mochi_punch\"}"));
+            rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "mismatched muzzle clock rejected");
+            data.remove("attack_motion");
             data.addProperty("stage", "typo");
             rejects(() -> BundledSpeciesLoader.parse(Constants.id("test"), data, moves), "unknown stages rejected");
             data.addProperty("stage", "baby_ii");

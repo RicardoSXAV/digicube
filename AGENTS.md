@@ -374,6 +374,20 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `../harness/v2/tools/coplanar_poses.py <mesh> <animation>`, repair an export with
   `fix_coplanar.py` next to it (rule and Blender-side check: `../harness/v2/docs/surfaces.md`);
   `install_assets.py` refuses such a mesh too.
+- An authored burst can be **summoned at the target** instead of drawn from its caster: `anchor_lock_tick` in
+  `authored_attacks.json` (Gotsumon's Comet Hammer). Its effect and volumes are exported relative to the landing
+  point. `DigimonEntity.strikeAnchor()` (synced block + fraction) follows the floor under the target, led by its
+  pace up to 1.5 blocks, until the lock tick and then stays: walking out from under the warning is the dodge.
+  `AuthoredVolumeAttack` holds the rules (`landing`: floor within 3 blocks below the target, a swimmer is struck
+  where it floats; `canReach`: sight of the target and the last three blocks of the way in open, along
+  `anchorApproach`, the place the leading volume first hangs; `visible`: nothing falls through a roof; damage needs a clear line from the stone to the victim) and the renderer offsets the effect by the
+  same point, so keep `culling_margin` at the attack's range. `contact_parts` lists effect cells a miss never shows
+  (`DigimonAnimationEvents.CONTACT`), and a mirrored cast plays the effect's `effect_mirrored` clip when it has one.
+  Victims are thrown away from the landing point with a small pop upward. `"particles"` (`StrikeParticles`, `stone`)
+  adds server-sent trail, release, contact and landing particles and sounds to any authored volume; the first volume
+  of the move is the one that trails. A style also voices the start of its move in place of the shared growl
+  (`windUp`), so a small friendly Digimon does not sound like Golemon. A fist may carry margins around the drawn hand (Gotsumon: 0.35 ahead over its
+  smear); `:fabric:nativeGotsumonTest` pins those, the drawn stone and the fists against the server's cuboids.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin

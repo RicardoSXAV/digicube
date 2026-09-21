@@ -83,6 +83,24 @@
       "walk_blend": true,
       "attack_blend_in": 2,
       "attack_blend_out": 3
+    },
+    "mochimon": {
+      "culling_margin": 1,
+      "walk_blend": false,
+      "expressions": [
+        {
+          "clip": "bubble_blow",
+          "from": 5,
+          "until": 19,
+          "texture": "mochimon_bubbles_closed"
+        }
+      ]
+    },
+    "gotsumon": {
+      "culling_margin": 9,
+      "walk_blend": true,
+      "attack_blend_in": 2,
+      "attack_blend_out": 3
     }
   }
 }

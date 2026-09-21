@@ -108,8 +108,8 @@
   "digimon.digicube.garurumon": "Garurumon",
   "digimon.digicube.agumon": "Agumon",
   "digimon.digicube.greymon": "Greymon",
-  "digicube.stage.baby_i": "Fresh",
-  "digicube.stage.baby_ii": "In-Training",
+  "digicube.stage.baby_i": "Baby I",
+  "digicube.stage.baby_ii": "Baby II",
   "digicube.stage.child": "Rookie",
   "digicube.stage.adult": "Champion",
   "digicube.stage.perfect": "Ultimate",
@@ -214,5 +214,10 @@
   "subtitles.digicube.evolution.reshape": "Digimon changes shape",
   "subtitles.digicube.evolution.reconstruct": "New form materializes",
   "subtitles.digicube.evolution.arrival": "Digimon evolves",
-  "subtitles.digicube.evolution.landing": "Digimon settles"
+  "subtitles.digicube.evolution.landing": "Digimon settles",
+  "digimon.digicube.mochimon": "Motimon",
+  "attack.digicube.mochi_punch": "Mochi Punch",
+  "digimon.digicube.gotsumon": "Gotsumon",
+  "attack.digicube.hardest_punch": "Hardest Punch",
+  "attack.digicube.comet_hammer": "Comet Hammer"
 }

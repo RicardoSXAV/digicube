@@ -40,6 +40,8 @@ public final class CriticalHits {
         }
         if (attacker.getRandom().nextFloat() >= chance) return damage;
         attacker.countCriticalHit();
+        // A projectile's damage is rolled at launch, before it has a victim: the crit counts, its sparks have nowhere to go.
+        if (victim == null) return damage * MULTIPLIER;
         level.sendParticles(ParticleTypes.CRIT, true, true, victim.getX(), victim.getY(.6), victim.getZ(), 12,
                 victim.getBbWidth() * .4, victim.getBbHeight() * .3, victim.getBbWidth() * .4, .15);
         level.playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.NEUTRAL, 1F, 1F);

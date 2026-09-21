@@ -2,12 +2,13 @@ package com.digicube.digimon;
 
 /**
  * Evolution stages, in the canonical order. Japanese names are the source of truth
- * because they are unambiguous; the English dub name is kept for display and search.
+ * because they are unambiguous; the English dub name is kept for display and search,
+ * except the two baby stages, which show as Baby I and Baby II ("In-Training" did not fit the HUD either).
  */
 public enum DigimonStage {
 
-    BABY_I("baby_i", "Fresh", 0),
-    BABY_II("baby_ii", "In-Training", 1),
+    BABY_I("baby_i", "Baby I", 0),
+    BABY_II("baby_ii", "Baby II", 1),
     CHILD("child", "Rookie", 2),
     ADULT("adult", "Champion", 3),
     PERFECT("perfect", "Ultimate", 4),

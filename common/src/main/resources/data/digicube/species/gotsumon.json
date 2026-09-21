@@ -1,0 +1,33 @@
+{
+  "stage": "child",
+  "attribute": "data",
+  "base_health": 22,
+  "base_attack": 6,
+  "base_defence": 6,
+  "base_speed": 0.25,
+  "attacks": [
+    "comet_hammer",
+    "hardest_punch"
+  ],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.25,
+    "width": 0.85,
+    "height": 1.5,
+    "eye_height": 1.05
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 1.0,
+    "run_speed": 1.0,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 24,
+      "stride": 1.2,
+      "side_stride": 0.7,
+      "back_stride": 0.8,
+      "max_playback_rate": 2.0
+    }
+  }
+}

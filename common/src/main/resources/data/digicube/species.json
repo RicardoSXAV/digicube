@@ -16,9 +16,12 @@
     "darktyrannomon",
     "digmon",
     "gesomon",
-    "betamon"
+    "betamon",
+    "mochimon",
+    "gotsumon"
   ],
   "command_names": {
-    "centalmon": "centarumon"
+    "centalmon": "centarumon",
+    "mochimon": "motimon"
   }
 }

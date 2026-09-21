@@ -29,6 +29,7 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
             }
         }
     }
+    public boolean has(String clip) { return animation.has(clip); }
     @Override public void setupAnim(NativeEffectState state) {
         super.setupAnim(state);cells.values().forEach(p->p.visible=true);
         animation.hideMembranes();animation.apply(state.clip,state.tick,1);

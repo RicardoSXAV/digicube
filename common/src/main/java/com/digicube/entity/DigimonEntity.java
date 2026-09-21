@@ -192,6 +192,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.VECTOR3);
     private static final EntityDataAccessor<Float> DATA_KINETIC_YAW =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    /** Landing point of a summoned strike (block + fraction, exact far from the origin); y below the world = none. */
+    private static final EntityDataAccessor<BlockPos> DATA_STRIKE_ORIGIN =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.BLOCK_POS);
+    private static final EntityDataAccessor<org.joml.Vector3fc> DATA_STRIKE_FRACTION =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.VECTOR3);
+    private static final BlockPos NO_STRIKE = new BlockPos(0, -2048, 0); // the lowest y a packed BlockPos carries
     private static final EntityDataAccessor<Float> DATA_WRAP_RADIUS =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_WRAP_PITCH =
@@ -514,6 +520,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_KINETIC_ORIGIN, BlockPos.ZERO);
         builder.define(DATA_KINETIC_FRACTION, new org.joml.Vector3f());
         builder.define(DATA_KINETIC_YAW, 0F);
+        builder.define(DATA_STRIKE_ORIGIN, NO_STRIKE);
+        builder.define(DATA_STRIKE_FRACTION, new org.joml.Vector3f());
         builder.define(DATA_WRAP_RADIUS, 34.0F);
         builder.define(DATA_WRAP_PITCH, 36.0F);
         builder.define(DATA_WRAP_ORIGIN,BlockPos.ZERO);
@@ -1012,6 +1020,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Client only: the running attack animation's first tick, moved forward while a hit-stop holds the pose. */
     private int attackAnimationStartTick, hitStopTicks;
     private boolean swingConnected;
+    /** Client only: an authored volume of the running attack landed, so its contact-only effect cells may show. */
+    private boolean attackConnected;
+    public boolean attackConnected() { return attackConnected; }
     /** Client only: when the last connected swing and the last ground slam were seen, for the camera. */
     private int seenImpactTick = -1000, seenSlamTick = -1000;
     public int ticksSinceImpact() { return tickCount - seenImpactTick; }
@@ -1825,6 +1836,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         attackTick = 0;
         bubbleAimPoint = null;
         authoredAimPoint = null;
+        setStrikeAnchor(null);
         hornConnected = chargeBlocked = false;
         iceExposure.clear();
         this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
@@ -1842,6 +1854,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             aimBubbleBlow();
         } else if (attack.motion() != null) {
             aimAuthoredAttack();
+            var summoned = com.digicube.digimon.AuthoredAttacks.get(attack);
+            if (summoned != null && summoned.anchored()) aimStrikeAnchor(summoned);
+            if (summoned == null || !summoned.particles().windUp((ServerLevel) level(), position(), summoned.anchored()))
             level().playSound(null, getX(), getY(), getZ(),
                     attack.fuel() != null || attack.kind() == DigimonAttack.Kind.WATER_WAVE
                             ? SoundEvents.BUBBLE_COLUMN_UPWARDS_INSIDE : SoundEvents.RAVAGER_AMBIENT,
@@ -1914,13 +1929,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             getNavigation().stop();
             // A swimmer holds its depth through the performance instead of sinking under its own jet.
             setDeltaMovement(0.0, isInWater() ? 0.0 : getDeltaMovement().y, 0.0);
-            if (activeAttack.kind() == DigimonAttack.Kind.HORN_RAM || activeAttack.kind() == DigimonAttack.Kind.FROST_BITE || activeAttack.kind() == DigimonAttack.Kind.FIST) tickHornDrive(level);
+            if (AttackTravelSync.drivesRoot(activeAttack)) tickHornDrive(level);
         } else if (constriction == null && attackTarget != null && attackTarget.isAlive()) {
             getLookControl().setLookAt(attackTarget, 30.0F, 30.0F);
         }
         if (activeAttack.kind() == DigimonAttack.Kind.FIREBALL) {
             tickFireballCharge(level);
         }
+        var summoned = com.digicube.digimon.AuthoredAttacks.get(activeAttack);
+        if (summoned != null && summoned.anchored() && !aimStrikeAnchor(summoned)) { cancelAttack(); return; }
         if (com.digicube.digimon.AuthoredAttacks.handles(activeAttack)) authoredVolumes.tick(level,this,activeAttack,attackTick);
         if (activeAttack.fuel() != null) tickFlameStream(level);
         if (activeAttack.kind() == DigimonAttack.Kind.FROST_BITE && attackTick <= activeAttack.motion().activeUntil()) {
@@ -2083,6 +2100,43 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return FlameStream.trace(this, head, mouth, direction, reach, attack.motion().contactRadius());
     }
 
+    /** Both sides: where the running summoned strike lands, or null when there is none. */
+    public Vec3 strikeAnchor() {
+        BlockPos origin = entityData.get(DATA_STRIKE_ORIGIN);
+        if (origin.getY() == NO_STRIKE.getY()) return null;
+        var f = entityData.get(DATA_STRIKE_FRACTION);
+        return new Vec3(origin.getX() + f.x(), origin.getY() + f.y(), origin.getZ() + f.z());
+    }
+
+    private void setStrikeAnchor(Vec3 point) {
+        if (point == null) { entityData.set(DATA_STRIKE_ORIGIN, NO_STRIKE); return; }
+        BlockPos origin = BlockPos.containing(point);
+        entityData.set(DATA_STRIKE_ORIGIN, origin);
+        entityData.set(DATA_STRIKE_FRACTION, new org.joml.Vector3f((float) (point.x - origin.getX()),
+                (float) (point.y - origin.getY()), (float) (point.z - origin.getZ())));
+    }
+
+    /** How far ahead of a moving target a summoned strike may be placed, in blocks. */
+    private static final double STRIKE_MAX_LEAD = 1.5;
+
+    /**
+     * A summoned strike follows the floor under its target, led by the target's pace, until its landing point locks.
+     * After that the point stays: whoever walks out from under the warning is missed.
+     * @return false when there is nowhere for it to land
+     */
+    private boolean aimStrikeAnchor(com.digicube.digimon.AuthoredAttacks.Definition definition) {
+        if (attackTick > definition.anchorLockTick()) return strikeAnchor() != null;
+        LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
+        if (aimed != null) {
+            Vec3 lead = aimed.getDeltaMovement().multiply(1, 0, 1).scale(Math.max(0, activeAttack.hitTick() - attackTick));
+            if (lead.length() > STRIKE_MAX_LEAD) lead = lead.normalize().scale(STRIKE_MAX_LEAD);
+            Vec3 landing = AuthoredVolumeAttack.landing(level(), this, aimed.position().add(lead));
+            if (landing == null) landing = AuthoredVolumeAttack.landing(level(), this, aimed.position());
+            if (landing != null) setStrikeAnchor(landing);
+        }
+        return strikeAnchor() != null;
+    }
+
     /** Face the aim during anticipation, then commit to that direction through the strike. */
     private void aimAuthoredAttack() {
         boolean streaming = activeAttack.fuel() != null;
@@ -2115,7 +2169,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
                 if (activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE) yaw = TectonicWave.yaw(position(), authoredAimPoint, activeAttack.motion());
                 if (activeAttack.kind() == DigimonAttack.Kind.FIST) yaw = AttackGeometry.contactYaw(activeAttack, position(), authoredAimPoint);
-                if (com.digicube.digimon.AuthoredAttacks.handles(activeAttack)) yaw = AuthoredVolumeAttack.yaw(activeAttack,position(),authoredAimPoint);
+                if (com.digicube.digimon.AuthoredAttacks.handles(activeAttack)) yaw = AuthoredVolumeAttack.yaw(activeAttack,position(),authoredAimPoint,attackMirrored);
                 setYRot(streaming ? Mth.approachDegrees(getYRot(), yaw,
                         attackTick < activeAttack.motion().activeFrom() ? 18.0F : 8.0F)
                         : committed && attackTick>0 ? Mth.approachDegrees(entityData.get(DATA_ATTACK_YAW),yaw,10) : yaw);
@@ -2254,7 +2308,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * so vanilla's delayed body-follow-head control cannot leave the face sideways.
      */
     private void aimBubbleBlow() {
-        Vec3 origin = position().add(0.0, BUBBLE_MOUTH_HEIGHT, 0.0);
+        Vec3 origin = activeAttack.motion() == null ? position().add(0, BUBBLE_MOUTH_HEIGHT, 0)
+                : bubbleMouth(activeAttack, activeAttack.hitTick());
         if (attackTick <= activeAttack.hitTick() && attackTarget != null && attackTarget.isAlive()) {
             bubbleAimPoint = PepperBreathEntity.predictImpactPoint(attackTarget, origin,
                     BubbleBlowEntity.SPEED, BubbleBlowEntity.MAX_AIM_LEAD);
@@ -2268,6 +2323,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         yHeadRot = getYRot();
         yBodyRot = getYRot();
+    }
+
+    /** Use the impending side during reach planning and the committed side during contact. */
+    public boolean contactMirrored(DigimonAttack attack) {
+        return attack.alternateSides() && (activeAttack == attack ? attackMirrored : nextAttackMirrored);
+    }
+
+    /** Species-authored muzzle, or the original shared baby mouth for legacy models. */
+    public Vec3 bubbleMouth(DigimonAttack attack, double tick) {
+        return attack.motion() != null
+                ? AttackGeometry.world(position(), attack.motion().sample(tick).mouth(), getYRot())
+                : position().add(0, BUBBLE_MOUTH_HEIGHT, 0)
+                    .add(Vec3.directionFromRotation(0, getYRot()).scale(BUBBLE_MOUTH_FORWARD));
     }
 
     /** Embers gather at the mouth while Agumon inhales, then a whoosh as it fires. */
@@ -2319,7 +2387,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 // mouth offset along that axis so the volley cannot leave sideways.
                 double yaw = Math.toRadians(getYRot());
                 Vec3 forward = new Vec3(-Math.sin(yaw), 0.0, Math.cos(yaw));
-                Vec3 mouth = position().add(0.0, BUBBLE_MOUTH_HEIGHT, 0.0).add(forward.scale(BUBBLE_MOUTH_FORWARD));
+                Vec3 mouth = bubbleMouth(attack, attackTick);
+                Vec3 head = attack.motion() == null ? position().add(0, BUBBLE_MOUTH_HEIGHT, 0)
+                        : AttackGeometry.world(position(), attack.motion().sample(attackTick).head(), getYRot());
+                if (!clearAttackLine(head, mouth)) return;
                 boolean aimed = target != null && target.isAlive();
                 Vec3 aim = bubbleAimPoint != null ? bubbleAimPoint : mouth.add(forward.scale(4.0));
                 Vec3 direction = aim.subtract(mouth);
@@ -2405,12 +2476,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Delayed authored area attacks retain the caster's attribute triangle and ally rules. */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim) {
+        return hitWithAttack(level, attack, victim, position());
+    }
+
+    /** @param from where the blow pushes its victim away from: the caster, or the landing point of a summoned strike */
+    public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim, Vec3 from) {
         if (!victim.isAlive() || !canAttack(victim) || isAllyOf(victim)) return false;
         float damage=damageAgainst(attack,victim);
         var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
         var source=authored!=null && !authored.hitWindows().isEmpty()?DCDamageTypes.volleyAttack(this):damageSources().mobAttack(this);
         if (!victim.hurtServer(level,source,damage)) return false;
-        victim.knockback(attack.knockback(),getX()-victim.getX(),getZ()-victim.getZ(),source,damage);
+        victim.knockback(attack.knockback(),from.x-victim.getX(),from.z-victim.getZ(),source,damage);
         com.digicube.digimon.CrackMark.strike(attack,victim);
         setLastHurtMob(victim);return true;
     }
@@ -2479,6 +2555,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             seenSlamTick = tickCount;
             return;
         }
+        if (id == DigimonAnimationEvents.CONTACT) {
+            attackConnected = true;
+            return;
+        }
         int index = DigimonAnimationEvents.attackIndex(id);
         if (index >= 0) {
             boolean mirrored = DigimonAnimationEvents.mirrored(id);
@@ -2491,7 +2571,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 attackAnimationStartTick = tickCount;
                 riderStaleYaw = this.entityData.get(DATA_ATTACK_YAW);
                 hitStopTicks = 0;
-                swingConnected = false;
+                swingConnected = attackConnected = false;
                 attackAnimationState.start(tickCount);
             }
             return;
@@ -2540,6 +2620,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             }
         }
         if (level().isClientSide()) {
+            // The length is read when a packet lands, so this tick sets it for the packets the next one consumes.
+            getInterpolation().setInterpolationLength(AttackTravelSync.steps(
+                    attackAnimationState.isStarted() ? getAnimatingAttack() : null, tickCount + 1 - attackAnimationStartTick));
             previousAerialBank=aerialBank;previousAerialPitch=aerialPitch;
             aerialBank=Mth.lerp(.2F,aerialBank,Mth.clamp(-Mth.wrapDegrees(getYRot()-yRotO)*2,-18,18));
             aerialPitch=Mth.lerp(.18F,aerialPitch,

@@ -1,0 +1,39 @@
+{
+  "stage": "baby_ii",
+  "attribute": "free",
+  "base_health": 12,
+  "base_attack": 2,
+  "base_defence": 2,
+  "base_speed": 0.25,
+  "attacks": [
+    "mochi_punch",
+    "bubble_blow"
+  ],
+  "attack_motion": {
+    "bubble_blow": "mochimon_bubbles"
+  },
+  "evolutions": [
+    {
+      "target": "tentomon",
+      "min_level": 5
+    }
+  ],
+  "body": {
+    "model_scale": 0.4,
+    "width": 0.75,
+    "height": 1.0,
+    "eye_height": 0.62
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 1.15,
+    "run_speed": 1.15,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 16,
+      "stride": 0.32681527733802795,
+      "max_playback_rate": 1.5
+    }
+  }
+}
