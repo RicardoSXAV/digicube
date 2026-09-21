@@ -28,9 +28,11 @@ public final class RiderScenario {
     private static final String NAME = System.getenv("DIGICUBE_SCENARIO");
     private static final int TIMEOUT = 20 * 8, STREAM_HOLD = 45;
 
-    private record Case(DigimonSpecies species, int slot) {}
+    /** {@code deep}: staged in the pool, the prey swimming {@link #DEEP} blocks under the mount's level; a hold glides down to it. */
+    private record Case(DigimonSpecies species, int slot, boolean deep) {}
+    private static final double DEEP = 1.5;
     /** Gaps between the two bodies to try, nearest first: a strike's reach without its lunge is not written anywhere. */
-    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0};
+    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0}, GRAB = {5};
     private static int attempt;
 
     private static List<Case> cases;
@@ -50,7 +52,10 @@ public final class RiderScenario {
                 cases = new ArrayList<>();
                 for (DigimonSpecies species : DigimonSpeciesRegistry.all()) {
                     int slots = species.body().mount().map(m -> m.riderAttacks().size()).orElse(0);
-                    for (int slot = 0; slot < slots; slot++) cases.add(new Case(species, slot));
+                    for (int slot = 0; slot < slots; slot++) {
+                        cases.add(new Case(species, slot, false));
+                        if (species.body().mount().orElseThrow().riderAttacks().get(slot).aim() == RiderAttack.Aim.GRAB) cases.add(new Case(species, slot, true));
+                    }
                 }
                 for (int cx = -1; cx <= 0; cx++) for (int cz = -1; cz <= 0; cz++) level.setChunkForced(cx, cz, true);
                 level.getServer().tickRateManager().requestGameToSprint(cases.size() * (TIMEOUT + 60) * NEAR.length);
@@ -64,7 +69,7 @@ public final class RiderScenario {
     }
 
     private static double[] gaps(RiderAttack spec) {
-        return spec.aim() == RiderAttack.Aim.SWEEP ? NEAR : spec.aim() == RiderAttack.Aim.LINE ? LINE : FAR;
+        return spec.aim() == RiderAttack.Aim.SWEEP ? NEAR : spec.aim() == RiderAttack.Aim.LINE ? LINE : spec.aim() == RiderAttack.Aim.GRAB ? GRAB : FAR;
     }
 
     private static void next(ServerLevel level) { attempt = 0; index++; stage(level); }
@@ -75,15 +80,15 @@ public final class RiderScenario {
         Case test = cases.get(index);
         com.digicube.spawn.WildSpawner.clear(level);
         CombatScenario.purge(level, null, null);
-        CombatScenario.build(level, "flat");
-        double y = CombatScenario.FLOOR_Y;
+        CombatScenario.build(level, test.deep() ? "water" : "flat");
+        double y = test.deep() ? CombatScenario.FLOOR_Y - 3 : CombatScenario.FLOOR_Y;
         mount = DigimonEntity.spawnWild(level, test.species(), 20, new Vec3(.5, y, -3.5));
         DigimonAttack attack = mount.riderAttacks().get(test.slot());
         RiderAttack spec = mount.riderSpec(attack);
         // Strikes are tried at arm's length (no client here to play the lunge); shots and streams from a distance.
         double gap = gaps(spec)[attempt];
         dummy = DigimonEntity.spawnWild(level, DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon")), 20, Vec3.ZERO);
-        dummy.setPos(.5, y, -3.5 + mount.getBbWidth() * .5 + dummy.getBbWidth() * .5 + gap);
+        dummy.setPos(.5, test.deep() ? y - DEEP : y, -3.5 + mount.getBbWidth() * .5 + dummy.getBbWidth() * .5 + gap);
         dummy.setNoAi(true);
         var health = dummy.getAttribute(Attributes.MAX_HEALTH);
         if (health != null) health.setBaseValue(10_000);
@@ -137,13 +142,13 @@ public final class RiderScenario {
             if (dealt <= 0) fail(test, attack, "no damage at any distance tried");
             else if (attack.fuel() != null && !released) fail(test, attack, "the stream ended before the release");
             else Constants.LOG.info("[rider] PASS {} slot {} {} ({}): {} damage from {} blocks, over at tick {}", test.species().id().getPath(), test.slot(),
-                        attack.id().getPath(), mount.riderSpec(attack).aim(), String.format("%.1f", dealt), gaps(mount.riderSpec(attack))[attempt], caseTick - 25);
+                        attack.id().getPath() + (test.deep() ? " on prey " + DEEP + " blocks below, in water" : ""), mount.riderSpec(attack).aim(), String.format("%.1f", dealt), gaps(mount.riderSpec(attack))[attempt], caseTick - 25);
             next(level);
         }
     }
 
     private static void fail(Case test, DigimonAttack attack, String why) {
-        String line = test.species().id().getPath() + " slot " + test.slot() + " " + attack.id().getPath() + ": " + why;
+        String line = test.species().id().getPath() + " slot " + test.slot() + " " + attack.id().getPath() + (test.deep() ? " (deep)" : "") + ": " + why;
         failures.add(line);
         Constants.LOG.info("[rider] FAIL {}", line);
     }

@@ -20,10 +20,12 @@ public final class ConstrictionMotion {
     public static final int RELEASE_TICK = 80;
     public static final int DURATION = 120;
     public static final int INTERVAL = 10;
+    /** Each squeeze adds this share of the prey's full health to the attack's own damage. */
+    public static final float CRUSH_SHARE = .06F;
     /** Expires with the caster's own cooldown, so a ready wrap never waits on its last victim's resistance. */
     public static final int RESISTANCE_TICKS = 160;
     /** Squeezed prey needs this long to get its breath back before it can start an attack: the caster's uncoiling. */
-    public static final int WINDED_TICKS = DURATION - RELEASE_TICK;
+    public static final int WINDED_TICKS = 20;
     /** Frozen prey stays frozen for one more second after the hold releases. */
     public static final int FROZEN_TAIL_TICKS = 20;
     /** How long a freezing caster walks toward wrap reach before it freezes from where it stands. */

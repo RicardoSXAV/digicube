@@ -337,6 +337,15 @@ public final class PartyManager {
         return "";
     }
 
+    public static String ride(ServerPlayer player, UUID memberId) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        DigimonEntity live = member == null ? null : data.live.get(member.id());
+        if (live == null || !live.giveRide(player)) return "gui.digicube.party.unavailable";
+        data.session(member.owner()).sync.invalidate();
+        return "";
+    }
+
     public static String cancelTarget(ServerPlayer player, UUID memberId) {
         PartySavedData data = PartySavedData.get(player.level().getServer());
         PartyMember member = commanded(data, player, memberId);

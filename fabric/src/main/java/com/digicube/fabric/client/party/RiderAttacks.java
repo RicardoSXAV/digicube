@@ -15,8 +15,8 @@ import java.util.List;
 
 /**
  * Mounted combat on the client: the attack tiles of the Digimon the player rides. On the HUD
- * they take the place of vanilla's mount hearts (the party strip already shows its health),
- * right-aligned above the hotbar behind a middle-mouse glyph that says how to reach them; the
+ * they take the place of vanilla's mount hearts (the party strip already shows its health):
+ * framed, right-aligned above the hotbar, behind small mouse glyphs that say how to cast them; the
  * command wheel shows the same tiles with the key that casts each. A tile cooling down is
  * dull, and its colour comes back clockwise. Cooldowns are counted on the client from the
  * attack starts it has seen, so they tick every frame.
@@ -27,22 +27,21 @@ public final class RiderAttacks {
     /** Keys that cast rider slot 0, 1, ... while the wheel is open. */
     static final String[] KEYS = {"Q", "E"};
     static final int TEXTURE = 32;
-    private static final int HUD_TILE = 16, HUD_GAP = 2;
+    /** A HUD tile sits in a frame {@code HUD_RIM} units thick; frames stand {@code HUD_GAP} apart. */
+    private static final int HUD_TILE = 16, HUD_RIM = 2, HUD_FRAME = HUD_TILE + 2 * HUD_RIM, HUD_GAP = 1, GLYPH_GAP = 2;
     /** Mouse glyphs: the wheel lit (open the command wheel), the left button lit, the right button lit. */
     private static final String[] MOUSE = {
-            "...#####...", "..#..+..#..", ".#..+++..#.", ".#..+++..#.", ".#..+++..#.", ".#...+...#.", ".#########.",
-            ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
+            ".#####.", "#..+..#", "#..+..#", "#..+..#", "#######", "#.....#", "#.....#", "#.....#", ".#####."};
     private static final String[] MOUSE_LEFT = {
-            "...#####...", "..#++#..#..", ".#+++#...#.", ".#+++#...#.", ".#+++#...#.", ".#+++#...#.", ".#########.",
-            ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
+            ".#####.", "#++#..#", "#++#..#", "#++#..#", "#######", "#.....#", "#.....#", "#.....#", ".#####."};
     private static final String[] MOUSE_RIGHT = {
-            "...#####...", "..#..#++#..", ".#...#+++#.", ".#...#+++#.", ".#...#+++#.", ".#...#+++#.", ".#########.",
-            ".#.......#.", ".#.......#.", ".#.......#.", ".#.......#.", "..#.....#..", "...#####..."};
+            ".#####.", "#..#++#", "#..#++#", "#..#++#", "#######", "#.....#", "#.....#", "#.....#", ".#####."};
 
     /** The Digimon whose attacks the local player casts, or null. */
     static DigimonEntity mount(Minecraft minecraft) {
         return minecraft.player != null && minecraft.player.getVehicle() instanceof DigimonEntity digimon
-                && digimon.getControllingPassenger() == minecraft.player && !digimon.riderAttacks().isEmpty() ? digimon : null;
+                // rider(), not the controlling passenger: a wrap takes the reins for its six seconds, the saddle stays the rider's
+                && digimon.rider() == minecraft.player && !digimon.riderAttacks().isEmpty() ? digimon : null;
     }
 
     /** Replaces vanilla's mount hearts: nothing for any Digimon mount, the attack tiles for one that fights under its rider. */
@@ -56,26 +55,29 @@ public final class RiderAttacks {
         if (mount == null || minecraft.gui.hud.isHidden()) return;
         List<DigimonAttack> attacks = mount.riderAttacks();
         float partial = delta.getGameTimeDeltaPartialTick(false);
-        int right = g.guiWidth() / 2 + 91, y = g.guiHeight() - 31 - HUD_TILE, glyph = MOUSE[0].length();
-        // The glyphs follow the hand: free, each tile shows the mouse button that casts it; holding something, the wheel.
+        // Framed tiles end where the hotbar ends, one unit above the experience bar; the glyphs stand together to
+        // their left, in tile order. They follow the hand: free, the mouse buttons that cast; holding something, the wheel.
+        int right = g.guiWidth() / 2 + 91, y = g.guiHeight() - 30 - HUD_FRAME, glyph = MOUSE[0].length();
         boolean buttons = RiderControls.handsFree(minecraft.player) && attacks.size() <= 2;
-        int x = right - attacks.size() * HUD_TILE - (attacks.size() - 1) * HUD_GAP - (buttons ? attacks.size() * (glyph + 2) + (attacks.size() - 1) * 2 : glyph + 3);
-        if (!buttons) {
-            mouse(g, MOUSE, x, y);
-            x += glyph + 3;
-        }
-        for (int slot = 0; slot < attacks.size(); slot++) {
-            if (buttons) {
-                mouse(g, slot == 0 ? MOUSE_LEFT : MOUSE_RIGHT, x, y);
-                x += glyph + 2;
-            }
-            tile(g, minecraft.font, mount, attacks.get(slot), x, y, HUD_TILE, partial, 0xFF);
-            x += HUD_TILE + HUD_GAP + (buttons ? 2 : 0);
+        int x = right - attacks.size() * HUD_FRAME - (attacks.size() - 1) * HUD_GAP;
+        int glyphs = buttons ? attacks.size() : 1, glyphX = x - glyphs * (glyph + GLYPH_GAP) - 1;
+        for (int slot = 0; slot < glyphs; slot++)
+            mouse(g, !buttons ? MOUSE : slot == 0 ? MOUSE_LEFT : MOUSE_RIGHT, glyphX + slot * (glyph + GLYPH_GAP), y);
+        for (DigimonAttack attack : attacks) {
+            frame(g, x, y);
+            tile(g, minecraft.font, mount, attack, x + HUD_RIM, y + HUD_RIM, HUD_TILE, partial, 0xFF);
+            x += HUD_FRAME + HUD_GAP;
         }
     }
 
-    private static void mouse(GuiGraphicsExtractor g, String[] rows, int x, int tileY) {
-        int y = tileY + (HUD_TILE - rows.length) / 2, shade = DigiTheme.withAlpha(DigiTheme.VOID, 0xC0);
+    /** A slot in the panel style: dark outline, then a blue rim lit from the top left, around a dark well. */
+    private static void frame(GuiGraphicsExtractor g, int x, int y) {
+        g.fill(x, y, x + HUD_FRAME, y + HUD_FRAME, DigiTheme.VOID);
+        DigiPanels.bevel(g, x + 1, y + 1, HUD_FRAME - 2, HUD_FRAME - 2, 0, DigiTheme.EDGE_LIGHT, DigiTheme.EDGE_DIM);
+    }
+
+    private static void mouse(GuiGraphicsExtractor g, String[] rows, int x, int frameY) {
+        int y = frameY + (HUD_FRAME - rows.length + 1) / 2, shade = DigiTheme.withAlpha(DigiTheme.VOID, 0xC0);
         CommandIcons.draw(g, rows, x + 1, y + 1, shade, shade, 0);
         CommandIcons.draw(g, rows, x, y, DigiTheme.WHITE, DigiTheme.AMBER, 0);
     }
@@ -95,6 +97,9 @@ public final class RiderAttacks {
         // A cooldown drains as a clock; a stream's tile shows its tank the same way.
         float left = attack.fuel() != null ? 0 : Math.max(0, mount.seenCooldown(attack) - partial);
         float done = mount.riderReadiness(attack, partial);
+        // A hold is only lit while it has prey: a dull tile says a press would do nothing.
+        var spec = mount.riderSpec(attack);
+        if (done >= 1 && spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.GRAB && mount.grabPrey() == null) done = 0;
         if (done >= 1) return;
         Identifier off = attack.id().withPath(path -> "textures/gui/attack/" + path + "_off.png");
         g.pose().pushMatrix();

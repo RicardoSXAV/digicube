@@ -160,7 +160,7 @@ public final class CommandWheelScreen extends Screen {
     }
 
     private Module[] modules(PartyMemberView member) {
-        return CommandWheelReadout.modules(member, client.snapshotAge(), EvolutionRules.target(member.species(), member.level()).isPresent());
+        return CommandWheelReadout.modules(member, client.snapshotAge(), EvolutionRules.target(member.species(), member.level()).isPresent(), client.rideable(member));
     }
 
     @Override
@@ -280,7 +280,7 @@ public final class CommandWheelScreen extends Screen {
     private void module(GuiGraphicsExtractor g, int x, int y, Module module, PartyMemberView m, boolean selected, float time, float fade) {
         boolean on = module.enabled();
         Order order = module.order();
-        boolean behavior = order == Order.STAND_STILL || order == Order.FOLLOW || order == Order.CANCEL_TARGET;
+        boolean behavior = order == Order.STAND_STILL || order == Order.FOLLOW || order == Order.CANCEL_TARGET || order == Order.RIDE;
         int accent = order == Order.CANCEL_TARGET ? DigiTheme.RED : order.evolution() ? DigiTheme.DATA_LIGHT : DigiTheme.CYAN;
         int stripe = order == Order.CANCEL_TARGET && on ? DigiTheme.RED : behavior ? DigiTheme.CYAN : DigiTheme.DATA_LIGHT;
         int light = selected ? DigiTheme.AMBER : on ? DigiTheme.EDGE_LIGHT : DigiTheme.EDGE_DIM;

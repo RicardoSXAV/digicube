@@ -40,6 +40,18 @@ public final class AquaticRidingRegressionTest {
         mob.water=false;player.zza=1;
         check(mob.input(player).y==0 && Math.abs(mob.riddenSpeed(player)-mount.speed())<1e-7,
                 "leaving water restores horizontal land input and speed");
+        check(mount.waterTurnRate()==0 && mount.waterSprint()==1,"Ikkakumon keeps the plain water controls: no surface hold, no surge");
+
+        // Seadramon is the sea mount: slow on land, and in water it turns to the view, surges and casts both its attacks.
+        var serpent=DigimonSpeciesRegistry.getOrThrow(Constants.id("seadramon")).body().mount().orElseThrow();
+        check(serpent.waterTurnRate()>serpent.turnRate() && serpent.turnRate()>0,"the serpent turns faster in water than on land, and snaps in neither");
+        check(serpent.waterSprint()>serpent.sprint() && serpent.sprint()==1 && serpent.ownPace(),"its surge belongs to the water; on land it moves under a rider exactly as it does alone");
+        var casts=serpent.riderAttacks();
+        check(casts.size()==2 && casts.get(0).attack().getPath().equals("ice_blast") && casts.get(0).aim()==com.digicube.digimon.RiderAttack.Aim.STREAM
+                && casts.get(0).input()==com.digicube.digimon.RiderAttack.Input.HOLD,"the quick button breathes Ice Blast for as long as it is held");
+        check(casts.get(1).attack().getPath().equals("constriction") && casts.get(1).aim()==com.digicube.digimon.RiderAttack.Aim.GRAB
+                && casts.get(1).input()==com.digicube.digimon.RiderAttack.Input.TAP && casts.get(1).cone()>0 && casts.get(1).reach()>3.2,
+                "one press of the special button sends it at the outlined prey, from beyond the wrap's own range");
     }
     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     private static <T>T allocate(Class<T> type)throws Exception {

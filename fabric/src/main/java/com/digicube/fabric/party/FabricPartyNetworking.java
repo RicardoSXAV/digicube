@@ -82,7 +82,7 @@ public final class FabricPartyNetworking {
             if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.stopRiderAttack(player);
             return;
         }
-        boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.SEND_OUT;
+        boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.SEND_OUT || payload.action() == PartyActionPayload.RIDE;
         // The V key and the command wheel act from the world, without the Digivice screen open.
         if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE && payload.action()!=PartyActionPayload.REVERT && !order) || !player.isAlive() || player.isSpectator()
                 || !player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) return;
@@ -110,6 +110,7 @@ public final class FabricPartyNetworking {
         else if (payload.action() == PartyActionPayload.HOLD) message = PartyManager.hold(player, payload.member(), true);
         else if (payload.action() == PartyActionPayload.FOLLOW) message = PartyManager.hold(player, payload.member(), false);
         else if (payload.action() == PartyActionPayload.CANCEL_TARGET) message = PartyManager.cancelTarget(player, payload.member());
+        else if (payload.action() == PartyActionPayload.RIDE) message = PartyManager.ride(player, payload.member());
         else if (payload.action() == PartyActionPayload.STOW) message = PartyManager.stow(player, payload.member());
         else if (payload.action() == PartyActionPayload.SEND_OUT) message = PartyManager.sendOut(player, payload.member());
         else return;

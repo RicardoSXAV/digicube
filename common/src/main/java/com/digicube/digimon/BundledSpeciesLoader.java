@@ -130,7 +130,8 @@ public final class BundledSpeciesLoader {
         return new DigimonTactics(holdMin, holdMax, GsonHelper.getAsFloat(json, "dodge_chance", 0), GsonHelper.getAsInt(json, "reaction_ticks", 0),
                 GsonHelper.getAsBoolean(json, "strafe", false), GsonHelper.getAsInt(json, "lead_ticks", 0),
                 GsonHelper.getAsBoolean(json, "press_impaired", false), GsonHelper.getAsBoolean(json, "prefer_close", false),
-                GsonHelper.getAsDouble(json, "charge_distance", 0), GsonHelper.getAsDouble(json, "charge_speed", 0));
+                GsonHelper.getAsDouble(json, "charge_distance", 0), GsonHelper.getAsDouble(json, "charge_speed", 0),
+                GsonHelper.getAsDouble(json, "fight_speed", 0));
     }
 
     private static DigimonLocomotion locomotion(JsonObject json) {
@@ -174,11 +175,13 @@ public final class BundledSpeciesLoader {
             if (seat.size() != 3) throw new IllegalArgumentException("A mount seat needs three coordinates");
             mount = Optional.of(new DigimonBody.Mount(new Vec3(seat.get(0).getAsDouble(),
                     seat.get(1).getAsDouble(), seat.get(2).getAsDouble()),
-                    GsonHelper.getAsFloat(m, "speed"), GsonHelper.getAsFloat(m, "step_height"),
+                    GsonHelper.getAsFloat(m, "speed", 0), GsonHelper.getAsFloat(m, "step_height"),
                     GsonHelper.getAsBoolean(m, "standing", false),
                     m.has("water_seat_offset") ? vector(GsonHelper.getAsJsonArray(m, "water_seat_offset")) : Vec3.ZERO,
                     m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null,
-                    riderAttacks(m), GsonHelper.getAsFloat(m, "turn_rate", 0), GsonHelper.getAsFloat(m, "sprint", 1)));
+                    riderAttacks(m), GsonHelper.getAsFloat(m, "turn_rate", 0), GsonHelper.getAsFloat(m, "sprint", 1),
+                    // a swimmer under a rider: how fast it turns to the view in water, and its surge on the sprint key
+                    GsonHelper.getAsFloat(m, "water_turn_rate", 0), GsonHelper.getAsFloat(m, "water_sprint", 1)));
         }
         var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
         if (json.has("hit_parts")) {

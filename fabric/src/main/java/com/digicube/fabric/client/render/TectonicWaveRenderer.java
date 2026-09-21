@@ -32,7 +32,7 @@ public final class TectonicWaveRenderer extends EntityRenderer<TectonicWaveEntit
     }
     /** {@code tint} is ARGB over the texture; a low alpha with an outline colour in the state draws a phantom. */
     public static void submitEffect(NativeEffectModel model,String name,NativeEffectState s,PoseStack pose,SubmitNodeCollector collector,int tint) {
-        pose.pushPose();applyWorldTransform(pose,s.yaw,s.scale);
+        pose.pushPose();pose.translate(s.offset.x,s.offset.y,s.offset.z);applyWorldTransform(pose,s.yaw,s.scale);
         pose.translate(0,EntityModel.MODEL_Y_OFFSET,0);
         collector.submitModel(model,s,pose,RenderTypes.entityTranslucent(Constants.id("textures/entity/digimon/"+name+".png")),
                 s.lightCoords,OverlayTexture.NO_OVERLAY,tint,null,s.outlineColor,null);

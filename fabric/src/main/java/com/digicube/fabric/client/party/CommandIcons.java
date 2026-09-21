@@ -41,6 +41,12 @@ final class CommandIcons {
             ".#................#.", ".#....++....++....#.", "#......++..++......#", "#.......++++.......#", "####.....++.....####",
             "####.....++.....####", "#.......++++.......#", "#......++..++......#", ".#....++....++....#.", ".#................#.",
             "..#..............#..", "...#.....##.....#...", "....#....##....#....", ".....##..##..##.....", ".......######......."};
+    /** A rider on a saddled back. */
+    private static final String[] RIDE = {
+            BLANK, ".........##.........", "........####........", "........####........", ".........##.........",
+            ".......######.......", "......########......", "......##.##.##......", "......##.##.##......", ".........##.........",
+            "........####........", ".......##..##.......", "..++++##....##++++..", ".++++++++++++++++++.", ".++++++++++++++++++.",
+            ".+++-----------++++.", "..++..........++++..", "..++...........+++..", "..++...........+++..", BLANK};
     private static final String[] RECALL = concat(ARROW, DEVICE);
     private static final String[] SEND_OUT = concat(reversed(ARROW), DEVICE);
     private static final String[] DIGIVOLVE = spark(concat(CHEVRONS, new String[] {BLANK}));
@@ -51,6 +57,7 @@ final class CommandIcons {
             case STAND_STILL -> STAND_STILL;
             case FOLLOW -> FOLLOW;
             case CANCEL_TARGET -> CANCEL_TARGET;
+            case RIDE -> RIDE;
             case RECALL -> RECALL;
             case SEND_OUT -> SEND_OUT;
             case DIGIVOLVE -> DIGIVOLVE;

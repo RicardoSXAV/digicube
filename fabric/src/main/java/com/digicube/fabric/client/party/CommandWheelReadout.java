@@ -29,7 +29,7 @@ public final class CommandWheelReadout {
 
     public enum Order {
         STAND_STILL(PartyActionPayload.HOLD), FOLLOW(PartyActionPayload.FOLLOW), CANCEL_TARGET(PartyActionPayload.CANCEL_TARGET),
-        RECALL(PartyActionPayload.STOW), SEND_OUT(PartyActionPayload.SEND_OUT),
+        RIDE(PartyActionPayload.RIDE), RECALL(PartyActionPayload.STOW), SEND_OUT(PartyActionPayload.SEND_OUT),
         DIGIVOLVE(PartyActionPayload.EVOLVE), REVERT(PartyActionPayload.REVERT);
 
         private final int action;
@@ -51,6 +51,14 @@ public final class CommandWheelReadout {
      * @param route whether the species has a supported Champion route at this level
      */
     public static Module[] modules(PartyMemberView member, int age, boolean route) {
+        return modules(member, age, route, false);
+    }
+
+    /**
+     * @param rideable the wheel was opened on this partner by aiming at it, and it would carry its owner now. Ride
+     *                 then takes the place of Cancel target, which has nothing to cancel on a partner at peace.
+     */
+    public static Module[] modules(PartyMemberView member, int age, boolean route, boolean rideable) {
         boolean alive = member.health() > 0;
         boolean field = alive && member.deployed();
         Reason away = !alive ? (member.restTicks() > 0 ? Reason.REST : Reason.DEFEATED) : Reason.IN_DIGIVICE;
@@ -58,8 +66,8 @@ public final class CommandWheelReadout {
 
         Module[] modules = new Module[4];
         modules[TOP_LEFT] = new Module(member.holding() ? Order.FOLLOW : Order.STAND_STILL, field, field ? Reason.NONE : away);
-        modules[TOP_RIGHT] = new Module(Order.CANCEL_TARGET, field && member.attacking(),
-                !field ? away : member.attacking() ? Reason.NONE : Reason.NOT_ATTACKING);
+        modules[TOP_RIGHT] = rideable && field && !member.attacking() ? new Module(Order.RIDE, true, Reason.NONE)
+                : new Module(Order.CANCEL_TARGET, field && member.attacking(), !field ? away : member.attacking() ? Reason.NONE : Reason.NOT_ATTACKING);
         if (member.deployed()) {
             modules[BOTTOM_LEFT] = new Module(Order.RECALL, field && steady, !alive ? away : steady ? Reason.NONE : Reason.BUSY);
         } else {

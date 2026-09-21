@@ -224,6 +224,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** The tank of the rider's stream attack, 0..1, kept current only under a rider. */
     private static final EntityDataAccessor<Float> DATA_RIDER_FUEL =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    /** The prey a rider's hold would take right now (entity id, -1 for none), and whether the mount is lunging at it. */
+    private static final EntityDataAccessor<Integer> DATA_GRAB_PREY =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_GRAB_LUNGE =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.BOOLEAN);
     private FlightReserve flightReserve;
     private DigimonFlight flightDefinition;
     private boolean needsFlightLanding;
@@ -377,6 +382,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
     private float previousGroundAnimationAmount;
     private float mountWaterAmount;
+    private float swimStroke;
     private float previousMountWaterAmount;
     private float swimBank;
     private float landWaterMalus;
@@ -534,6 +540,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_FLIGHT_LOOP_START, 0L);
         builder.define(DATA_FLIGHT_FUEL, 1.0F);
         builder.define(DATA_RIDER_FUEL, 1.0F);
+        builder.define(DATA_GRAB_PREY, -1);
+        builder.define(DATA_GRAB_LUNGE, false);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -883,21 +891,25 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     // --- riding: species data supplies the seat; vanilla handles movement packets -----
 
-    @Override
-    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
-        if (getBody().mount().isPresent() && isOwnedBy(player) && !isVehicle()
-                && !player.isSecondaryUseActive()) {
-            if (level().isClientSide()) {
-                return InteractionResult.SUCCESS;
-            }
-            if (player.startRiding(this)) {
-                cancelAttack();
-                getNavigation().stop();
-                setTarget(null);
-                return InteractionResult.SUCCESS_SERVER;
-            }
-        }
-        return super.mobInteract(player, hand);
+    /** How far away its partner can be when the owner asks for a ride, in blocks from the player to the body. */
+    public static final double RIDE_REACH = 6.0;
+
+    /** Whether {@code player} could ask this Digimon for a ride now; the command wheel offers Ride on the same rule. */
+    public boolean canGiveRide(Player player) {
+        return isAlive() && getBody().mount().isPresent() && isOwnedBy(player) && !isVehicle() && !isPassenger() && !player.isPassenger()
+                && !evolutionLocked() && getBoundingBox().distanceToSqr(player.getEyePosition()) <= RIDE_REACH * RIDE_REACH;
+    }
+
+    /**
+     * Server only. Riding is an order from the command wheel (the use button belongs to the mount's attacks, so a
+     * click that mounted also cast); this is the one way onto a Digimon.
+     */
+    public boolean giveRide(Player player) {
+        if (level().isClientSide() || !canGiveRide(player) || !player.startRiding(this)) return false;
+        cancelAttack();
+        getNavigation().stop();
+        setTarget(null);
+        return true;
     }
 
     @Override
@@ -907,10 +919,24 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 && super.canAddPassenger(passenger);
     }
 
+    /**
+     * The rider steers, except through a hold: the lunge at the prey and the wrap's body path around it are the
+     * server's, tick by tick, so until it ends the rider is carried like any passenger and the AI step runs the
+     * timeline as it does unridden.
+     */
     @Override
     public LivingEntity getControllingPassenger() {
+        return wrapOwnsBody() ? null : rider();
+    }
+
+    /** The tamer in the saddle, also while a wrap has taken the reins. */
+    public Player rider() {
         return getBody().mount().isPresent() && getFirstPassenger() instanceof Player player
                 && (isOwnedBy(player) || player == scenarioRider) ? player : null;
+    }
+
+    private boolean wrapOwnsBody() {
+        return this.entityData.get(DATA_GRAB_LUNGE) || this.entityData.get(DATA_SUSTAINED_ATTACK).equals(com.digicube.digimon.DigimonSpeciesBootstrap.CONSTRICTION.id().getPath());
     }
 
     /** Development scenarios only: a rider who controls this mount without owning it (a party member cannot be staged headless). */
@@ -926,7 +952,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             aerialRiding().steer(player);
             return;
         }
-        float turnRate = getBody().mount().map(DigimonBody.Mount::turnRate).orElse(0F);
+        // No AI floats a ridden body: it keeps itself afloat as its float goal would, and the jump key lifts it sooner.
+        if (!canSwim() && isInWater() && (player.isJumping() || getFluidHeight(FluidTags.WATER) > getFluidJumpThreshold()))
+            setDeltaMovement(getDeltaMovement().add(0, player.isJumping() ? .06 : .04, 0));
+        boolean swimming = canSwim() && isInWater();
+        float turnRate = getBody().mount().map(mount -> swimming ? mount.waterTurnRate() : mount.turnRate()).orElse(0F);
         rideMomentum = Mth.approach(rideMomentum, player.zza > 0 ? 1 : 0, player.zza > 0 ? .07F : .2F);
         if (riderAttackLocked()) {
             // The strike owns the facing (a soft target may pull it); the rider is free to look around.
@@ -940,7 +970,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         riderLockYaw = turnRate > 0 ? Mth.approachDegrees(getYRot(), player.getYRot(), turnRate) : player.getYRot();
         setYRot(riderLockYaw);
-        setXRot(player.getXRot() * (canSwim() && isInWater() ? 0.7F : 0.35F));
+        if (swimming && turnRate > 0) {
+            // The input follows the view at once (getRiddenInput); only the body eases after it.
+            setXRot(Mth.approachDegrees(getXRot(), Mth.clamp(player.getXRot(), -SWIM_PITCH, SWIM_PITCH), 6));
+        } else if (canSwim() && turnRate > 0 && !onGround() && getDeltaMovement().lengthSqr() > .01) {
+            // Out of the water on a breach: the body follows its arc, nose up on the way out and down on the way back.
+            Vec3 arc = getDeltaMovement();
+            setXRot(Mth.approachDegrees(getXRot(), (float) -Math.toDegrees(Math.atan2(arc.y, arc.horizontalDistance())), 8));
+        } else setXRot(player.getXRot() * (swimming ? 0.7F : 0.35F));
         yBodyRot = getYRot();
         yHeadRot = getYRot();
     }
@@ -948,24 +985,66 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     @Override
     protected Vec3 getRiddenInput(Player player, Vec3 input) {
         if (riderAttackLocked()) return Vec3.ZERO;
-        if (canSwim() && isInWater()) {
+        if (canSwim() && isInWater() && !seaMount()) {
             float forward = player.zza > 0 ? player.zza : player.zza * .25F;
             float pitch = Mth.clamp(player.getXRot() * .7F, -60, 60) * Mth.DEG_TO_RAD;
             return new Vec3(player.xxa * .5F, -Mth.sin(pitch) * forward, Mth.cos(pitch) * forward);
+        }
+        if (canSwim() && isInWater()) {
+            // Forward is where the rider looks, depth included; jump and dive add plain rise and fall on top.
+            float forward = player.zza > 0 ? player.zza : player.zza * .25F;
+            float pitch = Mth.clamp(player.getXRot(), -SWIM_PITCH, SWIM_PITCH) * Mth.DEG_TO_RAD;
+            double rise = -Mth.sin(pitch) * forward + (player.isJumping() ? SWIM_LIFT : 0) - (localRiderDives && level().isClientSide() ? SWIM_LIFT : 0);
+            // The surface holds the body: it cruises with its back out of the water, and only a surge leaps out.
+            if (rise > 0 && surfaced() && !player.isSprinting()) rise = 0;
+            return new Vec3(player.xxa * .5F, rise, Mth.cos(pitch) * forward);
         }
         return new Vec3(player.xxa * 0.5F, 0.0, player.zza > 0.0F ? player.zza : player.zza * 0.25F);
     }
 
     @Override
     protected float getRiddenSpeed(Player player) {
-        if (canSwim() && isInWater()) return (float) (getLocomotion().swimSpeed() * (1 - DigimonMoveControl.WATER_DRAG));
-        return getBody().mount().map(mount -> mount.turnRate() <= 0 ? mount.speed()
+        if (canSwim() && isInWater()) return (float) (getLocomotion().swimSpeed() * (1 - DigimonMoveControl.WATER_DRAG))
+                * (seaMount() && player.isSprinting() ? getBody().mount().map(DigimonBody.Mount::waterSprint).orElse(1F) : 1);
+        return getBody().mount().map(mount -> mount.turnRate() <= 0 ? ridePace(mount)
                 // a heavy mount gathers pace, and breaks into its charge while the rider sprints
-                : mount.speed() * (.45F + .55F * rideMomentum) * (player.isSprinting() ? mount.sprint() : 1)).orElseGet(() -> super.getRiddenSpeed(player));
+                : ridePace(mount) * (.45F + .55F * rideMomentum) * (player.isSprinting() ? mount.sprint() : 1)).orElseGet(() -> super.getRiddenSpeed(player));
     }
 
-    /** Lets the rider's sprint key work from the saddle; what it does is {@link DigimonBody.Mount#sprint}. */
-    @Override public boolean canSprint() { return getBody().mount().map(mount -> mount.sprint() > 1).orElse(false); }
+    /**
+     * The rule for mounts: the same pace with a rider as without. A sheet without {@code body.mount.speed} gets the
+     * pace its own AI walks at; older sheets still carry a number of their own.
+     */
+    private float ridePace(DigimonBody.Mount mount) {
+        if (!mount.ownPace()) return mount.speed();
+        float own = (float) (getAttributeValue(Attributes.MOVEMENT_SPEED) * getLocomotion().runSpeed());
+        // Vanilla's move control feeds the speed in twice (as speed and as forward input); only swimmers' control undoes that.
+        return canSwim() ? own : own * own * .98F;
+    }
+
+    /** Lets the rider's sprint key work from the saddle; what it does is {@link DigimonBody.Mount#sprint}, in water {@code waterSprint}. */
+    @Override public boolean canSprint() { return getBody().mount().map(mount -> mount.sprint() > 1 || mount.waterSprint() > 1).orElse(false); }
+
+    /** Steepest climb or dive a ridden swimmer follows the view into, in degrees. */
+    public static final float SWIM_PITCH = 70;
+    /** Share of the swim input the jump key (rise) and the dive key (sink) add, whatever the view. */
+    private static final float SWIM_LIFT = .7F;
+    /** Water over the feet, as a share of the body's height, under which a ridden swimmer counts as at the surface. */
+    private static final double SURFACE_DEPTH = .9;
+    /** Client only: the local rider holds the dive key. Only the rider's own client moves its mount, so one flag serves. */
+    public static boolean localRiderDives;
+
+    /**
+     * A mount at home in the water ({@code body.mount.water_turn_rate}): it follows the view into steep dives, rises
+     * and sinks on keys, holds the surface, surges on the sprint key and leaps out of the water on a surge.
+     */
+    private boolean seaMount() {
+        return getBody().mount().map(mount -> mount.waterTurnRate() > 0).orElse(false);
+    }
+
+    private boolean surfaced() {
+        return getFluidHeight(FluidTags.WATER) < getBbHeight() * SURFACE_DEPTH;
+    }
 
     @Override
     public float maxUpStep() {
@@ -1065,7 +1144,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     public LivingEntity softTarget(Player rider, DigimonAttack attack) {
         var spec = riderSpec(attack);
-        if (spec == null || spec.cone() <= 0) return null;
+        if (spec == null || spec.cone() <= 0 || spec.aim() == com.digicube.digimon.RiderAttack.Aim.GRAB) return null;
         double reach = (spec.reach() > 0 ? spec.reach() : attack.range()) + getBbWidth() * .5;
         Vec3 view = Vec3.directionFromRotation(0, rider.getYRot());
         LivingEntity best = null;
@@ -1083,6 +1162,101 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return best;
     }
 
+    /** How far above or below the mount swimming prey may be when the wrap starts; the body glides to its level on the way in. */
+    public static final double GRAB_DEPTH = 2.0;
+    /** A lunge climbs a step to its prey on land, lasts this long at most, and costs this much when it comes to nothing. */
+    private static final double LUNGE_STEP = 1.25;
+    private static final int LUNGE_TICKS = 30, LUNGE_FAIL_COOLDOWN = 40;
+    /** Blocks a tick of the lunge: a serpent's strike on land, a surge in water. */
+    private static final double LUNGE_PACE = .32, LUNGE_PACE_WATER = .7;
+    private LivingEntity lungePrey;
+    private int lungeTicks;
+
+    /** Both sides: the prey the rider's hold would take if pressed now, or null. The server picks it; the client outlines it. */
+    public LivingEntity grabPrey() {
+        return level().getEntity(this.entityData.get(DATA_GRAB_PREY)) instanceof LivingEntity prey && prey.isAlive() ? prey : null;
+    }
+
+    /**
+     * Server. The prey nearest the rider's crosshair that the wrap would accept, within the hold's reach and cone
+     * ({@code body.mount.rider_attacks}). The level only has to be reachable: a step on land, anything in water.
+     */
+    private LivingEntity grabPick(Player rider, DigimonAttack attack) {
+        var spec = riderSpec(attack);
+        if (spec == null || activeAttack != null || lungePrey != null || constrictionReadyIn(attack) > 0 || !isAttackReady(attack)
+                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || !onGround() && !isInWater()) return null;
+        double reach = spec.reach() > 0 ? spec.reach() : attack.range();
+        Vec3 eye = rider.getEyePosition(), look = rider.getLookAngle();
+        LivingEntity best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(reach + 1),
+                e -> e.isAlive() && e != this && e != rider && !(e instanceof Player) && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
+            double distance = position().distanceTo(candidate.position()), off = Math.abs(candidate.getY() - getY());
+            if (distance > reach || off > (isInWater() && candidate.isInWater() ? reach : LUNGE_STEP)) continue;
+            if (ConstrictionSession.whyIneligible(this, candidate, attack, new Vec3(getX(), candidate.getY(), getZ())) != null) continue;
+            double angle = Math.toDegrees(Math.acos(Mth.clamp(candidate.getBoundingBox().getCenter().subtract(eye).normalize().dot(look), -1, 1)));
+            if (angle > spec.cone() || !hasLineOfSight(candidate)) continue;
+            double score = angle + distance * 2;
+            if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        return best;
+    }
+
+    /** Server. One tick of the lunge: straight at the prey, then into the wrap from the first spot it can start from. */
+    private void tickGrabLunge() {
+        DigimonAttack wrap = wrapMove();
+        Player rider = rider();
+        if (wrap == null || rider == null || ++lungeTicks > LUNGE_TICKS || !lungePrey.isAlive() || lungePrey.level() != level()
+                || ConstrictionSession.whyIneligible(this, lungePrey, wrap, new Vec3(getX(), lungePrey.getY(), getZ())) != null) { endLunge(wrap, true); return; }
+        Vec3 to = lungePrey.position().subtract(position());
+        double flat = to.horizontalDistance();
+        boolean afloat = isInWater() && lungePrey.isInWater();
+        if (flat <= wrap.range() - .3) {
+            Vec3 feet = grabFeet(lungePrey);
+            int index = attacks().indexOf(wrap);
+            constriction = feet == null || index < 0 ? null : ConstrictionSession.prepareAt(this, lungePrey, wrap, feet);
+            if (constriction != null) {
+                entityData.set(DATA_WRAP_RADIUS, constriction.fit().radius());
+                entityData.set(DATA_WRAP_PITCH, constriction.fit().pitch());
+                syncConstrictionAnchor();
+                entityData.set(DATA_WRAP_DISTANCE, (float) constriction.distance());
+                entityData.set(DATA_WRAP_YAW, constriction.yaw());
+                resetConstrictionApproach();
+                riderReleased = false;
+                this.entityData.set(DATA_ATTACK_YAW, constriction.yaw());
+                LivingEntity prey = lungePrey;
+                beginAttack(wrap, index, prey, rider);
+                endLunge(wrap, false);
+                return;
+            }
+        }
+        float yaw = AttackGeometry.yaw(position(), lungePrey.position());
+        setYRot(Mth.approachDegrees(getYRot(), yaw, 25));
+        yBodyRot = yHeadRot = getYRot();
+        double stop = wrap.range() - 1, pace = Math.min(isInWater() ? LUNGE_PACE_WATER : LUNGE_PACE, Math.max(0, flat - stop));
+        Vec3 step = flat < 1.0E-4 ? Vec3.ZERO : to.multiply(1, 0, 1).scale(pace / flat);
+        if (afloat) step = step.add(0, Mth.clamp(to.y, -.35, .35), 0);
+        setDeltaMovement(0, isInWater() ? 0 : getDeltaMovement().y, 0);
+        move(MoverType.SELF, step);
+    }
+
+    private void endLunge(DigimonAttack wrap, boolean failed) {
+        lungePrey = null;
+        this.entityData.set(DATA_GRAB_LUNGE, false);
+        // A lunge that came to nothing costs a moment, not the wrap's cooldown.
+        if (failed && wrap != null) cooldownUntil.put(wrap.id(), tickCount + LUNGE_FAIL_COOLDOWN);
+    }
+
+    /**
+     * Where a rider's wrap of {@code prey} would start: the mount's feet, at the prey's level when the water lets it
+     * glide there. Null when the prey is on another level.
+     */
+    public Vec3 grabFeet(LivingEntity prey) {
+        double off = prey.getY() - getY();
+        if (Math.abs(off) <= .25) return position();
+        return isInWater() && prey.isInWater() && Math.abs(off) <= GRAB_DEPTH ? new Vec3(getX(), prey.getY(), getZ()) : null;
+    }
+
     /**
      * Server only. The controlling rider casts rider slot {@code slot}: a swing turns to its soft target, anything
      * else goes where the rider looks. A press just before the mount is free is buffered.
@@ -1091,8 +1265,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public boolean startRiderAttack(Player rider, int slot) {
         List<DigimonAttack> usable = riderAttacks();
         if (level().isClientSide() || getControllingPassenger() != rider || slot < 0 || slot >= usable.size()
-                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED || !onGround()) return false;
+                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED || !onGround() && !isInWater()) return false;
         DigimonAttack attack = usable.get(slot);
+        if (isInWater() && !wadingAttack(attack)) return false;
         int wait = Math.max(activeAttack == null ? 0 : activeAttack.durationTicks() - attackTick,
                 cooldownUntil.getOrDefault(attack.id(), 0) - tickCount);
         if (wait > 0 || !isAttackReady(attack)) {
@@ -1102,7 +1277,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         bufferedRiderSlot = -1;
         int index = attacks().indexOf(attack);
         if (index < 0 || index >= DigimonAnimationEvents.MAX_ATTACKS || riderSpec(attack) == null) return false;
-        if (attack.kind() == DigimonAttack.Kind.CONSTRICTION) return false; // a hold needs its prey; not a rider move
+        if (attack.kind() == DigimonAttack.Kind.CONSTRICTION) {
+            // A hold needs its prey: without one nothing is cast and nothing cools down. With one, the mount goes and gets it.
+            lungePrey = grabPick(rider, attack);
+            if (lungePrey == null) return false;
+            lungeTicks = 0;
+            this.entityData.set(DATA_GRAB_LUNGE, true);
+            this.entityData.set(DATA_GRAB_PREY, -1);
+            return true;
+        }
         LivingEntity soft = softTarget(rider, attack);
         riderReleased = false;
         // The turn itself is played out by the rider's client (it owns the mount's facing), a wind-up's worth of degrees a tick.
@@ -1201,7 +1384,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
         @Override
         public boolean canUse() {
-            return getControllingPassenger() != null;
+            return rider() != null;
         }
 
         @Override
@@ -1403,7 +1586,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     private final AuthoredVolumeAttack authoredVolumes = new AuthoredVolumeAttack();
 
-    private static final boolean COMBAT_TRACE = combatTraceEnabled();
+    static final boolean COMBAT_TRACE = combatTraceEnabled();
     private int traceTick = -100; // not MIN_VALUE: the subtraction below must not overflow
 
     private static boolean combatTraceEnabled() {
@@ -1522,7 +1705,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     /** A stream without a marking bite never freezes; its contact charges Cold instead. */
-    boolean chilling() {
+    private boolean chilling() {
         return attacks().stream().noneMatch(a -> a.kind() == DigimonAttack.Kind.FROST_BITE);
     }
 
@@ -1627,6 +1810,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** A move this strong is worth waiting out before coiling beside its owner. */
     private static final float HEAVY_POWER = 1.0F;
+    /** A heavy move that comes off cooldown within this many ticks is waited out too. */
+    private static final int LOOMING_TICKS = 10;
     /** Beyond the wrap's reach by more than this, a brawler has not caught us yet. */
     private static final double CAUGHT_MARGIN = 1.0;
 
@@ -1648,7 +1833,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         for (DigimonAttack move : other.attacks()) {
             if (move.power() < HEAVY_POWER || move.kind() == DigimonAttack.Kind.CONSTRICTION) continue;
             if (other.activeAttack == move && other.attackTick <= move.hitTick()) return true;
-            if (other.cooldownUntil.getOrDefault(move.id(), 0) - other.tickCount <= com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK) return true;
+            if (other.cooldownUntil.getOrDefault(move.id(), 0) - other.tickCount <= LOOMING_TICKS) return true;
         }
         return false;
     }
@@ -1699,8 +1884,21 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (attack.kind() == DigimonAttack.Kind.GROUND_WAVE && (!onGround() || isInWater() || isInLava())) return false;
         var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
         if (authored!=null && authored.grounded() && (!onGround() || isInWater() || isInLava())) return false;
-        return (attack.motion() == null || attack.isRanged() || onGround() || canSwim() && isInWater()) && canAttackFrom(attack, target, position());
+        return (attack.motion() == null || attack.isRanged() || onGround() || isInWater()) && canAttackFrom(attack, target, position());
     }
+
+    /** What a body in water can still do: anything but a move that needs the ground under it. A floating brawler keeps its fists. */
+    private boolean wadingAttack(DigimonAttack attack) {
+        var authored = com.digicube.digimon.AuthoredAttacks.get(attack);
+        return attack.kind() != DigimonAttack.Kind.GROUND_WAVE && (authored == null || !authored.grounded());
+    }
+
+    /** A land body floats chest-deep instead of standing on the water; vanilla's 0.4 suits a body one block tall. */
+    @Override
+    public double getFluidJumpThreshold() {
+        return canSwim() ? super.getFluidJumpThreshold() : Math.max(super.getFluidJumpThreshold(), getBbHeight() * FLOAT_DEPTH);
+    }
+    private static final double FLOAT_DEPTH = .55;
 
     /** Rehearse the move at a prospective foot position, including its real launch/contact geometry. */
     public boolean canAttackFrom(DigimonAttack attack, LivingEntity target, Vec3 feet) {
@@ -2494,7 +2692,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     boolean damageWithActiveAttack(LivingEntity target) {
         if (!(level() instanceof ServerLevel server) || activeAttack == null || !canAttack(target) || isAllyOf(target)) return false;
         var source=activeAttack.kind()==DigimonAttack.Kind.CONSTRICTION ? DCDamageTypes.crushAttack(this) : DCDamageTypes.partnerAttack(this);
-        boolean hit=target.hurtServer(server,source,damageAgainst(activeAttack,target));
+        float damage=damageAgainst(activeAttack,target);
+        // A squeeze also takes a share of what the prey has: big bodies have more to crush, small ones are not deleted.
+        if(activeAttack.kind()==DigimonAttack.Kind.CONSTRICTION)damage+=target.getMaxHealth()*com.digicube.digimon.ConstrictionMotion.CRUSH_SHARE;
+        boolean hit=target.hurtServer(server,source,damage);
         if(hit)setLastHurtMob(target);
         return hit;
     }
@@ -2601,6 +2802,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 this.entityData.set(DATA_RIDER_FUEL, tank.isRecharging() ? 0F : Mth.clamp(tank.availableTicks() / (float) attack.fuel().capacityTicks(), 0, 1));
             }
         }
+        if (!level().isClientSide()) {
+            if (lungePrey != null) tickGrabLunge();
+            // What the hold would take is the server's call, so the outline and the lit tile never promise what it would refuse.
+            else if (tickCount % 2 == 0) {
+                DigimonAttack wrap = rider() == null ? null : riderAttacks().stream().filter(a -> a.kind() == DigimonAttack.Kind.CONSTRICTION).findFirst().orElse(null);
+                LivingEntity pick = wrap == null ? null : grabPick(rider(), wrap);
+                this.entityData.set(DATA_GRAB_PREY, pick == null ? -1 : pick.getId());
+            }
+        }
+        // A swimmer shares its breath: its rider never drowns in the saddle, and a spent breath comes back.
+        if (!level().isClientSide() && canSwim() && rider() != null && rider().isEyeInFluid(FluidTags.WATER))
+            rider().setAirSupply(Math.min(rider().getMaxAirSupply(), rider().getAirSupply() + 3));
         if (bufferedRiderSlot >= 0 && !level().isClientSide()) {
             if (tickCount > bufferedRiderUntil || !(getControllingPassenger() instanceof Player rider)) bufferedRiderSlot = -1;
             else startRiderAttack(rider, bufferedRiderSlot);
@@ -2657,8 +2870,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 }
             }
             float motion = canSwim() ? (float) Mth.clamp(speed / (getLocomotion().swimSpeed() * .7), 0, 1) : 0;
-            swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, motion);
-            swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimMotionAmount, .45F, 1.0F);
+            // Under a rider the body stays stretched out in its swimming pose at rest too (the resting pose rears up
+            // three blocks and would lift the saddle with it); only the stroke slows down.
+            swimStroke = Mth.lerp(.15F, swimStroke, motion);
+            swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, rider() != null ? 1 : motion);
+            swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimStroke, .45F, 1.0F);
             var gait = getLocomotion().groundGait();
             if (gait != null) {
                 double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());

@@ -10,7 +10,8 @@
     "MixinEvolutionRenderType",
     "MixinEvolutionPipelines",
     "MixinEntityRenderer",
-    "MixinHumanoidModel"
+    "MixinHumanoidModel",
+    "KeyMappingAccessor"
   ],
   "server": [],
   "injectors": {

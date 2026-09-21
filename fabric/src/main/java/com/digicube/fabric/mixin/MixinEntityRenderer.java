@@ -24,6 +24,10 @@ public class MixinEntityRenderer {
         var extra = (FabricRenderState) state;
         extra.setData(CombatMarkBadges.MARKS, !Minecraft.getInstance().gui.hud.isHidden()
                 && entity instanceof LivingEntity living ? CombatMarkBadges.read(living, partialTick) : null);
+        // The partner under the crosshair is outlined in blue, where a soft target keeps the white of vanilla.
+        if (entity == com.digicube.fabric.client.party.PartyClient.aimedPartner()) state.outlineColor = com.digicube.fabric.client.party.PartyClient.AIM_OUTLINE;
+        // So is the prey a press of the hold would take, in the colour of its tile.
+        if (entity == com.digicube.fabric.client.party.RiderControls.grabPrey()) state.outlineColor = com.digicube.fabric.client.party.RiderControls.GRAB_OUTLINE;
         extra.setData(RiderVisuals.POSE, null);
         if (entity.getVehicle() instanceof DigimonEntity mount
                 && Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(mount) instanceof DigimonRenderer renderer) {

@@ -82,12 +82,12 @@ public final class DigimonSpeciesBootstrap {
     /** A short chilling jet that charges Cold and never freezes: two-second tank, four-second empty-to-full refill, Howling Blaster's pulse cadence. */
     public static final DigimonAttack ICE_BLAST = new DigimonAttack(
             Constants.id("ice_blast"), DigimonAttack.Kind.FROST_STREAM,
-            .48F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
+            .54F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
             new AttackFuel(40, 80, 10), 0);
 
     public static final DigimonAttack CONSTRICTION = new DigimonAttack(
             Constants.id("constriction"), DigimonAttack.Kind.CONSTRICTION,
-            .60F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
+            .08F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
     public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
 
     public static Map<Identifier, DigimonAttack> attacks() {

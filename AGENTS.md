@@ -319,11 +319,33 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   ridden mob's server AI step, so `tick()` drives a rider's attack through `tickAttackTimeline`; never
   put attack timing back into `customServerAiStep` alone. `RiderAttacks` replaces vanilla's mount
   hearts with the attack tiles (`textures/gui/attack/<attack>[_off].png`, made by
-  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`). `RiderControls` is the direct input: with a
+  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`), each in its own 20-unit frame one unit above the
+  experience bar, the 7x9 mouse glyphs together on their left in tile order (layout approved 20 September 2026).
+  `RiderControls` is the direct input: with a
   free hand the mouse casts (attack hook + `MixinMinecraft.startUseItem`), R/G always, aimed attacks are
   held and released. The rider's client owns a ridden mount's position and facing, so turn rate, the
   swing's lunge and the strike's facing are played in `tickRidden`; the server owns targets, hits and
-  the input buffer. Design: `../design/mounted-combat.md`.
+  the input buffer. The middle mouse button is the wheel's: `PartyClient.movePickBlock` makes B the default of
+  vanilla's pick block (`KeyMappingAccessor`) and rebinds it once while it still shares the wheel's key. Getting on is an order, not a click: `mobInteract` no longer rides (the use button is the
+  special attack, so the click that mounted also cast). `PartyClient.aim` picks the own party Digimon under the
+  crosshair (24 blocks, hit parts included), it is outlined in blue (`AIM_OUTLINE`, set in `MixinEntityRenderer`),
+  the wheel opens on it, and Ride (`PartyActionPayload.RIDE` -> `PartyManager.ride` -> `DigimonEntity.giveRide`,
+  within `RIDE_REACH` = 6) takes Cancel target's place while it is not fighting. `RiderControls` ignores a button
+  that was already down when the rider took the reins or closed a screen. The rider's leg pose is catalog data
+  (`ground_models.json` `rider.pose` = leg pitch, splay, roll; Golemon sits, no pose = straight legs); only
+  `MixinHumanoidModel` reads it, so the first-person camera is untouched. Water: a land Digimon floats at 55 % of
+  its height (`getFluidJumpThreshold`), keeps every attack that does not need the ground (`wadingAttack`; the
+  spike wave does), paddles over prey it has no path to (`DigimonAttackGoal`), and under a rider floats by itself
+  and rises with the jump key (`tickRidden`). A sea mount (`body.mount.water_turn_rate` > 0, Seadramon) gets the
+  full water controls (`seaMount()`): forward follows the view to 70 degrees, jump rises and the dive key (C,
+  `DigimonEntity.localRiderDives`, client only) sinks, the surface holds the body unless it surges (`water_sprint`),
+  a surge through the surface is a breach, the rider's air refills. A wrap is a rider move (`RiderAttack.Aim.GRAB`):
+  the server picks the prey near the crosshair (`grabPick`, synced as `DATA_GRAB_PREY`), the client outlines it
+  in magenta and lights the tile (dull = a press does nothing), one press lunges at it (`tickGrabLunge`) and wraps;
+  through lunge and wrap `getControllingPassenger` is null (`wrapOwnsBody`) so the server owns the body as it does unridden. Use
+  `rider()` for "who is in the saddle". Rule for mounts: the same pace ridden as alone, so new sheets leave
+  `body.mount.speed` out (`ridePace`); a species that must travel slowly but fight at pace gets `tactics.fight_speed`
+  (Seadramon: `base_speed` 0.07, fight 3.09; slowing its fights cost 30 points against Golemon). Design: `../design/mounted-combat.md`.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
   `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`), read by
@@ -334,10 +356,12 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   wave is sidestepped late, just before its aim locks) and inbound projectiles server-side; a
   wrap against a Digimon that fights us is timed (`DigimonEntity.wrapPunished`): a range-holding caster never walks
   into a brawler for it but wraps one that has caught it (within wrap range + 1), and it waits out a heavy move
-  (power >= 1.0) that is ready or under way. The move itself: the coil follows prey up to .6 blocks a tick, ordinary
+  (power >= 1.0) that is under way or ready within `LOOMING_TICKS` = 10 (a wider window makes wraps rare and only
+  open when the fight is already won: rounds with a catch must stay under 80 % wins). The move itself: the coil follows prey up to .6 blocks a tick, ordinary
   knockback does not shake the caster off (only a push of `ConstrictionMotion.BREAKING_PUSH` = 1.0 breaks the wrap
-  and frees the prey), squeezes are `digicube:crush_attack` (bypasses armour), and release leaves Digimon prey
-  winded (no attack for 40 ticks) and, from a chilling caster, Cold; an inked mob cannot take or keep a target beyond three blocks
+  and frees the prey), squeezes are `digicube:crush_attack` (bypasses armour; each of the four deals power .08 plus
+  `ConstrictionMotion.CRUSH_SHARE` = 6 % of the prey's full health, so a hold costs about a third of any
+  champion, never most of it), and release leaves Digimon prey winded (no attack for 20 ticks); an inked mob cannot take or keep a target beyond three blocks
   (`DCEffects.blindTo`) and acts on `lastSeenThreat` instead. `DIGICUBE_TACTICS=<species>:
   key=value,...;<species>:...` overrides knobs per process for sweeps. Design and numbers:
   `../design/combat-ai.md`.

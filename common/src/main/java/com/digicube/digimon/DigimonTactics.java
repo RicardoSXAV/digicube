@@ -22,16 +22,21 @@ import java.util.Map;
  *                       slow brawler answers a kiter (0 = never)
  * @param chargeSpeed    the pace of that charge, as a movement speed modifier; a fight-only burst that
  *                       leaves the species' travel gait alone (0 = its locomotion run speed)
+ * @param fightSpeed     the pace of everything it does in a fight (closing in, holding its range, the approach into
+ *                       a hold; a sidestep is the common factor faster), as a movement speed modifier. For a body
+ *                       that travels slowly but strikes fast, like a snake: its travel pace, and so its pace under
+ *                       a rider, stays the sheet's {@code base_speed} (0 = the goal's own modifier and its run speed)
  */
 public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, int reactionTicks, boolean strafe,
-                             int leadTicks, boolean pressImpaired, boolean preferClose, double chargeDistance, double chargeSpeed) {
+                             int leadTicks, boolean pressImpaired, boolean preferClose, double chargeDistance, double chargeSpeed,
+                             double fightSpeed) {
     /** The old behaviour: close in, never dodge, no prediction, list order. */
-    public static final DigimonTactics DEFAULT = new DigimonTactics(0, 0, 0, 0, false, 0, false, false, 0, 0);
+    public static final DigimonTactics DEFAULT = new DigimonTactics(0, 0, 0, 0, false, 0, false, false, 0, 0, 0);
 
     public DigimonTactics {
         if (holdMin < 0 || holdMax < holdMin) throw new IllegalArgumentException("hold range " + holdMin + ".." + holdMax);
         if (dodgeChance < 0 || dodgeChance > 1) throw new IllegalArgumentException("dodge chance " + dodgeChance);
-        if (reactionTicks < 0 || leadTicks < 0 || chargeDistance < 0 || chargeSpeed < 0) throw new IllegalArgumentException("negative ticks");
+        if (reactionTicks < 0 || leadTicks < 0 || chargeDistance < 0 || chargeSpeed < 0 || fightSpeed < 0) throw new IllegalArgumentException("negative ticks");
     }
 
     public boolean holdsRange() { return holdMax > 0; }
@@ -39,16 +44,17 @@ public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, 
     /** The same tactics with one knob changed by name, for overrides and sweeps. */
     public DigimonTactics with(String key, String value) {
         return switch (key) {
-            case "hold_min" -> new DigimonTactics(Double.parseDouble(value), holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "hold_max" -> new DigimonTactics(holdMin, Double.parseDouble(value), dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "dodge_chance" -> new DigimonTactics(holdMin, holdMax, Float.parseFloat(value), reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "reaction_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, Integer.parseInt(value), strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "strafe" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, Boolean.parseBoolean(value), leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "lead_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, Integer.parseInt(value), pressImpaired, preferClose, chargeDistance, chargeSpeed);
-            case "press_impaired" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, Boolean.parseBoolean(value), preferClose, chargeDistance, chargeSpeed);
-            case "prefer_close" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, Boolean.parseBoolean(value), chargeDistance, chargeSpeed);
-            case "charge_distance" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, Double.parseDouble(value), chargeSpeed);
-            case "charge_speed" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, Double.parseDouble(value));
+            case "hold_min" -> new DigimonTactics(Double.parseDouble(value), holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "hold_max" -> new DigimonTactics(holdMin, Double.parseDouble(value), dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "dodge_chance" -> new DigimonTactics(holdMin, holdMax, Float.parseFloat(value), reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "reaction_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, Integer.parseInt(value), strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "strafe" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, Boolean.parseBoolean(value), leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "lead_ticks" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, Integer.parseInt(value), pressImpaired, preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "press_impaired" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, Boolean.parseBoolean(value), preferClose, chargeDistance, chargeSpeed, fightSpeed);
+            case "prefer_close" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, Boolean.parseBoolean(value), chargeDistance, chargeSpeed, fightSpeed);
+            case "charge_distance" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, Double.parseDouble(value), chargeSpeed, fightSpeed);
+            case "charge_speed" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, Double.parseDouble(value), fightSpeed);
+            case "fight_speed" -> new DigimonTactics(holdMin, holdMax, dodgeChance, reactionTicks, strafe, leadTicks, pressImpaired, preferClose, chargeDistance, chargeSpeed, Double.parseDouble(value));
             default -> throw new IllegalArgumentException("unknown tactics key " + key);
         };
     }

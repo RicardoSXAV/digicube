@@ -63,10 +63,13 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
      * @param sprint          pace multiplier while the rider sprints; 1 for a mount that cannot
      */
     public record Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset,
-                        AerialMount flight, java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint) {
+                        AerialMount flight, java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint,
+                        float waterTurnRate, float waterSprint) {
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight) {
-            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, java.util.List.of(), 0, 1);
+            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, java.util.List.of(), 0, 1, 0, 1);
         }
+        /** {@code speed} 0 (the sheet leaves it out) is the rule: a mount moves under its rider at the pace it has by itself. */
+        public boolean ownPace() { return speed == 0; }
         /** Mounted combat is opt-in: a mount fights for its rider when its sheet lists rider attacks. */
         public boolean combat() { return !riderAttacks.isEmpty(); }
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset) {
@@ -85,9 +88,10 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
             riderAttacks = java.util.List.copyOf(riderAttacks);
             if (!Double.isFinite(seat.x) || !Double.isFinite(seat.y) || !Double.isFinite(seat.z)
                     || !Double.isFinite(waterSeatOffset.x) || !Double.isFinite(waterSeatOffset.y) || !Double.isFinite(waterSeatOffset.z)
-                    || !Float.isFinite(speed) || speed <= 0.0F
+                    || !Float.isFinite(speed) || speed < 0.0F
                     || !Float.isFinite(stepHeight) || stepHeight < 0.0F
-                    || !Float.isFinite(turnRate) || turnRate < 0 || !Float.isFinite(sprint) || sprint < 1) {
+                    || !Float.isFinite(turnRate) || turnRate < 0 || !Float.isFinite(sprint) || sprint < 1
+                    || !Float.isFinite(waterTurnRate) || waterTurnRate < 0 || !Float.isFinite(waterSprint) || waterSprint < 1) {
                 throw new IllegalArgumentException("Invalid mount dimensions or speed");
             }
         }

@@ -98,6 +98,8 @@ public final class DigimonAttackGoal extends Goal {
             }
         }
         if (tickDodge(target, tactics)) return;
+        // A species with a fight pace of its own (slow traveller, fast striker) uses it for every move of the fight.
+        double speedModifier = tactics.fightSpeed() > 0 ? tactics.fightSpeed() : this.speedModifier;
         if (mob.tickConstrictionApproach(target,speedModifier)) return;
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
@@ -111,7 +113,7 @@ public final class DigimonAttackGoal extends Goal {
         var desiredMoves = mob.positioningAttacks(target);
         boolean opening = desiredMoves.stream().anyMatch(move -> move.kind() == DigimonAttack.Kind.CONSTRICTION);
         boolean pressing = tactics.pressImpaired() && DigimonEntity.impaired(target);
-        double runSpeed = mob.getLocomotion().runSpeed();
+        double runSpeed = tactics.fightSpeed() > 0 ? tactics.fightSpeed() : mob.getLocomotion().runSpeed();
         boolean charging = tactics.chargeDistance() > 0 && mob.distanceToSqr(target) > tactics.chargeDistance() * tactics.chargeDistance();
         double pursuitSpeed = charging && tactics.chargeSpeed() > 0 ? Math.max(tactics.chargeSpeed(), speedModifier)
                 : pressing || charging || mob.getLocomotion().groundGait() != null
@@ -142,6 +144,15 @@ public final class DigimonAttackGoal extends Goal {
                 return;
             }
             positionedTarget = null;
+            if (mob.isInWater() && !mob.canSwim()) {
+                // A floating land body has no path down to prey under it: it paddles over it and strikes what comes up.
+                Vec3 over = new Vec3(target.getX(), mob.getY(), target.getZ());
+                if (!mob.getNavigation().moveTo(over.x, over.y, over.z, pursuitSpeed)) {
+                    mob.getNavigation().stop();
+                    if (mob.position().subtract(over).horizontalDistanceSqr() > 1) mob.getMoveControl().setWantedPosition(over.x, over.y, over.z, pursuitSpeed);
+                }
+                return;
+            }
             if (preparing) {
                 mob.getNavigation().stop();
                 return;
@@ -273,7 +284,8 @@ public final class DigimonAttackGoal extends Goal {
             Vec3 to = mob.position().add(side.scale(sign * DODGE_DISTANCE)).subtract(line.scale(DODGE_DISTANCE * .35));
             var path = mob.getNavigation().createPath(to.x, to.y, to.z, 0);
             if (path == null || !path.canReach()) continue;
-            if (!mob.getNavigation().moveTo(path, Math.max(speedModifier, mob.getLocomotion().runSpeed()) * DODGE_SPEED)) continue;
+            double pace = mob.tactics().fightSpeed() > 0 ? mob.tactics().fightSpeed() : Math.max(speedModifier, mob.getLocomotion().runSpeed());
+            if (!mob.getNavigation().moveTo(path, pace * DODGE_SPEED)) continue;
             dodgeTo = to;
             dodgeUntil = mob.tickCount + ticks;
             mob.countDodge();
@@ -302,7 +314,7 @@ public final class DigimonAttackGoal extends Goal {
         Vec3 away = mob.position().subtract(ahead).multiply(1, 0, 1);
         if (away.lengthSqr() < .01) away = Vec3.directionFromRotation(0, mob.getYRot() + 180);
         away = away.normalize();
-        double speed = Math.max(runSpeed, speedModifier);
+        double speed = tactics.fightSpeed() > 0 ? tactics.fightSpeed() : Math.max(runSpeed, speedModifier);
         if (distance < tactics.holdMin()) {
             // Back off past the band's inner edge; if straight back is blocked, angle away.
             double want = tactics.holdMin() + 1 - distance;

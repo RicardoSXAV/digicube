@@ -31,6 +31,12 @@ public final class CommandWheelRegressionTest {
         check(busy[0].order() == Order.FOLLOW && busy[0].enabled(), "a holding partner is offered Follow");
         check(busy[1].enabled() && busy[1].reason() == Reason.NONE, "Cancel target lights while attacking");
 
+        Module[] aimedAt = CommandWheelReadout.modules(member(20, 24, true, 0, 3600, "RESTING", 0, false, false), 0, true, true);
+        check(aimedAt[1].order() == Order.RIDE && aimedAt[1].enabled() && aimedAt[0].order() == Order.STAND_STILL, "a partner aimed at that can carry its owner is offered Ride where Cancel target had nothing to cancel");
+        Module[] aimedFighting = CommandWheelReadout.modules(member(20, 24, true, 0, 3600, "RESTING", 0, true, true), 0, true, true);
+        check(aimedFighting[1].order() == Order.CANCEL_TARGET && aimedFighting[1].enabled(), "a fighting partner keeps Cancel target; it is called off before it is ridden");
+        check(CommandWheelReadout.modules(member(20, 24, false, 0, 3600, "RESTING", 0, false, false), 0, true, true)[1].order() == Order.CANCEL_TARGET, "no Ride from the Digivice");
+
         Module[] stowed = CommandWheelReadout.modules(member(20, 24, false, 0, 3600, "RESTING", 0, false, false), 0, true);
         check(stowed[2].order() == Order.SEND_OUT && stowed[2].enabled(), "a partner in the Digivice is offered Send out");
         check(!stowed[0].enabled() && stowed[0].reason() == Reason.IN_DIGIVICE, "no behaviour orders in the Digivice");

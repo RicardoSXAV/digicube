@@ -19,6 +19,6 @@ public class MixinMinecraft {
 
     @Inject(method="shouldEntityAppearGlowing",at=@At("HEAD"),cancellable=true)
     private void digicube$softTarget(Entity entity,CallbackInfoReturnable<Boolean> cir) {
-        if (entity == RiderControls.softTarget()) cir.setReturnValue(true);
+        if (entity == RiderControls.softTarget() || entity == RiderControls.grabPrey() || entity == com.digicube.fabric.client.party.PartyClient.aimedPartner()) cir.setReturnValue(true);
     }
 }

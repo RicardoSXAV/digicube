@@ -19,6 +19,11 @@
           0,
           0.19,
           1.16
+        ],
+        "pose": [
+          -1.4137,
+          0.3142,
+          0.0785
         ]
       }
     },
@@ -31,7 +36,31 @@
         "float",
         "body_00",
         "head"
-      ]
+      ],
+      "pitch_path": [
+        "root",
+        "float",
+        "body_00"
+      ],
+      "ridden_pitch": 70,
+      "rider": {
+        "path": [
+          "root",
+          "float",
+          "body_00",
+          "body_01"
+        ],
+        "point": [
+          0,
+          0.31,
+          0.6
+        ],
+        "pose": [
+          -1.4137,
+          0.4363,
+          0.0785
+        ]
+      }
     },
     "darktyrannomon": {
       "culling_margin": 14,

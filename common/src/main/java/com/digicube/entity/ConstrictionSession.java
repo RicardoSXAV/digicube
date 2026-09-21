@@ -23,6 +23,7 @@ final class ConstrictionSession {
     private Vec3 approachOffset = Vec3.ZERO, preySeen = Vec3.ZERO, followed = Vec3.ZERO;
     private final boolean afloat;
     private boolean captured, released;
+    private float heldFrom;
 
     static boolean eligible(DigimonEntity owner, LivingEntity target, DigimonAttack attack, Vec3 feet) {
         return whyIneligible(owner,target,attack,feet) == null;
@@ -40,7 +41,8 @@ final class ConstrictionSession {
         if (target.hasEffect(DCEffects.CONSTRICTED)) return "prey already held";
         if (target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)) return "prey hold-resistant";
         // Nearly dead prey does not earn a ten-second cooldown, unless it is frozen and nothing else can touch it.
-        if (!target.hasEffect(DCEffects.FROZEN)
+        // A rider decides that alone.
+        if (owner.rider() == null && !target.hasEffect(DCEffects.FROZEN)
                 && target.getHealth() <= owner.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE)*attack.power()) return "prey nearly dead";
         if (!target.canBeAffected(new MobEffectInstance(DCEffects.CONSTRICTED,3))) return "prey immune to holds";
         if (owner.constrictionMotion().fit(target.getBoundingBox(),owner.getBody().modelScale()) == null) return "prey size does not fit";
@@ -123,6 +125,8 @@ final class ConstrictionSession {
         return afloat && owner.level().getFluidState(net.minecraft.core.BlockPos.containing(p)).is(net.minecraft.tags.FluidTags.WATER);
     }
 
+    /** Blocks a tick the caster rises or sinks to the level of its prey during the approach, afloat. */
+    private static final double LEVEL_GLIDE = .2;
     private String interruption;
     /** Why the last tick interrupted the wrap; development traces name the gate. */
     String interruption() { return interruption; }
@@ -160,6 +164,8 @@ final class ConstrictionSession {
         owner.setYRot(yaw);owner.yBodyRot=yaw;owner.yHeadRot=yaw;
         owner.getNavigation().stop();owner.setDeltaMovement(0,0,0);
         Vec3 next=at(tick+1),step=next.subtract(owner.position()).multiply(1,0,1);
+        // A rider's cast may start above or below swimming prey: the body glides to the prey's level on the way in.
+        if (afloat && tick<ConstrictionMotion.CAPTURE_TICK) step=step.add(0,net.minecraft.util.Mth.clamp(start.y-owner.getY(),-LEVEL_GLIDE,LEVEL_GLIDE),0);
         // External knockback cannot be turned into a teleport back to the path.
         // Following the prey is not an external displacement.
         Vec3 shifted=approachOffset.subtract(followed);followed=approachOffset;
@@ -172,7 +178,7 @@ final class ConstrictionSession {
             if (!eligible(owner,target,owner.activeAttackDefinition(),start)
                     || !target.addEffect(new MobEffectInstance(DCEffects.CONSTRICTED,3,0,false,false,true),owner))
                 return interrupt("capture refused: " + whyIneligible(owner,target,owner.activeAttackDefinition(),start));
-            captured=true;
+            captured=true;heldFrom=target.getHealth();
             // Wrapping frozen prey keeps the ice through the hold and a short tail after release.
             if (target.hasEffect(DCEffects.FROZEN)) target.addEffect(new MobEffectInstance(DCEffects.FROZEN,
                     ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,0,false,true),owner);
@@ -193,9 +199,9 @@ final class ConstrictionSession {
     void release() {
         if(captured&&!released) {
             target.removeEffect(DCEffects.CONSTRICTED);released=true;
+            if (DigimonEntity.COMBAT_TRACE) com.digicube.Constants.LOG.info(String.format(java.util.Locale.ROOT, "[wrap-trace] %s held %s: %.1f of %.1f health squeezed out, %.1f left, caster at %.0f%%",
+                    owner.getSpeciesId(), target.getName().getString(), heldFrom-target.getHealth(), target.getMaxHealth(), target.getHealth(), 100*owner.getHealth()/owner.getMaxHealth()));
             if (target instanceof DigimonEntity prey) prey.windFor(ConstrictionMotion.WINDED_TICKS);
-            // A chilling caster's coils leave the prey Cold, so it can regain its distance while it uncoils.
-            if (owner.chilling() && target.isAlive()) target.addEffect(new MobEffectInstance(DCEffects.COLD, com.digicube.digimon.IceCombo.COLD_TICKS, 0, false, true), owner);
         }
     }
 }

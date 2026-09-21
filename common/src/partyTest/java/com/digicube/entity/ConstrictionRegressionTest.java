@@ -109,7 +109,7 @@ public final class ConstrictionRegressionTest {
             check(target.hasEffect(DCEffects.CONSTRICTED)==(t>=40&&t<80),"exact two-second hold");
         }
         check(owner.pulses==4,"four evenly spaced damage pulses");
-        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.60F)<1e-6,"33.6 raw champion damage over two seconds, dealt as crushing");
+        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.08F)<1e-6&&ConstrictionMotion.CRUSH_SHARE==.06F,"4.5 raw champion damage plus 24 % of the prey's full health over two seconds, dealt as crushing");
         check(target.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,
                 "wrapping frozen prey re-ices it through the hold plus a one-second tail");
         check(target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&target.hasEffect(DCEffects.FROST_RESISTANCE),"capture grants shared anti-chain resistance");

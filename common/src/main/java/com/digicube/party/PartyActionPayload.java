@@ -26,6 +26,8 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
     public static final int RIDER_ATTACK = 11;
     /** The rider let go of a held attack (a stream stops); {@code value} is the rider slot. */
     public static final int RIDER_RELEASE = 12;
+    /** The owner asks the deployed partner it aims at for a ride; the server checks mount, reach and ownership. */
+    public static final int RIDE = 13;
     public static final UUID NO_MEMBER = new UUID(0, 0);
     public static final Type<PartyActionPayload> TYPE = new Type<>(Constants.id("party_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartyActionPayload> STREAM_CODEC =

@@ -50,13 +50,14 @@ public final class RiderControls {
     private static final Path SETTINGS = FabricLoader.getInstance().getConfigDir().resolve("digicube-client.properties");
 
     private static final net.minecraft.resources.Identifier CROSSHAIR = net.minecraft.resources.Identifier.withDefaultNamespace("hud/crosshair");
-    private static KeyMapping quickKey, specialKey;
+    private static KeyMapping quickKey, specialKey, diveKey;
+
     private static LivingEntity softTarget;
     private static DigimonEntity aimMount;
     private static float[] aimHeights;
     private static float aimYaw;
     private static final int SLOTS = 2;
-    private static final boolean[] wasDown = new boolean[SLOTS];
+    private static final boolean[] wasDown = new boolean[SLOTS], stale = new boolean[SLOTS];
     private static final int[] held = new int[SLOTS], lastSend = new int[SLOTS];
     private static DigimonEntity lastMount;
     private static CameraType cameraBefore;
@@ -65,6 +66,8 @@ public final class RiderControls {
     static void init(KeyMapping.Category category) {
         quickKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.rider_quick", InputConstants.KEY_R, category));
         specialKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.rider_special", InputConstants.KEY_G, category));
+        // Rise is the jump key; vanilla's sneak leaves the saddle, so sinking gets a key of its own.
+        diveKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.rider_dive", InputConstants.KEY_C, category));
         thirdPerson = load();
         ClientTickEvents.END_CLIENT_TICK.register(RiderControls::tick);
         // The attack button belongs to the mount while the rider's hand is free; the use button is taken in MixinMinecraft.
@@ -91,6 +94,10 @@ public final class RiderControls {
      * the spikes there as a phantom, turned to where the rider looks.
      */
     public static float[] aimedWave(DigimonEntity mount) { return mount == aimMount ? aimHeights : null; }
+    /** The prey the mount's hold would take on a press, or null; outlined in the hold's own colour. */
+    public static LivingEntity grabPrey() { return grabPrey; }
+    public static final int GRAB_OUTLINE = 0xFFE67AD6;
+    private static LivingEntity grabPrey;
     /** The yaw the aimed wave would run along: the rider's view, corrected for the fist it starts from. */
     public static float aimedWaveYaw() { return aimYaw; }
 
@@ -98,10 +105,15 @@ public final class RiderControls {
         DigimonEntity mount = RiderAttacks.mount(minecraft);
         camera(minecraft, mount);
         aimMount = null;
+        aimHeights = null;
+        grabPrey = mount == null || minecraft.gui.screen() != null ? null : mount.grabPrey();
+        DigimonEntity.localRiderDives = mount != null && minecraft.gui.screen() == null && diveKey.isDown();
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
             java.util.Arrays.fill(wasDown, false);
             java.util.Arrays.fill(held, 0);
+            // A button that is already down when the rider takes the reins (or closes a screen) belongs to what came before.
+            java.util.Arrays.fill(stale, true);
             return;
         }
         LocalPlayer player = minecraft.player;
@@ -116,6 +128,10 @@ public final class RiderControls {
             RiderAttack spec = mount.riderSpec(attack);
             boolean down = (slot == 0 ? quickKey : specialKey).isDown()
                     || free && (slot == 0 ? minecraft.options.keyAttack : minecraft.options.keyUse).isDown();
+            if (stale[slot]) {
+                stale[slot] = down;
+                down = false;
+            }
             if (spec == null) {
                 wasDown[slot] = down;
                 continue;
@@ -129,8 +145,8 @@ public final class RiderControls {
             } else if (hold) {
                 // Held, it shows where it will go; released, it goes.
                 if (down) {
-                    if (++held[slot] >= AIM_HOLD_TICKS && mount.seenCooldown(attack) <= DigimonEntity.RIDER_BUFFER_TICKS
-                            && attack.kind() == DigimonAttack.Kind.GROUND_WAVE) telegraph(mount, player, held[slot]);
+                    boolean shown = ++held[slot] >= AIM_HOLD_TICKS && mount.seenCooldown(attack) <= DigimonEntity.RIDER_BUFFER_TICKS;
+                    if (shown && attack.kind() == DigimonAttack.Kind.GROUND_WAVE) telegraph(mount, player, held[slot]);
                 } else {
                     if (wasDown[slot]) cast(mount, slot);
                     held[slot] = 0;

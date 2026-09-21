@@ -25,7 +25,12 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
         /** Flies where the rider looks, pitch included, or at the soft target. */
         SHOT,
         /** Sustained along the rider's view for as long as the button is held. */
-        STREAM
+        STREAM,
+        /**
+         * A hold on the prey the crosshair picks within {@code reach} and {@code cone}: that prey is outlined and the tile
+         * lights up, and one press sends the mount at it and into the wrap. No prey, no cast.
+         */
+        GRAB
     }
 
     public enum Input {
