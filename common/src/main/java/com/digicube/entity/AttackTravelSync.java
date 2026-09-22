@@ -41,8 +41,16 @@ public final class AttackTravelSync {
 
     /** @return whether the server moves this attack's root along its travel curve */
     public static boolean drivesRoot(DigimonAttack attack) {
-        return attack != null && attack.motion() != null && (attack.kind() == DigimonAttack.Kind.FIST
-                || attack.kind() == DigimonAttack.Kind.HORN_RAM || attack.kind() == DigimonAttack.Kind.FROST_BITE);
+        if (attack == null || attack.motion() == null) return false;
+        if (attack.kind() == DigimonAttack.Kind.FIST || attack.kind() == DigimonAttack.Kind.HORN_RAM || attack.kind() == DigimonAttack.Kind.FROST_BITE) return true;
+        var authored = com.digicube.digimon.AuthoredAttacks.get(attack);
+        return authored != null && authored.rootTravel();
+    }
+
+    /** @return the flight of a jumping strike, whose distance the server plans per cast; empty for every other attack */
+    private static Window flight(DigimonAttack attack) {
+        var authored = attack == null ? null : com.digicube.digimon.AuthoredAttacks.get(attack);
+        return authored == null || authored.leap() == null ? NONE : new Window(authored.leap().launch() + 1, authored.leap().land() + 1);
     }
 
     /**
@@ -69,6 +77,6 @@ public final class AttackTravelSync {
      * @return interpolation length for that packet
      */
     public static int steps(DigimonAttack attack, int arrivalTick) {
-        return drivesRoot(attack) && window(attack.motion()).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
+        return drivesRoot(attack) && window(attack.motion()).contains(arrivalTick) || flight(attack).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
     }
 }

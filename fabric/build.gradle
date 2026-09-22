@@ -179,3 +179,13 @@ tasks.register('nativeGotsumonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeGotsumonTest') }
+tasks.register('nativeDinohyumonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeDinohyumonRegressionTest'
+    if (project.hasProperty('dinohyumonEvidence')) args project.property('dinohyumonEvidence')
+    workingDir = layout.buildDirectory.dir('native-dinohyumon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeDinohyumonTest') }

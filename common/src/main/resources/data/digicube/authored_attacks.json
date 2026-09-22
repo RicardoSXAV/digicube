@@ -187,5 +187,84 @@
     ],
     "anchor_lock_tick": 15,
     "particles": "stone"
+  },
+  "lizard_dance": {
+    "kind": "BOX_SWEEP",
+    "power": 0.45,
+    "cooldown": 60,
+    "duration": 52,
+    "hit_tick": 10,
+    "range": 1.7,
+    "knockback": 0.12,
+    "hit_interval": 1,
+    "max_hits": 5,
+    "effect": "lizard_dance_fx",
+    "emissive": false,
+    "hit_windows": [
+      [
+        9,
+        11.5
+      ],
+      [
+        16,
+        18.5
+      ],
+      [
+        23,
+        25.5
+      ],
+      [
+        31,
+        33.5
+      ],
+      [
+        40,
+        42.5
+      ]
+    ],
+    "particles": "steel",
+    "root_travel": true,
+    "contact_parts": [
+      "fx_spark_0_0",
+      "fx_spark_0_1",
+      "fx_spark_1_0",
+      "fx_spark_1_1",
+      "fx_spark_2_0",
+      "fx_spark_2_1",
+      "fx_spark_3_0",
+      "fx_spark_3_1",
+      "fx_spark_4_0",
+      "fx_spark_4_1"
+    ]
+  },
+  "akinakes": {
+    "kind": "BOX_BURST",
+    "power": 3.0,
+    "cooldown": 260,
+    "duration": 64,
+    "hit_tick": 40,
+    "range": 7.0,
+    "knockback": 0.55,
+    "hit_interval": 1,
+    "max_hits": 1,
+    "effect": "akinakes_fx",
+    "emissive": false,
+    "hit_windows": [
+      [
+        39.5,
+        41.5
+      ],
+      [
+        41.5,
+        43.5
+      ]
+    ],
+    "particles": "steel",
+    "leap": {
+      "launch": 24,
+      "land": 40,
+      "lead": 1.1,
+      "apex": 2.2
+    }
   }
 }

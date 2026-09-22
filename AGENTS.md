@@ -413,6 +413,23 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   of the move is the one that trails. A style also voices the start of its move in place of the shared growl
   (`windUp`), so a small friendly Digimon does not sound like Golemon. A fist may carry margins around the drawn hand (Gotsumon: 0.35 ahead over its
   smear); `:fabric:nativeGotsumonTest` pins those, the drawn stone and the fists against the server's cuboids.
+
+- A sweep may **travel** and a burst may **jump** (Dinohyumon). `root_travel: true` on a `BOX_SWEEP` makes the server
+  drive the caster along the motion's `travel` curve like a horn charge (the exporter strips that translation from the
+  root track and exports effects and volumes relative to the moving root), the facing keeps turning after the victim
+  until the last hit window, and the client chases at the lunge rate through the travel. `leap: {launch, land, lead,
+  apex}` on a `BOX_BURST`: at `launch` the server plans a parabola (`AuthoredVolumeAttack.arc`) from the feet to the
+  floor `lead` blocks short of where the target will be (a victim already inside that reach is struck from a short hop
+  back) and flies it as a closed loop each tick (`tickLeap`, blocks still stop the body, gravity is cancelled by
+  leaving exactly one tick of it on the velocity); the facing is settled at launch; `canReach` needs the landing floor
+  within five blocks of the caster's own and the whole arc free of blocks. Hit windows must start after the landing.
+  `"particles": "steel"` is the blade style. A species with a `run` clip blends it over `walk` by `groundRunAmount`,
+  both on the shared gait phase (`run_cycle_ticks` / `run_stride` on the sheet). Hanging cloth is client data:
+  `cloth` in `ground_models.json` names a hinged chain of parts (never keyed by any clip) and collider points
+  (model px in a part's own frame); `ClothChains` simulates pitch and roll pendulums under gravity, the hinge's
+  acceleration and air drag, then holds every segment in front of the colliders within its reach. State is per
+  entity in `DigimonRenderer`. `:fabric:nativeDinohyumonTest` pins the blades, the buried sword, the cloth's hinges
+  and that a forward thigh pushes the cloth forward.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin

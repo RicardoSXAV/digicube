@@ -99,8 +99,31 @@ public final class AuthoredVolumeAttack {
         return hit.getType()!=HitResult.Type.MISS && level.getFluidState(hit.getBlockPos()).isEmpty()
                 && Math.abs(hit.getLocation().y-caster.getY())<=1.01;
     }
+    /** A point of a jump's arc: straight between its ends, lifted by a parabola that peaks {@code apex} above the chord. */
+    public static Vec3 arc(Vec3 from,Vec3 to,double apex,double u) {
+        u=Math.clamp(u,0,1); return from.lerp(to,u).add(0,apex*4*u*(1-u),0);
+    }
+    /** Where a jumping strike would land against this target, or null when there is no floor near the caster's own. */
+    public static Vec3 leapLanding(DigimonEntity caster,AuthoredAttacks.Leap leap,Vec3 feet,LivingEntity target) {
+        Vec3 flat=target.position().subtract(feet).multiply(1,0,1);
+        if(flat.horizontalDistanceSqr()<1.0E-6)return null;
+        Vec3 spot=feet.add(flat.normalize().scale(Math.max(0,flat.length()-leap.lead())));
+        Vec3 floor=landing(caster.level(),caster,new Vec3(spot.x,target.getY(),spot.z));
+        return floor==null || Math.abs(floor.y-feet.y)>LANDING_STEP?null:floor;
+    }
     public static boolean canReach(DigimonEntity caster,DigimonAttack attack,Vec3 feet,LivingEntity target) {
         var d=AuthoredAttacks.get(attack);Vec3 targetPoint=target.getBoundingBox().getCenter();
+        if(d.leap()!=null) {
+            // Somewhere to land near the target, the whole arc open for the body, and the target in sight.
+            Vec3 floor=leapLanding(caster,d.leap(),feet,target);
+            if(floor==null || !clear(caster.level(),caster,feet.add(0,caster.getEyeHeight(),0),targetPoint))return false;
+            AABB body=caster.getBoundingBox().deflate(.05);
+            for(int i=1;i<=7;i++) {
+                Vec3 p=arc(feet,floor,d.leap().apex(),i/8.0);
+                if(!caster.level().noBlockCollision(caster,body.move(p.subtract(feet))))return false;
+            }
+            return true;
+        }
         if(d.anchored()) {
             // Seen from where the caster would stand, on a floor near its own, with the last stretch of the fall open.
             Vec3 landing=landing(caster.level(),caster,target.position());
@@ -128,6 +151,7 @@ public final class AuthoredVolumeAttack {
     /** Trail behind the leading volume while it moves; a summoned strike also announces its release and its landing. */
     private void cues(ServerLevel level,DigimonEntity caster,DigimonAttack attack,AuthoredAttacks.Definition d,Vec3 feet,int tick) {
         if(d.particles()==StrikeParticles.NONE)return;
+        if(d.leap()!=null && d.leap().airborne(tick)){lastLead=null;return;}
         var cells=d.sample(tick,caster.isInWater(),caster.contactMirrored(attack));
         Vec3 lead=cells[0]==null?null:cells[0].world(feet,caster.getYRot(),0).center();
         // A fist only trails through its strike, not while it is drawn back; a summoned stone trails whenever it travels.

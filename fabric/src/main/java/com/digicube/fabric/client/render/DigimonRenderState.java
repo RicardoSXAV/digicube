@@ -11,6 +11,8 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public final NativeEffectState authoredEffect = new NativeEffectState();
 
     public float groundRunAmount;
+    /** The hanging cloth's simulation, one per entity, kept by the renderer between frames. */
+    public com.digicube.fabric.client.model.ClothChains.State cloth;
     /** Directional gait: shares forwards, backwards, left, right. */
     public float[] gaitShares = {1, 0, 0, 0};
     /** The spike wave its rider is aiming, drawn as a phantom; heights null when there is none. */

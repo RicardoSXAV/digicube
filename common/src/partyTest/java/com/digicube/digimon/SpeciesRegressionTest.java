@@ -19,7 +19,7 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 19, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 20, "all bundled species loaded");
             var betamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("betamon"));
             check(betamon.stage() == DigimonStage.CHILD && betamon.attribute() == DigimonAttribute.VIRUS
                     && betamon.locomotion().canSwim(), "Betamon is an amphibious virus rookie");

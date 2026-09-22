@@ -21,7 +21,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose) {}
     public record Definition(Identifier species, double cullingMargin, boolean amphibious, boolean walkBlend, java.util.List<String> aimPath,
                              float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
-                             java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions) {
+                             java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
+                             java.util.List<ClothChains.Chain> cloth) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -58,6 +59,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     @Override
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
+        pose(state);
+        ClothChains.apply(rootPart, state, definition.cloth(), state.cloth);
+    }
+
+    /** The authored pose for this frame: idle, gait, swim and the attack in progress. Cloth hangs from it afterwards. */
+    private void pose(DigimonRenderState state) {
         animations.hideMembranes();
         // Also under a rider: mounted combat casts from the saddle, and a mount that does not fight never starts one.
         if (state.attackAnimationName != null && state.attackAnimation.isStarted()) {
@@ -161,11 +168,18 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         animations.apply("idle", state.ageInTicks, (1 - amount)*(1-water)*weight);
         // The lattice excludes the idle-at-zero contribution. Its amplitude zero
         // is rest, so the independent idle clock never doubles body or tail motion.
+        // A species with a run clip mixes it in as the pace passes the walk's authored speed; both share the gait phase.
+        float run=animations.has("run")?Math.clamp(state.groundRunAmount,0,1):0;
         if(definition.walkBlend() && animations.blendNames().contains("walk_back")) {
             // Directional gait: planted clips per direction on one phase, mixed by the share of the movement each one carries.
             for(int i=0;i<DIRECTIONS.length;i++) animations.blend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight);
-        } else if(definition.walkBlend()) animations.blend("walk", amount, state.groundAnimationPhase, (1-water)*weight);
-        else animations.apply("walk",state.groundAnimationPhase,amount*(1-water)*weight);
+        } else if(definition.walkBlend()) {
+            animations.blend("walk", amount, state.groundAnimationPhase, (1-run)*(1-water)*weight);
+            if(run>0) animations.blend("run", amount, state.groundAnimationPhase, run*(1-water)*weight);
+        } else {
+            animations.apply("walk",state.groundAnimationPhase,(1-run)*amount*(1-water)*weight);
+            if(run>0) animations.apply("run",state.groundAnimationPhase,run*amount*(1-water)*weight);
+        }
         if(definition.amphibious()) {
             float power=Math.clamp(state.swimMotionAmount,0,1);
             animations.apply("swim_idle",state.ageInTicks,water*(1-power)*weight);
@@ -210,7 +224,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 definitions.put(species, new Definition(species, margin,GsonHelper.getAsBoolean(config,"amphibious",false),
                         GsonHelper.getAsBoolean(config,"walk_blend",true),java.util.List.copyOf(aim),
                         GsonHelper.getAsFloat(config,"attack_blend_in",0),GsonHelper.getAsFloat(config,"attack_blend_out",0),GsonHelper.getAsBoolean(config,"gallop",false),GsonHelper.getAsBoolean(config,"support_floor",false),rider,
-                        pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions)));
+                        pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions),ClothChains.read(config)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

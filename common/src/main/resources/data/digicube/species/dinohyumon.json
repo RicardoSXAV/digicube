@@ -1,0 +1,36 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 9,
+  "base_speed": 0.2,
+  "attacks": [
+    "akinakes",
+    "lizard_dance"
+  ],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.32,
+    "width": 1.0,
+    "height": 2.6,
+    "eye_height": 2.4
+  },
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.0,
+    "run_speed": 1.6,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 20,
+      "stride": 4.2,
+      "run_cycle_ticks": 12.8,
+      "run_stride": 8.0,
+      "max_playback_rate": 2.5
+    }
+  },
+  "tactics": {
+    "lead_ticks": 4
+  }
+}

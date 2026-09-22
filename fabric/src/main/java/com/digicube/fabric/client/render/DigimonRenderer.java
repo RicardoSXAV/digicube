@@ -48,6 +48,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
     private final com.digicube.fabric.client.evolution.EvolutionPresentation evolution;
     private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> authoredEffects=new java.util.HashMap<>();
+    private final Map<DigimonEntity,com.digicube.fabric.client.model.ClothChains.State> cloth=new java.util.WeakHashMap<>();
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
     private final HowlingBlasterModel howlingBlaster;
@@ -162,6 +163,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         state.species = entity.getSpeciesId();
         state.modelScale = entity.getBody().modelScale();
+        state.cloth = cloth.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.ClothChains.State());
         state.isBeingRidden = entity.isVehicle();
         state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
         state.swimAnimationAmount = entity.getSwimAnimationAmount(partialTick);

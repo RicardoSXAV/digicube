@@ -2036,6 +2036,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         authoredAimPoint = null;
         setStrikeAnchor(null);
         hornConnected = chargeBlocked = false;
+        leapFrom = leapTo = null;
         iceExposure.clear();
         this.entityData.set(DATA_ATTACK_AIM_PITCH, 0.0F);
         attackMirrored = attack.alternateSides() && nextAttackMirrored;
@@ -2128,6 +2129,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             // A swimmer holds its depth through the performance instead of sinking under its own jet.
             setDeltaMovement(0.0, isInWater() ? 0.0 : getDeltaMovement().y, 0.0);
             if (AttackTravelSync.drivesRoot(activeAttack)) tickHornDrive(level);
+            var jumping = com.digicube.digimon.AuthoredAttacks.get(activeAttack);
+            if (jumping != null && jumping.leap() != null) tickLeap(level, jumping);
         } else if (constriction == null && attackTarget != null && attackTarget.isAlive()) {
             getLookControl().setLookAt(attackTarget, 30.0F, 30.0F);
         }
@@ -2341,6 +2344,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         // A rider's client owns the facing, so every rider attack commits its yaw through the synced value.
         boolean committed = riderAttack || activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE || activeAttack.kind() == DigimonAttack.Kind.FIST || com.digicube.digimon.AuthoredAttacks.handles(activeAttack);
         int aimUntil = activeAttack.hitTick() - (activeAttack.kind() == DigimonAttack.Kind.GROUND_WAVE ? 4 : committed ? 2 : 0);
+        var travelling = com.digicube.digimon.AuthoredAttacks.get(activeAttack);
+        // A jump is planned at launch, so the facing is settled there; a travelling combo keeps turning after its victim between blows.
+        if (travelling != null && travelling.leap() != null) aimUntil = travelling.leap().launch();
+        else if (travelling != null && travelling.rootTravel() && !travelling.hitWindows().isEmpty()) aimUntil = (int) travelling.hitWindows().getLast()[0] - 2;
         LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
         // Without a soft target a rider's shot, stream or burst goes to the point under the crosshair.
         Vec3 viewPoint = aimed == null ? riderAimNow() : null;
@@ -2399,6 +2406,38 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if(committed)setYRot(entityData.get(DATA_ATTACK_YAW));
         yHeadRot = yBodyRot = getYRot();
+    }
+
+    /** The flight of a jumping strike, planned at launch and flown as a closed loop so blocks still stop it. */
+    private Vec3 leapFrom, leapTo;
+    private void tickLeap(ServerLevel level, com.digicube.digimon.AuthoredAttacks.Definition authored) {
+        var leap = authored.leap();
+        if (attackTick == leap.launch()) {
+            LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
+            Vec3 target = aimed != null ? aimed.position().add(aimed.getDeltaMovement().multiply(1, 0, 1).scale(Math.min(leap.land() - leap.launch(), 12))) : authoredAimPoint;
+            if (target == null) { cancelAttack(); return; }
+            Vec3 flat = target.subtract(position()).multiply(1, 0, 1);
+            // A victim that has closed in during the wind-up is still struck from a blade's length away: a short hop back.
+            Vec3 forward = new Vec3(0, 0, 1).yRot(-getYRot() * Mth.DEG_TO_RAD);
+            Vec3 spot = flat.length() < leap.lead() ? target.subtract(forward.scale(leap.lead())) : position().add(flat.normalize().scale(flat.length() - leap.lead()));
+            Vec3 floor = AuthoredVolumeAttack.landing(level, this, new Vec3(spot.x, target.y, spot.z));
+            leapFrom = position(); leapTo = floor != null ? floor : new Vec3(spot.x, getY(), spot.z);
+            resetFallDistance();
+            authored.particles().release(level, position());
+        }
+        if (leapFrom == null || !leap.airborne(attackTick)) return;
+        double u = (attackTick + 1 - leap.launch()) / (double) (leap.land() - leap.launch());
+        Vec3 planned = AuthoredVolumeAttack.arc(leapFrom, leapTo, leap.apex(), u);
+        move(MoverType.SELF, planned.subtract(position()));
+        if (COMBAT_TRACE) Constants.LOG.info("[leap-trace] {} tick {} at {} planned {} landing {} onGround={}", getSpeciesId(), attackTick + 1, fmt(position()), fmt(planned), fmt(leapTo), onGround());
+        // travel() takes this tick's gravity off the velocity next; leave it exactly that much so the body neither sags nor drifts.
+        setDeltaMovement(0, getGravity(), 0);
+        needsSync = true; resetFallDistance();
+        if (attackTick + 1 == leap.land()) {
+            setDeltaMovement(Vec3.ZERO);
+            Vec3 ahead = position().add(new Vec3(0, 0, leap.lead()).yRot(-getYRot() * Mth.DEG_TO_RAD));
+            authored.particles().landing(level, ahead, 2.0);
+        }
     }
 
     /** Move only by the exported root displacement; vanilla collision resolves walls. */

@@ -15,13 +15,15 @@ public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
                              List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows,
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
-                             com.digicube.entity.StrikeParticles particles) {
+                             com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap) {
         public boolean hasWaterVariant() { return waterMotion != null; }
         /**
          * A summoned strike: effect and volumes are authored around a landing point instead of the caster's feet.
          * The point follows the target until {@link #anchorLockTick} and then stays, which is the victim's chance to move.
          */
         public boolean anchored() { return anchorLockTick >= 0; }
+        /** The server moves the caster along the motion's travel curve, as it does for a horn charge. */
+        public boolean travels() { return rootTravel || leap != null; }
         public AttackMotion motion(boolean water) { return water && waterMotion != null ? waterMotion : attack.motion(); }
         public int beat(double tick) {
             for(int i=0;i<hitWindows.size();i++)if(tick>=hitWindows.get(i)[0] && tick<=hitWindows.get(i)[1])return i;
@@ -46,6 +48,14 @@ public final class AuthoredAttacks {
             }
             return result;
         }
+    }
+    /**
+     * A jumping strike: the caster leaves the ground at {@code launch}, flies a planned arc and lands at {@code land},
+     * its feet {@code lead} blocks short of where the target will be. Ticks between are the client's lunge window.
+     * @param apex how high the arc rises above the higher of its two ends, in blocks
+     */
+    public record Leap(int launch, int land, double lead, double apex) {
+        public boolean airborne(int tick) { return tick >= launch && tick < land; }
     }
     private static final Map<Identifier,Definition> DEFINITIONS=load();
     private AuthoredAttacks() {}
@@ -110,10 +120,19 @@ public final class AuthoredAttacks {
             if(c.has("contact_parts"))c.getAsJsonArray("contact_parts").forEach(p->contactParts.add(p.getAsString()));
             if(anchorLock>=0 && (attack.kind()!=DigimonAttack.Kind.BOX_BURST || windows.isEmpty() || anchorLock>windows.getFirst()[0] || waterMotion!=null))
                 throw new IllegalArgumentException("A landing point locks before the first hit window of a burst "+id);
+            boolean rootTravel=GsonHelper.getAsBoolean(c,"root_travel",false);
+            Leap leap=null;
+            if(c.has("leap")) {
+                var l=c.getAsJsonObject("leap");
+                leap=new Leap(l.get("launch").getAsInt(),l.get("land").getAsInt(),l.get("lead").getAsDouble(),GsonHelper.getAsDouble(l,"apex",2.0));
+                if(leap.launch()<0 || leap.land()<=leap.launch() || leap.land()>=attack.durationTicks() || leap.lead()<0 || leap.apex()<=0
+                        || windows.isEmpty() || windows.getFirst()[0]<leap.land()-1 || anchorLock>=0 || rootTravel || waterMotion!=null)
+                    throw new IllegalArgumentException("A leap lands before its first hit window and carries nothing else "+id);
+            }
             result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),
                     GsonHelper.getAsBoolean(c,"grounded",false),interval,max,
                     List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion,List.copyOf(mirroredFrames),anchorLock,approach,List.copyOf(contactParts),
-                    com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null))));
+                    com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null)),rootTravel,leap));
         }
         return Collections.unmodifiableMap(result);
     }
