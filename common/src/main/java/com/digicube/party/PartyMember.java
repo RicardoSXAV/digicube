@@ -30,8 +30,8 @@ public final class PartyMember {
             CompoundTag.CODEC.fieldOf("entity").forGetter(PartyMember::entityData),
             // Optional so rosters saved before defeat rest existed load rested.
             Codec.INT.optionalFieldOf("rest_ticks", 0).forGetter(PartyMember::restTicks),
-            // Optional so rosters saved before the command wheel existed load deployed.
-            Codec.BOOL.optionalFieldOf("stowed", false).forGetter(PartyMember::stowed)
+            // Read only: an older save could keep a recalled partner in its party slot. It loads inside the Digivice.
+            Codec.BOOL.optionalFieldOf("stowed", false).forGetter(member -> false)
     ).apply(instance, PartyMember::new));
 
     private final UUID id;
@@ -46,8 +46,6 @@ public final class PartyMember {
     private long generation;
     private CompoundTag entityData;
     private int restTicks;
-    /** Recalled from the command wheel: keeps its party slot but stays in the Digivice until sent out. */
-    private boolean stowed;
 
     public PartyMember(UUID id, UUID owner, Identifier species, String nickname, float health, float maxHealth,
                        int level, int xp, int slot, long generation, CompoundTag entityData) {
@@ -69,11 +67,10 @@ public final class PartyMember {
         this.maxHealth = maxHealth;
         this.level = Progression.clampLevel(level);
         this.xp = Math.max(0, xp);
-        this.slot = slot;
+        this.slot = stowed ? -1 : slot;
         this.generation = generation;
         this.entityData = entityData.copy();
         this.restTicks = Math.max(0, restTicks);
-        this.stowed = stowed;
     }
 
     public UUID id() { return id; }
@@ -108,11 +105,8 @@ public final class PartyMember {
     /** Defeated and still waiting out its rest. */
     public boolean resting() { return defeated() && restTicks > 0; }
 
-    public boolean stowed() { return stowed; }
-    void setStowed(boolean stowed) { this.stowed = stowed; }
-
-    /** A new slot is a fresh start: whoever is placed in the party comes out. */
-    void setSlot(int slot) { this.slot = slot; this.stowed = false; }
+    /** A party slot means out in the world; -1 means inside the Digivice. There is nothing in between. */
+    void setSlot(int slot) { this.slot = slot; }
 
     /** Invalidates any older incarnation still present in an unloaded chunk. */
     long nextGeneration() { return ++generation; }

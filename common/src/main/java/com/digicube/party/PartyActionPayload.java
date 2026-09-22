@@ -20,8 +20,10 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
     public static final int HOLD = 6;
     public static final int FOLLOW = 7;
     public static final int CANCEL_TARGET = 8;
-    public static final int STOW = 9;
-    public static final int SEND_OUT = 10;
+    /** Recall: the partner leaves the party and goes into the Digivice. */
+    public static final int RECALL = 9;
+    /** Opens the Digivice from the command wheel; {@code member} is unused. */
+    public static final int OPEN = 10;
     /** Mounted combat: the rider casts the attack in rider slot {@code value} of the Digimon it sits on; {@code member} is unused. */
     public static final int RIDER_ATTACK = 11;
     /** The rider let go of a held attack (a stream stops); {@code value} is the rider slot. */

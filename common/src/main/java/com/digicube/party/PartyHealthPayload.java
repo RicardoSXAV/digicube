@@ -57,7 +57,7 @@ public record PartyHealthPayload(List<Health> members) implements CustomPacketPa
     public PartySnapshotPayload apply(PartySnapshotPayload snapshot) {
         return new PartySnapshotPayload(false, snapshot.page(), snapshot.total(),
                 snapshot.party().stream().map(this::update).toList(),
-                snapshot.collection().stream().map(this::update).toList(), "");
+                snapshot.collection().stream().map(this::update).toList(), "", snapshot.known());
     }
 
     @Override public Type<PartyHealthPayload> type() { return TYPE; }

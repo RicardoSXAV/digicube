@@ -29,7 +29,7 @@ public final class CommandWheelReadout {
 
     public enum Order {
         STAND_STILL(PartyActionPayload.HOLD), FOLLOW(PartyActionPayload.FOLLOW), CANCEL_TARGET(PartyActionPayload.CANCEL_TARGET),
-        RIDE(PartyActionPayload.RIDE), RECALL(PartyActionPayload.STOW), SEND_OUT(PartyActionPayload.SEND_OUT),
+        RIDE(PartyActionPayload.RIDE), RECALL(PartyActionPayload.RECALL),
         DIGIVOLVE(PartyActionPayload.EVOLVE), REVERT(PartyActionPayload.REVERT);
 
         private final int action;
@@ -41,7 +41,7 @@ public final class CommandWheelReadout {
     }
 
     /** Why a module is unavailable; {@link #NONE} on one that can be given. */
-    public enum Reason { NONE, IN_DIGIVICE, REST, DEFEATED, NOT_ATTACKING, BUSY, NEEDS_LEVEL, NO_ROUTE, NEEDS_ORIGIN, COOLDOWN, SOUL }
+    public enum Reason { NONE, NO_SPACE, REST, DEFEATED, NOT_ATTACKING, BUSY, NEEDS_LEVEL, NO_ROUTE, NEEDS_ORIGIN, COOLDOWN, SOUL }
 
     public record Module(Order order, boolean enabled, Reason reason) {}
 
@@ -61,18 +61,15 @@ public final class CommandWheelReadout {
     public static Module[] modules(PartyMemberView member, int age, boolean route, boolean rideable) {
         boolean alive = member.health() > 0;
         boolean field = alive && member.deployed();
-        Reason away = !alive ? (member.restTicks() > 0 ? Reason.REST : Reason.DEFEATED) : Reason.IN_DIGIVICE;
+        Reason away = !alive ? (member.restTicks() > 0 ? Reason.REST : Reason.DEFEATED) : Reason.NO_SPACE;
         boolean steady = "RESTING".equals(member.phase()) || "EVOLVED".equals(member.phase());
 
         Module[] modules = new Module[4];
         modules[TOP_LEFT] = new Module(member.holding() ? Order.FOLLOW : Order.STAND_STILL, field, field ? Reason.NONE : away);
         modules[TOP_RIGHT] = rideable && field && !member.attacking() ? new Module(Order.RIDE, true, Reason.NONE)
                 : new Module(Order.CANCEL_TARGET, field && member.attacking(), !field ? away : member.attacking() ? Reason.NONE : Reason.NOT_ATTACKING);
-        if (member.deployed()) {
-            modules[BOTTOM_LEFT] = new Module(Order.RECALL, field && steady, !alive ? away : steady ? Reason.NONE : Reason.BUSY);
-        } else {
-            modules[BOTTOM_LEFT] = new Module(Order.SEND_OUT, alive, alive ? Reason.NONE : away);
-        }
+        // Recall takes the partner out of the party and into the Digivice; it comes back out from the Digispace.
+        modules[BOTTOM_LEFT] = new Module(Order.RECALL, field && steady, !field ? away : steady ? Reason.NONE : Reason.BUSY);
         modules[BOTTOM_RIGHT] = evolution(member, age, route, field, away);
         return modules;
     }
@@ -101,6 +98,18 @@ public final class CommandWheelReadout {
     public static int sector(double dx, double dy) {
         if (dx * dx + dy * dy < (double) DEAD_ZONE * DEAD_ZONE) return NONE;
         return (dy < 0 ? TOP_LEFT : BOTTOM_LEFT) + (dx < 0 ? 0 : 1);
+    }
+
+    /** The Digivice key under the orders: always there, and the only thing on the wheel while the party is empty. */
+    public static final int DIGIVICE_WIDTH = 96, DIGIVICE_HEIGHT = 20, DIGIVICE_DROP = 18, DIGIVICE_REACH = 4;
+
+    public static int digiviceX(int centerX) { return centerX - DIGIVICE_WIDTH / 2; }
+    public static int digiviceY(int centerY) { return centerY + ROW_GAP / 2 + MODULE_HEIGHT + DIGIVICE_DROP; }
+
+    /** Whether the cursor is on the Digivice key, which then wins over the quarter it lies in. */
+    public static boolean overDigivice(double dx, double dy) {
+        int top = ROW_GAP / 2 + MODULE_HEIGHT + DIGIVICE_DROP;
+        return Math.abs(dx) <= DIGIVICE_WIDTH / 2.0 + DIGIVICE_REACH && dy >= top - DIGIVICE_REACH && dy <= top + DIGIVICE_HEIGHT + DIGIVICE_REACH;
     }
 
     /** DigiSoul as a whole percentage, for the charging readout. */

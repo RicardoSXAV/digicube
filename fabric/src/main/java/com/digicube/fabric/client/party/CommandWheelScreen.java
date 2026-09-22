@@ -22,7 +22,8 @@ import org.lwjgl.glfw.GLFW;
  * The command wheel: held open by its key, it puts the selected partner at the centre of
  * the screen and one order in each quarter around it. Pointing anywhere into a quarter
  * selects its order; letting go of the key gives it, or cancels when the cursor is still
- * in the dead zone or the order is unavailable. Space steps to the next partner. The party
+ * in the dead zone or the order is unavailable. Under the orders sits the Digivice key, which opens
+ * the Digivice; with nobody in the party it is all the wheel offers. Space steps to the next partner. The party
  * strip stays visible behind the veil, so the partner is shown here by its icon alone.
  * Design: {@code design/command-wheel.md}.
  */
@@ -63,7 +64,7 @@ public final class CommandWheelScreen extends Screen {
 
     @Override public void tick() {
         ticks++;
-        if (minecraft.player == null || !minecraft.player.isAlive() || member() == null) {
+        if (minecraft.player == null || !minecraft.player.isAlive()) {
             onClose();
             return;
         }
@@ -102,7 +103,7 @@ public final class CommandWheelScreen extends Screen {
      * left the dead zone latches the wheel open instead, so tapping works as well as holding.
      */
     private void released(double mouseX, double mouseY) {
-        boolean moved = CommandWheelReadout.sector(mouseX - width / 2, mouseY - height / 2) != CommandWheelReadout.NONE;
+        boolean moved = CommandWheelReadout.sector(mouseX - width / 2, mouseY - height / 2) != CommandWheelReadout.NONE || onDigivice(mouseX, mouseY);
         if (!moved && ticks <= TAP_TICKS) latched = true;
         else give(mouseX, mouseY);
     }
@@ -141,6 +142,12 @@ public final class CommandWheelScreen extends Screen {
             DevGear.open();
             return;
         }
+        if (onDigivice(mouseX, mouseY)) {
+            // The server opens the screen, as it does for the item: the snapshot it answers with carries the reserve.
+            client.send(new PartyActionPayload(PartyActionPayload.OPEN, PartyActionPayload.NO_MEMBER, 0));
+            onClose();
+            return;
+        }
         PartyMemberView member = member();
         int sector = CommandWheelReadout.sector(mouseX - width / 2, mouseY - height / 2);
         if (member != null && sector != CommandWheelReadout.NONE) {
@@ -155,6 +162,10 @@ public final class CommandWheelScreen extends Screen {
         onClose();
     }
 
+    private boolean onDigivice(double mouseX, double mouseY) {
+        return CommandWheelReadout.overDigivice(mouseX - width / 2, mouseY - height / 2);
+    }
+
     private PartyMemberView member() {
         return client.member(client.selected());
     }
@@ -166,16 +177,24 @@ public final class CommandWheelScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
         PartyMemberView member = member();
-        if (member == null) return;
         float time = ticks + partialTick;
         float fade = Math.min(1.0F, time / OPEN_TICKS);
         int cx = width / 2, cy = height / 2;
         rect(g, 0, 0, width, height, tint(DigiTheme.VOID, VEIL_ALPHA, fade));
+        boolean onGear = DevGear.over(mouseX, mouseY, width, height);
+        boolean onDigivice = !onGear && onDigivice(mouseX, mouseY);
+        digiviceKey(g, CommandWheelReadout.digiviceX(cx), CommandWheelReadout.digiviceY(cy), onDigivice, fade);
+        if (member == null) {
+            emptyHub(g, cx - HUB / 2, cy - HUB / 2, fade);
+            String none = Component.translatable("gui.digicube.wheel.no_partner").getString();
+            g.text(font, none, cx - font.width(none) / 2, cy + HUB / 2 + 4, tint(DigiTheme.MUTED, 0xFF, fade), true);
+            if (DevGear.available()) DevGear.draw(g, font, width, height, onGear, onGear ? gearDwell + partialTick : 0, fade);
+            return;
+        }
 
         Module[] modules = modules(member);
         int pointed = CommandWheelReadout.sector(mouseX - cx, mouseY - cy);
-        boolean onGear = DevGear.over(mouseX, mouseY, width, height);
-        int chosen = !onGear && pointed != CommandWheelReadout.NONE && modules[pointed].enabled() ? pointed : CommandWheelReadout.NONE;
+        int chosen = !onGear && !onDigivice && pointed != CommandWheelReadout.NONE && modules[pointed].enabled() ? pointed : CommandWheelReadout.NONE;
 
         hub(g, cx - HUB / 2, cy - HUB / 2, member, time, fade);
         neighbours(g, cx, cy, time, fade);
@@ -194,7 +213,7 @@ public final class CommandWheelScreen extends Screen {
         groupLabel(g, cx, bottomRow + H + 5, Component.translatable("gui.digicube.wheel.basic").getString(), fade);
         if (latched) {
             String hint = Component.translatable("gui.digicube.wheel.click_hint").getString();
-            g.text(font, hint, cx - font.width(hint) / 2, bottomRow + H + 18, tint(DigiTheme.MUTED, 0xFF, fade), true);
+            g.text(font, hint, cx - font.width(hint) / 2, CommandWheelReadout.digiviceY(cy) + CommandWheelReadout.DIGIVICE_HEIGHT + 5, tint(DigiTheme.MUTED, 0xFF, fade), true);
         }
 
         for (int sector = 0; sector < modules.length; sector++) {
@@ -221,6 +240,33 @@ public final class CommandWheelScreen extends Screen {
         int scan = Math.floorMod(ticks, SCAN_PERIOD_TICKS);
         if (scan < SCAN_SWEEP_TICKS) rect(g, x + 1, y + 1 + scan / 2, HUB - 2, 1, tint(DigiTheme.GRID_BRIGHT, 0x2C, fade));
         DigiPanels.brackets(g, x, y, HUB, HUB, 7, 2, tint(DigiTheme.AMBER, 0xFF, fade));
+    }
+
+    /** The hub with nobody in it: an empty bay, like the ones in the Digispace dock. */
+    private void emptyHub(GuiGraphicsExtractor g, int x, int y, float fade) {
+        DigiPanels.frame(g, x - 1, y - 1, HUB + 2, HUB + 2, 0, tint(DigiTheme.VOID, 0xB0, fade), 2);
+        rect(g, x, y, HUB, HUB, tint(DigiTheme.VOID, 0xE0, fade));
+        DigiPanels.grid(g, x + 1, y + 1, HUB - 2, HUB - 2, 9, tint(DigiTheme.GRID, 0x24, fade));
+        DigiPanels.bevel(g, x, y, HUB, HUB, 1, tint(DigiTheme.EDGE_DIM, 0xFF, fade), tint(DigiTheme.SHADOW, 0xFF, fade));
+        rect(g, x + HUB / 2 - 4, y + HUB / 2, 9, 1, tint(DigiTheme.EDGE, 0xFF, fade));
+        rect(g, x + HUB / 2, y + HUB / 2 - 4, 1, 9, tint(DigiTheme.EDGE, 0xFF, fade));
+    }
+
+    /** The Digivice key: a small module of its own under the orders, picked by pointing at it. */
+    private void digiviceKey(GuiGraphicsExtractor g, int x, int y, boolean selected, float fade) {
+        int w = CommandWheelReadout.DIGIVICE_WIDTH, h = CommandWheelReadout.DIGIVICE_HEIGHT;
+        if (selected) y += CommandWheelReadout.STEP_OUT;
+        DigiPanels.frame(g, x - 1, y - 1, w + 2, h + 2, 0, tint(DigiTheme.VOID, 0xB0, fade), 3);
+        DigiPanels.frame(g, x, y, w, h, tint(DigiTheme.PANEL, 0xE6, fade), 0, 2);
+        rect(g, x + 1, y + 2, w - 2, 5, tint(DigiTheme.PANEL_RAISED, 0x90, fade));
+        if (selected) rect(g, x + 1, y + 1, w - 2, h - 2, tint(DigiTheme.AMBER, 0x14, fade));
+        DigiPanels.bevel(g, x, y, w, h, 2, tint(selected ? DigiTheme.AMBER : DigiTheme.EDGE_LIGHT, 0xFF, fade), tint(DigiTheme.SHADOW, 0xFF, fade));
+        int body = selected ? DigiTheme.AMBER : DigiTheme.WHITE, drop = tint(DigiTheme.VOID, 0xC0, fade);
+        CommandIcons.draw(g, CommandIcons.device(), x + 7, y + 5, drop, drop, 0);
+        CommandIcons.draw(g, CommandIcons.device(), x + 6, y + 4, tint(body, 0xFF, fade), tint(DigiTheme.CYAN, 0xFF, fade), tint(DigiTheme.mix(DigiTheme.CYAN, DigiTheme.VOID, 0.65F), 0xFF, fade));
+        String label = Component.translatable("gui.digicube.wheel.digivice").getString();
+        g.text(font, label, x + 30 + (w - 34 - font.width(label)) / 2, y + 6, tint(body, 0xFF, fade), true);
+        if (selected) DigiPanels.brackets(g, x, y, w, h, 6, 2, tint(DigiTheme.AMBER, 0xFF, fade));
     }
 
     /** Previous and next partner either side of the hub, with the key that steps to the next one. */
@@ -346,7 +392,7 @@ public final class CommandWheelScreen extends Screen {
         if (module.order() == Order.REVERT) return Component.translatable("gui.digicube.hud.soul", PartyGraphics.clock(PartyHudReadout.soul(m, age))).getString();
         return switch (module.reason()) {
             case NONE -> "";
-            case IN_DIGIVICE -> Component.translatable("gui.digicube.wheel.reason.in_digivice").getString();
+            case NO_SPACE -> Component.translatable("gui.digicube.wheel.reason.no_space").getString();
             case REST -> Component.translatable("gui.digicube.hud.rest", PartyGraphics.clock(PartyHudReadout.restTicks(m, age))).getString();
             case DEFEATED -> Component.translatable("gui.digicube.hud.defeated").getString();
             case NOT_ATTACKING -> Component.translatable("gui.digicube.wheel.reason.not_attacking").getString();

@@ -48,9 +48,11 @@ final class CommandIcons {
             "........####........", ".......##..##.......", "..++++##....##++++..", ".++++++++++++++++++.", ".++++++++++++++++++.",
             ".+++-----------++++.", "..++..........++++..", "..++...........+++..", "..++...........+++..", BLANK};
     private static final String[] RECALL = concat(ARROW, DEVICE);
-    private static final String[] SEND_OUT = concat(reversed(ARROW), DEVICE);
     private static final String[] DIGIVOLVE = spark(concat(CHEVRONS, new String[] {BLANK}));
     private static final String[] REVERT = concat(new String[] {BLANK}, reversed(CHEVRONS));
+
+    /** The Digivice alone, for the wheel's Digivice key: 20 x 10. */
+    static String[] device() { return DEVICE; }
 
     static String[] rows(Order order) {
         return switch (order) {
@@ -59,7 +61,6 @@ final class CommandIcons {
             case CANCEL_TARGET -> CANCEL_TARGET;
             case RIDE -> RIDE;
             case RECALL -> RECALL;
-            case SEND_OUT -> SEND_OUT;
             case DIGIVOLVE -> DIGIVOLVE;
             case REVERT -> REVERT;
         };

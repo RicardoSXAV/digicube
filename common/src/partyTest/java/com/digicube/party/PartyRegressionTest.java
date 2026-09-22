@@ -57,6 +57,9 @@ public final class PartyRegressionTest {
         check(roster.select(owner, reserve.id(), -1), "recall clears party slot");
         check(roster.owned(owner).size() == 19 && roster.party(owner).size() == 2, "recall preserves individual");
         check(roster.select(owner, first.id(), 0), "stored partner can return");
+        PartyMember second = roster.inSlot(owner, 1);
+        check(roster.select(owner, first.id(), 1) && first.slot() == 1 && second.slot() == 0 && roster.party(owner).size() == 3, "two party members trade places instead of one leaving");
+        check(roster.select(owner, first.id(), 0) && first.slot() == 0 && second.slot() == 1, "and trade back");
         long oldGeneration = first.generation();
         check(roster.accepts(first.id(), owner, oldGeneration), "selected incarnation admitted");
         first.nextGeneration();
@@ -78,13 +81,10 @@ public final class PartyRegressionTest {
         legacy.remove("xp");
         PartyMember beforeProgression = PartyMember.CODEC.parse(NbtOps.INSTANCE, legacy).getOrThrow();
         check(beforeProgression.level() == 1 && beforeProgression.xp() == 0, "rosters saved before progression existed load at level 1");
-        check(!beforeProgression.stowed(), "rosters saved before the command wheel existed load deployed");
+        legacy.putBoolean("stowed", true);
         PartyMember recalled = PartyMember.CODEC.parse(NbtOps.INSTANCE, legacy).getOrThrow();
-        recalled.setStowed(true);
-        CompoundTag stowedTag = (CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, recalled).getOrThrow();
-        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, stowedTag).getOrThrow().stowed(), "a recalled partner stays recalled across a reload");
-        recalled.setSlot(1);
-        check(!recalled.stowed(), "placing a partner in a party slot sends it out again");
+        check(!recalled.active(), "a partner an older save kept recalled in its party slot loads inside the Digivice");
+        check(!((CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, recalled).getOrThrow()).contains("stowed"), "and that state is never written again");
         // Exercise Minecraft's actual disk API too: a valid codec alone does not verify
         // SavedDataType/data-fixer configuration or asynchronous write completion.
         Path directory = Files.createTempDirectory("digicube-party-test-").toAbsolutePath().normalize();
@@ -157,7 +157,9 @@ public final class PartyRegressionTest {
         check(new PartySavedData().roster().all().isEmpty(), "separate world registries do not share state");
 
         PartyMemberView view = PartyMemberView.of(data, first);
-        PartySnapshotPayload snapshot = new PartySnapshotPayload(true, 2, 19, List.of(view), List.of(view), "");
+        PartySnapshotPayload snapshot = new PartySnapshotPayload(true, 2, 19, List.of(view), List.of(view), "", List.of(view.species()));
+        check(PartyManager.knownSpecies(data, owner).contains(first.species()), "the Analyzer knows every species the tamer owns");
+        check(new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "").known().isEmpty(), "a snapshot without the Digivice open names no species");
         RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
         try {
             PartySnapshotPayload.STREAM_CODEC.encode(buffer, snapshot);

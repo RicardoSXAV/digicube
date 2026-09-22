@@ -38,13 +38,13 @@ public final class CommandWheelRegressionTest {
         check(CommandWheelReadout.modules(member(20, 24, false, 0, 3600, "RESTING", 0, false, false), 0, true, true)[1].order() == Order.CANCEL_TARGET, "no Ride from the Digivice");
 
         Module[] stowed = CommandWheelReadout.modules(member(20, 24, false, 0, 3600, "RESTING", 0, false, false), 0, true);
-        check(stowed[2].order() == Order.SEND_OUT && stowed[2].enabled(), "a partner in the Digivice is offered Send out");
-        check(!stowed[0].enabled() && stowed[0].reason() == Reason.IN_DIGIVICE, "no behaviour orders in the Digivice");
-        check(!stowed[1].enabled() && stowed[1].reason() == Reason.IN_DIGIVICE, "no target to cancel in the Digivice");
-        check(!stowed[3].enabled() && stowed[3].reason() == Reason.IN_DIGIVICE, "no Digivolution in the Digivice");
+        check(stowed[2].order() == Order.RECALL && !stowed[2].enabled() && stowed[2].reason() == Reason.NO_SPACE, "there is no Send out: a partner with no room to come out just says so");
+        check(!stowed[0].enabled() && stowed[0].reason() == Reason.NO_SPACE, "no behaviour orders before it is out");
+        check(!stowed[1].enabled() && stowed[1].reason() == Reason.NO_SPACE, "no target to cancel before it is out");
+        check(!stowed[3].enabled() && stowed[3].reason() == Reason.NO_SPACE, "no Digivolution before it is out");
 
         Module[] resting = CommandWheelReadout.modules(member(0, 24, false, 5440, 0, "RESTING", 0, false, false), 0, true);
-        check(resting[2].order() == Order.SEND_OUT && !resting[2].enabled() && resting[2].reason() == Reason.REST, "a defeated partner cannot be sent out while it rests");
+        check(resting[2].order() == Order.RECALL && !resting[2].enabled() && resting[2].reason() == Reason.REST, "a defeated partner shows its rest");
         Module[] defeated = CommandWheelReadout.modules(member(0, 24, false, 0, 0, "RESTING", 0, false, false), 0, true);
         check(defeated[3].reason() == Reason.DEFEATED && defeated[0].reason() == Reason.DEFEATED, "defeated without rest owed says DEFEATED");
 
@@ -65,11 +65,12 @@ public final class CommandWheelRegressionTest {
                 3600, "RESTING", 0, true, "", false, 0, 0, false, false), 0, true) == Reason.NEEDS_ORIGIN, "origin required: NEEDS_ORIGIN");
 
         check(Order.STAND_STILL.action() == PartyActionPayload.HOLD && Order.FOLLOW.action() == PartyActionPayload.FOLLOW
-                && Order.CANCEL_TARGET.action() == PartyActionPayload.CANCEL_TARGET && Order.RECALL.action() == PartyActionPayload.STOW
-                && Order.SEND_OUT.action() == PartyActionPayload.SEND_OUT && Order.DIGIVOLVE.action() == PartyActionPayload.EVOLVE
+                && Order.CANCEL_TARGET.action() == PartyActionPayload.CANCEL_TARGET && Order.RECALL.action() == PartyActionPayload.RECALL
+                && Order.DIGIVOLVE.action() == PartyActionPayload.EVOLVE
                 && Order.REVERT.action() == PartyActionPayload.REVERT, "every order maps to its payload action");
         check(Order.DIGIVOLVE.evolution() && Order.REVERT.evolution() && !Order.RECALL.evolution(), "only evolution orders carry an intent");
 
+        check(CommandWheelReadout.overDigivice(0, 90) && CommandWheelReadout.overDigivice(-50, 84) && !CommandWheelReadout.overDigivice(0, 60) && !CommandWheelReadout.overDigivice(60, 90), "the Digivice key sits under the orders, with a little reach");
         check(CommandWheelReadout.sector(0, 0) == CommandWheelReadout.NONE, "the centre selects nothing");
         check(CommandWheelReadout.sector(9, -9) == CommandWheelReadout.NONE, "inside the dead zone selects nothing");
         check(CommandWheelReadout.sector(-10, -10) == CommandWheelReadout.TOP_LEFT, "just outside the dead zone, up and left");

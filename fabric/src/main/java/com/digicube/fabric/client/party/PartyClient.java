@@ -3,6 +3,7 @@ package com.digicube.fabric.client.party;
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.DigimonPart;
+import com.digicube.fabric.client.digivice.DigiviceScreen;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
@@ -124,11 +125,11 @@ public final class PartyClient {
         while (nextKey.consumeClick()) if (inWorld) selected = PartyHudReadout.nextSelection(filled(), selected, 1);
         while (wheelKey.consumeClick()) {
             // The wheel is the Digivice's: no device in the inventory, no wheel. The server checks the same.
-            if (inWorld && member(selected) != null && client.player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) {
+            if (inWorld && client.player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) {
                 // From the saddle the wheel opens on the Digimon under the rider: its attacks are cast from there.
                 if (client.player.getVehicle() instanceof DigimonEntity mount) {
                     for (PartyMemberView member : snapshot.party()) if (member.id().equals(mount.getUUID())) selected = member.slot();
-                } else if (aimed != null) {
+                } else if (aimed != null && member(aimed) != null) {
                     // On foot it opens on the partner under the crosshair.
                     selected = member(aimed).slot();
                 }
@@ -187,10 +188,10 @@ public final class PartyClient {
     int selected() { return selected; }
     KeyMapping wheelKey() { return wheelKey; }
 
-    PartySnapshotPayload snapshot() { return snapshot; }
-    int snapshotAge() { return snapshotAge; }
+    public PartySnapshotPayload snapshot() { return snapshot; }
+    public int snapshotAge() { return snapshotAge; }
 
-    void send(PartyActionPayload payload) {
+    public void send(PartyActionPayload payload) {
         if (ClientPlayNetworking.canSend(PartyActionPayload.TYPE)) ClientPlayNetworking.send(payload);
     }
 }

@@ -237,7 +237,7 @@ public final class PartyManager {
             if (!player.isAlive() || player.isSpectator()) continue;
             if (regenerate) regenerateReserve(data, player.getUUID());
             for (PartyMember member : data.roster().party(player.getUUID())) {
-                if (!member.stowed() && !data.live.containsKey(member.id())) deploy(data, member, player);
+                if (!data.live.containsKey(member.id())) deploy(data, member, player);
             }
         }
     }
@@ -285,7 +285,7 @@ public final class PartyManager {
         }
         int oldSlot = member.slot();
         if (!data.roster().select(player.getUUID(), member.id(), slot)) return "gui.digicube.party.invalid";
-        if (previous != null && previous != member) recall(data, previous);
+        if (previous != null && previous != member && !previous.active()) recall(data, previous);
         if (slot < 0) recall(data, member);
         else if (prepared != null && !spawn(data, member, prepared, player.level())) {
             data.roster().select(player.getUUID(), member.id(), oldSlot);
@@ -298,8 +298,25 @@ public final class PartyManager {
         return "";
     }
 
+    /**
+     * The species the Analyzer may describe for {@code owner}: every form its Digimon have now, came from or have reached.
+     * Derived from the roster, so nothing new is stored.
+     */
+    public static List<net.minecraft.resources.Identifier> knownSpecies(PartySavedData data, UUID owner) {
+        java.util.Set<net.minecraft.resources.Identifier> known = new java.util.TreeSet<>();
+        for (PartyMember member : data.roster().owned(owner)) {
+            DigimonEntity live = data.live.get(member.id());
+            var state = live == null ? member.evolution() : live.evolution();
+            known.add(live == null ? member.species() : live.getSpeciesId());
+            known.add(member.species());
+            if (state.origin != null) known.add(state.origin);
+            known.addAll(state.completed);
+        }
+        return List.copyOf(known);
+    }
+
     /** Command wheel orders. Each returns a translation key on failure, or the empty string on success. */
-    public static String stow(ServerPlayer player, UUID memberId) {
+    public static String recall(ServerPlayer player, UUID memberId) {
         PartySavedData data = PartySavedData.get(player.level().getServer());
         PartyMember member = commanded(data, player, memberId);
         if (member == null) return "gui.digicube.party.invalid";
@@ -308,23 +325,8 @@ public final class PartyManager {
         if (busy(data, member)) return "gui.digicube.party.riding";
         var phase = live.evolution().phase;
         if (phase != com.digicube.digimon.EvolutionState.Phase.RESTING && phase != com.digicube.digimon.EvolutionState.Phase.EVOLVED) return "gui.digicube.party.unavailable";
-        member.setStowed(true);
-        recall(data, member);
-        data.session(member.owner()).sync.invalidate();
-        data.setDirty();
-        return "";
-    }
-
-    /** Clears the recalled state; a cramped spot leaves the partner waiting for space like any other deployment. */
-    public static String sendOut(ServerPlayer player, UUID memberId) {
-        PartySavedData data = PartySavedData.get(player.level().getServer());
-        PartyMember member = commanded(data, player, memberId);
-        if (member == null) return "gui.digicube.party.invalid";
-        if (member.defeated()) return "gui.digicube.party.defeated";
-        member.setStowed(false);
-        data.session(member.owner()).sync.invalidate();
-        data.setDirty();
-        return data.live.containsKey(member.id()) || deploy(data, member, player) ? "" : "gui.digicube.party.no_space";
+        // A Digimon is out in the world or inside the Digivice: recalling it gives up its party slot.
+        return select(player, memberId, -1);
     }
 
     public static String hold(ServerPlayer player, UUID memberId, boolean holding) {

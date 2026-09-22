@@ -147,6 +147,17 @@ tasks.register('devPanelTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('devPanelTest') }
 
+tasks.register('digiviceTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.digivice.DigiviceRegressionTest'
+    if (project.hasProperty('digiviceEvidence')) args project.property('digiviceEvidence')
+    workingDir = layout.buildDirectory.dir('digivice-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('digiviceTest') }
+
 tasks.register('nativeMochimonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath

@@ -311,7 +311,7 @@ final class PartyHud {
             case EVOLVING -> Component.translatable("gui.digicube.hud.evolving").getString();
             case REVERTING -> Component.translatable("gui.digicube.hud.reverting").getString();
             case SOUL -> Component.translatable("gui.digicube.hud.soul", PartyGraphics.clock(soul)).getString();
-            case WAITING -> Component.translatable("gui.digicube.hud.waiting").getString();
+            case NO_SPACE -> Component.translatable("gui.digicube.hud.no_space").getString();
             case COOLDOWN -> Component.translatable("gui.digicube.hud.cooldown", (PartyHudReadout.cooldown(m, age) + 19) / 20).getString();
             case READY -> (key.isEmpty() ? Component.translatable("gui.digicube.hud.ready") : Component.translatable("gui.digicube.hud.ready_key", key)).getString();
             case STAGE -> species == null ? "" : Component.translatable("digicube.stage." + species.stage().getId()).getString().toUpperCase(Locale.ROOT);
@@ -323,7 +323,7 @@ final class PartyHud {
             case DEFEATED -> DigiTheme.RED;
             case EVOLVING, REVERTING -> DigiTheme.CYAN;
             case SOUL -> soul < PartyHudReadout.SOUL_CRITICAL_TICKS ? DigiTheme.RED : soul < PartyHudReadout.SOUL_WARN_TICKS ? DigiTheme.AMBER : DigiTheme.CYAN;
-            case WAITING, READY -> DigiTheme.AMBER;
+            case NO_SPACE, READY -> DigiTheme.AMBER;
             case REST, COOLDOWN, STAGE -> DigiTheme.MUTED;
         };
     }

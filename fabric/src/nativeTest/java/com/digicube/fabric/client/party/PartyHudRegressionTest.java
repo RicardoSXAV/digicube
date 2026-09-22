@@ -23,10 +23,10 @@ public final class PartyHudRegressionTest {
         check(PartyHudReadout.soulLocked(healthy), "DigiSoul locked below the champion level");
         check(PartyHudReadout.status(member(0, 20, 12, true, 5440, 0, "RESTING", 0), 0, false) == Status.REST, "defeated with rest owed shows REST");
         check(PartyHudReadout.status(member(0, 20, 12, true, 0, 0, "RESTING", 0), 0, false) == Status.DEFEATED, "defeated without rest shows DEFEATED");
-        check(PartyHudReadout.status(member(20, 20, 24, false, 0, 3600, "EVOLVED", 0), 0, true) == Status.SOUL, "evolved beats waiting");
+        check(PartyHudReadout.status(member(20, 20, 24, false, 0, 3600, "EVOLVED", 0), 0, true) == Status.SOUL, "evolved beats no space");
         check(PartyHudReadout.status(member(20, 20, 24, true, 0, 0, "EVOLVING", 0), 0, true) == Status.EVOLVING, "evolving code");
         check(PartyHudReadout.status(member(20, 20, 24, true, 0, 0, "REVERTING", 0), 0, true) == Status.REVERTING, "reverting code");
-        check(PartyHudReadout.status(member(20, 20, 9, false, 0, 0, "RESTING", 0), 0, false) == Status.WAITING, "not deployed shows WAITING");
+        check(PartyHudReadout.status(member(20, 20, 9, false, 0, 0, "RESTING", 0), 0, false) == Status.NO_SPACE, "a partner with no room to come out says NO SPACE");
         check(PartyHudReadout.status(member(20, 20, 24, true, 0, 3600, "RESTING", 200), 0, true) == Status.COOLDOWN, "cooldown beats ready");
         check(PartyHudReadout.status(member(20, 20, 24, true, 0, 3600, "RESTING", 200), 400, true) == Status.COOLDOWN, "cooldown holds at one tick until the server clears it");
 

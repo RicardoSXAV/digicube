@@ -25,7 +25,7 @@ public final class PartyHudReadout {
     static final int HOLD_TICKS = 20;
 
     /** The status row, in priority order: the first that applies wins. */
-    public enum Status { REST, DEFEATED, EVOLVING, REVERTING, SOUL, WAITING, COOLDOWN, READY, STAGE }
+    public enum Status { REST, DEFEATED, EVOLVING, REVERTING, SOUL, NO_SPACE, COOLDOWN, READY, STAGE }
 
     /**
      * @param age   client ticks since the snapshot that carried {@code member}
@@ -39,7 +39,7 @@ public final class PartyHudReadout {
             case "EVOLVED": return Status.SOUL;
             default: break;
         }
-        if (!member.deployed()) return Status.WAITING;
+        if (!member.deployed()) return Status.NO_SPACE;
         if (cooldown(member, age) > 0) return Status.COOLDOWN;
         if (ready(member, age, route)) return Status.READY;
         return Status.STAGE;

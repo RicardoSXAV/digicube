@@ -74,8 +74,9 @@ public final class PartyRoster {
         if (member == null || !member.owner().equals(owner) || member.defeated()
                 || slot < -1 || slot >= PARTY_SIZE) return false;
         if (slot >= 0) {
+            // Whoever held the slot takes the mover's old one: two party members trade places, a newcomer sends it to reserve.
             PartyMember previous = inSlot(owner, slot);
-            if (previous != null) previous.setSlot(-1);
+            if (previous != null && previous != member) previous.setSlot(member.slot());
         }
         member.setSlot(slot);
         return true;
