@@ -39,6 +39,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         com.digicube.fabric.client.evolution.EvolutionRenderType.GRID.pipeline();
         new com.digicube.fabric.client.evolution.EvolutionAudio().init();
+        new com.digicube.fabric.client.digivice.DigiviceLocator().init();
         new PartyClient().init();
         new StarterClient().init();
         new DevClient().init();
@@ -81,6 +82,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.DROPPED_DIGIVICE, com.digicube.fabric.client.render.DroppedDigiviceRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
         for (var definition : com.digicube.digimon.KineticAttacks.all()) if (definition.projectile() != null) {

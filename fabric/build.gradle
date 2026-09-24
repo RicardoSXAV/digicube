@@ -189,3 +189,35 @@ tasks.register('nativeDinohyumonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeDinohyumonTest') }
+
+tasks.register('digiviceGripTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.render.DigiviceGripRegressionTest'
+    if (project.hasProperty('digiviceGripEvidence')) args project.property('digiviceGripEvidence')
+    workingDir = layout.buildDirectory.dir('digivice-grip-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+
+tasks.register('digiviceDropReview', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.render.DigiviceDropReview'
+    if (project.hasProperty('digiviceDropEvidence')) args project.property('digiviceDropEvidence')
+    workingDir = layout.buildDirectory.dir('digivice-drop-review').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+
+tasks.named('check') { dependsOn tasks.named('digiviceGripTest') }
+
+tasks.register('digiviceLocatorTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.digivice.DigiviceLocatorRegressionTest'
+    workingDir = layout.buildDirectory.dir('digivice-locator-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('digiviceLocatorTest') }

@@ -1,6 +1,45 @@
 {
   "model": {
-    "type": "minecraft:model",
-    "model": "digicube:item/digivice"
+    "type": "minecraft:select",
+    "property": "minecraft:display_context",
+    "cases": [
+      {
+        "when": "gui",
+        "model": {
+          "type": "minecraft:model",
+          "model": "digicube:item/digivice_gui_lighting",
+          "tints": [
+            {
+              "type": "minecraft:constant",
+              "value": 15790320
+            },
+            {
+              "type": "minecraft:constant",
+              "value": 9737364
+            },
+            {
+              "type": "minecraft:constant",
+              "value": 10066329
+            },
+            {
+              "type": "minecraft:constant",
+              "value": 10066329
+            },
+            {
+              "type": "minecraft:constant",
+              "value": 13750737
+            },
+            {
+              "type": "minecraft:constant",
+              "value": 7368816
+            }
+          ]
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "digicube:item/digivice"
+    }
   }
 }

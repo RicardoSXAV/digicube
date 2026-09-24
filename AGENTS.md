@@ -462,7 +462,17 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   Wild Digimon are neutral: they only retaliate, and only attack-less species flee.
 - The Digivice is handed out, never crafted: `StarterFlow.handDigivice` (common) runs first
   on every join and gives one to any non-spectator the `digicube:starters` data has not
-  marked yet, so it is one per player per world and legacy tamers get theirs too.
+  marked yet, so it is one per player per world and legacy tamers get theirs too. `Digivices`
+  binds that item to an owner and rotating credential in the world's `DigiviceSavedData`;
+  extras and stale copies are rejected, foreign devices cannot authorize the UI or be picked up.
+  `DroppedDigivice` replaces ordinary item drops, settles face-up, sinks in liquids, survives
+  damage/despawn and floats at minimum Y + 1 above the void. Saved drop addresses feed the
+  client golden locator up to 512 blocks without chunk tickets. The beam waits eight ticks after
+  settling, then fades in over eight; pickup explicitly withdraws its signal. The owner's drop
+  gets a distinct Digivice icon in the vanilla locator bar, even beyond beam range in the same
+  dimension. `/give <player> digicube:digivice` replaces that owner's existing credential/device
+  via `MixinGiveCommand`, never creates an additional device. Headless checks:
+  `digivice_checks` and `digivice_checks_reload`; design: `../design/digivice-item-lifecycle.md`.
 - The first partner is a prompt, not a command: `StarterFlow` (common) decides
   eligibility (not a spectator, no `digicube:starters` record, no owned Digimon), writes
   the record first and then grants through `PartyManager.give`; the candidates and their

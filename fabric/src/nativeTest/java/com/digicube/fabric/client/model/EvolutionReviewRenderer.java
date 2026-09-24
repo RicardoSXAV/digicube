@@ -11,6 +11,42 @@ import java.util.*;
 /** CPU depth-buffered, nearest-texel review of the actual runtime evaluator, without Minecraft UI. */
 public final class EvolutionReviewRenderer {
     private record Canvas(int width, int height, boolean stage) {}
+    /** Digivice review uses this same neutral stage/depth rasterizer as the evolution reviews. */
+    public static BufferedImage renderProp(List<EvolutionMesh.Face> model, BufferedImage texture,
+            List<EvolutionMesh.Face> beacon, float radius, double yaw, double pitch, boolean day) {
+        Canvas canvas = new Canvas(720,600,true);
+        int[] pixels = new int[canvas.width*canvas.height]; java.util.Arrays.fill(pixels,day?0x8da3af:0x101b28);
+        float[] depth = new float[pixels.length]; java.util.Arrays.fill(depth,Float.POSITIVE_INFINITY);
+        float scale = 600*.65F/radius/1.28F;
+        floor(pixels,depth,scale,radius,pitch,canvas);
+        draw(model,texture,pixels,depth,scale,yaw,pitch,false,canvas);
+        for (var face : beacon) {
+            float[][] p = new float[4][5]; var v = face.vertices();
+            for(int i=0;i<4;i++) {
+                int j=i*8; double x=v[j]*Math.cos(yaw)+v[j+2]*Math.sin(yaw), z=-v[j]*Math.sin(yaw)+v[j+2]*Math.cos(yaw);
+                p[i]=new float[]{(float)(360+x*scale),(float)(468-(v[j+1]*Math.cos(pitch)-z*Math.sin(pitch))*scale),
+                        (float)(z*Math.cos(pitch)+v[j+1]*Math.sin(pitch)),v[j+3],v[j+4]};
+            }
+            beaconTriangle(p[0],p[1],p[2],face.color(),pixels,depth,canvas);
+            beaconTriangle(p[0],p[2],p[3],face.color(),pixels,depth,canvas);
+        }
+        var image = new BufferedImage(720,600,BufferedImage.TYPE_INT_RGB);image.setRGB(0,0,720,600,pixels,0,720);return image;
+    }
+    private static void beaconTriangle(float[] a,float[] b,float[] c,int color,int[] pixels,float[] depth,Canvas canvas) {
+        float det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(det)<1e-7)return;
+        int xmin=Math.clamp((int)Math.floor(Math.min(a[0],Math.min(b[0],c[0]))),0,canvas.width-1),xmax=Math.clamp((int)Math.ceil(Math.max(a[0],Math.max(b[0],c[0]))),0,canvas.width-1);
+        int ymin=Math.clamp((int)Math.floor(Math.min(a[1],Math.min(b[1],c[1]))),0,canvas.height-1),ymax=Math.clamp((int)Math.ceil(Math.max(a[1],Math.max(b[1],c[1]))),0,canvas.height-1);
+        for(int y=ymin;y<=ymax;y++)for(int x=xmin;x<=xmax;x++) {
+            float u=((b[1]-c[1])*(x+.5F-c[0])+(c[0]-b[0])*(y+.5F-c[1]))/det;
+            float v=((c[1]-a[1])*(x+.5F-c[0])+(a[0]-c[0])*(y+.5F-c[1]))/det,w=1-u-v;
+            if(u<0||v<0||w<0)continue;int at=y*canvas.width+x;
+            if(u*a[2]+v*b[2]+w*c[2]>depth[at]+.0001F)continue;
+            float gu=u*a[3]+v*b[3]+w*c[3],gv=u*a[4]+v*b[4]+w*c[4];
+            float alpha=(color>>>24)/255F*com.digicube.fabric.client.digivice.DigiviceBeacon.radiance(gu,gv);
+            int rgb=0;for(int shift:new int[]{0,8,16})rgb|=Math.min(255,((pixels[at]>>shift)&255)+Math.round(((color>>shift)&255)*alpha))<<shift;
+            pixels[at]=rgb;
+        }
+    }
     static void review(EvolutionSurface.Pair pair,Path out)throws Exception {
         Files.createDirectories(out);var template=EvolutionMesh.prepare(pair);
         var a=texture(pair.from().texture());var b=texture(pair.to().texture());

@@ -54,6 +54,10 @@ public final class DCEntityTypes {
 
     private DCEntityTypes() {}
 
+    public static final EntityType<com.digicube.digivice.DroppedDigivice> DROPPED_DIGIVICE = register(key("dropped_digivice"),
+            EntityType.Builder.<com.digicube.digivice.DroppedDigivice>of(com.digicube.digivice.DroppedDigivice::new, MobCategory.MISC)
+                    .sized(.55F, .12F).fireImmune().clientTrackingRange(10).updateInterval(1));
+
     public static final EntityType<com.digicube.entity.KineticProjectileEntity> KINETIC_PROJECTILE = register(key("kinetic_projectile"),
             EntityType.Builder.<com.digicube.entity.KineticProjectileEntity>of(com.digicube.entity.KineticProjectileEntity::new, MobCategory.MISC)
                     .sized(.1F, .1F).clientTrackingRange(12).updateInterval(1));

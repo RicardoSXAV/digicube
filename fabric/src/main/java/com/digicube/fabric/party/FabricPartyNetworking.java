@@ -59,6 +59,8 @@ public final class FabricPartyNetworking {
     private static InteractionResult use(Player player, InteractionHand hand) {
         if (!player.getItemInHand(hand).is(DCItems.DIGIVICE) || player.isSpectator()) return InteractionResult.PASS;
         if (player instanceof ServerPlayer serverPlayer) {
+            com.digicube.digivice.Digivices.reconcile(serverPlayer);
+            if (!com.digicube.digivice.Digivices.usable(serverPlayer, player.getItemInHand(hand))) return InteractionResult.FAIL;
             PartySavedData data = PartySavedData.get(serverPlayer.level().getServer());
             data.session(player.getUUID()).open = true;
             send(serverPlayer, true, "");
@@ -85,7 +87,7 @@ public final class FabricPartyNetworking {
         boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.OPEN || payload.action() == PartyActionPayload.RIDE;
         // The V key and the command wheel act from the world, without the Digivice screen open.
         if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE && payload.action()!=PartyActionPayload.REVERT && !order) || !player.isAlive() || player.isSpectator()
-                || !player.getInventory().contains(stack -> stack.is(DCItems.DIGIVICE))) return;
+                || !com.digicube.digivice.Digivices.hasDevice(player)) return;
         if(payload.action()>=PartyActionPayload.EVOLVE&&!order&&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
             send(player,false,"gui.digicube.evolution.stale");return;
         }

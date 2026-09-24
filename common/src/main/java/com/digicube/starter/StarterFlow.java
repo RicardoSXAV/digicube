@@ -111,19 +111,20 @@ public final class StarterFlow {
 
     /**
      * Hands the Digivice to a player who never received one in this world. The mark is
-     * written first so a crash in between can only lose a Digivice (a spare comes from
-     * {@code /give}), never hand out two. The item lands in the first free slot, which on
+     * written first to prevent a repeated grant. The item lands in the first free slot, which on
      * a fresh player is the first hotbar slot, or drops at their feet when the inventory
      * is full.
      * @return whether a Digivice was handed over
      */
     public static boolean handDigivice(MinecraftServer server, ServerPlayer player) {
+        com.digicube.digivice.Digivices.reconcile(player);
         StarterSavedData data = StarterSavedData.get(server);
         UUID id = player.getUUID();
         if (!needsDigivice(player.isSpectator(), data.hasDigivice(id))) return false;
         data.markDigivice(id);
-        ItemStack digivice = new ItemStack(DCItems.DIGIVICE);
-        if (!player.getInventory().add(digivice)) player.drop(digivice, false);
+        ItemStack digivice = com.digicube.digivice.Digivices.issue(server, id);
+        if (digivice.isEmpty()) return false;
+        if (player.getInventory().getFreeSlot() < 0 || !player.getInventory().add(digivice)) player.drop(digivice, false);
         player.sendSystemMessage(Component.translatable("digimon.digicube.digivice.received"));
         Constants.LOG.debug("Handed a Digivice to {}", player.getGameProfile().name());
         return true;
