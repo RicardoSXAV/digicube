@@ -50,6 +50,10 @@ public final class CommandWheelRegressionTest {
 
         Module[] evolved = CommandWheelReadout.modules(member(40, 24, true, 0, 1680, "EVOLVED", 0, false, false), 0, true);
         check(evolved[3].order() == Order.REVERT && evolved[3].enabled(), "an evolved partner is offered Revert");
+        Module[] rootless = CommandWheelReadout.modules(new PartyMemberView(UUID.randomUUID(), Constants.id("greymon"), "", 40, 44, 24, 0, 0, true, 0,
+                1680, "EVOLVED", 0, false, "", false, 0, 0, false, false), 0, true);
+        check(rootless[3].order() == Order.REVERT && !rootless[3].enabled() && rootless[3].reason() == Reason.NEEDS_ORIGIN,
+                "a Champion brought out in creative with no Rookie behind it has no Revert");
         check(evolved[2].order() == Order.RECALL && evolved[2].enabled(), "an evolved partner can be recalled");
         Module[] evolving = CommandWheelReadout.modules(member(20, 24, true, 0, 3600, "EVOLVING", 0, false, false), 0, true);
         check(!evolving[3].enabled() && evolving[3].reason() == Reason.BUSY, "no evolution order mid-transformation");
@@ -103,7 +107,7 @@ public final class CommandWheelRegressionTest {
     private static PartyMemberView member(float health, int level, boolean deployed, int restTicks, int soul, String phase, int cooldown,
                                           boolean holding, boolean attacking) {
         return new PartyMemberView(UUID.randomUUID(), Constants.id("agumon"), "", health, 44, level, 0, 0, deployed, restTicks,
-                soul, phase, cooldown, false, "", true, 0, 0, holding, attacking);
+                soul, phase, cooldown, false, "EVOLVED".equals(phase) ? "digicube:agumon" : "", true, 0, 0, holding, attacking);
     }
 
     private static void check(boolean condition, String message) {

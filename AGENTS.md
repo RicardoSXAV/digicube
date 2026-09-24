@@ -529,6 +529,10 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   + argument tag, `DevStatePayload`: state tag + reply) never change when an action is
   added. Battle Testing (`BattleTest`) stages two wild Digimon in front of the player, keeps
   them on each other and lets them fight to a knockout with their real stats; the readout
+- Creative is test play (`PartyManager.creative`, the owner's game mode kept on the party session): a Champion needs
+  no Rookie return form to be given, deployed or selected, and every partner's DigiSoul stays full with no evolution
+  cooldown (`EvolutionController.tick`, `PartyEvolution.tick`), so an evolved form lasts as long as testing does.
+  A Champion with no Rookie behind it offers no Revert. Survival keeps every rule.
   travels in the state tag every five ticks and `BattleReadout` draws it as a HUD bar.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and

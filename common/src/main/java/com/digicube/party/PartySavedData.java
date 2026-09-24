@@ -42,6 +42,8 @@ public final class PartySavedData extends SavedData {
         public long lastCombatTick=Long.MAX_VALUE;
         public int lastOwnerHurtAt,lastOwnerAttackAt;
         public VecSafePosition lastSafePosition;
+        /** The player is in creative: test play, where Champions need no Rookie return form and never spend DigiSoul. */
+        public boolean creative;
     }
     public record VecSafePosition(net.minecraft.server.level.ServerLevel level,net.minecraft.world.phys.Vec3 position) {}
 }

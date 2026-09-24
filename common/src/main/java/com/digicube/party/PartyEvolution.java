@@ -49,6 +49,7 @@ public final class PartyEvolution {
         long now=server.overworld().getGameTime();
         for(var owner:server.getPlayerList().getPlayers()) {
             var session=data.session(owner.getUUID());
+            if(session.creative!=owner.isCreative()){session.creative=owner.isCreative();session.sync.invalidate();}
             if(session.lastCombatTick==Long.MAX_VALUE)session.lastCombatTick=now;
             if(owner.onGround()&&!owner.isPassenger()&&owner.isAlive())session.lastSafePosition=new PartySavedData.VecSafePosition(owner.level(),owner.position());
             int hurt=owner.getLastHurtByMobTimestamp(),attack=owner.getLastHurtMobTimestamp();
@@ -63,7 +64,7 @@ public final class PartyEvolution {
             for(var member:members) {
                 if(data.live.containsKey(member.id()))continue;
                 var state=member.evolution();
-                if(member.originRequired()) {if(member.active()){member.setSlot(-1);data.setDirty();session.sync.invalidate();}continue;}
+                if(member.originRequired()&&!session.creative) {if(member.active()){member.setSlot(-1);data.setDirty();session.sync.invalidate();}continue;}
                 // A roster saved while the entity was active must also normalize before reserve recovery.
                 if(state.phase!=EvolutionState.Phase.RESTING) {
                     Identifier form=state.phase==EvolutionState.Phase.EVOLVING?state.source:state.origin;
@@ -71,6 +72,7 @@ public final class PartyEvolution {
                     if(form!=null&&DigimonSpeciesRegistry.get(form).isPresent())member.editStored(form,member.level(),false);
                     state.phase=EvolutionState.Phase.RESTING;state.cooldown=Progression.EVOLUTION_COOLDOWN;state.source=null;state.target=null;
                 }
+                if(session.creative){state.charge=Progression.DIGISOUL_CAPACITY;state.initialized=true;state.cooldown=0;}
                 state.unlock(member.species(),member.level());state.recover(eligible&&!member.defeated()&&!member.resting()&&EvolutionRules.rookie(member.species()));
                 member.saveEvolution(state);data.setDirty();
             }

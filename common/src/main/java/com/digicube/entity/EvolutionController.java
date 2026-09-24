@@ -20,12 +20,16 @@ public final class EvolutionController {
         if(entity.getLevel()<Progression.CHAMPION_LEVEL)return reject(s,"level");
         var target=EvolutionRules.target(entity.getSpeciesId(),entity.getLevel()).orElse(null);
         if(target==null)return reject(s,"route");
-        if(s.cooldown>0)return reject(s,"cooldown");
-        if(s.charge<Progression.DIGISOUL_MINIMUM)return reject(s,"charge");
+        boolean creative=creative(entity);
+        if(s.cooldown>0&&!creative)return reject(s,"cooldown");
+        if(s.charge<Progression.DIGISOUL_MINIMUM&&!creative)return reject(s,"charge");
         if(!fits(entity,target))return reject(s,"space");
-        s.origin=entity.getSpeciesId();s.charge-=Progression.DIGISOUL_FEE;s.fee=true;
+        s.origin=entity.getSpeciesId();
+        if(creative){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}else{s.charge-=Progression.DIGISOUL_FEE;s.fee=true;}
         begin(entity,target,s.completed.contains(target)?EvolutionTimeline.SHORT.duration():EvolutionTimeline.LONG.duration(),EVOLVING);return "";
     }
+    /** Test play: the owner is in creative (see {@code PartyManager.creative}). */
+    private static boolean creative(DigimonEntity entity){return entity.getOwner() instanceof net.minecraft.world.entity.player.Player player&&player.isCreative();}
     private static String reject(EvolutionState s,String reason){s.rejection="gui.digicube.evolution."+reason;return s.rejection;}
     private static void begin(DigimonEntity entity,Identifier target,int ticks,EvolutionState.Phase phase) {
         var s=entity.evolution();entity.stopForEvolution();s.source=entity.getSpeciesId();s.target=target;s.duration=ticks;
@@ -67,7 +71,10 @@ public final class EvolutionController {
             if(upward){s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
             entity.syncEvolutionEvent(false);PartyManager.progressChanged(entity);return;
         }
-        if(s.phase==EVOLVED) {
+        if(creative(entity)) {
+            // Test play: DigiSoul stays full and nothing cools down, so a Champion can be tried for as long as it takes.
+            s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;s.cooldown=0;
+        } else if(s.phase==EVOLVED) {
             if(entity.getLevel()<Progression.CHAMPION_LEVEL)s.charge=0;
             if(s.charge>0)s.charge--;
             if(s.charge==600||s.charge==200)if(entity.getOwner() instanceof net.minecraft.server.level.ServerPlayer player)

@@ -27,11 +27,23 @@ import java.util.UUID;
 public final class PartyManager {
     private PartyManager() {}
 
+    /**
+     * Test play: in creative a Champion given directly (no Rookie it came from) is deployed, selected and loaded like
+     * any partner, and an evolved partner keeps its DigiSoul full (EvolutionController). Survival keeps every rule.
+     */
+    public static boolean creative(PartySavedData data, UUID owner) { return data.session(owner).creative; }
+
+    /** A Champion with no Rookie return form is kept in the Digivice, except in creative. */
+    public static boolean needsOrigin(PartySavedData data, PartyMember member) {
+        return member.originRequired() && !creative(data, member.owner());
+    }
+
     public static PartyMember give(ServerPlayer player, DigimonEntity digimon) {
         PartySavedData data = PartySavedData.get(player.level().getServer());
+        data.session(player.getUUID()).creative = player.isCreative();
         digimon.setOwner(player);
         PartyMember member = remember(data, digimon);
-        if(member.originRequired()){member.setSlot(-1);data.setDirty();return member;}
+        if(needsOrigin(data,member)){member.setSlot(-1);data.setDirty();return member;}
         // A cramped room must not force a large partner inside a wall. It stays selected
         // and waits for space, while subsequent gifts still respect the three-slot cap.
         if (member.active()) deploy(data, member, player);
@@ -145,7 +157,7 @@ public final class PartyManager {
         PartySavedData data = PartySavedData.get(level.getServer());
         PartyMember member = remember(data, digimon);
         if(!data.roster().accepts(member.id(),digimon.getOwnerReference().getUUID(),digimon.getPartyGeneration())||data.live.containsKey(member.id()))return false;
-        if(member.originRequired()){member.setSlot(-1);capture(data,member,digimon);data.setDirty();return false;}
+        if(needsOrigin(data,member)){member.setSlot(-1);capture(data,member,digimon);data.setDirty();return false;}
         return data.roster().accepts(member.id(), digimon.getOwnerReference().getUUID(), digimon.getPartyGeneration())
                 && !data.live.containsKey(member.id());
     }
@@ -192,8 +204,10 @@ public final class PartyManager {
             entity.discard();
             return false;
         }
-        if(entity.evolution().needsOrigin(entity.getSpeciesId())){storeForEvolution(entity);return false;}
+        boolean creative=creative(data,entity.getOwnerReference().getUUID());
+        if(entity.evolution().needsOrigin(entity.getSpeciesId())&&!creative){storeForEvolution(entity);return false;}
         if(EvolutionRules.champion(entity.getSpeciesId())&&entity.evolution().phase==com.digicube.digimon.EvolutionState.Phase.RESTING) {
+            if(creative){entity.evolution().charge=Progression.DIGISOUL_CAPACITY;entity.evolution().initialized=true;}
             if(entity.getLevel()<Progression.CHAMPION_LEVEL||entity.evolution().charge<=0){storeForEvolution(entity);return false;}
             entity.evolution().phase=com.digicube.digimon.EvolutionState.Phase.EVOLVED;
         }
@@ -272,7 +286,8 @@ public final class PartyManager {
         }
         if (!player.isAlive() || player.isSpectator()) return "gui.digicube.party.unavailable";
         if (member.defeated()) return "gui.digicube.party.defeated";
-        if(slot>=0&&member.originRequired())return "gui.digicube.evolution.origin";
+        data.session(player.getUUID()).creative = player.isCreative();
+        if(slot>=0&&needsOrigin(data,member))return "gui.digicube.evolution.origin";
         PartyMember previous = slot < 0 ? null : data.roster().inSlot(player.getUUID(), slot);
         if (busy(data, member) || previous != null && busy(data, previous)) return "gui.digicube.party.riding";
         if (slot == member.slot()) return "";
@@ -374,7 +389,7 @@ public final class PartyManager {
     }
 
     private static DigimonEntity restore(PartyMember member, ServerPlayer player) {
-        if(member.originRequired())return null;
+        if(member.originRequired()&&!player.isCreative())return null;
         if (member.defeated() || DigimonSpeciesRegistry.get(member.species()).isEmpty()) return null;
         DigimonEntity entity = DCEntityTypes.DIGIMON.create(player.level(), EntitySpawnReason.LOAD);
         if (entity == null) return null;

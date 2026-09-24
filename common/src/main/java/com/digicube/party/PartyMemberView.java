@@ -11,11 +11,16 @@ import java.util.UUID;
  * roster entry otherwise; the client computes the XP requirement from the same formula.
  * {@code restTicks} is the rest a defeated partner still owes before it regenerates.
  * {@code holding} and {@code attacking} feed the command wheel: standing still on order, and having a live target.
+ * {@code soulHeld}: the owner is in creative, where DigiSoul never drains, so the client counts nothing down.
  */
 public record PartyMemberView(UUID id, Identifier species, String nickname, float health, float maxHealth,
                               int level, int xp, int slot, boolean deployed, int restTicks, int soul, String phase,
                               int cooldown, boolean originRequired, String origin, boolean firstEvolution,long generation,long sequence,
-                              boolean holding, boolean attacking) {
+                              boolean holding, boolean attacking, boolean soulHeld) {
+    public PartyMemberView(UUID id,Identifier species,String nickname,float health,float maxHealth,int level,int xp,int slot,boolean deployed,int restTicks,int soul,String phase,
+                           int cooldown,boolean originRequired,String origin,boolean firstEvolution,long generation,long sequence,boolean holding,boolean attacking) {
+        this(id,species,nickname,health,maxHealth,level,xp,slot,deployed,restTicks,soul,phase,cooldown,originRequired,origin,firstEvolution,generation,sequence,holding,attacking,false);
+    }
     public PartyMemberView(UUID id,Identifier species,String nickname,float health,float maxHealth,int level,int xp,int slot,boolean deployed,int restTicks,int soul,String phase,
                            int cooldown,boolean originRequired,String origin,boolean firstEvolution,long generation,long sequence) {
         this(id,species,nickname,health,maxHealth,level,xp,slot,deployed,restTicks,soul,phase,cooldown,originRequired,origin,firstEvolution,generation,sequence,false,false);
@@ -34,15 +39,16 @@ public record PartyMemberView(UUID id, Identifier species, String nickname, floa
                 live == null ? member.maxHealth() : live.getMaxHealth(),
                 live == null ? member.level() : live.getLevel(),
                 live == null ? member.xp() : live.getXp(),
-                member.slot(), live != null, live == null ? member.restTicks() : 0,state.charge,state.phase.name(),state.cooldown,state.needsOrigin(species),
+                member.slot(), live != null, live == null ? member.restTicks() : 0,state.charge,state.phase.name(),state.cooldown,
+                state.needsOrigin(species)&&!PartyManager.creative(data,member.owner()),
                 state.origin==null?"":state.origin.toString(),target!=null&&!state.completed.contains(target),member.generation(),state.sequence,
-                live != null && live.isHolding(), live != null && live.hasLiveTarget());
+                live != null && live.isHolding(), live != null && live.hasLiveTarget(), PartyManager.creative(data, member.owner()));
     }
 
     public static PartyMemberView read(FriendlyByteBuf buffer) {
         return new PartyMemberView(buffer.readUUID(), buffer.readIdentifier(), buffer.readUtf(128),
                 buffer.readFloat(), buffer.readFloat(), buffer.readVarInt(), buffer.readVarInt(),
-                buffer.readVarInt(), buffer.readBoolean(), buffer.readVarInt(),buffer.readVarInt(),buffer.readUtf(16),buffer.readVarInt(),buffer.readBoolean(),buffer.readUtf(256),buffer.readBoolean(),buffer.readVarLong(),buffer.readVarLong(),buffer.readBoolean(),buffer.readBoolean());
+                buffer.readVarInt(), buffer.readBoolean(), buffer.readVarInt(),buffer.readVarInt(),buffer.readUtf(16),buffer.readVarInt(),buffer.readBoolean(),buffer.readUtf(256),buffer.readBoolean(),buffer.readVarLong(),buffer.readVarLong(),buffer.readBoolean(),buffer.readBoolean(),buffer.readBoolean());
     }
 
     public void write(FriendlyByteBuf buffer) {
@@ -57,11 +63,11 @@ public record PartyMemberView(UUID id, Identifier species, String nickname, floa
         buffer.writeBoolean(deployed);
         buffer.writeVarInt(restTicks);
         buffer.writeVarInt(soul);buffer.writeUtf(phase,16);buffer.writeVarInt(cooldown);buffer.writeBoolean(originRequired);buffer.writeUtf(origin,256);buffer.writeBoolean(firstEvolution);buffer.writeVarLong(generation);buffer.writeVarLong(sequence);
-        buffer.writeBoolean(holding);buffer.writeBoolean(attacking);
+        buffer.writeBoolean(holding);buffer.writeBoolean(attacking);buffer.writeBoolean(soulHeld);
     }
 
     /** The same individual with fresher health, keeping identity and progression as they were. */
     public PartyMemberView withHealth(float health, float maxHealth) {
-        return new PartyMemberView(id, species, nickname, health, maxHealth, level, xp, slot, deployed, restTicks,soul,phase,cooldown,originRequired,origin,firstEvolution,generation,sequence,holding,attacking);
+        return new PartyMemberView(id, species, nickname, health, maxHealth, level, xp, slot, deployed, restTicks,soul,phase,cooldown,originRequired,origin,firstEvolution,generation,sequence,holding,attacking,soulHeld);
     }
 }

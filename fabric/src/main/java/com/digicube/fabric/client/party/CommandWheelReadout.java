@@ -75,7 +75,9 @@ public final class CommandWheelReadout {
     }
 
     private static Module evolution(PartyMemberView member, int age, boolean route, boolean field, Reason away) {
-        if (field && "EVOLVED".equals(member.phase())) return new Module(Order.REVERT, true, Reason.NONE);
+        // A Champion brought out in creative with no Rookie behind it has nothing to return to.
+        if (field && "EVOLVED".equals(member.phase()))
+            return new Module(Order.REVERT, !member.origin().isEmpty(), member.origin().isEmpty() ? Reason.NEEDS_ORIGIN : Reason.NONE);
         Reason reason;
         if (!field) reason = away;
         else if (!"RESTING".equals(member.phase())) reason = Reason.BUSY;

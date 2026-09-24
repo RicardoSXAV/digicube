@@ -43,6 +43,9 @@ public final class PartyHudRegressionTest {
         check(PartyHudReadout.soul(evolved, 0) == 1680 && PartyHudReadout.soul(evolved, 100) == 1580, "evolved soul drains one per tick locally");
         check(PartyHudReadout.soul(evolved, 5000) == 0, "drained soul clamps at zero");
         check(PartyHudReadout.soul(ready, 100) == 3600, "resting soul does not drain with age");
+        PartyMemberView creative = new PartyMemberView(UUID.randomUUID(), Constants.id("greymon"), "", 40, 44, 24, 0, 0, true, 0,
+                Progression.DIGISOUL_CAPACITY, "EVOLVED", 0, false, "", false, 0, 0, false, false, true);
+        check(PartyHudReadout.soul(creative, 100) == Progression.DIGISOUL_CAPACITY, "in creative an evolved soul does not drain between snapshots");
         PartyMemberView resting = member(0, 24, 11, true, 5440, 0, "RESTING", 0);
         check(PartyHudReadout.restTicks(resting, 40) == 5400, "rest counts down locally");
         check(PartyHudReadout.restTicks(resting, 6000) == PartyHudReadout.HOLD_TICKS, "rest holds at one second, never zero");

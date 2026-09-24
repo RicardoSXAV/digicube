@@ -47,7 +47,8 @@ public final class PartyHudReadout {
 
     /** Live DigiSoul: drains one unit per tick while evolved, otherwise the snapshot value. */
     public static int soul(PartyMemberView member, int age) {
-        int soul = "EVOLVED".equals(member.phase()) ? member.soul() - age : member.soul();
+        // In creative the server keeps it full: nothing to count down between snapshots.
+        int soul = "EVOLVED".equals(member.phase()) && !member.soulHeld() ? member.soul() - age : member.soul();
         return Math.clamp(soul, 0, Progression.DIGISOUL_CAPACITY);
     }
 
