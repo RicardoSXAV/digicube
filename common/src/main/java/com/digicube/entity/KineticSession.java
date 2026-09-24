@@ -15,25 +15,72 @@ public final class KineticSession {
     private final DigimonEntity owner;
     private final LivingEntity target;
     private final KineticAttacks.Definition definition;
-    private final Vec3 start;
-    private final float startYaw;
+    private Vec3 start;
+    private float startYaw;
+    /** A rider's buck: the kick on the faster rider clock, sliding and turning onto its prey until the hooves swing. */
+    private boolean buck;
+    private double standoff;
+    /** Blocks a tick a buck's start may slide toward its prey, and degrees a tick it may turn after it. */
+    private static final double BUCK_SLIDE = .6;
+    private static final float BUCK_TURN = 25;
     /** A rider's crosshair point, for a shot cast without a target; null for the AI. */
     private final java.util.function.Supplier<Vec3> viewPoint;
     private float aimYaw;
     private final HashSet<UUID> hit = new HashSet<>();
     private boolean kick;
     private float pitch;
+    /** Under a rider: a shot aimed by the view, or a buck committed at once. */
+    private final boolean ridden;
+    /** A rider's shot loosed on the run: the rider's client moves and turns the mount, the upper body turns to the aim. */
+    private boolean twists;
+    /** A rider's drawn shot: {@code charge} runs from 0 (a snap shot) to 1 (held to the full); the bolt hits harder and flies faster. */
+    private boolean drawn;
+    private float charge = 1;
+    /** Degrees the upper body may turn from the horse body's heading before the shot and the pose part ways. */
+    public static final float MAX_TWIST = 110;
 
-    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack) { this(owner, target, attack, null); }
+    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack) { this(owner, target, attack, (java.util.function.Supplier<Vec3>) null); }
 
     /** {@code target} may be null for a rider, whose shot then follows {@code viewPoint}. */
     public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack, java.util.function.Supplier<Vec3> viewPoint) {
         this.owner = owner;
         this.target = target;
         this.viewPoint = viewPoint;
+        this.ridden = viewPoint != null;
         definition = KineticAttacks.get(attack);
         start = owner.position();
         startYaw = aimYaw = target != null ? AttackGeometry.yaw(start, target.position()) : owner.getYRot();
+    }
+
+    /**
+     * A rider's buck: the retreat kick committed at once (no decision tick), from {@code start} and turned from
+     * {@code target}, the prey a jet charge has run down. The server moves the body along it, as it does unridden.
+     */
+    public KineticSession(DigimonEntity owner, LivingEntity target, DigimonAttack attack, Vec3 start) {
+        this.owner = owner;
+        this.target = target;
+        this.viewPoint = null;
+        this.ridden = true;
+        definition = KineticAttacks.get(attack);
+        this.start = start;
+        startYaw = aimYaw = AttackGeometry.yaw(start, target.position());
+        kick = true;
+        buck = definition.riderKick() != null;
+        // Where the kick was authored to start: the bodies half a block into each other, as the AI's retreat kick finds them.
+        standoff = owner.getBbWidth() * .5 + target.getBbWidth() * .5 - .45;
+    }
+
+    public void charge(float charge) { this.charge = Math.clamp(charge, 0, 1); }
+    public float charge() { return charge; }
+    /** The shot is aimed by a rider's view. */
+    public boolean riderShot() { return viewPoint != null; }
+    /** Loosed on the run: the legs are someone else's (the rider's client, or the AI's combat goal), the upper body aims. */
+    public boolean twists() { return twists; }
+    /** How a shot is cast: drawn (held, it charges) and on the run (the upper body twists to the aim). The AI's is never drawn. */
+    public void riderStyle(boolean drawn, boolean twists) {
+        this.drawn = drawn;
+        this.twists = twists;
+        if (drawn) charge = 0;
     }
 
     /** The yaw the shot is aimed along; a rider's client turns the mount to it. */
@@ -42,9 +89,17 @@ public final class KineticSession {
     public boolean kick() { return kick; }
     public Vec3 start() { return start; }
     public float startYaw() { return startYaw; }
-    public int duration() { return definition.duration(kick); }
+    public int duration() { return buck ? Math.round(definition.riderKick().length()) : definition.duration(kick); }
     public float pitch() { return pitch; }
-    public String animation() { return definition.animation(kick); }
+    public String animation() { return buck ? definition.riderKick().animation() : definition.animation(kick); }
+    /** A buck still sliding onto its prey: its start moves, so the clients need it again. */
+    public boolean homing(int tick) { return buck && tick <= homeUntil(); }
+    /** The buck tick the hooves start to swing: the kick's hit window, on the buck's clock. */
+    private double homeUntil() { return buckTickOf(definition.attack().motion().activeFrom()); }
+    private double buckTickOf(double kickTime) {
+        for (double t = 0; t <= definition.riderKick().length(); t += .25) if (definition.riderKick().kickTime(t) >= kickTime) return t;
+        return definition.riderKick().length();
+    }
 
     private static boolean safe(DigimonEntity owner, Vec3 feet) {
         var box = owner.getBoundingBox().move(feet.subtract(owner.position())).deflate(.001);
@@ -75,8 +130,9 @@ public final class KineticSession {
     }
 
     public boolean tick(ServerLevel level, int tick) {
-        owner.getNavigation().stop();
-        owner.setDeltaMovement(0, owner.isInWater()?0:owner.getDeltaMovement().y, 0);
+        if (!twists) owner.getNavigation().stop();
+        // A rider's shot is loosed on the run: the rider's client moves and turns the mount, only the arm aims.
+        if (!twists) owner.setDeltaMovement(0, owner.isInWater()?0:owner.getDeltaMovement().y, 0);
         if (definition.attack().kind() == DigimonAttack.Kind.KINETIC_SHOT) {
             if (tick <= definition.attack().hitTick() && (target != null && target.isAlive() || viewPoint != null)) {
                 Vec3 point;
@@ -86,15 +142,26 @@ public final class KineticSession {
                 } else point = viewPoint.get();
                 var aim = KineticGeometry.aim(definition, owner.position(), point);
                 aimYaw = aim.yaw();
-                face(aimYaw);
+                if (!twists) face(aimYaw);
                 pitch = aim.pitch();
             }
             return true;
         }
-        if (tick == definition.decisionTick()) kick = opportunity();
+        if (tick == definition.decisionTick() && !ridden) kick = opportunity();
         var motion = definition.motion(kick);
-        for (int sub = 0; sub <= motion.samplesPerTick(); sub++) {
-            double time = Math.max(0, tick - 1 + (double) sub / motion.samplesPerTick());
+        if (homing(tick) && target != null && target.isAlive()) {
+            // The buck skids on into its prey while it wheels, and turns after it: a charge that arrives short or a
+            // prey that sidesteps still meets the hooves.
+            Vec3 to = target.position().subtract(start).multiply(1, 0, 1);
+            if (to.lengthSqr() > 1.0E-6) {
+                startYaw = net.minecraft.util.Mth.approachDegrees(startYaw, AttackGeometry.yaw(start, target.position()), BUCK_TURN);
+                start = start.add(to.normalize().scale(Math.clamp(to.length() - standoff, -BUCK_SLIDE, BUCK_SLIDE)));
+            }
+        }
+        int samples = buck ? motion.samplesPerTick() * 3 : motion.samplesPerTick();
+        for (int sub = 0; sub <= samples; sub++) {
+            double tau = Math.max(0, tick - 1 + (double) sub / samples);
+            double time = buck ? definition.riderKick().kickTime(tau) : tau;
             var frame = motion.sample(time);
             Vec3 feet = AttackGeometry.world(start, frame.offset(), startYaw);
             if (!safe(owner, feet)) return false;
@@ -110,6 +177,8 @@ public final class KineticSession {
                                 || HitParts.of(victim).stream().noneMatch(box::intersects)) continue;
                         if (owner.hitWithAttack(level, definition.attack(), victim)) {
                             hit.add(victim.getUUID());
+                            if (ridden) level.broadcastEntityEvent(owner, DigimonAnimationEvents.SLAM);
+                            if (buck) owner.countSkill("buck_landed");
                             Constants.LOG.info("[kinetic] {} hoof hit {} tick={}", definition.attack().id(), victim.getType().toShortString(), time);
                         }
                     }
@@ -137,13 +206,34 @@ public final class KineticSession {
     public void fire(ServerLevel level) {
         var frame = definition.motion().sample(definition.attack().hitTick());
         // Under a rider the facing arrives from the client a moment late; the shot leaves along the solved aim.
-        var aim = KineticGeometry.pose(frame, owner.position(), viewPoint != null ? aimYaw : owner.getYRot(), pitch);
+        var aim = KineticGeometry.pose(frame, owner.position(), viewPoint != null || twists ? aimYaw : owner.getYRot(), pitch);
         var pivot = clearanceOrigin(definition,owner.position(),aim);
-        if (!KineticGeometry.clear(level, owner, pivot, aim.muzzle())) return;
+        if (twists) {
+            // Only the upper body turned to the aim, about its own base: the muzzle is where that turn puts it.
+            Vec3 shift = twistShift(frame, owner.getYRot(), aimYaw);
+            aim = new KineticGeometry.Aim(aim.yaw(), aim.pitch(), aim.muzzle().add(shift), aim.direction());
+            pivot = pivot.add(shift);
+        }
+        Vec3 muzzle = aim.muzzle(), direction = aim.direction();
+        if (!KineticGeometry.clear(level, owner, pivot, muzzle)) return;
         if (definition.projectileBoxes().stream().anyMatch(b -> KineticGeometry.blocked(level, owner,
-                KineticGeometry.flightBox(b, aim.muzzle(), aim.direction())))) return;
-        level.addFreshEntity(new KineticProjectileEntity(level, owner, definition, aim.muzzle(), aim.direction()));
-        Constants.LOG.info("[kinetic] {} released tick={}", definition.attack().id(), definition.attack().hitTick());
+                KineticGeometry.flightBox(b, muzzle, direction)))) return;
+        float power = drawn ? .8F + .5F * charge : 1, speed = drawn ? 1 + .4F * charge : 1;
+        level.addFreshEntity(new KineticProjectileEntity(level, owner, definition, muzzle, direction, power, speed));
+        definition.shotStyle().fire(level, muzzle, direction, drawn ? charge : 1);
+        Constants.LOG.info("[kinetic] {} released tick={} charge={}", definition.attack().id(), definition.attack().hitTick(),
+                drawn ? String.format("%.2f", charge) : "-");
+    }
+
+    /**
+     * How far the muzzle moves when only the upper body turns to {@code aimYaw} while the horse body keeps
+     * {@code bodyYaw}: that turn is about the upper body's base (the shoulder pivot's depth on the body's axis),
+     * not about the feet. Clamped to {@link #MAX_TWIST}, as the pose is.
+     */
+    public static Vec3 twistShift(KineticAttacks.Frame frame, float bodyYaw, float aimYaw) {
+        float twist = Math.clamp(net.minecraft.util.Mth.wrapDegrees(aimYaw - bodyYaw), -MAX_TWIST, MAX_TWIST);
+        Vec3 base = new Vec3(0, 0, frame.pivot().z);
+        return AttackGeometry.world(Vec3.ZERO, base, aimYaw - twist).subtract(AttackGeometry.world(Vec3.ZERO, base, aimYaw));
     }
 
     private void face(float yaw) { owner.setYRot(yaw); owner.yBodyRot = yaw; owner.yHeadRot = yaw; }

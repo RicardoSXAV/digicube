@@ -30,13 +30,18 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
          * A hold on the prey the crosshair picks within {@code reach} and {@code cone}: that prey is outlined and the tile
          * lights up, and one press sends the mount at it and into the wrap. No prey, no cast.
          */
-        GRAB
+        GRAB,
+        /**
+         * A jet-driven burst along the view that tramples whatever it runs through; with an enemy within {@code reach}
+         * and {@code cone} at the press, it homes on it and ends in the attack's own strike on it.
+         */
+        CHARGE
     }
 
     public enum Input {
         /** Cast on the press; a held button repeats. */
         TAP,
-        /** Held to aim or to sustain, released to cast or to stop. */
+        /** Held to aim, to sustain or to draw (a shot charges while it is held), released to cast or to stop. */
         HOLD
     }
 

@@ -18,7 +18,7 @@ public final class KineticRegressionTest {
             var clear = dash.motion().sample(tick); var kick = dash.kickMotion().sample(tick);
             check(clear.offset().distanceTo(kick.offset()) < .00001 && Math.abs(clear.yaw() - kick.yaw()) < .001, "Dash outcome cannot restart or jump root motion");
         }
-        for (int heading = 0; heading < 360; heading += 45) for (double range : new double[]{2.5, 3, 5, 8, 13})
+        for (int heading = 0; heading < 360; heading += 45) for (double range : new double[]{cannon.attack().motion().minimumRange(), 3, 5, 8, 13})
             for (double elevation : new double[]{-1, 0, 1}) {
                 Vec3 feet = new Vec3(31.125, 80, -22.375);
                 Vec3 target = AttackGeometry.world(feet, new Vec3(0, elevation + .8, range), heading);
@@ -35,6 +35,13 @@ public final class KineticRegressionTest {
             check(Double.isFinite(box.center().lengthSqr()) && box.bounds().getSize() < 1, "Hoof damage excludes broad body envelope");
         }
         check(!dash.matches("claw") && dash.matches("jet_dash_kick"), "Kick continuation resolves to the same gameplay move");
+        var buck = dash.riderKick();
+        check(buck != null && dash.matches(buck.animation()) && dash.duration(buck.animation()) == Math.round(buck.length())
+                        && Math.abs(buck.kickTime(buck.length()) - dash.kickMotion().duration()) < .01,
+                "A rider's buck runs the whole kick on its own clock");
+        double swing = 0;
+        while (buck.kickTime(swing) < dash.attack().motion().activeFrom()) swing += .25;
+        check(swing <= 7, "A rider's buck reaches its hooves within seven ticks of arriving: " + swing);
         Constants.LOG.info("Kinetic regression checks passed: clocks, conditional root continuity, eight-heading near/far/elevated aiming and empty visual corners.");
     }
 }

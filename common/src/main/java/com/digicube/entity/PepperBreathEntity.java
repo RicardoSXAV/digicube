@@ -2,6 +2,8 @@ package com.digicube.entity;
 
 import com.digicube.registry.DCEntityTypes;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -25,8 +27,10 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>Damage is decided by the Digimon that spat it (attack power times its attack
  * attribute) and carried here; the hit also sets the target on fire. Lives a few
- * seconds at most. Rendered client-side as flat pixel planes (see the fabric module);
- * the particles here are the loose sparks and smoke the model cannot carry.
+ * seconds at most. Rendered client-side from Agumon's cubic flame effect (see the fabric
+ * module); a hit stops the ball where it struck for the flare of its impact clip, with no
+ * further collision, and only then removes it. The particles here are the few loose
+ * sparks and smoke the model cannot carry.
  *
  * <p>Accuracy. A slow, big projectile needs three things to land on a moving mob, and
  * vanilla gives none of them: the shooter leads the target ({@link #predictImpactPoint}),
@@ -54,8 +58,12 @@ public final class PepperBreathEntity extends ThrowableProjectile {
     private static final int MAX_AGE_TICKS = 60;
     private static final float BURN_SECONDS = 3.0F;
     private static final String DAMAGE_TAG = "Damage";
-    /** The rendered tail is about 1.5 blocks long behind the hitbox centre. */
-    private static final double TAIL_LENGTH = 1.5;
+    /** The rendered tail reaches about 0.7 blocks behind the hitbox centre. */
+    private static final double TAIL_LENGTH = 0.7;
+    /** Ticks the flare lasts after a hit: the length of the effect's {@code fireball_impact} clip. */
+    public static final int IMPACT_TICKS = 7;
+    /** Ticks since the ball struck something, or -1 while it flies. */
+    private static final EntityDataAccessor<Integer> IMPACT = SynchedEntityData.defineId(PepperBreathEntity.class, EntityDataSerializers.INT);
 
     private float damage = 6.0F;
     /** What the shooter was aiming at; server-side only and not saved (a reloaded fireball just flies straight). */
@@ -105,8 +113,18 @@ public final class PepperBreathEntity extends ThrowableProjectile {
     @Override public boolean shouldRenderAtSqrDistance(double distance) { return distance < com.digicube.registry.DCEntityTypes.ATTACK_RENDER_DISTANCE_SQR; }
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
-        // Nothing to sync: the client only needs position and rotation.
+        builder.define(IMPACT, -1);
     }
+
+    /** True from the hit until the flare is over; the ball no longer moves or collides. */
+    public boolean impacting() { return entityData.get(IMPACT) >= 0; }
+
+    /** Ticks into the impact flare, interpolated for drawing. */
+    public float impactTick(float partialTick) { return entityData.get(IMPACT) + partialTick; }
+
+    /** A flare is only a picture: a world saved during one does not bring the ball back. */
+    @Override
+    public boolean shouldBeSaved() { return !impacting() && super.shouldBeSaved(); }
 
     @Override
     protected double getDefaultGravity() {
@@ -129,6 +147,15 @@ public final class PepperBreathEntity extends ThrowableProjectile {
 
     @Override
     public void tick() {
+        if (impacting()) {
+            setDeltaMovement(Vec3.ZERO);
+            if (!level().isClientSide()) {
+                int age = entityData.get(IMPACT) + 1;
+                if (age >= IMPACT_TICKS) discard();
+                else entityData.set(IMPACT, age);
+            }
+            return;
+        }
         if (level() instanceof ServerLevel) {
             steerTowardsTarget();
             if (sweepForHit()) {
@@ -178,7 +205,7 @@ public final class PepperBreathEntity extends ThrowableProjectile {
      * Hits whatever the ball's own body would pass through this tick. Vanilla's move-vector
      * ray (run afterwards by {@code super.tick()}) is left in place for blocks.
      *
-     * @return true if the fireball hit something and is gone
+     * @return true if the fireball hit something and is spent
      */
     private boolean sweepForHit() {
         AABB swept = getBoundingBox().expandTowards(getDeltaMovement()).inflate(HIT_MARGIN);
@@ -196,37 +223,26 @@ public final class PepperBreathEntity extends ThrowableProjectile {
             return false;
         }
         hitTargetOrDeflectSelf(new EntityHitResult(closest, centre));
-        return isRemoved();
+        return impacting() || isRemoved();
     }
 
     /**
-     * Sparks and smoke shed along the flight: small flames peeling off the ball, embers
-     * drifting back along the tail, a wisp of smoke behind the tip of it.
+     * What the model's own sparks leave behind: one small flame peeling off the ball each
+     * tick and a wisp of smoke behind the tail.
      */
     private void spawnTrail() {
         Vec3 centre = position().add(0.0, getBbHeight() * 0.5, 0.0);
         Vec3 velocity = getDeltaMovement();
         Vec3 back = velocity.lengthSqr() > 1.0E-6 ? velocity.normalize().scale(-1.0) : Vec3.ZERO;
-        // Sparks leaving the ball, thrown slightly outward and backward.
-        for (int i = 0; i < 2; i++) {
-            Vec3 offset = new Vec3(random.nextDouble() - 0.5, random.nextDouble() - 0.5, random.nextDouble() - 0.5).scale(0.8);
-            Vec3 drift = offset.scale(0.03).add(back.scale(0.04));
-            level().addAlwaysVisibleParticle(ParticleTypes.SMALL_FLAME, centre.x + offset.x, centre.y + offset.y, centre.z + offset.z,
-                    drift.x, drift.y + 0.01, drift.z);
-        }
-        // Embers along the tail, falling away as they cool.
-        Vec3 tail = centre.add(back.scale(random.nextDouble() * TAIL_LENGTH));
-        level().addAlwaysVisibleParticle(ParticleTypes.FLAME,
-                tail.x + (random.nextDouble() - 0.5) * 0.4, tail.y + (random.nextDouble() - 0.5) * 0.4,
-                tail.z + (random.nextDouble() - 0.5) * 0.4, back.x * 0.02, -0.01, back.z * 0.02);
+        Vec3 offset = new Vec3(random.nextDouble() - 0.5, random.nextDouble() - 0.5, random.nextDouble() - 0.5).scale(0.5);
+        Vec3 drift = offset.scale(0.03).add(back.scale(0.04));
+        level().addAlwaysVisibleParticle(ParticleTypes.SMALL_FLAME, centre.x + offset.x, centre.y + offset.y, centre.z + offset.z,
+                drift.x, drift.y + 0.01, drift.z);
         if (tickCount % 3 == 0) {
             Vec3 end = centre.add(back.scale(TAIL_LENGTH));
             level().addAlwaysVisibleParticle(ParticleTypes.SMOKE,
                     end.x + (random.nextDouble() - 0.5) * 0.3, end.y + (random.nextDouble() - 0.5) * 0.3,
                     end.z + (random.nextDouble() - 0.5) * 0.3, 0.0, 0.03, 0.0);
-        }
-        if (tickCount % 5 == 0) {
-            level().addAlwaysVisibleParticle(ParticleTypes.LAVA, centre.x, centre.y, centre.z, 0.0, 0.0, 0.0);
         }
     }
 
@@ -250,18 +266,21 @@ public final class PepperBreathEntity extends ThrowableProjectile {
 
     @Override
     protected void onHit(HitResult hit) {
+        if (impacting()) return;
         super.onHit(hit);
         if (level() instanceof ServerLevel serverLevel) {
             Vec3 pos = position();
             double centreY = pos.y + getBbHeight() * 0.5;
-            // Burst: a flash of flame, embers thrown out, then smoke.
-            serverLevel.sendParticles(ParticleTypes.FLAME, true, true, pos.x, centreY, pos.z, 32, 0.3, 0.3, 0.3, 0.1);
-            serverLevel.sendParticles(ParticleTypes.SMALL_FLAME, true, true, pos.x, centreY, pos.z, 24, 0.2, 0.2, 0.2, 0.15);
-            serverLevel.sendParticles(ParticleTypes.LAVA, true, true, pos.x, centreY, pos.z, 6, 0.2, 0.2, 0.2, 0.0);
-            serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, pos.x, centreY, pos.z, 8, 0.3, 0.3, 0.3, 0.02);
+            // The flare is the model's impact clip; these are the embers thrown out past it, then smoke.
+            serverLevel.sendParticles(ParticleTypes.FLAME, true, true, pos.x, centreY, pos.z, 8, 0.25, 0.25, 0.25, 0.08);
+            serverLevel.sendParticles(ParticleTypes.SMALL_FLAME, true, true, pos.x, centreY, pos.z, 6, 0.2, 0.2, 0.2, 0.12);
+            serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, pos.x, centreY, pos.z, 4, 0.3, 0.3, 0.3, 0.02);
             serverLevel.playSound(null, pos.x, pos.y, pos.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 0.7F, 1.3F);
             serverLevel.playSound(null, pos.x, pos.y, pos.z, SoundEvents.GENERIC_EXTINGUISH_FIRE, SoundSource.NEUTRAL, 0.35F, 1.6F);
-            discard();
+            // Stay where it struck for the flare, facing the way it flew; nothing moves or hits from here on.
+            entityData.set(IMPACT, 0);
+            setDeltaMovement(Vec3.ZERO);
+            needsSync = true;
         }
     }
 

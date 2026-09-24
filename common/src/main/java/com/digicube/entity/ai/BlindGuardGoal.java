@@ -62,6 +62,8 @@ public final class BlindGuardGoal extends Goal {
             Vec3 away = mob.position().subtract(seen).multiply(1, 0, 1);
             if (away.lengthSqr() < .01) away = Vec3.directionFromRotation(0, mob.getYRot() + 180);
             if (away.length() >= keep) { mob.getNavigation().stop(); return; }
+            // A body with a jet is gone from where the blow came before it lands another.
+            if (tactics.dashEscape() && DigimonAttackGoal.jetAway(mob, null, seen, "jet_getaway")) return;
             away = away.normalize();
             for (float turn : new float[]{0, 45, -45, 90, -90}) {
                 Vec3 to = mob.position().add(away.yRot((float) Math.toRadians(turn)).scale(keep - away.length() + 1));

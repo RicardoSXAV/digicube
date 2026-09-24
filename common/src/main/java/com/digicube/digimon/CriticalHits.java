@@ -1,6 +1,7 @@
 package com.digicube.digimon;
 
 import com.digicube.Constants;
+import com.digicube.entity.CombatMarkState;
 import com.digicube.entity.DigimonEntity;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -15,7 +16,8 @@ import net.minecraft.world.entity.LivingEntity;
  * favoured side crits more often, the countered side less (Ricardo, 2026-09-18: "a small
  * advantage, in percentage", so a same-level fight against a counter stays winnable). In
  * expectation the favoured side deals about 10 % more than the countered one; the rest is
- * luck, which is what keeps two equal fighters from always ending the same way.
+ * luck, which is what keeps two equal fighters from always ending the same way. An Exposed victim
+ * ({@link ExposedMark}) adds its bonus on top, whoever strikes it.
  */
 public final class CriticalHits {
     public static final float MULTIPLIER = 1.5F;
@@ -32,16 +34,22 @@ public final class CriticalHits {
         return BASE_CHANCE;
     }
 
-    /** The damage this hit deals after its critical roll; a crit sparks and rings at the victim. */
-    public static float roll(ServerLevel level, DigimonEntity attacker, LivingEntity victim, float damage) {
+    /** The chance one hit of {@code attacker} is critical against {@code victim}: the triangle, then Exposed. */
+    public static float chance(DigimonEntity attacker, LivingEntity victim) {
         float chance = BASE_CHANCE;
         if (victim instanceof DigimonEntity other && attacker.getSpecies().isPresent() && other.getSpecies().isPresent()) {
             chance = chance(attacker.getSpecies().get().attribute(), other.getSpecies().get().attribute());
         }
-        if (attacker.getRandom().nextFloat() >= chance) return damage;
+        return ExposedMark.exposed(victim) ? chance + ExposedMark.CRIT_BONUS : chance;
+    }
+
+    /** The damage this hit deals after its critical roll; a crit sparks and rings at the victim. */
+    public static float roll(ServerLevel level, DigimonEntity attacker, LivingEntity victim, float damage) {
+        if (attacker.getRandom().nextFloat() >= chance(attacker, victim)) return damage;
         attacker.countCriticalHit();
         // A projectile's damage is rolled at launch, before it has a victim: the crit counts, its sparks have nowhere to go.
         if (victim == null) return damage * MULTIPLIER;
+        if (ExposedMark.exposed(victim)) ((CombatMarkState) victim).digicube$exposedCrit();
         level.sendParticles(ParticleTypes.CRIT, true, true, victim.getX(), victim.getY(.6), victim.getZ(), 12,
                 victim.getBbWidth() * .4, victim.getBbHeight() * .3, victim.getBbWidth() * .4, .15);
         level.playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.NEUTRAL, 1F, 1F);

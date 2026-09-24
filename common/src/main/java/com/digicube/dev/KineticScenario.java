@@ -26,7 +26,7 @@ final class KineticScenario {
     private static final Vec3 START = new Vec3(.5, 300, .5);
     private static final AABB ARENA = new AABB(-17, 294, -17, 18, 310, 18);
     private static int index = -1, ticks, hits, failed, passed;
-    private static boolean initialized, done, started, kick;
+    private static boolean initialized, done, started, kick, flightCovered;
     private static DigimonEntity caster;
     private static Mob target, owner;
     private static Vec3 initialTarget, velocity;
@@ -42,7 +42,7 @@ final class KineticScenario {
         for (String attack : new String[]{"hunting_cannon", "jet_dash"})
             for (String boundary : new String[]{"ally", "target_lost", "interrupted_reset", "cover_during_windup", "world_border", "invulnerability_retry", "commit_turn", "cross_after_commit", "repeat_frames", "unreachable_path", "wide_body_endpoint", "empty_visual_corner"})
                 result.add(new Case(attack, 0, 0, "still", false, boundary));
-        for (String boundary : new String[]{"near_target", "far_target", "cover_during_flight", "muzzle_blocked", "tracking_limit", "flight_sweep", "cooldown_fallback"})
+        for (String boundary : new String[]{"near_target", "far_target", "cover_during_flight", "muzzle_blocked", "tracking_limit", "flight_sweep", "cooldown_fallback", "exposes"})
             result.add(new Case("hunting_cannon", 0, 0, "still", false, boundary));
         for (String boundary : new String[]{"connected_kick", "clear_escape", "miss_after_commit", "obstacle_after_commit", "ledge_refusal", "cooldown_fallback", "close_overlap", "asymmetric_contact", "limb_sweep", "outside_limb_reach"})
             result.add(new Case("jet_dash", 0, 0, "still", false, boundary));
@@ -62,6 +62,11 @@ final class KineticScenario {
             Constants.LOG.error("[kinetic-case] aborted fixture {}", index, e);
             finish(level, false);
         }
+    }
+
+    /** The retry once the first cast is over: a shot reloads from the moment it leaves, so it waits that out too. */
+    private static int retryTick() {
+        return attack.kind() == DigimonAttack.Kind.KINETIC_SHOT ? Math.max(75, attack.hitTick() + attack.cooldownTicks() + 2) : 75;
     }
 
     private static void build(ServerLevel level, int elevation) {
@@ -103,7 +108,7 @@ final class KineticScenario {
         if (c.boundary.equals("asymmetric_contact")) initialTarget = START.add(.28, 0, .7);
         caster.setYRot(c.yaw + (c.boundary.equals("commit_turn") ? 180 : 0)); caster.yBodyRot = caster.yHeadRot = caster.getYRot();
         for (var mob : new Mob[]{caster, target}) { mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1024); mob.setHealth(mob.getMaxHealth()); }
-        health = target.getHealth(); ticks = hits = 0; started = kick = false;
+        health = target.getHealth(); ticks = hits = 0; started = kick = flightCovered = false;
         attack = KineticAttacks.get(Constants.id(c.attack)).attack();
         Vec3 localVelocity = switch (c.motion) {
             case "cross_left" -> new Vec3(.035, 0, 0);
@@ -179,16 +184,21 @@ final class KineticScenario {
                 }
             }
             if (elapsed == 4 && c.boundary.equals("obstacle_after_commit")) wall(level, -1);
-            if (elapsed == 22 && c.boundary.equals("cover_during_flight")) wall(level, 5);
+            // The cover rises ahead of the bolt on the first tick it is seen in the air (a bolt crosses the gap in a few ticks).
+            if (c.boundary.equals("cover_during_flight") && !flightCovered
+                    && !level.getEntitiesOfClass(com.digicube.entity.KineticProjectileEntity.class, new net.minecraft.world.phys.AABB(-8, 296, -8, 8, 310, 16)).isEmpty()) {
+                wall(level, 7);
+                flightCovered = true;
+            }
             if (elapsed == 40 && c.boundary.equals("invulnerability_retry")) {
                 if (hits != 0) throw new AssertionError("rejected hurt counted as a successful hit");
                 target.invulnerableTime = 0;
             }
-            if (elapsed == 75 && c.boundary.equals("invulnerability_retry")) {
+            if (elapsed == retryTick() && c.boundary.equals("invulnerability_retry")) {
                 caster.interruptAttack(); caster.setPos(START); caster.setOnGround(true); caster.startAttack(attack, target);
             }
         }
-        if (ticks < (c.boundary.equals("invulnerability_retry") ? 150 : 80)) return;
+        if (ticks < (c.boundary.equals("invulnerability_retry") ? retryTick() + 85 : 80)) return;
         boolean expectHit = c.attack.equals("hunting_cannon") && (c.boundary.isEmpty() || List.of("near_target", "far_target", "invulnerability_retry", "flight_sweep", "cooldown_fallback").contains(c.boundary))
                 || c.boundary.equals("connected_kick") || c.attack.equals("jet_dash") && c.elevation == 0 && c.motion.equals("still") && c.boundary.isEmpty();
         expectHit |= List.of("commit_turn", "repeat_frames", "wide_body_endpoint", "close_overlap", "asymmetric_contact", "limb_sweep").contains(c.boundary);
@@ -196,11 +206,29 @@ final class KineticScenario {
         if (c.boundary.equals("invulnerability_retry")) expectHit = true;
         expectNoHit |= List.of("cross_after_commit", "unreachable_path", "empty_visual_corner", "outside_limb_reach").contains(c.boundary);
         if (c.boundary.equals("cooldown_fallback") && c.attack.equals("hunting_cannon")) expectNoHit = false;
+        expectHit |= c.boundary.equals("exposes");
         boolean pass = (!expectHit || hits >= 1) && (!expectNoHit || hits == 0) && hits <= 1;
+        if (c.boundary.equals("exposes")) pass &= exposedVerdict(caster, target);
         if (c.attack.equals("jet_dash") && started && c.boundary.isEmpty()) pass &= caster.position().distanceTo(START) > 1.4;
         if (pass) passed++; else failed++;
         Constants.LOG.info("[kinetic-case] {} {} started={} hits={} kick={} end={} target={}", pass ? "PASS" : "FAIL", c.id(), started, hits, kick, caster.position(), target.position());
         next(level);
+    }
+
+    /** The shot that landed left its victim Exposed: synced for the emblem, crits likelier against it, no dodging. */
+    private static boolean exposedVerdict(DigimonEntity caster, net.minecraft.world.entity.LivingEntity target) {
+        float left = com.digicube.entity.CombatMarkState.exposedRemaining(((com.digicube.entity.CombatMarkState) target).digicube$marks2());
+        float exposedChance = com.digicube.digimon.CriticalHits.chance(caster, target);
+        float dodge = com.digicube.entity.ai.DigimonAttackGoal.dodgeChance(target, com.digicube.digimon.DigimonTactics.DEFAULT.with("dodge_chance", "0.8"));
+        target.removeEffect(com.digicube.registry.DCEffects.EXPOSED);
+        float after = com.digicube.digimon.CriticalHits.chance(caster, target);
+        float dodgeAfter = com.digicube.entity.ai.DigimonAttackGoal.dodgeChance(target, com.digicube.digimon.DigimonTactics.DEFAULT.with("dodge_chance", "0.8"));
+        // The bonus sits on top of the triangle (Centarumon is favoured against Agumon: 25 % becomes 55 %).
+        boolean ok = left > 0 && left < 1 && Math.abs(exposedChance - after - com.digicube.digimon.ExposedMark.CRIT_BONUS) < 1e-4 && dodge == 0
+                && dodgeAfter > .79F;
+        Constants.LOG.info("[kinetic-case] exposes: emblem left {}, crit chance {} while exposed and {} after, dodge {} while exposed and {} after",
+                String.format("%.2f", left), String.format("%.2f", exposedChance), String.format("%.2f", after), dodge, dodgeAfter);
+        return ok;
     }
 
     private static void finish(ServerLevel level, boolean pass) {

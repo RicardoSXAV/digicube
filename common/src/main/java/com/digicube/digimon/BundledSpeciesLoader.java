@@ -122,16 +122,20 @@ public final class BundledSpeciesLoader {
     }
 
     private static DigimonTactics tactics(JsonObject json) {
-        double holdMin = 0, holdMax = 0;
-        if (json.has("hold_range")) {
-            var range = GsonHelper.getAsJsonArray(json, "hold_range");
-            holdMin = range.get(0).getAsDouble(); holdMax = range.get(1).getAsDouble();
+        var knobs = new java.util.HashMap<String, Object>();
+        for (var entry : json.entrySet()) {
+            if (entry.getKey().equals("hold_range")) {
+                var range = entry.getValue().getAsJsonArray();
+                knobs.put("hold_min", range.get(0).getAsDouble());
+                knobs.put("hold_max", range.get(1).getAsDouble());
+            } else if (!DigimonTactics.DEFAULT.describe().containsKey(entry.getKey())) {
+                throw new IllegalArgumentException("unknown tactics key " + entry.getKey());
+            } else {
+                var value = entry.getValue().getAsJsonPrimitive();
+                knobs.put(entry.getKey(), value.isBoolean() ? (Object) value.getAsBoolean() : value.getAsDouble());
+            }
         }
-        return new DigimonTactics(holdMin, holdMax, GsonHelper.getAsFloat(json, "dodge_chance", 0), GsonHelper.getAsInt(json, "reaction_ticks", 0),
-                GsonHelper.getAsBoolean(json, "strafe", false), GsonHelper.getAsInt(json, "lead_ticks", 0),
-                GsonHelper.getAsBoolean(json, "press_impaired", false), GsonHelper.getAsBoolean(json, "prefer_close", false),
-                GsonHelper.getAsDouble(json, "charge_distance", 0), GsonHelper.getAsDouble(json, "charge_speed", 0),
-                GsonHelper.getAsDouble(json, "fight_speed", 0));
+        return DigimonTactics.of(knobs);
     }
 
     private static DigimonLocomotion locomotion(JsonObject json) {
@@ -147,7 +151,8 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "run_cycle_ticks", GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "cycle_ticks")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
-                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))) : null);
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false)) : null);
     }
 
     private static DigimonFlight flight(JsonObject json) {
@@ -181,7 +186,10 @@ public final class BundledSpeciesLoader {
                     m.has("flight") ? aerialMount(GsonHelper.getAsJsonObject(m, "flight")) : null,
                     riderAttacks(m), GsonHelper.getAsFloat(m, "turn_rate", 0), GsonHelper.getAsFloat(m, "sprint", 1),
                     // a swimmer under a rider: how fast it turns to the view in water, and its surge on the sprint key
-                    GsonHelper.getAsFloat(m, "water_turn_rate", 0), GsonHelper.getAsFloat(m, "water_sprint", 1)));
+                    GsonHelper.getAsFloat(m, "water_turn_rate", 0), GsonHelper.getAsFloat(m, "water_sprint", 1),
+                    GsonHelper.getAsFloat(m, "jump", 0), GsonHelper.getAsBoolean(m, "turn_to_travel", false),
+                    GsonHelper.getAsFloat(m, "camera_distance", 0),
+                    GsonHelper.getAsFloat(m, "sprint_build", DigimonBody.Mount.SPRINT_BUILD)));
         }
         var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
         if (json.has("hit_parts")) {

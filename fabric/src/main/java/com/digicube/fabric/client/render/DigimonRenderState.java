@@ -9,10 +9,22 @@ import net.minecraft.world.entity.AnimationState;
 public class DigimonRenderState extends LivingEntityRenderState {
     public com.digicube.fabric.client.evolution.EvolutionPresentation.Snapshot evolution;
     public final NativeEffectState authoredEffect = new NativeEffectState();
+    /** The species' caster-anchored clip for the attack in progress ({@code attack_effects}); drawn while the name is set. */
+    public final NativeEffectState attackEffect = new NativeEffectState();
+    public String attackEffectName;
 
     public float groundRunAmount;
+    /** A rider's attack on the run: only the upper body plays it, turned this many degrees from the body toward the aim. */
+    public boolean attackUpperBody;
+    public float attackTwist;
+    /** Ticks into a rider's jet charge (partial included), -1 when none runs. */
+    public float riderCharge = -1;
+    /** The leap's clip tick (-1 on the ground) and how much of the pose it has; see DigimonEntity.tickLeapPose. */
+    public float leapTick = -1, leapWeight;
     /** The hanging cloth's simulation, one per entity, kept by the renderer between frames. */
     public com.digicube.fabric.client.model.ClothChains.State cloth;
+    /** The hanging chains' simulation, one per entity, kept by the renderer between frames. */
+    public com.digicube.fabric.client.model.RopeChains.State ropes;
     /** Directional gait: shares forwards, backwards, left, right. */
     public float[] gaitShares = {1, 0, 0, 0};
     /** The spike wave its rider is aiming, drawn as a phantom; heights null when there is none. */

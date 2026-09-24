@@ -60,11 +60,28 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
      * @param combat          whether the rider casts this Digimon's attacks (mounted combat)
      * @param turnRate        degrees a tick the mount turns toward the rider's view; 0 follows it instantly.
      *                        Above zero the mount also gathers pace instead of starting at full speed
-     * @param sprint          pace multiplier while the rider sprints; 1 for a mount that cannot
+     * @param sprint          pace multiplier while the rider sprints (reached gradually, a heavy mount breaks into its
+     *                        gallop); 1 for a mount that cannot
+     * @param jump            upward speed of a leap on the rider's jump key, in blocks a tick; 0 for a mount that
+     *                        does not leap (0.62 clears two blocks)
+     * @param turnToTravel    a four-legged body that cannot step sideways: the strafe keys turn it into the way it goes
+     *                        and the back key reins it back, so it always walks along its own length
+     * @param cameraDistance  the third-person camera's distance behind the rider in blocks; 0 frames the whole body
+     * @param sprintBuild     ticks the sprint key takes to reach its full multiplier from a standstill of it (16 by
+     *                        default, most of a second; a long build rewards holding the gallop)
      */
     public record Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset,
                         AerialMount flight, java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint,
-                        float waterTurnRate, float waterSprint) {
+                        float waterTurnRate, float waterSprint, float jump, boolean turnToTravel, float cameraDistance, float sprintBuild) {
+        public static final float SPRINT_BUILD = 16;
+        public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight,
+                     java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint, float waterTurnRate, float waterSprint, float jump) {
+            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, riderAttacks, turnRate, sprint, waterTurnRate, waterSprint, jump, false, 0, SPRINT_BUILD);
+        }
+        public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight,
+                     java.util.List<RiderAttack> riderAttacks, float turnRate, float sprint, float waterTurnRate, float waterSprint) {
+            this(seat, speed, stepHeight, standing, waterSeatOffset, flight, riderAttacks, turnRate, sprint, waterTurnRate, waterSprint, 0);
+        }
         public Mount(Vec3 seat, float speed, float stepHeight, boolean standing, Vec3 waterSeatOffset, AerialMount flight) {
             this(seat, speed, stepHeight, standing, waterSeatOffset, flight, java.util.List.of(), 0, 1, 0, 1);
         }
@@ -91,7 +108,9 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
                     || !Float.isFinite(speed) || speed < 0.0F
                     || !Float.isFinite(stepHeight) || stepHeight < 0.0F
                     || !Float.isFinite(turnRate) || turnRate < 0 || !Float.isFinite(sprint) || sprint < 1
-                    || !Float.isFinite(waterTurnRate) || waterTurnRate < 0 || !Float.isFinite(waterSprint) || waterSprint < 1) {
+                    || !Float.isFinite(waterTurnRate) || waterTurnRate < 0 || !Float.isFinite(waterSprint) || waterSprint < 1
+                    || !Float.isFinite(jump) || jump < 0 || !Float.isFinite(cameraDistance) || cameraDistance < 0
+                    || !Float.isFinite(sprintBuild) || sprintBuild < 1) {
                 throw new IllegalArgumentException("Invalid mount dimensions or speed");
             }
         }

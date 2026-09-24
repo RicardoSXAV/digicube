@@ -5,7 +5,6 @@ import com.digicube.fabric.client.model.BlueBlasterModel;
 import com.digicube.fabric.client.model.HowlingBlasterModel;
 import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
-import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
 import com.digicube.fabric.client.model.TentomonModel;
@@ -35,7 +34,6 @@ import java.util.Map;
 public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderState, EntityModel<DigimonRenderState>> {
 
     private static final Map<Identifier, Identifier> TEXTURES = Map.of(
-            Constants.id("agumon"), Constants.id("textures/entity/digimon/agumon.png"),
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
             Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
             Constants.id("ikkakumon"), Constants.id("textures/entity/digimon/ikkakumon.png"),
@@ -44,11 +42,14 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
-    private static final Identifier FALLBACK_TEXTURE = TEXTURES.get(DigimonEntity.DEFAULT_SPECIES);
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
+    /** Agumon's presentation scale, for a species drawn with Agumon's model because it has none of its own. */
+    private final float fallbackScale;
+    private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> attackEffects=new java.util.HashMap<>();
     private final com.digicube.fabric.client.evolution.EvolutionPresentation evolution;
     private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> authoredEffects=new java.util.HashMap<>();
     private final Map<DigimonEntity,com.digicube.fabric.client.model.ClothChains.State> cloth=new java.util.WeakHashMap<>();
+    private final Map<DigimonEntity,com.digicube.fabric.client.model.RopeChains.State> ropes=new java.util.WeakHashMap<>();
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
     private final HowlingBlasterModel howlingBlaster;
@@ -59,7 +60,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private static final float AIMED_WAVE_TICK = 50;
 
     public DigimonRenderer(EntityRendererProvider.Context context) {
-        super(context, new AgumonModel(context.bakeLayer(AgumonModel.LAYER)), 0.4F);
+        super(context, fallbackModel(context), 0.4F);
+        fallbackScale = com.digicube.digimon.DigimonSpeciesRegistry.getOrThrow(DigimonEntity.DEFAULT_SPECIES).body().modelScale();
         for(var d:com.digicube.digimon.AuthoredAttacks.all()) if(d.effect()!=null) {
             String effect=d.effect();authoredEffects.put(effect,new com.digicube.fabric.client.model.NativeEffectModel(
                     context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
@@ -82,8 +84,13 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER))));
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
-            models.put(definition.species(), new com.digicube.fabric.client.model.NativeGroundModel(
+            if (!models.containsKey(definition.species())) models.put(definition.species(), new com.digicube.fabric.client.model.NativeGroundModel(
                     context.bakeLayer(definition.layer()), definition));
+            if (definition.attackEffects() != null) {
+                String effect = definition.attackEffects().effect();
+                if (!attackEffects.containsKey(effect)) attackEffects.put(effect, new com.digicube.fabric.client.model.NativeEffectModel(
+                        context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)), effect));
+            }
         }
         for (var species:com.digicube.digimon.DigimonSpeciesRegistry.all()) {
             if (species.body().mount().map(m->m.flight()!=null).orElse(false)) {
@@ -93,6 +100,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             }
         }
         evolution=new com.digicube.fabric.client.evolution.EvolutionPresentation(models);
+    }
+
+    /** Agumon's native model: the default species, and the body drawn for any species without a model of its own. */
+    private static EntityModel<DigimonRenderState> fallbackModel(EntityRendererProvider.Context context) {
+        var definition = com.digicube.fabric.client.model.NativeGroundModel.definitions().get(DigimonEntity.DEFAULT_SPECIES);
+        return new com.digicube.fabric.client.model.NativeGroundModel(context.bakeLayer(definition.layer()), definition);
     }
 
     @Override
@@ -109,6 +122,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             var fx=state.fistEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=state.bodyRot;fx.scale=state.modelScale;fx.lightCoords=state.lightCoords;
             TectonicWaveRenderer.submitEffect(fistEffect,"rock_punch_fx",fx,poseStack,collector);
+        }
+        if (!state.isInvisible && state.attackEffectName != null) {
+            state.attackEffect.yaw = state.bodyRot;
+            TectonicWaveRenderer.submitEffect(attackEffects.get(state.attackEffectName), state.attackEffectName, state.attackEffect, poseStack, collector);
         }
         if (state.riderAim.heights != null) {
             // A ghost of the stone with the white outline a targeted enemy gets: what would rise, where, before it is cast.
@@ -162,8 +179,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             state.nameTag = Component.translatable("digimon.digicube.wild_nameplate", entity.getLevel(), state.nameTag);
         }
         state.species = entity.getSpeciesId();
-        state.modelScale = entity.getBody().modelScale();
+        state.modelScale = models.containsKey(state.species) ? entity.getBody().modelScale() : fallbackScale;
         state.cloth = cloth.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.ClothChains.State());
+        state.ropes = ropes.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.RopeChains.State());
         state.isBeingRidden = entity.isVehicle();
         state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
         state.swimAnimationAmount = entity.getSwimAnimationAmount(partialTick);
@@ -226,6 +244,20 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             }
             fx.hidden=java.util.Set.copyOf(hidden);
         }
+        state.attackEffectName = null;
+        if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel ground && ground.definition().attackEffects() != null
+                && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
+            var effects = ground.definition().attackEffects();
+            String clip = effects.clips().get(state.attackAnimationName);
+            if (clip != null) {
+                var fx = state.attackEffect;
+                fx.clip = clip; fx.tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
+                fx.scale = state.modelScale; fx.offset = net.minecraft.world.phys.Vec3.ZERO;
+                // Fire and claw light are their own light. The facing is the body's, taken when drawn.
+                fx.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT; fx.outlineColor = 0;
+                state.attackEffectName = effects.effect();
+            }
+        }
         state.constrictionFit = entity.getConstrictionFit();
         if (entity.isFlyingMovement() || (entity.canSwim() && state.swimAnimationAmount > 0.01F) || state.isBeingRidden
                 || state.attackAnimation.isStarted() && state.attackDefinition != null && state.attackDefinition.locksBodyFacing()) {
@@ -243,6 +275,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             state.bodyRot = entity.getKineticRenderYaw(partialTick);
         }
         state.kineticOffset = entity.getKineticRenderOffset(partialTick).yRot(state.bodyRot * Mth.DEG_TO_RAD);
+        // An attack on the run: the upper body plays it and twists toward where the rider looks, or the AI's aim.
+        var rider = entity.rider();
+        state.attackUpperBody = state.attackAnimation.isStarted() && entity.movesDuring(state.attackDefinition);
+        float aim = !state.attackUpperBody ? 0 : rider != null ? Mth.rotLerp(partialTick, rider.yRotO, rider.getYRot()) : entity.getAttackYaw(partialTick);
+        state.attackTwist = state.attackUpperBody ? Math.clamp(Mth.wrapDegrees(aim - state.bodyRot),
+                -com.digicube.entity.KineticSession.MAX_TWIST, com.digicube.entity.KineticSession.MAX_TWIST) : 0;
+        state.riderCharge = entity.riderCharging() ? entity.riderChargeTicks() + partialTick : -1;
+        state.leapTick = entity.getLeapTick(partialTick);
+        state.leapWeight = state.leapTick < 0 ? 0 : entity.getLeapWeight(partialTick);
         state.blueBlaster.frost = false;
         state.blueBlaster.iceBlast = false;
         if (entity.isAlive() && state.attackAnimation.isStarted() && state.attackDefinition != null
@@ -293,7 +334,10 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeFlyingMountModel) {
             return state.species.withPath("textures/entity/digimon/"+state.species.getPath()+".png");
         }
-        return TEXTURES.getOrDefault(state.species, FALLBACK_TEXTURE);
+        if (!models.containsKey(state.species) && models.get(DigimonEntity.DEFAULT_SPECIES) instanceof com.digicube.fabric.client.model.NativeGroundModel fallback) {
+            return fallback.definition().texture();
+        }
+        return TEXTURES.get(state.species);
     }
 
     @Override

@@ -27,6 +27,9 @@ public abstract class MixinCamera {
         var player=Minecraft.getInstance().player;
         if (player==null || !(player.getVehicle() instanceof DigimonEntity mount)) return distance;
         if (mount.aerialMount()!=null) return Math.max(distance,7.5F*mount.getBody().modelScale());
+        // A sheet may set its own: close enough that a big mount still fills the screen.
+        float own=mount.getBody().mount().map(m->m.cameraDistance()).orElse(0F);
+        if (own>0) return Math.max(distance,own);
         return mount.riderAttacks().isEmpty() ? distance : Math.max(distance,3F+Math.max(mount.getBbWidth(),mount.getBbHeight())*1.6F);
     }
 

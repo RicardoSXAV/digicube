@@ -27,6 +27,9 @@ public class MixinHumanoidModel {
             rightLeg.yRot = pose.splay();
             leftLeg.zRot = -pose.roll();
             rightLeg.zRot = pose.roll();
+            // A wide back is straddled from wider hips: each leg down its own side.
+            leftLeg.x += pose.hips();
+            rightLeg.x -= pose.hips();
         }
     }
 }

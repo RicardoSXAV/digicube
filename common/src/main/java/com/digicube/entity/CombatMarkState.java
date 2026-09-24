@@ -15,12 +15,23 @@ public interface CombatMarkState {
     /** Remaining Inked and Cracked travel as a fraction of their full length, in this many units. */
     int INK_UNITS = 127, CRACK_UNITS = 127;
 
+    /** Remaining Exposed travels as a fraction of its full length, in this many units. */
+    int EXPOSED_UNITS = 127;
+    /** In the second readout: a critical hit just landed on this Exposed body, and its emblem blinks. */
+    int EXPOSED_FLASH = 1 << 7;
+
     /**
      * Bits 0-3 flags, 4-8 Cold charge (ticks), 9-13 remaining Cold (steps), 14-20 remaining Inked
      * (fraction, {@link #INK_UNITS}), 21-23 Crack charges, 24-30 remaining Cracked (fraction,
-     * {@link #CRACK_UNITS}).
+     * {@link #CRACK_UNITS}). Full: new marks go in {@link #digicube$marks2()}.
      */
     int digicube$marks();
+
+    /** The second readout: bits 0-6 remaining Exposed (fraction, {@link #EXPOSED_UNITS}), 7 {@link #EXPOSED_FLASH}. */
+    int digicube$marks2();
+
+    /** A critical hit landed on this Exposed body. */
+    void digicube$exposedCrit();
 
     /** One tick of landed frost. True once the charge is complete; the caller then applies Cold. */
     boolean digicube$chill();
@@ -41,7 +52,15 @@ public interface CombatMarkState {
                 | Math.min(CRACK_UNITS, (int) Math.ceil(Math.max(0, crackedRemaining) * CRACK_UNITS)) << 24;
     }
 
+    static int pack2(float exposedRemaining, boolean exposedFlash) {
+        return Math.min(EXPOSED_UNITS, (int) Math.ceil(Math.max(0, exposedRemaining) * EXPOSED_UNITS))
+                | (exposedFlash && exposedRemaining > 0 ? EXPOSED_FLASH : 0);
+    }
+
     static boolean has(int marks, int flag) { return (marks & flag) != 0; }
+
+    /** 0..1 of Exposed's length, from the second readout; above zero the target is Exposed. */
+    static float exposedRemaining(int marks2) { return (marks2 & EXPOSED_UNITS) / (float) EXPOSED_UNITS; }
 
     /** 0..1 */
     static float coldCharge(int marks) { return Math.min(1F, (marks >> 4 & 31) / (float) IceCombo.COLD_CHARGE_TICKS); }

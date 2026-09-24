@@ -113,5 +113,35 @@
         "attenuation_distance": 32
       }
     ]
+  },
+  "hunting_cannon_fire": {
+    "subtitle": "subtitles.digicube.hunting_cannon.fire",
+    "sounds": [
+      {
+        "name": "digicube:attack/hunting_cannon_fire_1",
+        "volume": 1.0,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "digicube:attack/hunting_cannon_fire_2",
+        "volume": 1.0,
+        "attenuation_distance": 40
+      }
+    ]
+  },
+  "hunting_cannon_impact": {
+    "subtitle": "subtitles.digicube.hunting_cannon.impact",
+    "sounds": [
+      {
+        "name": "digicube:attack/hunting_cannon_impact_1",
+        "volume": 1.0,
+        "attenuation_distance": 48
+      },
+      {
+        "name": "digicube:attack/hunting_cannon_impact_2",
+        "volume": 1.0,
+        "attenuation_distance": 48
+      }
+    ]
   }
 }

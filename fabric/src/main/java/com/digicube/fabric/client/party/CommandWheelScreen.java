@@ -129,6 +129,10 @@ public final class CommandWheelScreen extends Screen {
         if (mount != null && slot >= 0 && slot < mount.riderAttacks().size()) {
             if (mount.seenCooldown(mount.riderAttacks().get(slot)) == 0) {
                 client.send(new PartyActionPayload(PartyActionPayload.RIDER_ATTACK, PartyActionPayload.NO_MEMBER, slot));
+                // A key in the wheel has no hold: a drawn shot is loosed as soon as it is raised.
+                var spec = mount.riderSpec(mount.riderAttacks().get(slot));
+                if (spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.SHOT && spec.input() == com.digicube.digimon.RiderAttack.Input.HOLD)
+                    client.send(new PartyActionPayload(PartyActionPayload.RIDER_RELEASE, PartyActionPayload.NO_MEMBER, slot));
                 onClose();
             }
             return true;

@@ -40,6 +40,8 @@ public final class DCEffects {
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
     /** A broken guard: more damage from every source (the multiplier lives in {@code MixinLivingEntity}). */
     public static final Holder<MobEffect> CRACKED = register("cracked", new MobEffect(MobEffectCategory.HARMFUL, 0x8A7F5C) {});
+    /** In someone's sights: hits against it crit more often and it cannot dodge (the rules live in {@code ExposedMark}). */
+    public static final Holder<MobEffect> EXPOSED = register("exposed", new MobEffect(MobEffectCategory.HARMFUL, 0xFF6B45) {});
     public static final Holder<MobEffect> FROST_RESISTANCE = register("frost_resistance",
             new MobEffect(MobEffectCategory.NEUTRAL, 0x6685AE) {});
     public static final Holder<MobEffect> CONSTRICTION_RESISTANCE = register("constriction_resistance",

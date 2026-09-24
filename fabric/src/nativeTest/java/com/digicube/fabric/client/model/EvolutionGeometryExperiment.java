@@ -16,7 +16,6 @@ public final class EvolutionGeometryExperiment {
         if(DigimonSpeciesRegistry.getOrThrow(id).body().mount().map(m->m.flight()!=null).orElse(false))
             return new NativeFlyingMountModel(NativeModelGeometry.createLayer(id.withPath("models/entity/"+name+".mesh.json")).bakeRoot(),id);
         return switch(name) {
-            case "agumon"->new AgumonModel(AgumonModel.createBodyLayer().bakeRoot());
             case "gabumon"->new GabumonModel(GabumonModel.createBodyLayer().bakeRoot());
             case "gomamon"->new GomamonModel(GomamonModel.createBodyLayer().bakeRoot());
             case "tentomon"->new TentomonModel(TentomonModel.createBodyLayer().bakeRoot());

@@ -25,12 +25,19 @@ public final class KineticProjectileEntity extends Projectile {
 
     public KineticProjectileEntity(EntityType<? extends KineticProjectileEntity> type, Level level) { super(type, level); }
     public KineticProjectileEntity(Level level, DigimonEntity owner, KineticAttacks.Definition definition, Vec3 origin, Vec3 direction) {
+        this(level, owner, definition, origin, direction, 1, 1);
+    }
+
+    /** @param power share of the attack's damage it deals; {@code speed} scales its flight. A rider's drawn shot sets both. */
+    public KineticProjectileEntity(Level level, DigimonEntity owner, KineticAttacks.Definition definition, Vec3 origin, Vec3 direction, float power, float speed) {
         this(DCEntityTypes.KINETIC_PROJECTILE, level);
         setOwner(owner);
         entityData.set(ATTACK, definition.attack().id().getPath());
+        this.power = power;
         setPos(origin);
-        setDeltaMovement(direction.scale(definition.projectileSpeed()));
+        setDeltaMovement(direction.scale(definition.projectileSpeed() * speed));
     }
+    private float power = 1;
     public KineticAttacks.Definition definition() {
         String name = entityData.get(ATTACK);
         return name.isEmpty() ? null : KineticAttacks.get(Constants.id(name));
@@ -55,9 +62,13 @@ public final class KineticProjectileEntity extends Projectile {
             if(d.projectileMotion()==null || effectTick(0)>d.projectileMotion().impactTicks())discard();
             return;
         }
-        if (++age > d.projectileLife()) { impact(position()); return; }
+        if (++age > d.projectileLife()) {
+            if (level() instanceof ServerLevel level) d.shotStyle().fizzle(level, position());
+            impact(position()); return;
+        }
         if(!level().isClientSide())entityData.set(AGE,age);
         Vec3 velocity = getDeltaMovement(), origin = position();
+        if (level().isClientSide()) d.shotStyle().trail(level(), origin, origin.add(velocity), random);
         if (level() instanceof ServerLevel level) {
             if (!(getOwner() instanceof DigimonEntity owner) || !owner.isAlive()) { discard(); return; }
             int steps = Math.max(1, (int) Math.ceil(velocity.length() / .04));
@@ -67,17 +78,19 @@ public final class KineticProjectileEntity extends Projectile {
                 var local=d.projectileMotion()==null?d.projectileBoxes():d.projectileMotion().sample(phase);
                 var boxes = local.stream().filter(b->Math.abs(b.x().dot(b.y().cross(b.z())))>1e-10)
                         .map(b -> KineticGeometry.flightBox(b, point, velocity)).toList();
-                if (boxes.stream().anyMatch(b -> KineticGeometry.blocked(level, this, b))) { impact(point); return; }
+                if (boxes.stream().anyMatch(b -> KineticGeometry.blocked(level, this, b))) { d.shotStyle().impact(level, point); impact(point); return; }
                 for (var box : boxes) for (var entity : level.getEntities(this, box.bounds())) {
                     var victim = DigimonPart.livingOf(entity);
                     if (victim == null || victim == owner || !owner.canAttack(victim) || owner.isAllyOf(victim)
                             || HitParts.of(victim).stream().noneMatch(box::intersects)) continue;
-                    if (owner.hitWithAttack(level, d.attack(), victim)) {
+                    if (owner.hitWithAttack(level, d.attack(), victim, owner.position(), power)) {
                         if(d.impairmentTicks()>0) {
                             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.BLINDNESS,d.impairmentTicks()));
                             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.digicube.registry.DCEffects.INKED,d.impairmentTicks()));
                         }
+                        com.digicube.digimon.ExposedMark.expose(victim, d.exposeTicks());
                         Constants.LOG.info("[kinetic] {} projectile hit {} age={}", d.attack().id(), victim.getType().toShortString(), age);
+                        d.shotStyle().impact(level, point);
                         impact(point);return;
                     }
                     // Invulnerability is not a hit. Retry while the visible volume overlaps.
@@ -88,11 +101,11 @@ public final class KineticProjectileEntity extends Projectile {
         setPos(origin.add(velocity));
     }
     @Override protected void addAdditionalSaveData(ValueOutput output) {
-        super.addAdditionalSaveData(output); output.putString("Attack", entityData.get(ATTACK)); output.putInt("Age", age);
+        super.addAdditionalSaveData(output); output.putString("Attack", entityData.get(ATTACK)); output.putInt("Age", age); output.putFloat("Power", power);
         output.putInt("ImpactAge",impacting()?(int)effectTick(0):-1);
     }
     @Override protected void readAdditionalSaveData(ValueInput input) {
-        super.readAdditionalSaveData(input); entityData.set(ATTACK, input.getStringOr("Attack", "")); age = input.getIntOr("Age", 0);
+        super.readAdditionalSaveData(input); entityData.set(ATTACK, input.getStringOr("Attack", "")); age = input.getIntOr("Age", 0); power = input.getFloatOr("Power", 1);
         entityData.set(AGE,age);
         entityData.set(IMPACT,input.getIntOr("ImpactAge",-1));
     }

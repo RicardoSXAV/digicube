@@ -1,6 +1,7 @@
 package com.digicube.mixin;
 
 import com.digicube.digimon.CrackMark;
+import com.digicube.digimon.ExposedMark;
 import com.digicube.digimon.IceCombo;
 import com.digicube.registry.DCEffects;
 import com.digicube.entity.CombatMarkState;
@@ -23,6 +24,10 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     @Unique
     private static final EntityDataAccessor<Integer> digicube$MARKS =
             SynchedEntityData.defineId(LivingEntity.class, EntityDataSerializers.INT);
+    /** The second readout, begun when the first ran out of bits. */
+    @Unique
+    private static final EntityDataAccessor<Integer> digicube$MARKS2 =
+            SynchedEntityData.defineId(LivingEntity.class, EntityDataSerializers.INT);
     /** Server-side only; not saved, a charge never outlives a few seconds. */
     @Unique
     private int digicube$coldCharge, digicube$coldTouchTick;
@@ -32,10 +37,14 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     /** Server-side only, like the Cold charge: stone blows counted toward Cracked, and when the last one landed. */
     @Unique
     private int digicube$crackCharges, digicube$crackTouchTick;
+    /** Like the ink's: the longest the current Exposed has been, and until when its emblem blinks for a critical hit. */
+    @Unique
+    private int digicube$exposedLength, digicube$exposedFlashUntil;
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void digicube$defineMarks(SynchedEntityData.Builder builder, CallbackInfo ci) {
         builder.define(digicube$MARKS, 0);
+        builder.define(digicube$MARKS2, 0);
     }
 
     @Inject(method = "tickEffects", at = @At("TAIL"))
@@ -60,11 +69,26 @@ public abstract class MixinLivingEntity implements CombatMarkState {
                 ink == null ? 0 : ink.isInfiniteDuration() ? 1 : ink.getDuration() / (float) Math.max(1, digicube$inkLength),
                 digicube$crackCharges,
                 cracked == null ? 0 : cracked.isInfiniteDuration() ? 1 : Math.min(1F, cracked.getDuration() / (float) CrackMark.CRACKED_TICKS)));
+        MobEffectInstance exposed = living.getEffect(DCEffects.EXPOSED);
+        digicube$exposedLength = exposed == null ? 0 : Math.max(digicube$exposedLength, exposed.getDuration());
+        living.getEntityData().set(digicube$MARKS2, !living.isAlive() || exposed == null ? 0 : CombatMarkState.pack2(
+                exposed.isInfiniteDuration() ? 1 : exposed.getDuration() / (float) Math.max(1, digicube$exposedLength),
+                living.tickCount < digicube$exposedFlashUntil));
     }
 
     @Override
     public int digicube$marks() {
         return ((LivingEntity) (Object) this).getEntityData().get(digicube$MARKS);
+    }
+
+    @Override
+    public int digicube$marks2() {
+        return ((LivingEntity) (Object) this).getEntityData().get(digicube$MARKS2);
+    }
+
+    @Override
+    public void digicube$exposedCrit() {
+        digicube$exposedFlashUntil = ((LivingEntity) (Object) this).tickCount + ExposedMark.FLASH_TICKS;
     }
 
     @Override

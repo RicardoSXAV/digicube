@@ -40,6 +40,8 @@ public final class NativeAnimationSet {
     private final Map<String, Clip> clips = new HashMap<>();
     private final Map<String, BlendPoint[]> blends = new HashMap<>();
     private final ModelPart[] membranes;
+    /** Every named part, for layers that drive only some of them. */
+    private final Map<String, ModelPart> named = new HashMap<>();
 
     public NativeAnimationSet(ModelPart root, Identifier resource) {
         this(root, open(resource), resource.toString());
@@ -113,6 +115,7 @@ public final class NativeAnimationSet {
             for (String child : chain) part = part.getChild(child);
             parts.put(name, part);
         });
+        named.putAll(parts);
         membranes = new ModelPart[membraneNames.size()];
         for (int i = 0; i < membranes.length; i++) membranes[i] = Objects.requireNonNull(parts.get(membraneNames.get(i)));
         raw.forEach((name, clip) -> {
@@ -292,8 +295,23 @@ public final class NativeAnimationSet {
         apply(b.clip,tick,mix*weight);
     }
 
+    /** @return the parts whose names start with {@code prefix}, in no order */
+    public java.util.Set<ModelPart> partsNamed(String prefix) {
+        var result = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ModelPart, Boolean>());
+        named.forEach((name, part) -> { if (name.startsWith(prefix)) result.add(part); });
+        return result;
+    }
+
     /** Add a weighted delta from rest. Clocks are fractional server ticks, independent of game frame rate. */
     public void apply(String name, float tick, float weight) {
+        apply(name, tick, weight, null);
+    }
+
+    /**
+     * As {@link #apply(String, float, float)}, on the parts in {@code only} alone (null for all): a layer, such as an
+     * upper body that aims while the legs keep their gait.
+     */
+    public void apply(String name, float tick, float weight, java.util.Set<ModelPart> only) {
         if (weight <= 0) return;
         Clip clip = clips.get(name);
         if (clip == null) throw new IllegalArgumentException("Missing native clip " + name);
@@ -309,6 +327,7 @@ public final class NativeAnimationSet {
             float[] a = keys[low], b = keys[high];
             float blend = Math.clamp((tick - a[0]) / (b[0] - a[0]), 0, 1);
             ModelPart p = track.part;
+            if (only != null && !only.contains(p)) continue;
             if (track.catmullrom) {
                 float[] before = keys[Math.max(0, low - 1)], after = keys[Math.min(keys.length - 1, high + 1)];
                 add(p, track.offset, Mth.catmullrom(blend, before[1], a[1], b[1], after[1]) * weight,
@@ -332,6 +351,7 @@ public final class NativeAnimationSet {
             }
         }
         for (Visibility visibility : clip.visibility) {
+            if (only != null && !only.contains(visibility.part)) continue;
             int index = 0;
             while (index + 1 < visibility.times.length && visibility.times[index+1] <= tick) index++;
             visibility.part.visible = visibility.shown[index];

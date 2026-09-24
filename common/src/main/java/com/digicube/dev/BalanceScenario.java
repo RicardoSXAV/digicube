@@ -36,6 +36,8 @@ final class BalanceScenario {
     private static final class Side {
         final DigimonSpecies species;
         final TreeMap<String, Integer> casts = new TreeMap<>();
+        /** Tactics the AI used, from the fighter's own tally ({@code DigimonEntity.countSkill}). */
+        final TreeMap<String, Integer> skills = new TreeMap<>();
         DigimonEntity fighter;
         String lastMove;
         float lastHealth;
@@ -171,9 +173,30 @@ final class BalanceScenario {
                 round + 1, winner == null ? "draw" : winner.name() + " wins", ticks / 20.0,
                 winner == null ? "" : String.format(Locale.ROOT, " with %.0f%% health left", left * 100),
                 a.name(), a.damageTaken, b.name(), b.damageTaken, retargets));
-        for (Side side : new Side[]{a, b}) { side.crits += side.fighter.criticalHits(); side.dodges += side.fighter.dodges(); side.fighter.discard(); side.fighter = null; }
+        for (Side side : new Side[]{a, b}) {
+            side.crits += side.fighter.criticalHits(); side.dodges += side.fighter.dodges();
+            side.fighter.skillUses().forEach((skill, uses) -> side.skills.merge(skill, uses, Integer::sum));
+            side.fighter.discard(); side.fighter = null;
+        }
         round++;
         waitTicks = BETWEEN_ROUNDS_TICKS;
+    }
+
+    /**
+     * A species whose tactics call for a skill must be seen using it: a jet charge for {@code dash_engage}, a jet dodge
+     * for {@code dash_dodge}, a shot on the run for {@code shoot_moving}. Uses are reported per round.
+     */
+    private static void skillVerdict(Side side) {
+        var tactics = side.species.tactics();
+        if (!tactics.dashes() && !tactics.shootMoving()) return;
+        var missing = new ArrayList<String>();
+        if (tactics.dashEngage() > 0 && side.skills.getOrDefault("jet_charge", 0) == 0) missing.add("jet_charge");
+        if (tactics.dashDodge() && side.skills.getOrDefault("jet_dodge", 0) == 0) missing.add("jet_dodge");
+        if (tactics.shootMoving() && side.skills.getOrDefault("shot_on_the_run", 0) == 0) missing.add("shot_on_the_run");
+        var perRound = new TreeMap<String, String>();
+        side.skills.forEach((skill, uses) -> perRound.put(skill, String.format(Locale.ROOT, "%.2f", (double) uses / rounds.size())));
+        Constants.LOG.info("[balance] SKILLS {} {}: per round {}{}", missing.isEmpty() ? "PASS" : "FAIL", side.name(), perRound,
+                missing.isEmpty() ? "" : ", never used " + missing);
     }
 
     private static void summarize(ServerLevel level) {
@@ -194,6 +217,7 @@ final class BalanceScenario {
             double leftWhenWinning = rounds.stream().filter(r -> r.winner().equals(side.name())).mapToDouble(Round::winnerHealthLeft).average().orElse(0);
             Constants.LOG.info(String.format(Locale.ROOT, "[balance] %s: casts %s, %.1f crits and %.1f dodges per round, Cracked %.2f times per round, took %.1f damage per round, kept %.0f%% health when winning; tactics %s",
                     side.name(), side.casts, (double) side.crits / rounds.size(), (double) side.dodges / rounds.size(), (double) side.cracked / rounds.size(), taken, leftWhenWinning * 100, new TreeMap<>(side.species.tactics().describe())));
+            skillVerdict(side);
         }
         level.getServer().halt(false);
     }

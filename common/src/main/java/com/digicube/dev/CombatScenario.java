@@ -48,6 +48,10 @@ public final class CombatScenario {
     private static boolean blockedScenario;
     private static boolean started, done;
     private static int startTick, coldTick = -1, freezeTick = -1, captureTick = -1, releaseTick = -1, firstHitTick = -1, casts, hits;
+    /** Pepper Breath balls the caster released, and those that struck the prey (burn ticks are hits, not landings). */
+    private static int fireballs, fireballsLanded;
+    private static final java.util.Set<java.util.UUID> SEEN_FIREBALLS = new java.util.HashSet<>();
+    private static final java.util.Set<java.util.UUID> LANDED_FIREBALLS = new java.util.HashSet<>();
     private static boolean casterWasAttacking, wrapCaster, oversizedWrapPrey, duel, preyFacesAway;
     private static boolean escapeScenario;
     private static final java.util.Set<com.digicube.entity.ai.FlightPhase> flightPhases = java.util.EnumSet.noneOf(com.digicube.entity.ai.FlightPhase.class);
@@ -59,6 +63,7 @@ public final class CombatScenario {
     public static void tick(ServerLevel level) {
         if (NAME == null || done || level.dimension() != Level.OVERWORLD || !Services.PLATFORM.isDevelopmentEnvironment()) return;
         if (NAME.equals("rider_checks")) return; // staged by the Fabric module, which has a fake player to ride with
+        if (NAME.startsWith("digivice_checks")) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
@@ -186,6 +191,11 @@ public final class CombatScenario {
         // Read the damage of this tick before healing it away; the species may reset its own max health,
         // so the boost is reasserted every tick rather than trusted from spawn.
         boolean preyHurt = prey.getHealth() < prey.getMaxHealth();
+        for (var ball : level.getEntitiesOfClass(com.digicube.entity.PepperBreathEntity.class, prey.getBoundingBox().inflate(48), b -> b.getOwner() == caster)) {
+            if (SEEN_FIREBALLS.add(ball.getUUID())) fireballs++;
+            if (ball.impacting() && ball.impactTick(0) <= 1 && ball.getBoundingBox().inflate(1).intersects(prey.getBoundingBox())
+                    && LANDED_FIREBALLS.add(ball.getUUID())) fireballsLanded++;
+        }
         if(duel && elapsed>=SETTLE_TICKS) {
             if(caster.getHealth()<caster.getMaxHealth())preyHits++;
             String move=prey.getActiveAttack()==null?null:prey.getActiveAttack().id().getPath();
@@ -261,7 +271,7 @@ public final class CombatScenario {
         if (preyHurt) {
             if (hits++ == 0) { firstHitTick = elapsed; Constants.LOG.info("[scenario] t={} first hit on the prey", elapsed); }
             if (!blockedScenario && !BENCHMARK && !wrapCaster && hits >= REQUIRED_HITS) {
-                finish(level, String.format("PASS firstHit=%d hits=%d by t=%d casts=%d", firstHitTick, hits, elapsed, casts));
+                finish(level, String.format("PASS firstHit=%d hits=%d by t=%d casts=%d", firstHitTick, hits, elapsed, casts) + fireballReport());
                 return;
             }
         }
@@ -270,7 +280,7 @@ public final class CombatScenario {
         }
         if(BENCHMARK && elapsed>=640) {
             finish(level,String.format(java.util.Locale.ROOT,"%s benchmark firstHit=%d hits=%d damage=%.2f crits=%d duration=600 moves=%s",
-                    hits>=REQUIRED_HITS?"PASS":"FAIL",firstHitTick,hits,damage,caster.criticalHits(),moves));return;
+                    hits>=REQUIRED_HITS?"PASS":"FAIL",firstHitTick,hits,damage,caster.criticalHits(),moves)+fireballReport());return;
         }
         if (!wrapCaster) {
             if (elapsed >= TIMEOUT_TICKS) finish(level, String.format("FAIL only %d hits within %d ticks (casts=%d caster=%s prey=%s)",
@@ -318,6 +328,10 @@ public final class CombatScenario {
                 mob -> mob != first && mob != second);
         intruders.forEach(net.minecraft.world.entity.Entity::discard);
         return intruders.size();
+    }
+
+    private static String fireballReport() {
+        return fireballs == 0 ? "" : " fireballs=" + fireballsLanded + "/" + fireballs;
     }
 
     private static void finish(ServerLevel level, String verdict) {

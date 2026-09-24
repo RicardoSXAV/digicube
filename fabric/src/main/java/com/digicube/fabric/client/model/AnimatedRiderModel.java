@@ -30,5 +30,8 @@ public interface AnimatedRiderModel {
      * @param splay outward leg yaw
      * @param roll outward leg roll
      */
-    record RiderPose(float pitch, float splay, float roll) {}
+    /** Leg pitch, splay and roll in radians, and {@code hips}: model px each leg is set further out, to straddle a wide back. */
+    record RiderPose(float pitch, float splay, float roll, float hips) {
+        public RiderPose(float pitch, float splay, float roll) { this(pitch, splay, roll, 0); }
+    }
 }

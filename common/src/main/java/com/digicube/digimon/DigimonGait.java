@@ -3,10 +3,15 @@ package com.digicube.digimon;
 /**
  * Authored ground-cycle measurements and an optional limit on visual playback speed. A gait with its own
  * {@code sideStride} or {@code backStride} is directional: the model has planted clips for walking backwards and
- * for stepping sideways (shorter steps than forwards), all on one shared phase.
+ * for stepping sideways (shorter steps than forwards), all on one shared phase. A gait with {@code footfalls} sounds
+ * its own feet on its phase (the client's hoof beats), so the body makes none of vanilla's step-per-block sounds.
  */
 public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
-                          double sideStride, double backStride) {
+                          double sideStride, double backStride, boolean footfalls) {
+    public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
+                       double sideStride, double backStride) {
+        this(cycleTicks, stride, maxPlaybackRate, runCycleTicks, runStride, sideStride, backStride, false);
+    }
     public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride) {
         this(cycleTicks, stride, maxPlaybackRate, runCycleTicks, runStride, stride, stride);
     }

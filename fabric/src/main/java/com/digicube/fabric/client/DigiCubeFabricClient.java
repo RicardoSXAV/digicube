@@ -4,7 +4,6 @@ import com.digicube.Constants;
 import com.digicube.fabric.client.dev.DevClient;
 import com.digicube.fabric.client.party.PartyClient;
 import com.digicube.fabric.client.starter.StarterClient;
-import com.digicube.fabric.client.model.AgumonModel;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
 import com.digicube.fabric.client.model.TentomonModel;
@@ -20,7 +19,6 @@ import com.digicube.fabric.client.model.BlueBlasterModel;
 import com.digicube.fabric.client.model.HowlingBlasterModel;
 import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
-import com.digicube.fabric.client.model.PepperBreathModel;
 import com.digicube.fabric.client.render.DigimonRenderer;
 import com.digicube.fabric.client.render.PepperBreathRenderer;
 import com.digicube.registry.DCEntityTypes;
@@ -39,11 +37,12 @@ public class DigiCubeFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         com.digicube.fabric.client.evolution.EvolutionRenderType.GRID.pipeline();
         new com.digicube.fabric.client.evolution.EvolutionAudio().init();
-        new com.digicube.fabric.client.digivice.DigiviceLocator().init();
         new PartyClient().init();
         new StarterClient().init();
+        new com.digicube.fabric.client.digivice.DigiviceLocator().init();
         new DevClient().init();
         new AerialMountClient().init();
+        com.digicube.fabric.client.render.PixelPlaneParticle.register();
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
             ModelLayerRegistry.registerModelLayer(definition.layer(), definition::createLayer);
         }
@@ -55,7 +54,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
             }
         }
         com.digicube.fabric.client.render.CombatMarkBadges.init();
-        ModelLayerRegistry.registerModelLayer(AgumonModel.LAYER, AgumonModel::createBodyLayer);
+        com.digicube.fabric.client.render.HoofBeats.init();
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);
@@ -66,7 +65,10 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MegaFlameModel.LAYER, MegaFlameModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(MarchingFishesModel.LAYER, MarchingFishesModel::createBodyLayer);
-        for (String effect : new String[]{"rock_punch_fx", "tectonic_fist_fx"}) {
+        var casterEffects = new java.util.LinkedHashSet<>(java.util.List.of("rock_punch_fx", "tectonic_fist_fx"));
+        for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values())
+            if (definition.attackEffects() != null) casterEffects.add(definition.attackEffects().effect());
+        for (String effect : casterEffects) {
             ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }
@@ -79,10 +81,9 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         ModelLayerRegistry.registerModelLayer(HowlingBlasterModel.LAYER, HowlingBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER,
                 com.digicube.fabric.client.model.IceBlastModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(PepperBreathModel.LAYER, PepperBreathModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
-        EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.DROPPED_DIGIVICE, com.digicube.fabric.client.render.DroppedDigiviceRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.BUBBLE_BLOW, BubbleBlowRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.MEGA_FLAME, MegaFlameRenderer::new);
         for (var definition : com.digicube.digimon.KineticAttacks.all()) if (definition.projectile() != null) {

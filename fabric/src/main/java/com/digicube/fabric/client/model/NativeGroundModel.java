@@ -19,10 +19,29 @@ import java.util.Map;
 public final class NativeGroundModel extends EntityModel<DigimonRenderState> implements AnimatedRiderModel {
     /** Where the rider is attached, and how its legs are posed there ({@code pose} in the catalog; straight legs without one). */
     public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose) {}
+    /** Flames a rider's jet charge shows: the parts named {@code prefix}, posed as {@code clip} has them at {@code tick}. */
+    public record Flames(String clip, float tick, String prefix) {}
+    /**
+     * Where each hoof lands ({@code down}) and lifts ({@code up}) in the gait's phase, 0 to 1, one row per column of the
+     * gallop lattice (walk to full gallop), measured from the clips; the order of {@code hooves} is the order of a row.
+     */
+    public record HoofTimes(java.util.List<String> hooves, float[][] down, float[][] up) {
+        /** The row of the lattice column nearest to a run share. */
+        public int column(float run) { return Math.round(Math.clamp(run, 0, 1) * (down.length - 1)); }
+        public boolean hind(int hoof) { return hooves.get(hoof).startsWith("rear"); }
+    }
+    /** Ordinary head look ({@code look} in the catalog): the part turned toward where the entity looks, limited in degrees. */
+    public record Look(java.util.List<String> path, float yaw, float pitch) {}
+    /**
+     * Caster-anchored clips of one effect model ({@code attack_effects}), drawn in the caster's frame while the attack
+     * animation of the same name plays and on its clock: a charge in the mouth, a streak behind a claw.
+     */
+    public record AttackEffects(String effect, Map<String, String> clips) {}
     public record Definition(Identifier species, double cullingMargin, boolean amphibious, boolean walkBlend, java.util.List<String> aimPath,
                              float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
-                             java.util.List<ClothChains.Chain> cloth) {
+                             java.util.List<ClothChains.Chain> cloth, java.util.List<String> upperBody, Flames flames,
+                             HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -42,6 +61,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private final Definition definition;
     private final ModelPart aimPart;
     private final ModelPart rootPart;
+    /** The upper body (the part named by {@code upper_body} and all it carries), or null; and its base. */
+    private final java.util.Set<ModelPart> upperParts;
+    private final ModelPart upperBase;
+    private final java.util.Set<ModelPart> flameParts;
+    private final ModelPart lookPart;
 
     public NativeGroundModel(ModelPart root, Definition definition) {
         super(NativeModelGeometry.apply(root, definition.geometry()));
@@ -51,6 +75,15 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         ModelPart aim=root;
         for(String name:definition.aimPath()) aim=aim.getChild(name);
         aimPart=definition.aimPath().isEmpty()?null:aim;
+        ModelPart upper=null;
+        if(definition.upperBody()!=null){upper=root;for(String name:definition.upperBody())upper=upper.getChild(name);}
+        upperBase=upper;
+        if(upper==null)upperParts=null;
+        else{upperParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());upperParts.addAll(upper.getAllParts());}
+        flameParts=definition.flames()==null?null:animations.partsNamed(definition.flames().prefix());
+        ModelPart look=null;
+        if(definition.look()!=null){look=root;for(String name:definition.look().path())look=look.getChild(name);}
+        lookPart=look;
     }
 
     public static Map<Identifier, Definition> definitions() { return DEFINITIONS; }
@@ -61,6 +94,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         super.setupAnim(state);
         pose(state);
         ClothChains.apply(rootPart, state, definition.cloth(), state.cloth);
+        RopeChains.apply(rootPart, state, definition.ropes(), state.ropes);
     }
 
     /** The authored pose for this frame: idle, gait, swim and the attack in progress. Cloth hangs from it afterwards. */
@@ -80,6 +114,20 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 if(definition.attackBlendIn()>0)weight=Math.min(weight,tick/definition.attackBlendIn());
                 if(definition.attackBlendOut()>0)weight=Math.min(weight,(animations.length(attackClip)-tick)/definition.attackBlendOut());
                 weight=Math.clamp(weight,0,1);weight=weight*weight*(3-2*weight);
+                if(state.attackUpperBody && upperParts!=null) {
+                    // A rider's attack on the run: the legs keep the gait, the upper body plays the attack and turns to the aim.
+                    float blend=Math.clamp(Math.min(tick/UPPER_BLEND,(animations.length(attackClip)-tick)/UPPER_BLEND),0,1);
+                    blend=blend*blend*(3-2*blend);
+                    applyGround(state,1);
+                    fromRest(upperParts,1-blend);
+                    animations.apply(attackClip,tick,blend,upperParts);
+                    var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
+                    if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch*blend);
+                    upperBase.yRot+=state.attackTwist*blend*((float)Math.PI/180);
+                    bank(state);
+                    supportFloor(state);
+                    return;
+                }
                 applyGround(state,1-weight);
                 if(definition.supportFloor()) {
                     // Blend complete poses with shortest-arc quaternions. Segmented
@@ -107,11 +155,20 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 else if(aimPart!=null && state.attackDefinition!=null && state.attackDefinition.motion()!=null) {
                     aimPart.xRot+=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
                 }
+                look(state,1-weight);
             }
             supportFloor(state);
             return;
         }
         applyGround(state,1);
+        look(state,1);
+        if (state.riderCharge >= 0 && flameParts != null) {
+            // The jets burn through a rider's charge, flickering on the flame clip's own pose.
+            var f=definition.flames();
+            animations.apply(f.clip(), f.tick()+(float)Math.sin(state.riderCharge*2.3F)*.6F, 1, flameParts);
+            for(var part:flameParts)part.visible=true;
+        }
+        bank(state);
         if (definition.pitchPath()!=null) {
             // The part that carries a swimmer's dive and climb: the rider's by default, the neck base of a serpent.
             ModelPart back=rootPart;
@@ -122,6 +179,33 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             back.zRot+=state.swimBank*(state.isBeingRidden?.25F:1)*((float)Math.PI/180)*water;
         }
         supportFloor(state);
+    }
+
+    /** Turns the look part toward where the entity looks (vanilla's head yaw and pitch), within the catalog's limits. */
+    private void look(DigimonRenderState state, float amount) {
+        if(lookPart==null||amount<=0)return;
+        var l=definition.look();
+        lookPart.yRot+=Math.clamp(state.yRot,-l.yaw(),l.yaw())*amount*((float)Math.PI/180);
+        lookPart.xRot+=Math.clamp(state.xRot,-l.pitch(),l.pitch())*amount*((float)Math.PI/180);
+    }
+
+    /** Ticks at either end of a rider's moving attack over which the upper body blends from and back to the gait. */
+    private static final float UPPER_BLEND = 4;
+
+    /** Pulls {@code parts} back toward their rest pose, keeping {@code keep} of what has been applied to them. */
+    private static void fromRest(java.util.Set<ModelPart> parts, float keep) {
+        for (ModelPart p : parts) {
+            var rest = p.getInitialPose();
+            p.x = rest.x() + (p.x - rest.x()) * keep; p.y = rest.y() + (p.y - rest.y()) * keep; p.z = rest.z() + (p.z - rest.z()) * keep;
+            p.xRot = rest.xRot() + (p.xRot - rest.xRot()) * keep; p.yRot = rest.yRot() + (p.yRot - rest.yRot()) * keep;
+            p.zRot = rest.zRot() + (p.zRot - rest.zRot()) * keep;
+        }
+    }
+
+    /** A galloper under a rider leans into its turns, more the faster it runs. */
+    private void bank(DigimonRenderState state) {
+        if (!definition.gallop() || !state.isBeingRidden) return;
+        rootPart.zRot += Math.clamp(state.aerialBank * .45F * Math.clamp(state.groundRunAmount * 1.5F, 0, 1), -9, 9) * ((float) Math.PI / 180);
     }
 
     @Override public net.minecraft.world.phys.Vec3 riderOffset(DigimonRenderState state) {
@@ -156,13 +240,17 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
         float water=definition.amphibious()?Math.clamp(state.swimAnimationAmount,0,1):0;
         if (definition.gallop()) {
-            if (amount == 0) animations.apply("idle", state.ageInTicks, weight);
+            // A leap takes over from the gait: takeoff, flight and landing (DigimonEntity.tickLeapPose), and hands back.
+            float leap = state.leapWeight > 0 && animations.has("jump") ? Math.clamp(state.leapWeight, 0, 1) : 0;
+            float gait = weight * (1 - leap);
+            if (amount == 0) animations.apply("idle", state.ageInTicks, gait);
             else {
                 float column = Math.clamp(state.groundRunAmount, 0, 1) * 8;
                 int low = (int) column, high = Math.min(8, low + 1);
-                animations.blend("gait_" + low, amount, state.groundAnimationPhase, weight * (1 - (column - low)));
-                if (high != low) animations.blend("gait_" + high, amount, state.groundAnimationPhase, weight * (column - low));
+                animations.blend("gait_" + low, amount, state.groundAnimationPhase, gait * (1 - (column - low)));
+                if (high != low) animations.blend("gait_" + high, amount, state.groundAnimationPhase, gait * (column - low));
             }
+            if (leap > 0) animations.apply("jump", state.leapTick, weight * leap);
             return;
         }
         animations.apply("idle", state.ageInTicks, (1 - amount)*(1-water)*weight);
@@ -187,6 +275,33 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         }
     }
 
+    private static float[][] table(com.google.gson.JsonObject data, String key, int width) {
+        var rows=data.getAsJsonArray(key);var table=new float[rows.size()][];
+        for(int i=0;i<table.length;i++){var row=rows.get(i).getAsJsonArray();table[i]=new float[width];
+            if(row.size()!=width)throw new IllegalArgumentException("Invalid hoof beat row");
+            for(int j=0;j<width;j++){table[i][j]=row.get(j).getAsFloat();
+                if(!(table[i][j]>=0&&table[i][j]<=1))throw new IllegalArgumentException("Invalid hoof beat phase");}}
+        if(table.length==0)throw new IllegalArgumentException("Empty hoof beat table");
+        return table;
+    }
+
+    private static Look look(com.google.gson.JsonObject config) {
+        if(!config.has("look"))return null;
+        var l=config.getAsJsonObject("look");var path=new java.util.ArrayList<String>();
+        l.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));
+        float yaw=l.get("yaw").getAsFloat(),pitch=l.get("pitch").getAsFloat();
+        if(path.isEmpty()||!(yaw>=0&&yaw<=90)||!(pitch>=0&&pitch<=90))throw new IllegalArgumentException("Invalid head look");
+        return new Look(java.util.List.copyOf(path),yaw,pitch);
+    }
+
+    private static AttackEffects attackEffects(com.google.gson.JsonObject config) {
+        if(!config.has("attack_effects"))return null;
+        var e=config.getAsJsonObject("attack_effects");var clips=new LinkedHashMap<String,String>();
+        e.getAsJsonObject("clips").entrySet().forEach(c->clips.put(c.getKey(),c.getValue().getAsString()));
+        if(clips.isEmpty())throw new IllegalArgumentException("Attack effects without clips");
+        return new AttackEffects(e.get("effect").getAsString(),Map.copyOf(clips));
+    }
+
     private static Map<Identifier, Definition> readDefinitions() {
         try (var input = NativeGroundModel.class.getResourceAsStream("/assets/digicube/models/entity/ground_models.json")) {
             if (input == null) throw new IllegalStateException("Missing native ground model catalog");
@@ -206,7 +321,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                     r.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));var p=r.getAsJsonArray("point");
                     var legs=r.has("pose")?r.getAsJsonArray("pose"):null;
                     rider=new Rider(java.util.List.copyOf(path),new net.minecraft.world.phys.Vec3(p.get(0).getAsDouble(),p.get(1).getAsDouble(),p.get(2).getAsDouble()),
-                            legs==null?new RiderPose(0,0,0):new RiderPose(legs.get(0).getAsFloat(),legs.get(1).getAsFloat(),legs.get(2).getAsFloat()));
+                            legs==null?new RiderPose(0,0,0):new RiderPose(legs.get(0).getAsFloat(),legs.get(1).getAsFloat(),legs.get(2).getAsFloat(),
+                                    legs.size()>3?legs.get(3).getAsFloat():0));
                 }
                 java.util.List<String> pitch=rider==null?null:rider.path();
                 if(config.has("pitch_path")) {
@@ -221,10 +337,21 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                     expressions.add(new TextureWindow(e.get("clip").getAsString(), from, until,
                             Constants.id("textures/entity/digimon/" + e.get("texture").getAsString() + ".png")));
                 }
+                java.util.List<String> upper=null;
+                if(config.has("upper_body")){var names=new java.util.ArrayList<String>();config.getAsJsonArray("upper_body").forEach(n->names.add(n.getAsString()));upper=java.util.List.copyOf(names);}
+                Flames flames=null;
+                if(config.has("charge_flames")){var f=config.getAsJsonObject("charge_flames");
+                    flames=new Flames(f.get("clip").getAsString(),f.get("tick").getAsFloat(),f.get("prefix").getAsString());}
+                HoofTimes hoofBeats=null;
+                if(config.has("hoof_beats")){var h=config.getAsJsonObject("hoof_beats");var names=new java.util.ArrayList<String>();
+                    h.getAsJsonArray("hooves").forEach(n->names.add(n.getAsString()));
+                    hoofBeats=new HoofTimes(java.util.List.copyOf(names),table(h,"down",names.size()),table(h,"up",names.size()));
+                    if(hoofBeats.down().length!=hoofBeats.up().length)throw new IllegalArgumentException("Invalid hoof beats "+species);}
                 definitions.put(species, new Definition(species, margin,GsonHelper.getAsBoolean(config,"amphibious",false),
                         GsonHelper.getAsBoolean(config,"walk_blend",true),java.util.List.copyOf(aim),
                         GsonHelper.getAsFloat(config,"attack_blend_in",0),GsonHelper.getAsFloat(config,"attack_blend_out",0),GsonHelper.getAsBoolean(config,"gallop",false),GsonHelper.getAsBoolean(config,"support_floor",false),rider,
-                        pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions),ClothChains.read(config)));
+                        pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions),ClothChains.read(config),upper,flames,hoofBeats,
+                        look(config),attackEffects(config),RopeChains.read(config)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

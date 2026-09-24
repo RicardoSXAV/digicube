@@ -62,6 +62,8 @@ public final class RiderControls {
     private static DigimonEntity lastMount;
     private static CameraType cameraBefore;
     private static boolean thirdPerson = true;
+    /** Field-of-view widening that follows the mount's speed over the ground, eased so the view never pumps. */
+    private static float speedFov;
 
     static void init(KeyMapping.Category category) {
         quickKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.digicube.rider_quick", InputConstants.KEY_R, category));
@@ -108,6 +110,8 @@ public final class RiderControls {
         aimHeights = null;
         grabPrey = mount == null || minecraft.gui.screen() != null ? null : mount.grabPrey();
         DigimonEntity.localRiderDives = mount != null && minecraft.gui.screen() == null && diveKey.isDown();
+        DigimonEntity.localRiderDraws = false;
+        speed(mount);
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
             java.util.Arrays.fill(wasDown, false);
@@ -137,8 +141,9 @@ public final class RiderControls {
                 continue;
             }
             boolean hold = spec.input() == RiderAttack.Input.HOLD;
-            if (hold && spec.aim() == RiderAttack.Aim.STREAM) {
-                // Breathes for as long as the button is held; a press while the tank refills is tried again.
+            if (hold && spec.aim() == RiderAttack.Aim.SHOT && down) DigimonEntity.localRiderDraws = true;
+            if (hold && (spec.aim() == RiderAttack.Aim.STREAM || spec.aim() == RiderAttack.Aim.SHOT)) {
+                // Breathes (or holds a drawn shot raised) for as long as the button is held; a press while it recovers is tried again.
                 if (down && mount.getAnimatingAttack() == null && (!wasDown[slot] || mount.tickCount - lastSend[slot] > 10) && cast(mount, slot)) lastSend[slot] = mount.tickCount;
                 if (!down && wasDown[slot] && ClientPlayNetworking.canSend(PartyActionPayload.TYPE))
                     ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_RELEASE, PartyActionPayload.NO_MEMBER, slot));
@@ -224,16 +229,33 @@ public final class RiderControls {
 
     /**
      * The camera's answer to the mount's impacts, in degrees of yaw and pitch and as a field-of-view factor: a
-     * short shudder when a swing connects, a heavier one with a brief widening when the ground slam lands.
+     * short shudder when a swing connects, a heavier one with a brief widening when the ground slam lands, and a
+     * recoil when a shot leaves: the view kicks up and snaps back, the field of view punching out for a moment.
      */
     public static float[] cameraKick(float partialTick) {
         DigimonEntity mount = RiderAttacks.mount(Minecraft.getInstance());
         if (mount == null) return null;
         float slam = mount.ticksSinceSlam() + partialTick, impact = mount.ticksSinceImpact() + partialTick;
-        float shake = 0, time = 0, fov = 1;
+        float shake = 0, time = 0, fov = 1 + speedFov;
         if (slam >= 0 && slam < 10) { shake = 1.5F * Mth.square(1 - slam / 10); time = slam; fov += .07F * Mth.square(1 - slam / 10); }
         if (impact >= 0 && impact < 5 && .6F * (1 - impact / 5) > shake) { shake = .6F * (1 - impact / 5); time = impact; }
-        return shake == 0 && fov == 1 ? null : new float[] {shake * Mth.sin(time * 2.9F), shake * Mth.cos(time * 3.7F), fov};
+        // A leap's landing nods the view down with the forehand taking the weight, harder the further it fell.
+        float landing = mount.ticksSinceLeapLanding() + partialTick, nod = 0;
+        if (landing >= 0 && landing < 7) nod = 2.2F * mount.leapImpact() * Mth.sin(Mth.PI * landing / 7) * (1 - landing / 7);
+        float shot = mount.ticksSinceShot() + partialTick;
+        if (shot >= 0 && shot < 6) { nod -= 1.8F * Mth.square(1 - shot / 6); fov += .025F * Mth.square(1 - shot / 6); }
+        return shake == 0 && fov == 1 && nod == 0 ? null : new float[] {shake * Mth.sin(time * 2.9F), shake * Mth.cos(time * 3.7F) + nod, fov};
+    }
+
+    /**
+     * The view widens a little as the mount picks up speed (a few degrees at a gallop, most at the peak of a jet
+     * charge) and narrows back as it slows: speed is sold by the camera, and the aim stays where it was.
+     */
+    private static void speed(DigimonEntity mount) {
+        double pace = mount == null ? 0 : Math.sqrt(Mth.square(mount.getX() - mount.xo) + Mth.square(mount.getZ() - mount.zo));
+        float wanted = (float) Mth.clamp((pace - .2) * .31, 0, .13);
+        speedFov = Mth.lerp(wanted > speedFov ? .3F : .15F, speedFov, wanted);
+        if (speedFov < 1.0E-4F) speedFov = 0;
     }
 
     private static boolean load() {

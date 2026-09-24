@@ -10,6 +10,19 @@
     "jet_dash"
   ],
   "evolutions": [],
+  "tactics": {
+    "hold_range": [7, 12],
+    "dodge_chance": 0.6,
+    "reaction_ticks": 3,
+    "strafe": true,
+    "lead_ticks": 6,
+    "fight_speed": 2.8,
+    "gallop": true,
+    "shoot_moving": true,
+    "dash_dodge": true,
+    "dash_engage": 9,
+    "dash_escape": true
+  },
   "locomotion": {
     "follow_start_distance": 5.0,
     "follow_stop_distance": 2.5,
@@ -18,15 +31,30 @@
     "ground_gait": {
       "cycle_ticks": 25,
       "stride": 2.5,
-      "run_cycle_ticks": 13.333333,
-      "run_stride": 8,
-      "max_playback_rate": 2
+      "run_cycle_ticks": 10,
+      "run_stride": 12,
+      "max_playback_rate": 4.2,
+      "footfalls": true
     }
   },
   "body": {
-    "model_scale": 0.325,
-    "width": 1.8,
-    "height": 3.15,
-    "eye_height": 2.9
+    "model_scale": 0.36,
+    "width": 2.0,
+    "height": 3.5,
+    "eye_height": 3.2,
+    "mount": {
+      "seat": [0, 2.02, -0.44],
+      "step_height": 1.0,
+      "turn_rate": 14.0,
+      "sprint": 2.8,
+      "sprint_build": 45,
+      "jump": 0.62,
+      "turn_to_travel": true,
+      "camera_distance": 5.5,
+      "rider_attacks": [
+        {"attack": "jet_dash", "aim": "charge", "input": "tap", "cone": 45, "reach": 9},
+        {"attack": "hunting_cannon", "aim": "shot", "input": "hold", "move": true}
+      ]
+    }
   }
 }

@@ -24,7 +24,7 @@ import java.util.Map;
 /** Camera-facing combat mark emblems in a row, extracted for every living renderer, including vanilla mobs. */
 public final class CombatMarkBadges {
     /** What one entity shows this frame; null when it shows nothing. */
-    public record Marks(int packed, float coldRemainingTicks) {}
+    public record Marks(int packed, int packed2, float coldRemainingTicks) {}
     public static final RenderStateDataKey<Marks> MARKS = RenderStateDataKey.create();
     private static final RenderStateDataKey<List<Row>> ROWS = RenderStateDataKey.create();
     private static final Identifier ICE_MARK = Constants.id("textures/entity/status/ice_mark_badge.png");
@@ -37,6 +37,9 @@ public final class CombatMarkBadges {
     private static final Identifier CRACK = Constants.id("textures/entity/status/mark_crack.png");
     private static final Identifier CRACK_SPENT = Constants.id("textures/entity/status/mark_crack_spent.png");
     private static final Identifier CRACK_OFF = Constants.id("textures/entity/status/mark_crack_off.png");
+    private static final Identifier EXPOSED = Constants.id("textures/entity/status/mark_exposed.png");
+    private static final Identifier EXPOSED_SPENT = Constants.id("textures/entity/status/mark_exposed_spent.png");
+    private static final Identifier EXPOSED_FLASH = Constants.id("textures/entity/status/mark_exposed_flash.png");
     /** Half an emblem's fixed world size, the gap between two, and the most one entity shows. */
     private static final float HALF = .28F, GAP = .05F;
     private static final int MAX_EMBLEMS = 3;
@@ -52,9 +55,9 @@ public final class CombatMarkBadges {
 
     /** Called from render-state extraction; null when the entity carries no mark. */
     public static Marks read(LivingEntity living, float partialTick) {
-        int packed = ((CombatMarkState) living).digicube$marks();
+        int packed = ((CombatMarkState) living).digicube$marks(), packed2 = ((CombatMarkState) living).digicube$marks2();
         int steps = CombatMarkState.coldRemainingTicks(packed) / CombatMarkState.COLD_STEP_TICKS;
-        if (packed == 0 || !living.isAlive()) {
+        if (packed == 0 && packed2 == 0 || !living.isAlive()) {
             COLD_CLOCKS.remove(living.getId());
             return null;
         }
@@ -64,7 +67,7 @@ public final class CombatMarkBadges {
         float upper = steps * CombatMarkState.COLD_STEP_TICKS;
         float remaining = Math.max(Math.max(0, upper - CombatMarkState.COLD_STEP_TICKS), upper - (now - clock.changedAt() + partialTick));
         if (COLD_CLOCKS.size() > 256) COLD_CLOCKS.values().removeIf(c -> now - c.changedAt() > 400);
-        return new Marks(packed, steps == 0 ? 0 : remaining);
+        return new Marks(packed, packed2, steps == 0 ? 0 : remaining);
     }
 
     public static void init() {
@@ -89,7 +92,7 @@ public final class CombatMarkBadges {
             var camera = context.levelState().cameraRenderState;
             var pose = context.poseStack();
             for (var row : rows) {
-                int packed = row.marks().packed();
+                int packed = row.marks().packed(), packed2 = row.marks().packed2();
                 float charge = CombatMarkState.coldCharge(packed);
                 boolean cold = row.marks().coldRemainingTicks() > 0;
                 // Build-ups first: they are the marks a tamer can still act on.
@@ -100,6 +103,8 @@ public final class CombatMarkBadges {
                 if (cracked > 0 || crackCharge > 0) emblems.add(Emblem.CRACK);
                 if (CombatMarkState.has(packed, CombatMarkState.HELD)) emblems.add(Emblem.HELD);
                 if (CombatMarkState.has(packed, CombatMarkState.INKED)) emblems.add(Emblem.INKED);
+                float exposed = CombatMarkState.exposedRemaining(packed2);
+                if (exposed > 0) emblems.add(Emblem.EXPOSED);
                 int count = Math.min(MAX_EMBLEMS, emblems.size());
                 float step = 2 * HALF + GAP;
                 pose.pushPose();
@@ -114,6 +119,15 @@ public final class CombatMarkBadges {
                         case INKED -> {
                             full(collector, pose, INKED_SPENT, centre, WHITE);
                             wedge(collector, pose, INKED, centre, CombatMarkState.inkRemaining(packed));
+                        }
+                        case EXPOSED -> {
+                            // A critical hit on it blinks the whole emblem white for a few ticks.
+                            if (CombatMarkState.has(packed2, CombatMarkState.EXPOSED_FLASH)) {
+                                full(collector, pose, EXPOSED_FLASH, centre, WHITE);
+                            } else {
+                                full(collector, pose, EXPOSED_SPENT, centre, WHITE);
+                                wedge(collector, pose, EXPOSED, centre, exposed);
+                            }
                         }
                         case CRACK -> {
                             // Like Cold: the stone fills charge by charge, then the rim lights and drains with Cracked.
@@ -141,7 +155,7 @@ public final class CombatMarkBadges {
         });
     }
 
-    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED }
+    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED, EXPOSED }
 
     /** A small fixed world size; depth-tested so an emblem never reveals mobs through walls. */
     private static void full(SubmitNodeCollector collector, PoseStack pose, Identifier texture, float centre, int color) {

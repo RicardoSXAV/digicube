@@ -52,11 +52,38 @@ public final class KineticAttacks {
                              int decisionTick, String projectile, double projectileSpeed, int projectileLife,
                              float modelScale, double maxLead, float maxPitch, List<AttackBox> projectileBoxes,
                              List<String> aimPath, ProjectileMotion projectileMotion, int impairmentTicks, boolean emissive,
-                             boolean blendAim, boolean aimAtTop) {
+                             boolean blendAim, boolean aimAtTop, int riderDrawTick, RiderKick riderKick,
+                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks) {
         public Motion motion(boolean kick) { return kick && kickMotion != null ? kickMotion : motion; }
         public String animation(boolean kick) { return kick && kickAnimation != null ? kickAnimation : attack.id().getPath(); }
         public int duration(boolean kick) { return Math.round(motion(kick).duration()); }
-        public boolean matches(String animation) { return attack.id().getPath().equals(animation) || animation != null && animation.equals(kickAnimation); }
+        public boolean matches(String animation) {
+            return attack.id().getPath().equals(animation) || animation != null && (animation.equals(kickAnimation) || riderKick != null && animation.equals(riderKick.animation()));
+        }
+        /** Ticks the clip called {@code animation} lasts: the move, its kick, or a rider's buck. */
+        public int duration(String animation) {
+            if (riderKick != null && riderKick.animation().equals(animation)) return Math.round(riderKick.length());
+            return duration(animation != null && animation.equals(kickAnimation));
+        }
+        /** The motion's own time at {@code tick} of the clip called {@code animation} (a buck runs the kick on its clock). */
+        public double motionTime(String animation, double tick) {
+            return riderKick != null && riderKick.animation().equals(animation) ? riderKick.kickTime(tick) : tick;
+        }
+    }
+
+    /**
+     * A rider's buck: the kick replayed on a faster clock, {@code clock} being [buck tick, kick tick] pairs (piecewise
+     * linear, from 0 to the kick's end), with its own clip made from the kick on the same clock (harness buck_01).
+     */
+    public record RiderKick(String animation, float[][] clock) {
+        public float length() { return clock[clock.length - 1][0]; }
+        public double kickTime(double tick) {
+            for (int i = 0; i < clock.length - 1; i++) if (tick <= clock[i + 1][0] || i == clock.length - 2) {
+                double f = Math.clamp((tick - clock[i][0]) / (clock[i + 1][0] - clock[i][0]), 0, 1);
+                return clock[i][1] + (clock[i + 1][1] - clock[i][1]) * f;
+            }
+            return clock[clock.length - 1][1];
+        }
     }
 
     /** Animated projectile cuboids use the same phase clock as the native effect. */
@@ -120,6 +147,22 @@ public final class KineticAttacks {
         return new Motion(data.get("samples_per_tick").getAsInt(), frames);
     }
 
+    private static RiderKick riderKick(JsonObject c, Motion kick, Identifier id) {
+        if (!c.has("rider_kick")) return null;
+        var data = c.getAsJsonObject("rider_kick");
+        var rows = data.getAsJsonArray("clock");
+        float[][] clock = new float[rows.size()][];
+        for (int i = 0; i < clock.length; i++) {
+            var r = rows.get(i).getAsJsonArray();
+            clock[i] = new float[]{r.get(0).getAsFloat(), r.get(1).getAsFloat()};
+            if (i > 0 && (clock[i][0] <= clock[i - 1][0] || clock[i][1] <= clock[i - 1][1]))
+                throw new IllegalArgumentException("A rider kick clock must rise " + id);
+        }
+        if (kick == null || clock.length < 2 || clock[0][0] != 0 || clock[0][1] != 0 || Math.abs(clock[clock.length - 1][1] - kick.duration()) > .01)
+            throw new IllegalArgumentException("A rider kick clock runs the whole kick " + id);
+        return new RiderKick(data.get("animation").getAsString(), clock);
+    }
+
     private static Map<Identifier, Definition> load() {
         var config = read("/data/digicube/kinetic_attacks.json");
         var geometry = read("/data/digicube/kinetic_motion.json");
@@ -143,7 +186,8 @@ public final class KineticAttacks {
             if (base.duration() != attack.durationTicks() || !Float.isFinite(scale) || scale <= 0 || !Double.isFinite(lead) || lead < 0
                     || !Float.isFinite(pitch) || pitch <= 0 || pitch >= 90
                     || projectile != null && (!Double.isFinite(speed) || speed <= 0 || life < 1)
-                    || alternate != null && (decision < 0 || decision >= attack.hitTick() || alternate.duration() > attack.cooldownTicks())) {
+                    || alternate != null && (decision < 0 || decision >= attack.hitTick() || alternate.duration() > attack.cooldownTicks())
+                    || GsonHelper.getAsInt(c,"rider_draw_tick",0) < 0 || GsonHelper.getAsInt(c,"rider_draw_tick",0) >= attack.hitTick()) {
                 throw new IllegalArgumentException("Invalid kinetic definition " + id);
             }
             ProjectileMotion flight=null;
@@ -158,7 +202,13 @@ public final class KineticAttacks {
             result.put(id, new Definition(attack, base, alternate, kick, decision, projectile, speed, life, scale, lead, pitch,
                     projectile == null ? List.of() : boxes(geometry.getAsJsonObject("projectile_boxes").getAsJsonArray(name)), List.copyOf(aim),
                     flight,GsonHelper.getAsInt(c,"impairment_ticks",0),GsonHelper.getAsBoolean(c,"emissive",true),
-                    GsonHelper.getAsBoolean(c,"blend_aim",false),GsonHelper.getAsBoolean(c,"aim_at_top",flight!=null)));
+                    GsonHelper.getAsBoolean(c,"blend_aim",false),GsonHelper.getAsBoolean(c,"aim_at_top",flight!=null),
+                    // A rider's shot is drawn: the clip holds on this tick (the weapon raised) for as long as the button is held.
+                    GsonHelper.getAsInt(c,"rider_draw_tick",Math.max(0,attack.hitTick()-4)),
+                    riderKick(c, alternate, id),
+                    com.digicube.entity.ShotStyle.byId(GsonHelper.getAsString(c, "shot_style", null)),
+                    // A shot that lands leaves its victim Exposed (ExposedMark) for this long.
+                    GsonHelper.getAsInt(c, "expose_ticks", 0)));
         }
         return Collections.unmodifiableMap(result);
     }

@@ -56,12 +56,26 @@ public final class SpeciesRegressionTest {
                     "command aliases cannot hide another species");
             check(centalmon.stage() == DigimonStage.ADULT && centalmon.attribute() == DigimonAttribute.DATA,
                     "Centarumon is a data champion registered as centalmon");
-            check(centalmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("hunting_cannon", "jet_dash")) && centalmon.body().mount().isEmpty()
+            check(centalmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("hunting_cannon", "jet_dash"))
                             && centalmon.locomotion().canRun() && !centalmon.locomotion().canFly()
                             && !centalmon.locomotion().canSwim(),
                     "Centarumon uses cannon, retreat kick and approved ground gaits without basic melee");
+            var steed = centalmon.body().mount().orElseThrow();
+            check(steed.ownPace() && steed.sprint() > 1 && steed.turnRate() > 0 && steed.jump() > 0,
+                    "Centarumon is ridden at its own pace, gallops on the sprint key, turns with weight and leaps on the jump key");
+            check(steed.turnToTravel() && steed.cameraDistance() > 0 && centalmon.locomotion().groundGait().footfalls(),
+                    "Centarumon walks along its own length under a rider, keeps the camera close and sounds its own hooves");
+            check(steed.riderAttacks().size() == 2 && steed.riderAttacks().get(0).attack().getPath().equals("jet_dash")
+                            && steed.riderAttacks().get(0).aim() == RiderAttack.Aim.CHARGE && steed.riderAttacks().get(0).input() == RiderAttack.Input.TAP
+                            && steed.riderAttacks().get(0).cone() > 0 && steed.riderAttacks().get(0).reach() > 0,
+                    "the quick button is the jet charge, homing on the enemy in its cone");
+            check(steed.riderAttacks().get(1).attack().getPath().equals("hunting_cannon") && steed.riderAttacks().get(1).aim() == RiderAttack.Aim.SHOT
+                            && steed.riderAttacks().get(1).input() == RiderAttack.Input.HOLD && steed.riderAttacks().get(1).move(),
+                    "the special button draws the cannon like a bow and looses it on the run");
+            var cannon = KineticAttacks.get(Constants.id("hunting_cannon"));
+            check(cannon.riderDrawTick() > 0 && cannon.riderDrawTick() < cannon.attack().hitTick(), "the drawn cannon holds raised before it fires");
             var centalmonGait = centalmon.locomotion().groundGait();
-            check(centalmonGait.cycleTicks() == 25 && centalmonGait.stride() == 2.5 && centalmonGait.runStride() == 8,
+            check(centalmonGait.cycleTicks() == 25 && centalmonGait.stride() == 2.5 && centalmonGait.runStride() == 12,
                     "Centarumon cadence uses the full cycle distance, not the stance sweep");
             for (float amount : new float[] {.005F, .025F, .075F, .125F, .25F, .5F, 1F}) {
                 double travel = centalmonGait.fullSpeed(centalmon.body().modelScale()) * amount;
@@ -153,18 +167,28 @@ public final class SpeciesRegressionTest {
             check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
                     "Koromon evolution preserved");
             var agumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon"));
-            for (String other : List.of("agumon", "greymon", "koromon", "tsunomon")) {
+            for (String other : List.of("greymon", "koromon", "tsunomon")) {
                 var unchanged = DigimonSpeciesRegistry.getOrThrow(Constants.id(other)).locomotion();
                 check(unchanged.equals(DigimonLocomotion.DEFAULT) && !unchanged.canRun()
                                 && unchanged.followSpeed(true) == unchanged.followSpeed(false),
                         other + " retains its original follow distances and speed even when the owner sprints");
             }
+            // The native model brought a planted directional gait and its own scale, never a new pace or size.
+            var paced = agumon.locomotion(); var defaults = DigimonLocomotion.DEFAULT;
+            check(paced.followStartDistance() == defaults.followStartDistance() && paced.followStopDistance() == defaults.followStopDistance()
+                            && paced.walkSpeed() == defaults.walkSpeed() && paced.runSpeed() == defaults.runSpeed()
+                            && paced.swimSpeed() == defaults.swimSpeed() && paced.flight() == null && !paced.canRun()
+                            && paced.groundGait() != null && paced.groundGait().directional(),
+                    "agumon retains its original follow distances and speed on its planted gait");
             check(agumon.baseHealth() == 20 && agumon.baseAttack() == 6 && agumon.baseDefence() == 4
-                    && agumon.baseSpeed() == .30F && agumon.body().equals(DigimonBody.DEFAULT),
-                    "Agumon stats and dimensions preserved");
+                    && agumon.baseSpeed() == .30F && agumon.body().dimensions().width() == DigimonBody.DEFAULT.dimensions().width()
+                    && agumon.body().dimensions().height() == DigimonBody.DEFAULT.dimensions().height()
+                    && agumon.body().dimensions().eyeHeight() == DigimonBody.DEFAULT.dimensions().eyeHeight()
+                    && agumon.body().mount().isEmpty() && Math.abs(agumon.body().modelScale() - 1.3F / 7) < 1e-5,
+                    "Agumon stats and dimensions preserved at the native model's scale");
             check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, DigimonSpeciesBootstrap.CLAW)),
                     "Agumon attack priority preserved");
-            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("golemon"), 20), Evolution.atLevel(Constants.id("greymon"), 20))), "temporary Golemon route first, the Greymon route kept behind it");
+            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20))), "Champion prototype has one level-20 route");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10
                     && greymon.baseSpeed() == .32F, "Greymon stats preserved");

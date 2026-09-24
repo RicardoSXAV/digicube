@@ -92,6 +92,15 @@ final class IceComboRegressionTest {
                 "stone blows fill the Crack gauge (punch one, spikes two of three), other attacks do not");
         check(!com.digicube.entity.CombatMarkState.has(com.digicube.entity.CombatMarkState.pack(false, false, 0, 0, 0, 0, 0),
                 com.digicube.entity.CombatMarkState.INKED), "no ink, no Inked flag");
+        int readout2 = com.digicube.entity.CombatMarkState.pack2(.5F, true);
+        check(Math.abs(com.digicube.entity.CombatMarkState.exposedRemaining(readout2) - .5F) < .01F
+                        && com.digicube.entity.CombatMarkState.has(readout2, com.digicube.entity.CombatMarkState.EXPOSED_FLASH)
+                        && com.digicube.entity.CombatMarkState.exposedRemaining(com.digicube.entity.CombatMarkState.pack2(.001F, false)) > 0
+                        && com.digicube.entity.CombatMarkState.pack2(0, true) == 0,
+                "the second readout carries half an Exposed and its crit blink; its last tick still shows; no Exposed, no blink");
+        check(ExposedMark.CRIT_BONUS == .30F && CriticalHits.BASE_CHANCE + ExposedMark.CRIT_BONUS < 1
+                        && CriticalHits.ADVANTAGE_CHANCE + ExposedMark.CRIT_BONUS < 1,
+                "Exposed turns a neutral 10 % crit chance into 40 %, and no roll becomes certain");
         var lateMark = new IceExposure();
         for (int i = 0; i < 15; i++) check(!lateMark.touch(first, i, true, false, required), "marked contact short of a second does not freeze");
         check(lateMark.touch(first, 15, true, false, 10), "a threshold that drops below banked contact still freezes");

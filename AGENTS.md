@@ -292,11 +292,15 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `CriticalHits` (base 10 %, favoured 25 %, countered 5 %, ×1.5) rolls on every Digimon hit
   through `DigimonEntity.damageAgainst` and the projectile impacts. Defence is the vanilla
   `ARMOR` attribute at half `base_defence` (`Progression.armor`). Keep those numbers there.
-- Combat marks live on every `LivingEntity` (`CombatMarkState`, `MixinLivingEntity`): one packed,
-  tracked int drives the emblems in `CombatMarkBadges`. **Crack** (`CrackMark`): fists and ground
+- Combat marks live on every `LivingEntity` (`CombatMarkState`, `MixinLivingEntity`): two packed,
+  tracked ints drive the emblems in `CombatMarkBadges`. **Crack** (`CrackMark`): fists and ground
   waves fill a 3-charge gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every
   source (a `@ModifyVariable` on `hurtServer`). Which attacks crack is by `DigimonAttack.Kind`.
-  The readout has no spare bits left but one; read `../design/combat-marks.md` before adding a mark.
+  **Exposed** (`ExposedMark`): a kinetic shot with `expose_ticks` (Hunting Cannon, 80) leaves its
+  victim `digicube:exposed`: +30 points of crit chance on every Digimon hit against it (on top of the
+  triangle, in `CriticalHits.chance`) and no dodging (`DigimonAttackGoal.dodgeChance`); a crit on it
+  blinks the emblem (`mark_exposed_flash`). The first readout is full (one bit left); new marks go in
+  the second (`digicube$marks2`, bits 8-31 free). Read `../design/combat-marks.md` before adding a mark.
 - A ground gait only looks planted when the clip's stride matches the ground covered: the phase advances by
   travel / stride (`DigimonGait`), so a stride far shorter than the species' real pace hits `max_playback_rate`
   and the feet slide (Golemon walked at the player's .216 blocks/tick on a .043 stride). Golemon's gait is
@@ -310,8 +314,8 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   directional: the entity splits its movement in the body's frame into shares (`DigimonGait.directions`) and
   `NativeGroundModel` mixes the lattices by them. Change strides in the script and the species sheet together.
 - Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
-  (`sweep`/`line`/`shot`/`stream`), `input` (`tap`/`hold`), soft-target `cone`/`reach` and `move` (`RiderAttack`;
-  Golemon, Garurumon, Greymon, Ikkakumon, Digmon). A rider has no target: `startRiderAttack` shares `beginAttack`
+  (`sweep`/`line`/`shot`/`stream`/`grab`/`charge`), `input` (`tap`/`hold`), soft-target `cone`/`reach` and `move` (`RiderAttack`;
+  Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon). A rider has no target: `startRiderAttack` shares `beginAttack`
   with the AI, aims at the soft target or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray
   in third person too), and commits every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing.
   Check with `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps
@@ -346,12 +350,74 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   through lunge and wrap `getControllingPassenger` is null (`wrapOwnsBody`) so the server owns the body as it does unridden. Use
   `rider()` for "who is in the saddle". Rule for mounts: the same pace ridden as alone, so new sheets leave
   `body.mount.speed` out (`ridePace`); a species that must travel slowly but fight at pace gets `tactics.fight_speed`
-  (Seadramon: `base_speed` 0.07, fight 3.09; slowing its fights cost 30 points against Golemon). Design: `../design/mounted-combat.md`.
+  (Seadramon: `base_speed` 0.07, fight 3.09; slowing its fights cost 30 points against Golemon). The sprint key gathers
+  its multiplier over most of a second (`gallopMomentum`); `body.mount.jump` leaps on a tap. Centarumon (design §7): a
+  `charge` is a server-owned burst (`DATA_RIDER_CHARGE`, `tickJetCharge`) that homes on the soft target picked at the
+  press, shoves the rest aside unhurt (only the buck strikes) and ends in the attack's kinetic kick committed at the prey (`KineticSession` buck
+  constructor); a `shot` with `input: hold` is drawn like a bow (`rider_draw_tick` in `kinetic_attacks.json` holds the
+  clip, `DATA_RIDER_DRAW` the charge) and with `move` loosed on the run: `upper_body` in `ground_models.json` names the
+  part whose subtree alone plays the attack over the gait, turned to the rider's aim up to `KineticSession.MAX_TWIST`,
+  and `twistShift` moves the muzzle to match. `charge_flames` names the clip and parts a charge burns. A four-legged
+  body sets `body.mount.turn_to_travel`: the strafe keys turn it into the way it goes and S reins it back, so it
+  always walks along its own length (a horse has no sidestep clip; sliding sideways is what that looks like), and
+  `camera_distance` brings the camera in. Its sound: `ground_gait.footfalls` silences vanilla's step per block, and
+  `HoofBeats` plays one clop where a hoof lands in the clips (`hoof_beats` in `ground_models.json`, touchdown and
+  lift-off phases per lattice column, measured from the clips offline), a pair landing within two ticks as one beat;
+  from half the run on, one vanilla gallop sample a stride, started on the first hoof after the flight and pitched
+  so its four hits (4.6 ticks) span the stride's own. The leap (`body.mount.jump`) is thrown forward and a little
+  higher by the pace (`LEAP_PUSH`, `LEAP_LIFT`), a leaper lands 3 blocks of fall free (`causeFallDamage`), and its
+  pose is the `jump` clip (authored by `harness/v2/out/centalmon/jump_01/author_jump.py`), driven on every client by
+  `DigimonEntity.tickLeapPose` from the body's own motion: takeoff and landing on time, the flight by vertical speed.
+  `body.mount.sprint_build` is how many ticks the sprint key takes to reach its full multiplier (Centarumon 45 to 2.8x;
+  the high jump, `LEAP_TOP`, comes in the last stretch of it). The charge fires in the air too (no gather, a small
+  thrust, its fall held while it burns), goes where the movement keys point (`riderKeysTurn`, the server reads
+  `ServerPlayer.getLastClientInput`), picks up an enemy crossing its path, and bucks from `BUCK_REACH` out: the buck is
+  the kick on a faster clock (`rider_kick` in `kinetic_attacks.json`, clip `jet_dash_buck` made from `jet_dash_kick` by
+  `harness/v2/out/centalmon/buck_01/make_buck.py`, rerun it after changing the clock) that skids and turns onto its prey
+  until the hooves swing (`KineticSession.homing`). Use `standing()`, not `onGround()`, inside a server-owned move: a
+  level `move` clears `onGround`. `rider.pose` may carry a fourth number, hips: px each leg is set further out.
+  Centarumon's gallop is `harness/v2/out/centalmon/gallop_02/make_gallop.py`: the approved gallop with each hoof's
+  stance played 1.5 times faster about its middle (same sweep, longer flight, stride 8 -> 12) and the legs re-solved so
+  every hoof stays planted, then the whole lattice rebuilt from walk and that gallop; it prints the `hoof_beats` table.
+  Rerun it (it keeps the approved clip as `backup_animation.json`) and change `run_stride` with it. The full gallop is the
+  ridden sprint's (`run_cycle_ticks` 10); the AI's run plays the lattice between walk and gallop.
+  A kinetic shot may have a `shot_style` (`ShotStyle`, `cannon` for the Hunting Cannon): the report and the burst are
+  server-sent sounds and particles, the trail is strewn by each client along the stretch the bolt flew. The particles
+  are `DCParticles`, flat pixel planes that tumble in 3D, drawn by `fabric/.../render/PixelPlaneParticle` (two quads,
+  since particles cull back faces); sounds are synthesised by `harness/v2/out/centalmon/cannon_fx_01/make_cannon_audio.py`.
+  A kinetic shot reloads from the moment it leaves (`cooldownUntil` is set again at the hit tick, the tile's clock in
+  `noticeShot`), so a rider may hold a drawn shot on the aim as long as they like, its tile lit until the shot; the
+  Hunting Cannon's is 6 s. Centarumon's mesh JSON is edited past its blend: the hind thighs' top-back edge sits 1 px
+  forward (`harness/v2/out/centalmon/haunch_fix_01/fix_haunch.py`, `measure.py` checks every clip), or the thigh tops
+  show through the rump's back face; redo it after any re-export.
+  A hanging chain is `ropes` in `ground_models.json` (`RopeChains`): links that are siblings under one frame part, each
+  placed on a verlet rope in the world, pinned at the first link's rest place, kept their rest distance apart, damped
+  in their swing about the anchor (world damping is drag and blows a galloping chain out level) and by friction between
+  links (each link's speed eased toward its neighbours', so a bend never runs down the chain and cracks the end like a
+  whip), bent at most 30 degrees a joint, pushed out of collider boxes through the face they came in by without being
+  flung (contact keeps the link's speed); a collider's own `radius` overrides the rope's, and one right beside the anchor
+  (the palm) needs a thin one or its margin snaps the top links round its corner on every stride. Links are posed
+  with their side axis carried down the chain, never taken from a fixed axis (that flipped links half a turn a tick);
+  clip keys on the links are overwritten. Centarumon's wrist chain is
+  one, pinned by `NativeCentalmonRegressionTest` (not yet registered as a task: run it with an init script).
+  A gait with no back clip plays its walk backwards when the body backs up (planted too). A walker steps down as it
+  steps up (`DigimonEntity.stepDown`): off a ledge no higher than `maxUpStep` with nothing lifting it, it is set on the
+  ground below in the same tick, so a hillside never freezes the gait mid-drop or plays a landing per block;
+  `rider_checks` ends with a Centarumon driven down six one-block steps at a canter, which must spend no tick in the air
+  (24 without the step down). A charge that reaches its prey in the air drops and bucks once down. Scaling a species changes
+  exported geometry baked at the old scale (`kinetic_motion.json`, `attack_motion`, `model_scale` in the attack data,
+  the seat): Centarumon went .325 -> .36 on 22 September 2026. Design: `../design/mounted-combat.md`.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
-  `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`), read by
+  `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`, `fight_speed`, and the
+  skirmisher's `gallop`, `shoot_moving`, `dash_dodge`, `dash_engage`, `dash_escape`), read by
   `DigimonAttackGoal` and `BlindGuardGoal`. A species without one closes in, never dodges and
-  keeps list order. The charge is a fight-only pace; a species' travel gait stays on its
+  keeps list order. The skirmisher knobs are Centarumon's (design: `../design/combat-balance.md` §7): `gallop` circles
+  and closes at the fight pace, `shoot_moving` looses a shot that has `move` in its rider data on the run (the goal keeps
+  the legs, `KineticSession.twists`, the client twists the upper body to `DATA_ATTACK_YAW`), and the jet of the species'
+  `aim: charge` move is the AI's too (`DigimonEntity.startJetBurst`): a charge that bucks an Exposed or impaired target
+  within `dash_engage`, a short burst aside from a wind-up or a shot, a burst out of a stream's reach (a sidestep never
+  escapes a stream, so only a jet answers one), and a getaway from a brawler inside `hold_min` or while blinded. The charge is a fight-only pace; a species' travel gait stays on its
   `locomotion` sheet (Golemon's walk is pinned by `LocomotionRegressionTest`).
   Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`; an aimed ground
   wave is sidestepped late, just before its aim locks) and inbound projectiles server-side; a
@@ -430,6 +496,15 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   acceleration and air drag, then holds every segment in front of the colliders within its reach. State is per
   entity in `DigimonRenderer`. `:fabric:nativeDinohyumonTest` pins the blades, the buried sword, the cloth's hinges
   and that a forward thigh pushes the cloth forward.
+- Agumon is a native model (harness `out/agumon/motion_02`, installed by `integration_01`); the Java `AgumonModel` and
+  the billboard `PepperBreathModel` are gone, and Agumon's native body at Agumon's scale is the fallback for a species
+  without a model. Two catalog keys in `ground_models.json` are generic: `look` turns one part by vanilla's head yaw
+  and pitch within limits (faded out as an attack blends in), and `attack_effects` draws clips of one effect model in
+  the caster's frame while the attack animation of the same name plays (Agumon's mouth ember and claw streaks). A
+  FIREBALL move charges and fires from `attack_motion/<attack>_muzzle.json` (`FireballMuzzles`: mouth and head per
+  sub-tick), kept apart from `motion()` so the fireball keeps its own positioning rules; the ball's box centre, where
+  its core is drawn, leaves the snout. A hit holds the ball still for `PepperBreathEntity.IMPACT_TICKS` to play
+  `fireball_impact`, with no further collision. `:fabric:nativeAgumonTest` pins the drawn snout to the server's table.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
@@ -454,6 +529,10 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   rests `DEFEAT_REST_TICKS` (`PartyMember.restTicks`, saved, shown as a countdown in the
   Digivice) and then heals from zero; deployed partners heal only through play and
   `/digicube heal` skips the rest.
+- Creative is test play (`PartyManager.creative`, the owner's game mode kept on the party session): a Champion needs
+  no Rookie return form to be given, deployed or selected, and every partner's DigiSoul stays full with no evolution
+  cooldown (`EvolutionController.tick`, `PartyEvolution.tick`), so an evolved form lasts as long as testing does.
+  A Champion with no Rookie behind it offers no Revert. Survival keeps every rule.
 - Wild spawning is data too: `data/digicube/spawn_tables.json` lists one
   `data/digicube/spawn_table/<dimension>.json` per dimension, loaded and validated at
   startup by `BundledSpawnTableLoader` and covered by `:common:spawnTableTest`.
@@ -529,10 +608,6 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   + argument tag, `DevStatePayload`: state tag + reply) never change when an action is
   added. Battle Testing (`BattleTest`) stages two wild Digimon in front of the player, keeps
   them on each other and lets them fight to a knockout with their real stats; the readout
-- Creative is test play (`PartyManager.creative`, the owner's game mode kept on the party session): a Champion needs
-  no Rookie return form to be given, deployed or selected, and every partner's DigiSoul stays full with no evolution
-  cooldown (`EvolutionController.tick`, `PartyEvolution.tick`), so an evolved form lasts as long as testing does.
-  A Champion with no Rookie behind it offers no Revert. Survival keeps every rule.
   travels in the state tag every five ticks and `BattleReadout` draws it as a HUD bar.
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
@@ -657,7 +732,9 @@ from the same spots is decided by whole hit counts and its "win chance" flips be
 `DIGICUBE_TRIANGLE_UP` / `DIGICUBE_TRIANGLE_DOWN` override its multipliers for a sweep.
 Read the `[balance] RESULT` line (win shares, duration mean/median/min/max, retargets)
 and the two per-side lines (casts by move, crits and dodges per round, damage taken per
-round, health kept when winning, the tactics in force). Ricardo's target for a same-level
+round, health kept when winning, the tactics in force). A side whose tactics call for a skill (`dash_*`,
+`shoot_moving`) also gets a `[balance] SKILLS PASS|FAIL` line: uses per round from `DigimonEntity.countSkill`, and FAIL
+when one it should use never happened. Ricardo's target for a same-level
 neutral pair: about 50 % each (55–59 % is fine) and a 15-second mean. Tune from the
 per-side lines: damage taken per round shows who is short of a kill, casts show which move
 carries the fight. Use **300 rounds** (about 30 s) for a decision: 100-round runs of one

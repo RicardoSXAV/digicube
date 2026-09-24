@@ -229,6 +229,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_GRAB_LUNGE =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.BOOLEAN);
+    /**
+     * A rider's jet charge: ticks since the press plus one while it runs, -1 through the buck it may end in, 0 otherwise.
+     * Not 0 means the server moves the body.
+     */
+    private static final EntityDataAccessor<Integer> DATA_RIDER_CHARGE =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    /** A rider's drawn shot held raised: how far it has charged, 0 to 1; -1 when nothing is drawn. */
+    private static final EntityDataAccessor<Float> DATA_RIDER_DRAW =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
     private FlightReserve flightReserve;
     private DigimonFlight flightDefinition;
     private boolean needsFlightLanding;
@@ -305,7 +314,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (attack == null || attack.kind() != DigimonAttack.Kind.RETREAT_KICK || !attackAnimationState.isStarted()) return null;
         var definition = com.digicube.digimon.KineticAttacks.get(attack);
         float tick = attackAnimationState.getTimeInMillis(tickCount + partial) / 50F;
-        return definition.motion(definition.animation(true).equals(attackAnimationName)).sample(tick);
+        boolean kick = !attack.id().getPath().equals(attackAnimationName);
+        return definition.motion(kick).sample(definition.motionTime(attackAnimationName, tick));
     }
 
     /** Reproduce the saved turn between network packets, on the same clock as the legs. */
@@ -542,6 +552,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_RIDER_FUEL, 1.0F);
         builder.define(DATA_GRAB_PREY, -1);
         builder.define(DATA_GRAB_LUNGE, false);
+        builder.define(DATA_RIDER_CHARGE, 0);
+        builder.define(DATA_RIDER_DRAW, -1F);
     }
 
     // --- species ---------------------------------------------------------------------
@@ -626,7 +638,26 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             }
             move(MoverType.SELF, getDeltaMovement());
             resetFallDistance();
-        } else super.travel(input);
+        } else {
+            boolean grounded = onGround();
+            super.travel(input);
+            stepDown(grounded);
+        }
+    }
+
+    /**
+     * A walker goes down a hillside of blocks as it goes up one: stepping off a ledge no higher than its step, with
+     * nothing lifting it, it is set on the ground below at once, as vanilla sets it on a step above. Left to fall, every
+     * block of the way down froze the gait mid-stride for the drop and played a landing.
+     */
+    private void stepDown(boolean grounded) {
+        if (!grounded || onGround() || getDeltaMovement().y > 0 || isInWater() || isInLava() || isNoGravity() || isPassenger()
+                || getLocomotion().groundGait() == null || getFlightPhase() != FlightPhase.GROUNDED || riderCharging()) return;
+        double reach = maxUpStep() + 1.0E-3;
+        if (level().noCollision(this, getBoundingBox().move(0, -reach, 0))) return;
+        move(MoverType.SELF, new Vec3(0, -reach, 0));
+        setDeltaMovement(getDeltaMovement().multiply(1, 0, 1));
+        resetFallDistance();
     }
 
     /**
@@ -877,6 +908,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (level().isClientSide() && (DATA_SUSTAINED_ATTACK.equals(accessor) || DATA_SUSTAINED_TICK.equals(accessor))) {
             syncSustainedAnimation();
         }
+        if (level().isClientSide() && DATA_RIDER_CHARGE.equals(accessor)) seenCharge();
         if (DATA_SPECIES.equals(accessor)) {
             refreshDimensions();
             if (!level().isClientSide()) {
@@ -920,13 +952,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     /**
-     * The rider steers, except through a hold: the lunge at the prey and the wrap's body path around it are the
-     * server's, tick by tick, so until it ends the rider is carried like any passenger and the AI step runs the
-     * timeline as it does unridden.
+     * The rider steers, except through a hold or a jet charge: the lunge at the prey and the wrap's body path around
+     * it, and the charge with the buck it ends in, are the server's, tick by tick, so until they end the rider is
+     * carried like any passenger and the AI step runs the timeline as it does unridden.
      */
     @Override
     public LivingEntity getControllingPassenger() {
-        return wrapOwnsBody() ? null : rider();
+        return serverOwnsBody() ? null : rider();
     }
 
     /** The tamer in the saddle, also while a wrap has taken the reins. */
@@ -935,8 +967,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 && (isOwnedBy(player) || player == scenarioRider) ? player : null;
     }
 
-    private boolean wrapOwnsBody() {
-        return this.entityData.get(DATA_GRAB_LUNGE) || this.entityData.get(DATA_SUSTAINED_ATTACK).equals(com.digicube.digimon.DigimonSpeciesBootstrap.CONSTRICTION.id().getPath());
+    private boolean serverOwnsBody() {
+        return this.entityData.get(DATA_GRAB_LUNGE) || this.entityData.get(DATA_RIDER_CHARGE) != 0 || this.entityData.get(DATA_SUSTAINED_ATTACK).equals(com.digicube.digimon.DigimonSpeciesBootstrap.CONSTRICTION.id().getPath());
     }
 
     /** Development scenarios only: a rider who controls this mount without owning it (a party member cannot be staged headless). */
@@ -957,7 +989,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             setDeltaMovement(getDeltaMovement().add(0, player.isJumping() ? .06 : .04, 0));
         boolean swimming = canSwim() && isInWater();
         float turnRate = getBody().mount().map(mount -> swimming ? mount.waterTurnRate() : mount.turnRate()).orElse(0F);
-        rideMomentum = Mth.approach(rideMomentum, player.zza > 0 ? 1 : 0, player.zza > 0 ? .07F : .2F);
+        boolean pushing = player.zza > 0 || turnsToTravel() && player.xxa != 0 && player.zza >= 0;
+        rideMomentum = Mth.approach(rideMomentum, pushing ? 1 : 0, pushing ? .07F : .2F);
+        // Sprinting forward builds into the gallop (body.mount.sprint_build ticks to the top) and settles back faster.
+        boolean galloping = player.isSprinting() && player.zza > 0;
+        float build = getBody().mount().map(DigimonBody.Mount::sprintBuild).orElse(DigimonBody.Mount.SPRINT_BUILD);
+        gallopMomentum = Mth.approach(gallopMomentum, galloping ? 1 : 0, galloping ? 1 / build : .1F);
+        leap(player);
         if (riderAttackLocked()) {
             // The strike owns the facing (a soft target may pull it); the rider is free to look around.
             float attackYaw = this.entityData.get(DATA_ATTACK_YAW);
@@ -968,7 +1006,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             if (level().isClientSide()) riderLunge();
             return;
         }
-        riderLockYaw = turnRate > 0 ? Mth.approachDegrees(getYRot(), player.getYRot(), turnRate) : player.getYRot();
+        // Where the body wants to point: the view, or for a body that walks along its own length, the way the keys go.
+        float heading = player.getYRot() + (swimming || riderDrawing() ? 0 : travelTurn(player));
+        float off = Mth.wrapDegrees(heading - getYRot());
+        if (turnRate > 0 && !swimming) {
+            // A galloping body turns wider; one far from the view (after a buck, or a look over the shoulder) comes round faster.
+            turnRate *= (1 - GALLOP_TURN * gallopMomentum) * (1 + Mth.clamp((Math.abs(off) - 60) / 60, 0, 1.5F));
+        }
+        if (turnRate > 0 && !swimming && riderDrawing()) {
+            // Drawn, the upper body aims and the horse body holds its line: the strafe keys steer it, and it only turns
+            // after the view when the aim is further round than the upper body can twist.
+            float over = Math.abs(off) - KineticSession.MAX_TWIST;
+            riderLockYaw = getYRot() - player.xxa * turnRate * DRAWN_STEER + (over > 0 ? Math.signum(off) * Math.min(over, turnRate) : 0);
+        } else riderLockYaw = turnRate > 0 ? Mth.approachDegrees(getYRot(), heading, turnRate) : heading;
         setYRot(riderLockYaw);
         if (swimming && turnRate > 0) {
             // The input follows the view at once (getRiddenInput); only the body eases after it.
@@ -999,8 +1049,55 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             if (rise > 0 && surfaced() && !player.isSprinting()) rise = 0;
             return new Vec3(player.xxa * .5F, rise, Mth.cos(pitch) * forward);
         }
-        return new Vec3(player.xxa * 0.5F, 0.0, player.zza > 0.0F ? player.zza : player.zza * 0.25F);
+        if (turnsToTravel() && !riderDrawing()) {
+            // It walks along its own length: forwards as it comes round to where the keys point (a horse walks its turn,
+            // it does not pivot on the spot), or reined back, slowly, turned the way a reversing cart turns.
+            float push = Math.min(1, Mth.sqrt(player.zza * player.zza + player.xxa * player.xxa));
+            float align = Mth.cos(Mth.wrapDegrees(player.getYRot() + travelTurn(player) - getYRot()) * Mth.DEG_TO_RAD);
+            return new Vec3(0, 0, player.zza < 0 ? -push * BACK_PACE * Math.max(0, align) : push * Math.max(WALK_THE_TURN, align));
+        }
+        // Drawn, the strafe keys steer the body instead (tickRidden).
+        return new Vec3(riderDrawing() ? 0 : player.xxa * 0.5F, 0.0, player.zza > 0.0F ? player.zza : player.zza * 0.25F);
     }
+
+    /** A gait that sounds its own footfalls on its phase ({@code footfalls}) makes none of vanilla's step-per-block ones. */
+    private boolean ownFootfalls() {
+        return getLocomotion().groundGait() != null && getLocomotion().groundGait().footfalls();
+    }
+
+    @Override
+    protected void playStepSound(BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
+        if (!ownFootfalls()) super.playStepSound(pos, state);
+    }
+
+    @Override
+    protected void playCombinationStepSounds(net.minecraft.world.level.block.state.BlockState primary, net.minecraft.world.level.block.state.BlockState secondary) {
+        if (!ownFootfalls()) super.playCombinationStepSounds(primary, secondary);
+    }
+
+    @Override
+    protected void playMuffledStepSound(net.minecraft.world.level.block.state.BlockState state) {
+        if (!ownFootfalls()) super.playMuffledStepSound(state);
+    }
+
+    private boolean turnsToTravel() {
+        return getBody().mount().map(DigimonBody.Mount::turnToTravel).orElse(false);
+    }
+
+    /**
+     * Degrees from the rider's view to where a body that walks along its own length points: into the strafe keys going
+     * forwards (A alone turns it a quarter left), and going back its tail swings toward them, up to {@link #BACK_TURN}.
+     */
+    private float travelTurn(Player player) {
+        if (!turnsToTravel() || Math.abs(player.xxa) < 1.0E-3F) return 0;
+        if (player.zza >= 0) return (float) -Math.toDegrees(Math.atan2(player.xxa, player.zza));
+        return Mth.clamp((float) Math.toDegrees(Math.atan2(player.xxa, -player.zza)), -BACK_TURN, BACK_TURN);
+    }
+
+    /** Reining back: its share of the pace, and how far the body turns to back toward a side. */
+    private static final float BACK_PACE = .4F, BACK_TURN = 45;
+    /** How much of its pace a body keeps while it is still coming round to a new heading. */
+    private static final float WALK_THE_TURN = .25F;
 
     @Override
     protected float getRiddenSpeed(Player player) {
@@ -1008,7 +1105,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 * (seaMount() && player.isSprinting() ? getBody().mount().map(DigimonBody.Mount::waterSprint).orElse(1F) : 1);
         return getBody().mount().map(mount -> mount.turnRate() <= 0 ? ridePace(mount)
                 // a heavy mount gathers pace, and breaks into its charge while the rider sprints
-                : ridePace(mount) * (.45F + .55F * rideMomentum) * (player.isSprinting() ? mount.sprint() : 1)).orElseGet(() -> super.getRiddenSpeed(player));
+                : ridePace(mount) * (.45F + .55F * rideMomentum) * (1 + (mount.sprint() - 1) * gallopMomentum)).orElseGet(() -> super.getRiddenSpeed(player));
     }
 
     /**
@@ -1020,6 +1117,111 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         float own = (float) (getAttributeValue(Attributes.MOVEMENT_SPEED) * getLocomotion().runSpeed());
         // Vanilla's move control feeds the speed in twice (as speed and as forward input); only swimmers' control undoes that.
         return canSwim() ? own : own * own * .98F;
+    }
+
+    /** How much of its turn rate a mount gives up at a full gallop, and how fast a drawn rider's strafe keys steer it. */
+    private static final float GALLOP_TURN = .35F, DRAWN_STEER = .6F;
+    private float gallopMomentum;
+    private int leapCooldown;
+
+    /**
+     * Client, where the ridden body moves: the jump key leaps a mount that has a leap in its sheet ({@code body.mount.jump}),
+     * a fixed height at a tap (Minecraft's charge-bar horse jump is the one players ask to be rid of). The run keeps
+     * its speed through the air.
+     */
+    private void leap(Player player) {
+        if (!level().isClientSide()) return;
+        if (leapCooldown > 0) leapCooldown--;
+        float jump = getBody().mount().map(DigimonBody.Mount::jump).orElse(0F);
+        if (jump <= 0 || !player.isJumping() || !onGround() || isInWater() || leapCooldown > 0 || riderAttackLocked()) return;
+        // Speed is the impulse: at a full gallop the leap goes a little higher and is thrown forward, so it carries
+        // several times as far as one from a walk. The sound and the pose follow the body (HoofBeats, tickLeapPose).
+        var mount = getBody().mount().orElseThrow();
+        Vec3 run = getDeltaMovement().multiply(1, 0, 1);
+        float speed = (float) Mth.clamp(run.length() / (ridePace(mount) * mount.sprint()), 0, 1);
+        Vec3 ahead = Vec3.directionFromRotation(0, getYRot());
+        Vec3 push = ahead.scale(LEAP_PUSH * speed * ridePace(mount) * mount.sprint());
+        // The top of the gallop is where the high jump is: most of the extra height comes in its last stretch.
+        float lift = LEAP_LIFT * speed + LEAP_TOP * speed * speed * speed * speed * speed * speed;
+        setDeltaMovement(run.x + push.x, jump * (1 + lift), run.z + push.z);
+        leapCooldown = 10;
+    }
+
+    /** A leap at the top of the gallop: this share of its pace added forwards, and this share more height (a little along the way, most at the top). */
+    private static final float LEAP_PUSH = .3F, LEAP_LIFT = .12F, LEAP_TOP = .33F;
+    /** Blocks of fall a leaping mount (and its rider) lands without harm: its own high jump, with a slope under it. */
+    private static final double LEAP_SAFE_FALL = 6;
+
+    @Override
+    public boolean causeFallDamage(double fallDistance, float multiplier, net.minecraft.world.damagesource.DamageSource source) {
+        boolean leaper = getBody().mount().map(m -> m.jump() > 0).orElse(false);
+        return super.causeFallDamage(leaper ? Math.max(0, fallDistance - LEAP_SAFE_FALL) : fallDistance, multiplier, source);
+    }
+
+    // --- the leap's pose, client side: takeoff and landing on time, the flight on vertical speed -----------------
+
+    /** Ticks of the {@code jump} clip: the takeoff runs 0 to RISE, the flight RISE to LAND, the landing LAND to END. */
+    public static final float LEAP_RISE = 3, LEAP_APEX = 8, LEAP_LAND = 13, LEAP_END = 22;
+    private float leapTick = -1, previousLeapTick = -1, leapWeight, previousLeapWeight, leapLaunch, leapImpact;
+    private boolean leapLanded;
+    private int airTicks, leapLandedTick = Integer.MIN_VALUE / 2, leapTakeoffTick = Integer.MIN_VALUE / 2;
+
+    /** Client: where the {@code jump} clip is (-1 on the ground), and how much of the pose it has. */
+    public float getLeapTick(float partial) { return leapTick < 0 ? -1 : Mth.lerp(partial, Math.max(0, previousLeapTick), leapTick); }
+    public float getLeapWeight(float partial) { return Mth.lerp(partial, previousLeapWeight, leapWeight); }
+    public int ticksSinceLeapLanding() { return tickCount - leapLandedTick; }
+    public int ticksSinceLeapTakeoff() { return tickCount - leapTakeoffTick; }
+    /** How hard the last landing was, 0 to 1 (a gallop leap's fall is about 1). */
+    public float leapImpact() { return leapImpact; }
+
+    /**
+     * A leap's pose follows the body, so every client sees it the same, the rider's and everyone else's: leaving the
+     * ground upwards starts the takeoff, the flight is scrubbed by vertical speed (nose up and legs folded rising,
+     * forelegs reaching falling), and touching down plays the landing, faster at pace, blending back into the gait.
+     * A drop of a few ticks (walking off a ledge) joins at the apex.
+     */
+    private void tickLeapPose(double rise, double pace) {
+        previousLeapTick = leapTick;
+        previousLeapWeight = leapWeight;
+        boolean air = !onGround() && !isInWater() && !isPassenger() && getFlightPhase() == FlightPhase.GROUNDED;
+        airTicks = air ? airTicks + 1 : 0;
+        if (air) {
+            if (leapTick < 0 || leapLanded) {
+                if (rise > .15) { leapTick = 0; leapLaunch = (float) rise; leapLanded = false; leapTakeoffTick = tickCount; }
+                else if (airTicks >= 6 && rise < -.2) { leapTick = LEAP_APEX; leapLaunch = .6F; leapLanded = false; }
+            } else if (leapTick < LEAP_RISE) leapTick = Math.min(LEAP_RISE, leapTick + 1);
+            else {
+                float fall = Mth.clamp((float) (leapLaunch - rise) / (2 * leapLaunch), 0, 1);
+                leapTick = Math.max(leapTick, LEAP_RISE + (LEAP_LAND - LEAP_RISE) * fall);
+            }
+            if (leapTick >= 0) leapWeight = Mth.approach(leapWeight, 1, .5F);
+        } else if (leapTick >= 0) {
+            if (!leapLanded) {
+                leapLanded = true;
+                leapLandedTick = tickCount;
+                leapImpact = Mth.clamp((float) -previousRise / .6F, 0, 1);
+            }
+            // Short of the touchdown pose (a landing on higher ground) it is caught up quickly; then on time.
+            leapTick = leapTick < LEAP_LAND ? Math.min(LEAP_LAND, leapTick + 3) : leapTick + 1 + (float) Mth.clamp(pace / .3, 0, 1.5);
+            float out = Mth.clamp((leapTick - LEAP_LAND - 1) / (LEAP_END - LEAP_LAND - 1), 0, 1);
+            leapWeight = Math.min(leapWeight, 1 - out * out * (3 - 2 * out));
+            if (leapTick >= LEAP_END) { leapTick = -1; leapWeight = 0; }
+        }
+        previousRise = rise;
+    }
+    private double previousRise;
+
+    /**
+     * Both sides: a rider has pressed a drawn shot and it has not left yet (from the press, through the raise and
+     * the hold, to the release). The client reads its own animation, the server its timeline.
+     */
+    public boolean riderDrawing() {
+        if (level() == null || rider() == null) return false;
+        DigimonAttack attack = level().isClientSide() ? getAnimatingAttack() : riderAttack ? activeAttack : null;
+        var spec = riderSpec(attack);
+        if (spec == null || spec.aim() != com.digicube.digimon.RiderAttack.Aim.SHOT || spec.input() != com.digicube.digimon.RiderAttack.Input.HOLD) return false;
+        if (!level().isClientSide()) return attackTick < attack.hitTick();
+        return attackAnimationState.isStarted() && attackAnimationState.getTimeInMillis(tickCount) / 50F < attack.hitTick();
     }
 
     /** Lets the rider's sprint key work from the saddle; what it does is {@link DigimonBody.Mount#sprint}, in water {@code waterSprint}. */
@@ -1093,6 +1295,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Half angle of the soft-target cone around the rider's view, and ticks a swing's pose holds on contact. */
     public static final float SOFT_TARGET_CONE = 35;
     public static final int HIT_STOP_TICKS = 3;
+    /** Ticks a drawn shot is held raised before it is fully charged (a bow's full draw is 20 too). */
+    public static final int FULL_DRAW_TICKS = 14;
+    private int riderDrawTicks;
+    /** Client only: the local rider holds a drawn shot's button. Only the rider's own client animates ahead of the server. */
+    public static boolean localRiderDraws;
     private boolean riderAttack, riderReleased;
     private float riderLockYaw, riderStaleYaw, rideMomentum;
     private int bufferedRiderSlot = -1, bufferedRiderUntil;
@@ -1106,6 +1313,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private int seenImpactTick = -1000, seenSlamTick = -1000;
     public int ticksSinceImpact() { return tickCount - seenImpactTick; }
     public int ticksSinceSlam() { return tickCount - seenSlamTick; }
+    /** Client only: when a shot last left this body (its clip passed the hit tick), for the rider's recoil. */
+    private int seenShotTick = -1000;
+    private float lastShotClock = -1;
+    public int ticksSinceShot() { return tickCount - seenShotTick; }
     /** Client only: when each attack this client saw start is ready again, in this entity's ticks. */
     private final Map<Identifier, Integer> seenCooldownUntil = new HashMap<>();
 
@@ -1128,6 +1339,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Both sides: how full a rider attack's tile is, 0 (just used) to 1 (ready). A stream shows its tank. */
     public float riderReadiness(DigimonAttack attack, float partial) {
         if (attack.fuel() != null) return this.entityData.get(DATA_RIDER_FUEL);
+        // Raised and drawn, a shot's tile stays lit: it reloads from the shot (a sweep while held read as a reload).
+        if (attack == getAnimatingAttack() && attack.kind() == DigimonAttack.Kind.KINETIC_SHOT && attackAnimationState.isStarted()
+                && attackAnimationState.getTimeInMillis(tickCount) / 50F < attack.hitTick()) return 1;
         if (attack.cooldownTicks() <= 0) return 1;
         return 1 - Mth.clamp((seenCooldown(attack) - partial) / attack.cooldownTicks(), 0, 1);
     }
@@ -1146,7 +1360,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         var spec = riderSpec(attack);
         if (spec == null || spec.cone() <= 0 || spec.aim() == com.digicube.digimon.RiderAttack.Aim.GRAB) return null;
         double reach = (spec.reach() > 0 ? spec.reach() : attack.range()) + getBbWidth() * .5;
-        Vec3 view = Vec3.directionFromRotation(0, rider.getYRot());
+        // A charge goes where the movement keys point (A alone dashes left), so it picks its prey around that heading.
+        float heading = rider.getYRot() + (spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE ? riderKeysTurn(rider) : 0);
+        Vec3 view = Vec3.directionFromRotation(0, heading);
         LivingEntity best = null;
         double bestScore = Double.MAX_VALUE;
         for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(reach + 1, Math.max(2, reach * .5), reach + 1),
@@ -1247,6 +1463,262 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (failed && wrap != null) cooldownUntil.put(wrap.id(), tickCount + LUNGE_FAIL_COOLDOWN);
     }
 
+    // --- the jet charge: a rider's burst that tramples, and ends in a buck on the prey it homed on ---------------
+
+    /** Ticks of the gather before the jets fire, and of the burst; blocks a tick at its peak and as it hands back. */
+    private static final int CHARGE_WINDUP = 4, CHARGE_BURST = 10;
+    /** Ticks past the burst a charge that reached its prey in the air waits to come down and buck. */
+    private static final int CHARGE_LANDING = 30;
+    private static final double CHARGE_CREEP = .15, CHARGE_TOP = .95, CHARGE_EXIT = .42;
+    /** Degrees a tick the charge turns after the view, and after the prey it homes on. */
+    private static final float CHARGE_STEER = 7, CHARGE_HOME = 14;
+    /**
+     * The buck starts within BUCK_REACH of its prey (the kick then skids on to where it was authored to start, the
+     * bodies BUCK_GAP into each other) and inside this cone of the charge; an enemy crossing the charge's path within
+     * CHARGE_ACQUIRE blocks and the same cone becomes its prey.
+     */
+    private static final double BUCK_GAP = -.45, BUCK_REACH = 1.8, BUCK_CONE = 60, CHARGE_ACQUIRE = 5;
+    /** A charge fired in the air: the thrust lifts it this much at once, and holds its fall to this while it burns. */
+    private static final double AIR_THRUST = .12, AIR_SINK = -.05;
+    /** Sideways reach beyond the body that the trample sweeps. */
+    private static final double TRAMPLE_REACH = .35;
+    private LivingEntity chargePrey;
+    private int chargeTicks;
+    private float chargeYaw;
+    /** Ticks the burst lasts: a rider's charge the full {@link #CHARGE_BURST}, the AI's dodge {@link #DODGE_BURST}. */
+    private int chargeBurst = CHARGE_BURST;
+    /** The AI's burst away from a blow is a shorter one, fired at once. */
+    private static final int DODGE_BURST = 6;
+    private final java.util.Set<java.util.UUID> trampled = new java.util.HashSet<>();
+
+    /** Both sides: ticks since a rider's jet charge started while it runs (the buck excluded), 0 otherwise. */
+    public int riderChargeTicks() { return Math.max(0, this.entityData.get(DATA_RIDER_CHARGE) - 1); }
+    public boolean riderCharging() { return this.entityData.get(DATA_RIDER_CHARGE) > 0; }
+    /** Blocks a tick the charge leaves in the body when it hands the reins back: the run carries on into the gallop. */
+    public static double chargeExitPace() { return CHARGE_EXIT; }
+
+    /** The move a rider casts as the jet charge ({@code aim: charge}); the AI bursts with it too. Null for most species. */
+    public DigimonAttack jetMove() {
+        for (DigimonAttack attack : attacks()) {
+            var spec = riderSpec(attack);
+            if (spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE) return attack;
+        }
+        return null;
+    }
+
+    /** Server: the jet could fire now for the AI: ready, standing on dry ground, free to act. */
+    public boolean jetReady() {
+        DigimonAttack jet = jetMove();
+        return jet != null && !isVehicle() && isAttackReady(jet) && tickCount >= windedUntil && standing() && !isInWater() && !isInLava()
+                && getFlightPhase() == FlightPhase.GROUNDED && !hasEffect(DCEffects.FROZEN) && !hasEffect(DCEffects.CONSTRICTED)
+                && (activeAttack == null || shotFollowingThrough());
+    }
+
+    /**
+     * Server, the AI's jet: a charge at {@code prey}, homing and ending in the buck as a rider's does, or with no prey a
+     * straight burst along {@code yaw} that strikes nothing (a dodge, fired at once and short, or a getaway). The
+     * follow-through of a shot loosed on the run gives way to it. {@code target} is who the fight is with; {@code skill}
+     * names the use in the balance tally.
+     */
+    public boolean startJetBurst(LivingEntity target, LivingEntity prey, float yaw, boolean dodge, String skill) {
+        if (level().isClientSide() || !jetReady()) return false;
+        if (activeAttack != null) cancelAttack();
+        DigimonAttack jet = jetMove();
+        chargePrey = prey;
+        chargeYaw = prey != null ? AttackGeometry.yaw(position(), prey.position()) : yaw;
+        chargeBurst = dodge ? DODGE_BURST : CHARGE_BURST;
+        chargeTicks = dodge ? CHARGE_WINDUP : 0;
+        trampled.clear();
+        activeAttack = jet;
+        riderAttack = false;
+        attackTarget = target;
+        attackTick = 0;
+        cooldownUntil.put(jet.id(), tickCount + jet.cooldownTicks());
+        getNavigation().stop();
+        this.entityData.set(DATA_ATTACK_YAW, chargeYaw);
+        this.entityData.set(DATA_RIDER_CHARGE, 1);
+        level().playSound(null, getX(), getY(), getZ(), SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, .8F, .55F);
+        countSkill(skill);
+        if (COMBAT_TRACE) Constants.LOG.info("[jet] {} {}", getSpeciesId(), prey != null ? "charges " + prey.getType().toShortString()
+                : skill.equals("jet_dodge") ? "dodges" : "breaks away");
+        return true;
+    }
+
+    /**
+     * Server. A rider's charge: the prey is the enemy the charge's cone picks at the press (outlined, like a swing's
+     * soft target), or none. The body is the server's until it ends.
+     */
+    private void beginJetCharge(Player rider, DigimonAttack attack) {
+        chargePrey = softTarget(rider, attack);
+        chargeYaw = chargePrey != null ? AttackGeometry.yaw(position(), chargePrey.position()) : rider.getYRot() + riderKeysTurn(rider);
+        // In the air there is nothing to gather against: the jets fire at once and the leap's momentum carries into them.
+        chargeTicks = standing() ? 0 : CHARGE_WINDUP;
+        chargeBurst = CHARGE_BURST;
+        trampled.clear();
+        activeAttack = attack;
+        riderAttack = true;
+        riderReleased = false;
+        attackTarget = chargePrey;
+        attackTick = 0;
+        cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+        this.entityData.set(DATA_ATTACK_YAW, chargeYaw);
+        this.entityData.set(DATA_RIDER_CHARGE, 1);
+        level().playSound(null, getX(), getY(), getZ(), SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, .8F, .55F);
+        Constants.LOG.info("[rider-charge] {} charges{}", getSpeciesId(), chargePrey == null ? " along the view" : " at " + chargePrey.getType().toShortString());
+    }
+
+    /**
+     * Server, one tick of the charge. It gathers (slows, the jets light), then bursts: fast at first and easing into
+     * the gallop's pace, steered after the view or homing on its prey. Whatever else it runs through is shoved aside
+     * unhurt (only the buck strikes); reaching the prey it plants and bucks, in the air once it is down. A wall stops it.
+     */
+    private void tickJetCharge(ServerLevel level) {
+        Player rider = rider();
+        if (riderAttack && rider == null || isInWater() || !isAlive()) { endJetCharge(); return; }
+        int tick = ++chargeTicks;
+        this.entityData.set(DATA_RIDER_CHARGE, tick + 1);
+        boolean burst = tick > CHARGE_WINDUP;
+        LivingEntity prey = chargePrey != null && chargePrey.isAlive() && chargePrey.level() == level ? chargePrey : null;
+        // Only a rider's run picks up prey on the way; the AI's dodge or getaway strikes nothing.
+        if (prey == null && burst && riderAttack) prey = chargePrey = chargeAcquire(level, rider, Vec3.directionFromRotation(0, chargeYaw));
+        float heading = prey != null ? AttackGeometry.yaw(position(), prey.position()) : riderAttack ? rider.getYRot() + riderKeysTurn(rider) : chargeYaw;
+        chargeYaw = Mth.approachDegrees(chargeYaw, heading, prey != null ? CHARGE_HOME : CHARGE_STEER);
+        setYRot(chargeYaw);
+        yBodyRot = yHeadRot = chargeYaw;
+        this.entityData.set(DATA_ATTACK_YAW, chargeYaw);
+        Vec3 dir = Vec3.directionFromRotation(0, chargeYaw);
+        double pace;
+        if (!burst) pace = CHARGE_CREEP * (CHARGE_WINDUP - tick + 1) / CHARGE_WINDUP;
+        else {
+            double t = Math.min(1, (tick - CHARGE_WINDUP - 1) / (double) (chargeBurst - 1));
+            pace = Mth.lerp(t * t, CHARGE_TOP, CHARGE_EXIT);
+        }
+        if (burst && tick == CHARGE_WINDUP + 1) level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1F, .7F);
+        boolean arrive = false;
+        if (burst && prey != null) {
+            Vec3 to = prey.position().subtract(position()).multiply(1, 0, 1);
+            double gap = to.length() - prey.getBbWidth() * .5 - getBbWidth() * .5;
+            double angle = to.lengthSqr() < 1.0E-6 ? 0 : Math.toDegrees(Math.acos(Mth.clamp(to.normalize().dot(dir), -1, 1)));
+            if (angle <= BUCK_CONE && gap <= BUCK_REACH + pace) { pace = Math.min(pace, Math.max(0, gap - BUCK_GAP)); arrive = true; }
+        }
+        Vec3 before = position();
+        double fall = getDeltaMovement().y;
+        boolean aloft = !standing();
+        // Over its prey in the air it stops burning and drops to buck from the ground.
+        if (burst && aloft && !arrive) fall = tick == CHARGE_WINDUP + 1 ? Math.max(fall, AIR_THRUST) : Math.max(fall, AIR_SINK);
+        setDeltaMovement(0, fall, 0);
+        move(MoverType.SELF, dir.scale(pace));
+        if (burst) {
+            jetExhaust(level, dir);
+            trample(level, before, dir, pace, prey);
+        }
+        if (arrive && !aloft) { beginBuck(level, prey); return; }
+        if (burst && horizontalCollision && position().subtract(before).horizontalDistance() < pace * .4) {
+            level.broadcastEntityEvent(this, DigimonAnimationEvents.IMPACT);
+            level.playSound(null, getX(), getY(), getZ(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.NEUTRAL, 1F, .6F);
+            endJetCharge();
+            return;
+        }
+        if (tick >= CHARGE_WINDUP + chargeBurst && !(arrive && tick < CHARGE_WINDUP + chargeBurst + CHARGE_LANDING)) endJetCharge();
+    }
+
+    /** Server. Anything the charge's body sweeps this tick, but the prey it keeps for the buck, is shoved aside unhurt. */
+    private void trample(ServerLevel level, Vec3 before, Vec3 dir, double pace, LivingEntity prey) {
+        AABB swept = getBoundingBox().minmax(getBoundingBox().move(before.subtract(position()))).inflate(TRAMPLE_REACH, 0, TRAMPLE_REACH);
+        for (var entity : level.getEntities(this, swept)) {
+            LivingEntity victim = DigimonPart.livingOf(entity);
+            if (victim == null || victim == this || victim == prey || victim instanceof Player || victim.isSpectator() || !victim.isAlive()
+                    || !canAttack(victim) || isAllyOf(victim) || !trampled.add(victim.getUUID())) continue;
+            Vec3 side = new Vec3(-dir.z, 0, dir.x);
+            if (side.dot(victim.position().subtract(position())) < 0) side = side.scale(-1);
+            victim.push(side.x * .8 + dir.x * .5, .3, side.z * .8 + dir.z * .5);
+            victim.hurtMarked = true;
+            level.playSound(null, victim.getX(), victim.getY(), victim.getZ(), SoundEvents.PLAYER_ATTACK_NODAMAGE, SoundSource.NEUTRAL, 1F, .7F);
+            Constants.LOG.info("[rider-charge] shoved {} aside", victim.getType().toShortString());
+        }
+    }
+
+    /**
+     * Whether the body stands on something: {@code onGround} is only as good as the last move, and the charge's own
+     * level moves clear it, so the floor just under the feet is looked at instead.
+     */
+    private boolean standing() {
+        return onGround() || !level().noCollision(this, getBoundingBox().move(0, -.08, 0));
+    }
+
+    /** Server. With no prey yet, the nearest enemy that crosses the charge's path (close ahead, in its cone) becomes it. */
+    private LivingEntity chargeAcquire(ServerLevel level, Player rider, Vec3 dir) {
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(CHARGE_ACQUIRE, 2, CHARGE_ACQUIRE),
+                e -> e.isAlive() && e != this && e != rider && !(e instanceof Player) && !e.isSpectator() && canAttack(e) && !isAllyOf(e)
+                        && !trampled.contains(e.getUUID()))) {
+            Vec3 to = candidate.position().subtract(position()).multiply(1, 0, 1);
+            double distance = to.length() - candidate.getBbWidth() * .5 - getBbWidth() * .5;
+            if (distance > CHARGE_ACQUIRE || to.lengthSqr() < 1.0E-6
+                    || Math.toDegrees(Math.acos(Mth.clamp(to.normalize().dot(dir), -1, 1))) > BUCK_CONE || !hasLineOfSight(candidate)) continue;
+            if (distance < bestDistance) { bestDistance = distance; best = candidate; }
+        }
+        if (best != null) Constants.LOG.info("[rider-charge] picks up {} on the way", best.getType().toShortString());
+        return best;
+    }
+
+    /**
+     * Both sides: degrees from the rider's view to where the movement keys point, forwards or to the side (A alone is a
+     * quarter left), 0 with no side key. The server reads the rider's last input, the rider's client its own keys.
+     */
+    private float riderKeysTurn(Player rider) {
+        float forward, left;
+        if (rider instanceof net.minecraft.server.level.ServerPlayer server) {
+            var input = server.getLastClientInput();
+            forward = input.forward() ? 1 : 0;
+            left = input.left() == input.right() ? 0 : input.left() ? 1 : -1;
+        } else { forward = Math.max(0, rider.zza); left = rider.xxa; }
+        return Math.abs(left) < 1.0E-3F ? 0 : (float) -Math.toDegrees(Math.atan2(left, forward));
+    }
+
+    /** Server. Fire and smoke from the back jets, dust from the hooves. */
+    private void jetExhaust(ServerLevel level, Vec3 dir) {
+        Vec3 side = new Vec3(-dir.z, 0, dir.x);
+        for (int s = -1; s <= 1; s += 2) {
+            Vec3 jet = position().add(0, getBbHeight() * .82, 0).add(side.scale(.18 * s)).subtract(dir.scale(.15));
+            level.sendParticles(ParticleTypes.FLAME, jet.x, jet.y, jet.z, 1, .05, .05, .05, .02);
+            level.sendParticles(ParticleTypes.SMOKE, jet.x - dir.x * .4, jet.y + .1, jet.z - dir.z * .4, 1, .08, .08, .08, .01);
+        }
+        level.sendParticles(ParticleTypes.CLOUD, getX() - dir.x * .8, getY() + .1, getZ() - dir.z * .8, 2, .35, .05, .35, .02);
+    }
+
+    /** Server. The charge has run its prey down: plant, wheel and buck, the retreat kick committed from here. */
+    private void beginBuck(ServerLevel level, LivingEntity prey) {
+        kinetic = new KineticSession(this, prey, activeAttack, position());
+        syncKineticStart();
+        attackTick = 0;
+        attackTarget = prey;
+        this.entityData.set(DATA_RIDER_CHARGE, -1);
+        this.entityData.set(DATA_SUSTAINED_TICK, 0);
+        this.entityData.set(DATA_SUSTAINED_ATTACK, kinetic.animation());
+        kinetic.tick(level, 0);
+        level.playSound(null, getX(), getY(), getZ(), SoundEvents.HORSE_BREATHE, SoundSource.NEUTRAL, 1F, .6F);
+        Constants.LOG.info("[rider-charge] bucks at {} after {} ticks", prey.getType().toShortString(), chargeTicks);
+    }
+
+    /** Server. The charge is over without a buck: the reins go back to the rider, whose client carries the run on. */
+    private void endJetCharge() {
+        this.entityData.set(DATA_RIDER_CHARGE, 0);
+        chargePrey = null;
+        activeAttack = null;
+        riderAttack = false;
+        attackTarget = null;
+    }
+
+    private void syncKineticStart() {
+        BlockPos origin = BlockPos.containing(kinetic.start());
+        entityData.set(DATA_KINETIC_ORIGIN, origin);
+        entityData.set(DATA_KINETIC_FRACTION, new org.joml.Vector3f((float) (kinetic.start().x - origin.getX()),
+                (float) (kinetic.start().y - origin.getY()), (float) (kinetic.start().z - origin.getZ())));
+        entityData.set(DATA_KINETIC_YAW, kinetic.startYaw());
+    }
+
     /**
      * Where a rider's wrap of {@code prey} would start: the mount's feet, at the prey's level when the water lets it
      * glide there. Null when the prey is on another level.
@@ -1265,9 +1737,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public boolean startRiderAttack(Player rider, int slot) {
         List<DigimonAttack> usable = riderAttacks();
         if (level().isClientSide() || getControllingPassenger() != rider || slot < 0 || slot >= usable.size()
-                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED || !onGround() && !isInWater()) return false;
+                || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED) || getFlightPhase() != FlightPhase.GROUNDED) return false;
         DigimonAttack attack = usable.get(slot);
         if (isInWater() && !wadingAttack(attack)) return false;
+        var spec = riderSpec(attack);
+        if (spec == null) return false;
+        if (riderAttack && kinetic != null && kinetic.riderShot() && attack != activeAttack) {
+            // A drawn shot gives way to the other button (unfired, so nothing cools down), and a loosed one's follow-through to anything.
+            if (attackTick < activeAttack.hitTick()) { cooldownUntil.remove(activeAttack.id()); cancelAttack(); }
+            else if (attackTick > activeAttack.hitTick() + 3) cancelAttack();
+        }
+        // Only the charge fires in the air (mid-leap, its momentum carries into the jets); nothing else leaves the ground.
+        if (spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE ? isInWater() : !onGround() && !isInWater()) return false;
         int wait = Math.max(activeAttack == null ? 0 : activeAttack.durationTicks() - attackTick,
                 cooldownUntil.getOrDefault(attack.id(), 0) - tickCount);
         if (wait > 0 || !isAttackReady(attack)) {
@@ -1284,6 +1765,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             lungeTicks = 0;
             this.entityData.set(DATA_GRAB_LUNGE, true);
             this.entityData.set(DATA_GRAB_PREY, -1);
+            return true;
+        }
+        if (spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE) {
+            beginJetCharge(rider, attack);
             return true;
         }
         LivingEntity soft = softTarget(rider, attack);
@@ -1319,18 +1804,34 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         Vec3 eye = rider.getEyePosition(), end = eye.add(rider.getLookAngle().scale(attack.range() + 6));
         var block = level().clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
         if (block.getType() != HitResult.Type.MISS) end = block.getLocation();
-        Vec3 best = end;
+        LivingEntity aimed = null;
         double nearest = eye.distanceToSqr(end);
         for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, new AABB(eye, end).inflate(1),
                 e -> e.isAlive() && e != this && e != rider && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
             var hit = candidate.getBoundingBox().inflate(.3).clip(eye, end);
             if (hit.isPresent() && eye.distanceToSqr(hit.get()) < nearest) {
                 nearest = eye.distanceToSqr(hit.get());
-                best = AttackGeometry.chest(candidate.getBoundingBox());
+                aimed = candidate;
             }
         }
-        return best;
+        var kineticShot = com.digicube.digimon.KineticAttacks.get(attack);
+        if (kineticShot == null || kineticShot.projectile() == null) return aimed == null ? end : AttackGeometry.chest(aimed.getBoundingBox());
+        // A bolt from a running mount: a crosshair a little off a nonplayer enemy still finds it, and the shot leads it.
+        if (aimed == null) {
+            double best = SHOT_MAGNET;
+            for (LivingEntity candidate : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(attack.range() + 6),
+                    e -> e.isAlive() && e != this && e != rider && !(e instanceof Player) && !e.isSpectator() && canAttack(e) && !isAllyOf(e))) {
+                Vec3 to = AttackGeometry.chest(candidate.getBoundingBox()).subtract(eye);
+                if (to.lengthSqr() > (attack.range() + 6) * (attack.range() + 6) || to.lengthSqr() < 1.0E-4) continue;
+                double angle = Math.toDegrees(Math.acos(Mth.clamp(to.normalize().dot(rider.getLookAngle()), -1, 1)));
+                if (angle < best && hasLineOfSight(candidate)) { best = angle; aimed = candidate; }
+            }
+        }
+        return aimed == null ? end : PepperBreathEntity.predictImpactPoint(aimed, position(), kineticShot.projectileSpeed(), kineticShot.maxLead());
     }
+
+    /** Degrees off the crosshair within which a rider's shot still finds a nonplayer enemy. */
+    private static final double SHOT_MAGNET = 4;
 
     /** The rider's crosshair point for the attack under way, when that attack is aimed by the view; null otherwise. */
     private Vec3 riderAimNow() {
@@ -1340,6 +1841,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 || activeAttack.kind() == DigimonAttack.Kind.BOX_BURST);
         return viewAimed ? riderAim(rider, activeAttack) : null;
     }
+
+    /** Both sides: whether {@code attack} is a rider's cast that the mount keeps running under (its upper body plays it). */
+    public boolean riderMovesDuring(DigimonAttack attack) { return attack != null && rider() != null && riderMoves(attack); }
+
+    /** Both sides: the body keeps moving under {@code attack} and its upper body plays it, for a rider or for the AI. */
+    public boolean movesDuring(DigimonAttack attack) { return riderMovesDuring(attack) || rider() == null && aiShootsMoving(attack); }
 
     /** Whether the mount keeps walking under this rider attack instead of standing through it. */
     private boolean riderMoves(DigimonAttack attack) {
@@ -1549,6 +2056,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return !attacks().isEmpty();
     }
 
+    /** Anything it strikes with up close (a wrap included). */
+    public boolean hasCloseAttack() {
+        return attacks().stream().anyMatch(a -> !a.isRanged());
+    }
+
     /** Whether any of its moves reaches beyond contact: what makes strafing worth it for an opponent. */
     public boolean hasRangedAttack() {
         return attacks().stream().anyMatch(DigimonAttack::isRanged);
@@ -1564,7 +2076,26 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Ordinary locomotion cannot overwrite an attack's authored movement. */
     public boolean combatControlsLocked() {
-        return isAttacking() || constrictionPlanner != null && constrictionPlanner.aligning();
+        return isAttacking() && !shootingOnTheRun() || constrictionPlanner != null && constrictionPlanner.aligning();
+    }
+
+    /** Server: the AI's shot under way is loosed on the run; its legs stay the combat goal's. */
+    public boolean shootingOnTheRun() {
+        return activeAttack != null && !riderAttack && kinetic != null && kinetic.twists();
+    }
+
+    /** Server: a shot loosed on the run has left, and its follow-through may give way to anything. */
+    public boolean shotFollowingThrough() {
+        return shootingOnTheRun() && attackTick > activeAttack.hitTick() + SHOT_FOLLOW_THROUGH;
+    }
+    private static final int SHOT_FOLLOW_THROUGH = 3;
+
+    /**
+     * Both sides: whether the AI looses {@code attack} on the run, a shot its rider may loose moving ({@code move}) for a
+     * species whose tactics say so ({@code shoot_moving}).
+     */
+    public boolean aiShootsMoving(DigimonAttack attack) {
+        return attack != null && attack.kind() == DigimonAttack.Kind.KINETIC_SHOT && tactics().shootMoving() && riderMoves(attack);
     }
 
     /** Constriction owns heading; ranged attacks still aim their head at the target. */
@@ -1946,6 +2477,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     ? FlameStream.aimPitch(frame, feet, point, yaw, 0) : 0;
             head = AttackGeometry.world(feet, frame.head(), yaw);
             mouth = AttackGeometry.world(feet, frame.aimedMouth(pitch), yaw);
+        } else if (com.digicube.digimon.FireballMuzzles.get(attack).isPresent()) {
+            var frame = com.digicube.digimon.FireballMuzzles.get(attack).get().sample(attack.hitTick());
+            head = AttackGeometry.world(feet, frame.head(), yaw);
+            mouth = AttackGeometry.world(feet, frame.mouth(), yaw);
         } else {
             boolean bubbles = attack.kind() == DigimonAttack.Kind.BUBBLES;
             head = feet.add(0, bubbles ? BUBBLE_MOUTH_HEIGHT : MOUTH_HEIGHT, 0);
@@ -2024,11 +2559,16 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         riderAttack = rider != null;
         if (com.digicube.digimon.KineticAttacks.handles(attack)) {
             kinetic = new KineticSession(this, target, attack, rider == null ? null : () -> riderAim(rider, attack));
-            BlockPos origin = BlockPos.containing(kinetic.start());
-            entityData.set(DATA_KINETIC_ORIGIN, origin);
-            entityData.set(DATA_KINETIC_FRACTION, new org.joml.Vector3f((float) (kinetic.start().x - origin.getX()),
-                    (float) (kinetic.start().y - origin.getY()), (float) (kinetic.start().z - origin.getZ())));
-            entityData.set(DATA_KINETIC_YAW, kinetic.startYaw());
+            syncKineticStart();
+            // A rider's drawn shot starts uncharged, and holding it raised charges it (tickAttackTimeline); one on the run twists.
+            var spec = riderSpec(attack);
+            if (kinetic.riderShot() && spec != null) {
+                kinetic.riderStyle(spec.input() == com.digicube.digimon.RiderAttack.Input.HOLD, spec.move());
+                riderDrawTicks = 0;
+            } else if (rider == null && aiShootsMoving(attack)) {
+                kinetic.riderStyle(false, true);
+                countSkill("shot_on_the_run");
+            }
         }
         attackTarget = target;
         attackTick = 0;
@@ -2049,6 +2589,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (kinetic != null) {
             kinetic.tick((ServerLevel) level(), 0);
             this.entityData.set(DATA_ATTACK_AIM_PITCH, kinetic.pitch());
+            if (kinetic.twists()) this.entityData.set(DATA_ATTACK_YAW, kinetic.aimYaw());
         } else if (attack.kind() == DigimonAttack.Kind.BUBBLES) {
             aimBubbleBlow();
         } else if (attack.motion() != null) {
@@ -2094,7 +2635,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (constriction != null) syncConstrictionAnchor();
         if (activeAttack == null) return;
-        if (isVehicle() && !riderAttack || !isAlive() || (!riderAttack && activeAttack.fuel() == null && attackTick < activeAttack.hitTick()
+        // The AI's jet runs on without a live target (a blinded getaway has none); a charge whose prey is gone just runs out.
+        boolean jetting = kinetic == null && this.entityData.get(DATA_RIDER_CHARGE) > 0;
+        if (isVehicle() && !riderAttack || !isAlive() || (!riderAttack && !jetting && activeAttack.fuel() == null && attackTick < activeAttack.hitTick()
                 && (attackTarget == null || !attackTarget.isAlive() || !canAttack(attackTarget)))) {
             cancelAttack();
             return;
@@ -2106,18 +2649,45 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 || isAllyOf(attackTarget) || !inRange(activeAttack, attackTarget))) {
             finishStream();
         }
+        if (kinetic == null && this.entityData.get(DATA_RIDER_CHARGE) > 0) {
+            tickJetCharge(level);
+            return;
+        }
+        if (kinetic != null && riderAttack && kinetic.riderShot()) {
+            var shot = com.digicube.digimon.KineticAttacks.get(activeAttack);
+            var spec = riderSpec(activeAttack);
+            if (!riderReleased && spec != null && spec.input() == com.digicube.digimon.RiderAttack.Input.HOLD && attackTick >= shot.riderDrawTick()
+                    && getControllingPassenger() instanceof Player) {
+                // Drawn: the weapon stays raised on the aim while the button is held, charging toward a full shot.
+                kinetic.tick(level, attackTick);
+                float charge = Math.min(1, ++riderDrawTicks / (float) FULL_DRAW_TICKS);
+                kinetic.charge(charge);
+                if (riderDrawTicks == FULL_DRAW_TICKS) level.playSound(null, getX(), getY(), getZ(), SoundEvents.CROSSBOW_LOADING_END.value(), SoundSource.NEUTRAL, 1F, .7F);
+                this.entityData.set(DATA_RIDER_DRAW, charge);
+                this.entityData.set(DATA_ATTACK_AIM_PITCH, kinetic.pitch());
+                this.entityData.set(DATA_ATTACK_YAW, kinetic.aimYaw());
+                return;
+            }
+            if (this.entityData.get(DATA_RIDER_DRAW) >= 0) this.entityData.set(DATA_RIDER_DRAW, -1F);
+        }
         if (kinetic != null) {
             int next = attackTick + 1;
             if (!kinetic.tick(level, next)) { cancelAttack(); return; }
+            if (kinetic.homing(next)) syncKineticStart();
             attackTick = next;
             this.entityData.set(DATA_ATTACK_AIM_PITCH, kinetic.pitch());
-            if (riderAttack) this.entityData.set(DATA_ATTACK_YAW, kinetic.aimYaw());
+            if (riderAttack || kinetic.twists()) this.entityData.set(DATA_ATTACK_YAW, kinetic.aimYaw());
             this.entityData.set(DATA_SUSTAINED_TICK, next);
             this.entityData.set(DATA_SUSTAINED_ATTACK, kinetic.animation());
-            if (next == activeAttack.hitTick() && activeAttack.kind() == DigimonAttack.Kind.KINETIC_SHOT) kinetic.fire(level);
+            if (next == activeAttack.hitTick() && activeAttack.kind() == DigimonAttack.Kind.KINETIC_SHOT) {
+                kinetic.fire(level);
+                // The reload runs from the shot, not the raise: a drawn shot may be held on the aim as long as the rider likes.
+                cooldownUntil.put(activeAttack.id(), tickCount + activeAttack.cooldownTicks());
+            }
             if (next >= kinetic.duration()) {
                 kinetic = null; activeAttack = null; attackTarget = null; riderAttack = false;
                 this.entityData.set(DATA_SUSTAINED_ATTACK, "");
+                this.entityData.set(DATA_RIDER_CHARGE, 0);
             }
             return;
         }
@@ -2174,6 +2744,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private void cancelAttack() {
         if (activeAttack == null) return;
         if (kinetic != null) { kinetic = null; this.entityData.set(DATA_SUSTAINED_ATTACK, ""); }
+        this.entityData.set(DATA_RIDER_CHARGE, 0);
+        this.entityData.set(DATA_RIDER_DRAW, -1F);
+        chargePrey = null;
         if (constriction != null) {
             // A wrap broken before capture is a whiff; it costs a short retry, not the full cooldown.
             if (!constriction.captured()) cooldownUntil.put(activeAttack.id(), tickCount + com.digicube.digimon.ConstrictionMotion.APPROACH_RETRY_TICKS);
@@ -2581,9 +3154,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (ticksToFire > FIREBALL_CHARGE_TICKS || ticksToFire < 0) {
             return;
         }
-        Vec3 mouth = mouthPosition();
-        int count = 1 + (FIREBALL_CHARGE_TICKS - ticksToFire) / 2;
-        level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, mouth.x, mouth.y, mouth.z, count, 0.12, 0.08, 0.12, 0.01);
+        Vec3 mouth = mouthPosition(activeAttack, attackTick);
+        // The ember itself is drawn in the mouth (the species' charge clip); a flicker every other tick escapes it.
+        if (ticksToFire % 2 == 0) level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, mouth.x, mouth.y, mouth.z, 1, 0.06, 0.04, 0.06, 0.01);
         if (ticksToFire == FIREBALL_CHARGE_TICKS) {
             level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_AMBIENT, SoundSource.NEUTRAL, 0.6F, 1.4F);
         }
@@ -2607,17 +3180,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 }
             }
             case FIREBALL -> {
-                Vec3 mouth = mouthPosition();
+                Vec3 mouth = mouthPosition(attack, attack.hitTick());
                 boolean aimed = target != null && target.isAlive();
                 Vec3 aim = aimed
                         ? PepperBreathEntity.predictImpactPoint(target, mouth, PepperBreathEntity.SPEED, PepperBreathEntity.MAX_AIM_LEAD)
                         : mouth.add(getViewVector(1.0F).scale(4.0));
                 Vec3 direction = aim.subtract(mouth);
-                PepperBreathEntity fireball = new PepperBreathEntity(level, this, mouth, damageAgainst(attack, target), aimed ? target : null);
+                // The ball's centre, where its core is drawn, leaves the mouth; the entity stands on the bottom of its box.
+                Vec3 base = mouth.subtract(0, com.digicube.registry.DCEntityTypes.PEPPER_BREATH.getHeight() / 2, 0);
+                PepperBreathEntity fireball = new PepperBreathEntity(level, this, base, damageAgainst(attack, target), aimed ? target : null);
                 fireball.shoot(direction.x, direction.y, direction.z, PepperBreathEntity.SPEED, 0.0F);
                 level.addFreshEntity(fireball);
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.0F, 1.15F);
-                level.sendParticles(ParticleTypes.FLAME, true, true, mouth.x, mouth.y, mouth.z, 12, 0.2, 0.2, 0.2, 0.1);
+                level.sendParticles(ParticleTypes.FLAME, true, true, mouth.x, mouth.y, mouth.z, 4, 0.12, 0.12, 0.12, 0.06);
             }
             case BUBBLES -> {
                 // Use the same facing and predicted point as the windup, with the
@@ -2711,6 +3286,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public void countDodge() { dodges++; }
     public int dodges() { return dodges; }
 
+    /** Server, for balance runs: how often each tactic of the AI was used (a jet charge, a shot on the run...). */
+    private final java.util.Map<String, Integer> skillUses = new java.util.TreeMap<>();
+    public void countSkill(String skill) { skillUses.merge(skill, 1, Integer::sum); }
+    public java.util.Map<String, Integer> skillUses() { return skillUses; }
+
     /** Delayed authored area attacks retain the caster's attribute triangle and ally rules. */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim) {
         return hitWithAttack(level, attack, victim, position());
@@ -2718,8 +3298,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** @param from where the blow pushes its victim away from: the caster, or the landing point of a summoned strike */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim, Vec3 from) {
+        return hitWithAttack(level, attack, victim, from, 1);
+    }
+
+    /** @param scale share of the attack's damage this blow deals: a rider's snap shot, a trample at the tail of a charge */
+    public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim, Vec3 from, float scale) {
         if (!victim.isAlive() || !canAttack(victim) || isAllyOf(victim)) return false;
-        float damage=damageAgainst(attack,victim);
+        float damage=damageAgainst(attack,victim)*scale;
         var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
         var source=authored!=null && !authored.hitWindows().isEmpty()?DCDamageTypes.volleyAttack(this):damageSources().mobAttack(this);
         if (!victim.hurtServer(level,source,damage)) return false;
@@ -2739,8 +3324,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return hit;
     }
 
-    /** World position of the snout, following the body's facing. */
-    private Vec3 mouthPosition() {
+    /** World position of the snout at this tick of the attack, following the body's facing: the animated one when the move has a muzzle table. */
+    private Vec3 mouthPosition(DigimonAttack attack, double tick) {
+        var muzzle = com.digicube.digimon.FireballMuzzles.get(attack);
+        if (muzzle.isPresent()) return AttackGeometry.world(position(), muzzle.get().sample(tick).mouth(), yBodyRot);
         double yaw = Math.toRadians(yBodyRot);
         Vec3 forward = new Vec3(-Math.sin(yaw), 0.0, Math.cos(yaw));
         return position().add(0.0, MOUTH_HEIGHT, 0.0).add(forward.scale(MOUTH_FORWARD));
@@ -2748,12 +3335,65 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     // --- client-side animation -------------------------------------------------------
 
+    /** Client: the charge value last seen, to tell a start and an end apart. */
+    private int lastSeenCharge;
+
+    /**
+     * Client. A charge starting puts its attack on the cooldown clock; a charge handing the reins back to this client
+     * carries its run on into the gallop, from where the body was drawn.
+     */
+    private void seenCharge() {
+        int now = this.entityData.get(DATA_RIDER_CHARGE);
+        if (now > 0 && lastSeenCharge == 0) {
+            for (DigimonAttack attack : riderAttacks()) {
+                var spec = riderSpec(attack);
+                if (spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE) seenCooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+            }
+        }
+        // Only a run hands back at speed; a buck ends standing, facing away from what it kicked.
+        if (now == 0 && lastSeenCharge != 0 && rider() != null && rider().isLocalPlayer()) getInterpolation().cancel();
+        if (now == 0 && lastSeenCharge > 0 && rider() != null && rider().isLocalPlayer()) {
+            Vec3 run = Vec3.directionFromRotation(0, getYRot()).scale(CHARGE_EXIT);
+            setDeltaMovement(run.x, getDeltaMovement().y, run.z);
+            rideMomentum = 1;
+            gallopMomentum = 1;
+        }
+        lastSeenCharge = now;
+    }
+
+    /**
+     * Client. A drawn shot holds its raised pose while it is held: the server's word (the draw's charge), or ahead of
+     * it the local rider's own button, so the arm never overshoots the hold and snaps back.
+     */
+    private void holdDrawnPose() {
+        DigimonAttack attack = getAnimatingAttack();
+        var shot = com.digicube.digimon.KineticAttacks.get(attack);
+        if (shot == null || shot.projectile() == null || !attackAnimationState.isStarted() || rider() == null) return;
+        boolean held = this.entityData.get(DATA_RIDER_DRAW) >= 0 || localRiderDraws && rider().isLocalPlayer() && riderDrawing();
+        if (!held || attackAnimationState.getTimeInMillis(tickCount) / 50F < shot.riderDrawTick()) return;
+        attackAnimationState.start(tickCount - shot.riderDrawTick());
+        attackAnimationEndTick = tickCount + shot.duration(false) - shot.riderDrawTick();
+    }
+
+    /** Client. The shot leaves as the clip passes its hit tick (a drawn shot's clip holds before it until release). */
+    private void noticeShot() {
+        DigimonAttack attack = getAnimatingAttack();
+        if (attack == null || attack.kind() != DigimonAttack.Kind.KINETIC_SHOT || !attackAnimationState.isStarted()) { lastShotClock = -1; return; }
+        float clock = attackAnimationState.getTimeInMillis(tickCount) / 50F;
+        // Its tile reloads from the shot, as the server's cooldown does: raised and drawn, the clock waits.
+        if (clock < attack.hitTick()) seenCooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+        if (lastShotClock >= 0 && lastShotClock < attack.hitTick() && clock >= attack.hitTick()) seenShotTick = tickCount;
+        lastShotClock = clock;
+    }
+
     /** Synced timeline also reaches players who start tracking halfway through a long breath. */
     private void syncSustainedAnimation() {
         String name = this.entityData.get(DATA_SUSTAINED_ATTACK);
         if (name.isEmpty()) {
             DigimonAttack animating = getAnimatingAttack();
             if (animating != null && (com.digicube.digimon.KineticAttacks.handles(animating) || animating.fuel() != null || animating.kind() == DigimonAttack.Kind.CONSTRICTION)) {
+                if (animating.kind() == DigimonAttack.Kind.KINETIC_SHOT && attackAnimationState.isStarted()
+                        && attackAnimationState.getTimeInMillis(tickCount) / 50F < animating.hitTick()) seenCooldownUntil.remove(animating.id());
                 attackAnimationState.stop();
                 attackAnimationName = null;
             }
@@ -2763,9 +3403,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             var kineticDefinition = com.digicube.digimon.KineticAttacks.get(attack);
             if (kineticDefinition != null && kineticDefinition.matches(name)) {
                 int elapsed = this.entityData.get(DATA_SUSTAINED_TICK);
+                if (!name.equals(attackAnimationName) && elapsed == 0 && attack.kind() == DigimonAttack.Kind.KINETIC_SHOT)
+                    seenCooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
                 attackAnimationName = name;
                 attackAnimationState.start(tickCount - elapsed);
-                attackAnimationEndTick = tickCount + kineticDefinition.duration(name.equals(kineticDefinition.kickAnimation())) - elapsed;
+                attackAnimationEndTick = tickCount + kineticDefinition.duration(name) - elapsed;
                 return;
             }
             if ((attack.fuel() != null || attack.kind() == DigimonAttack.Kind.CONSTRICTION) && attack.id().getPath().equals(name)) {
@@ -2873,8 +3515,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         if (level().isClientSide()) {
             // The length is read when a packet lands, so this tick sets it for the packets the next one consumes.
-            getInterpolation().setInterpolationLength(AttackTravelSync.steps(
+            // A jet charge covers most of a block a tick: its packets are chased over the lunge's two steps as well.
+            getInterpolation().setInterpolationLength(this.entityData.get(DATA_RIDER_CHARGE) != 0 ? AttackTravelSync.LUNGE_STEPS : AttackTravelSync.steps(
                     attackAnimationState.isStarted() ? getAnimatingAttack() : null, tickCount + 1 - attackAnimationStartTick));
+            holdDrawnPose();
+            noticeShot();
             previousAerialBank=aerialBank;previousAerialPitch=aerialPitch;
             aerialBank=Mth.lerp(.2F,aerialBank,Mth.clamp(-Mth.wrapDegrees(getYRot()-yRotO)*2,-18,18));
             aerialPitch=Mth.lerp(.18F,aerialPitch,
@@ -2931,10 +3576,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 }
                 float wanted = onGround() && !isSwimmingMovement()
                         ? (float) Mth.clamp(groundSpeed / gait.fullSpeed(getBody().modelScale()), 0, 1) : 0;
+                // A ridden leap keeps its stride, held mid-air, instead of settling into the standing pose.
+                if (!onGround() && rider() != null && !isInWater()) wanted = groundAnimationAmount;
                 groundAnimationAmount = Mth.approach(groundAnimationAmount, wanted, .125F);
                 groundRunAmount = Mth.approach(groundRunAmount, gait.runAmount(groundSpeed, getBody().modelScale()), .125F);
                 if (onGround() && groundSpeed < 1) {
-                    groundAnimationPhase += gait.advance(groundSpeed, groundAnimationAmount, getBody().modelScale(), groundRunAmount);
+                    float step = gait.advance(groundSpeed, groundAnimationAmount, getBody().modelScale(), groundRunAmount);
+                    // A gait with no clip of its own for going back plays its walk backwards, which plants the feet as well.
+                    boolean backing = !gait.directional() && dx * dx + dz * dz > 1.0E-8
+                            && -dx * Math.sin(yBodyRot * Mth.DEG_TO_RAD) + dz * Math.cos(yBodyRot * Mth.DEG_TO_RAD) < -.5 * horizontalTravel;
+                    groundAnimationPhase += backing ? -step : step;
+                    if (groundAnimationPhase < 0) {
+                        // Clips read no negative clock; whole laps keep the pose where it is.
+                        float laps = gait.cycleTicks() * 64;
+                        groundAnimationPhase += laps;
+                        previousGroundAnimationPhase += laps;
+                    }
                 }
             } else if (canSwim() && onGround()) {
                 // Remote entities can move through position interpolation between
@@ -2945,6 +3602,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 groundAnimationPhase += .55F * (float) Mth.clamp(groundSpeed / .025, 0, 3);
             }
             swimBank = Mth.lerp(.15F, swimBank, Mth.clamp(-Mth.wrapDegrees(getYRot() - yRotO) * 2.0F, -12, 12));
+            if (getLocomotion().groundGait() != null) tickLeapPose(dy, horizontalTravel);
         }
         if (level().isClientSide() && attackAnimationState.isStarted() && tickCount >= attackAnimationEndTick) {
             attackAnimationState.stop();
