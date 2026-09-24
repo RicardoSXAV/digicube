@@ -25,6 +25,7 @@ public final class DigiviceRegressionTest {
         check(first.length == DigispaceWorld.IMAGE_WIDTH * DigispaceWorld.IMAGE_HEIGHT && Arrays.equals(first, second), "the island is painted the same every time");
         check(world.kindAt(-5, 10) == DigispaceWorld.VOID && world.kindAt(2, 2) == DigispaceWorld.VOID && world.kindAt(DigispaceWorld.WIDTH - 2, DigispaceWorld.HEIGHT - 2) == DigispaceWorld.VOID, "the net surrounds the island");
         check(world.kindAt(160, 128) == DigispaceWorld.WATER && !world.walkable(160, 128), "the big pond is water, and nobody stands in it");
+        check(!world.walkableLine(100, 128, 220, 128) && !world.walkableLine(220, 128, 100, 128), "a line across the big pond is not a way, either way round");
         int ground = 0, water = 0, path = 0, sand = 0;
         for (int y = 0; y < DigispaceWorld.HEIGHT; y++) for (int x = 0; x < DigispaceWorld.WIDTH; x++) {
             byte kind = world.kindAt(x + 0.5, y + 0.5);
@@ -61,7 +62,8 @@ public final class DigiviceRegressionTest {
 
         // the herd
         DigispaceHerd herd = new DigispaceHerd(world);
-        UUID a = UUID.randomUUID(), b = UUID.randomUUID(), c = UUID.randomUUID();
+        // Fixed ids: where a Digimon first stands depends only on its id, so a random one made this test flaky.
+        UUID a = new UUID(0x5eed_0001L, 0xa11ce_0001L), b = new UUID(0x5eed_0002L, 0xa11ce_0002L), c = new UUID(0x5eed_0003L, 0xa11ce_0003L);
         herd.sync(List.of(new DigispaceHerd.Entry(a, true, false), new DigispaceHerd.Entry(b, false, true)));
         DigispaceHerd.Walker walkerA = herd.get(a), walkerB = herd.get(b);
         check(herd.walkers().size() == 2 && walkerA.spawn == 0 && world.walkable(walkerA.x, walkerA.y) && world.walkable(walkerB.x, walkerB.y), "the reserve is simply there when the Digivice opens, on open ground");
@@ -73,6 +75,22 @@ public final class DigiviceRegressionTest {
             check(world.walkable(walkerA.x, walkerA.y), "a wandering Digimon never leaves open ground");
         }
         check(walkerA.x != home[0] || walkerA.y != home[1], "an awake Digimon wanders");
+        // The rule over many homes and herd places: every step of every walker, from 400 herds of four, stays on open ground.
+        int wandered = 0;
+        for (int seed = 0; seed < 400; seed++) {
+            DigispaceHerd sweep = new DigispaceHerd(world);
+            List<DigispaceHerd.Entry> entries = new java.util.ArrayList<>();
+            for (int k = 0; k < 4; k++) entries.add(new DigispaceHerd.Entry(new UUID(seed * 7919L + k, ~(seed * 104729L) + k * 31L), k % 2 == 0, false));
+            sweep.sync(entries);
+            for (int tick = 0; tick < 600; tick++) {
+                sweep.step(tick, null);
+                for (DigispaceHerd.Walker walker : sweep.walkers()) if (!world.walkable(walker.x, walker.y))
+                    throw new AssertionError(String.format("FAIL: a wandering Digimon never leaves open ground (herd %d, %s at %.2f, %.2f on tick %d, ground %d)",
+                            seed, walker.id, walker.x, walker.y, tick, world.kindAt(walker.x, walker.y)));
+            }
+            for (DigispaceHerd.Walker walker : sweep.walkers()) if (walker.x != sweep.home(walker.id)[0] || walker.y != sweep.home(walker.id)[1]) wandered++;
+        }
+        check(wandered > 1400, "across 1600 walkers nearly all wander, none off open ground: " + wandered);
         check(walkerB.x == bx && walkerB.y == by && !walkerB.moving(), "a defeated one lies still");
         double heldX = walkerA.x, heldY = walkerA.y;
         for (int tick = 600; tick < 700; tick++) herd.step(tick, a);

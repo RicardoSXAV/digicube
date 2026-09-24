@@ -131,6 +131,32 @@ public final class DigispaceWorld {
         return tx >= 0 && ty >= 0 && tx < TILES_X && ty < TILES_Y && !blocked.get(ty * TILES_X + tx);
     }
 
+    /**
+     * Whether a Digimon may walk the straight line between two points: every texel the line passes through is
+     * walkable (a grid walk, so no stretch between samples is skipped; tiles are whole texels, so a blocked tile is
+     * caught too). Through a texel corner both texels beside it must be open.
+     */
+    public boolean walkableLine(double x0, double y0, double x1, double y1) {
+        double ax = x0 * TEXELS, ay = y0 * TEXELS, bx = x1 * TEXELS, by = y1 * TEXELS, dx = bx - ax, dy = by - ay;
+        int cx = (int) Math.floor(ax), cy = (int) Math.floor(ay), ex = (int) Math.floor(bx), ey = (int) Math.floor(by);
+        int stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1;
+        double deltaX = dx == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dx), deltaY = dy == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dy);
+        double nextX = dx == 0 ? Double.POSITIVE_INFINITY : (dx > 0 ? cx + 1 - ax : ax - cx) * deltaX;
+        double nextY = dy == 0 ? Double.POSITIVE_INFINITY : (dy > 0 ? cy + 1 - ay : ay - cy) * deltaY;
+        for (int guard = Math.abs(ex - cx) + Math.abs(ey - cy) + 2; guard > 0; guard--) {
+            if (!walkableTexel(cx, cy)) return false;
+            if (cx == ex && cy == ey) return true;
+            if (Math.abs(nextX - nextY) < 1.0E-12) {
+                if (!walkableTexel(cx + stepX, cy) || !walkableTexel(cx, cy + stepY)) return false;
+                nextX += deltaX; nextY += deltaY; cx += stepX; cy += stepY;
+            } else if (nextX < nextY) { nextX += deltaX; cx += stepX; }
+            else { nextY += deltaY; cy += stepY; }
+        }
+        return walkableTexel(ex, ey);
+    }
+
+    private boolean walkableTexel(int px, int py) { return walkable((px + .5) / TEXELS, (py + .5) / TEXELS); }
+
     /** Whether the tile holds any ground at its centre; the net's loose data gathers around these. */
     public boolean land(int tileX, int tileY) { return tileX >= 0 && tileY >= 0 && tileX < TILES_X && tileY < TILES_Y && land[tileY * TILES_X + tileX]; }
     public List<Prop> props() { return props; }

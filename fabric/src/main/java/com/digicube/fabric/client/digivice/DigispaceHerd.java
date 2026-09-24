@@ -108,9 +108,8 @@ public final class DigispaceHerd {
         for (int n = 0; n < 12; n++) {
             double angle = DigispaceWorld.hash(tick + i, n) * Math.PI * 2, reach = 16 + DigispaceWorld.hash(n, tick + i) * 46;
             double tx = w.x + Math.cos(angle) * reach, ty = w.y + Math.sin(angle) * reach * 0.6;
-            boolean clear = true;
-            for (int s = 1; s <= 6 && clear; s++) clear = world.walkable(w.x + (tx - w.x) * s / 6, w.y + (ty - w.y) * s / 6);
-            if (clear) { w.targetX = tx; w.targetY = ty; return; }
+            // The whole line, not a few points on it: a tree's tile is narrower than the gap between samples was.
+            if (world.walkableLine(w.x, w.y, tx, ty)) { w.targetX = tx; w.targetY = ty; return; }
         }
         w.wait = 20;
     }
