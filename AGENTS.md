@@ -514,7 +514,8 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   is then hidden from above it. Depth-writing `entityTranslucent` effects are left before the water on purpose, so
   submerged fish and bubbles still show through it.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
-  spawns a partner. Owned Digimon follow their tamer and join their fights.
+  spawns a partner (a Champion at no less than `Progression.CHAMPION_LEVEL`: below it the party stores it for evolution
+  on its first tick, so it used to vanish on arrival). Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
   ray (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a
   big fireball drawn one block wide would miss like a needle. `PepperBreathEntity` is the

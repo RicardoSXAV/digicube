@@ -2,6 +2,7 @@ package com.digicube.command;
 
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.EvolutionRules;
 import com.digicube.digimon.Progression;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.party.PartyManager;
@@ -177,7 +178,10 @@ public final class DigiCubeCommands {
         if (species == null) return 0;
         DigimonEntity digimon = create(source, player.level());
         if (digimon == null) return 0;
-        digimon.initializeAs(species, level);
+        // A partner Champion below the Champion level is stored for evolution on its first tick
+        // (PartyManager.beforeEntityTick), so it would vanish the moment it appeared.
+        int floor = EvolutionRules.champion(species.id()) ? Progression.CHAMPION_LEVEL : Progression.MIN_LEVEL;
+        digimon.initializeAs(species, Math.max(level, floor));
         PartyMember member = PartyManager.give(player, digimon);
         source.sendSuccess(() -> Component.translatable(member.active()
                         ? "commands.digicube.give.party" : "commands.digicube.give.reserve",
