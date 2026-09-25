@@ -13,6 +13,9 @@
     "MixinEntityRenderer",
     "MixinHumanoidModel",
     "MixinItemInHandRenderer",
+    "MixinItemInHandLayer",
+    "MixinGuiGraphicsExtractor",
+    "MixinHud",
     "KeyMappingAccessor"
   ],
   "server": [],

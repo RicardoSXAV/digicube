@@ -11,15 +11,67 @@ import java.util.*;
 /** CPU depth-buffered, nearest-texel review of the actual runtime evaluator, without Minecraft UI. */
 public final class EvolutionReviewRenderer {
     private record Canvas(int width, int height, boolean stage) {}
+    public record PropLayer(List<EvolutionMesh.Face> faces, BufferedImage texture) {}
+    /** Same rasterizer/FX shader approximation, now with a perspective world and separate held-item FOV. */
+    public static BufferedImage renderFirstPersonProps(List<PropLayer> world,List<EvolutionMesh.Face> trail,
+            List<PropLayer> held,List<EvolutionMesh.Face> chip,List<EvolutionMesh.Face> chipGlow,float worldFov,float handFov) {
+        Canvas canvas=new Canvas(960,600,true);
+        int[] pixels=new int[960*600];Arrays.fill(pixels,0x101b28);
+        float[] depth=new float[pixels.length];Arrays.fill(depth,Float.POSITIVE_INFINITY);
+        float focal=(float)(300/Math.tan(Math.toRadians(worldFov)/2));
+        // Neutral checker floor 1.6 blocks below the eye; the review never invents source-world terrain.
+        for(int y=301;y<600;y++)for(int x=0;x<960;x++) {
+            float d=1.6F*focal/(y-300),wx=(x-480)*d/focal;
+            int shade=(((int)Math.floor(wx)+(int)Math.floor(d))&1)==0?28:32;
+            float fade=1-Math.clamp((d-25)/30,0,1);int at=y*960+x;
+            pixels[at]=((int)(16+(shade-16)*fade)<<16)|((int)(27+(shade+4-27)*fade)<<8)|(int)(40+(shade+10-40)*fade);
+            depth[at]=d;
+        }
+        for(var layer:world)perspective(layer.faces(),layer.texture(),false,pixels,depth,worldFov,canvas);
+        perspective(trail,null,true,pixels,depth,worldFov,canvas);
+        Arrays.fill(depth,Float.POSITIVE_INFINITY); // Minecraft's held layer has its own depth pass.
+        for(var layer:held)perspective(layer.faces(),layer.texture(),false,pixels,depth,handFov,canvas);
+        var solid=new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
+        for(var face:chip) {solid.setRGB(0,0,face.color());perspective(List.of(face),solid,false,pixels,depth,handFov,canvas);}
+        perspective(chipGlow,null,true,pixels,depth,handFov,canvas);
+        var image=new BufferedImage(960,600,BufferedImage.TYPE_INT_RGB);image.setRGB(0,0,960,600,pixels,0,960);return image;
+    }
+    private static void perspective(List<EvolutionMesh.Face> faces,BufferedImage texture,boolean glow,
+            int[] pixels,float[] depth,float fov,Canvas canvas) {
+        float focal=(float)(300/Math.tan(Math.toRadians(fov)/2));
+        for(var face:faces) {
+            float[][] p=new float[4][5];float[] v=face.vertices();boolean clipped=false;
+            for(int i=0;i<4;i++) {
+                int j=i*8;float d=-v[j+2];if(d<.03F) {clipped=true;break;}
+                p[i]=new float[]{canvas.width*.5F+v[j]*focal/d,300-v[j+1]*focal/d,d,v[j+3],v[j+4]};
+            }
+            if(clipped)continue;
+            if(glow) {beaconTriangle(p[0],p[1],p[2],face.color(),pixels,depth,canvas);beaconTriangle(p[0],p[2],p[3],face.color(),pixels,depth,canvas);}
+            else {triangle(p[0],p[1],p[2],face.color(),texture,pixels,depth,false,false,canvas);triangle(p[0],p[2],p[3],face.color(),texture,pixels,depth,false,false,canvas);}
+        }
+    }
     /** Digivice review uses this same neutral stage/depth rasterizer as the evolution reviews. */
     public static BufferedImage renderProp(List<EvolutionMesh.Face> model, BufferedImage texture,
             List<EvolutionMesh.Face> beacon, float radius, double yaw, double pitch, boolean day) {
+        return renderProp(model,texture,List.of(),beacon,radius,yaw,pitch,day);
+    }
+    public static BufferedImage renderProp(List<EvolutionMesh.Face> model, BufferedImage texture,
+            List<EvolutionMesh.Face> opaque, List<EvolutionMesh.Face> beacon,float radius,double yaw,double pitch,boolean day) {
+        return renderProps(List.of(new PropLayer(model,texture)),opaque,beacon,radius,yaw,pitch,day);
+    }
+    public static BufferedImage renderProps(List<PropLayer> models,List<EvolutionMesh.Face> opaque,
+            List<EvolutionMesh.Face> beacon,float radius,double yaw,double pitch,boolean day) {
         Canvas canvas = new Canvas(720,600,true);
         int[] pixels = new int[canvas.width*canvas.height]; java.util.Arrays.fill(pixels,day?0x8da3af:0x101b28);
         float[] depth = new float[pixels.length]; java.util.Arrays.fill(depth,Float.POSITIVE_INFINITY);
         float scale = 600*.65F/radius/1.28F;
         floor(pixels,depth,scale,radius,pitch,canvas);
-        draw(model,texture,pixels,depth,scale,yaw,pitch,false,canvas);
+        for(var model:models)draw(model.faces(),model.texture(),pixels,depth,scale,yaw,pitch,false,canvas);
+        var solid=new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
+        for(var face:opaque) {
+            solid.setRGB(0,0,face.color());
+            draw(List.of(face),solid,pixels,depth,scale,yaw,pitch,false,canvas);
+        }
         for (var face : beacon) {
             float[][] p = new float[4][5]; var v = face.vertices();
             for(int i=0;i<4;i++) {

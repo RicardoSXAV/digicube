@@ -230,3 +230,14 @@ tasks.register('digiviceLocatorTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('digiviceLocatorTest') }
+
+tasks.register('recallReview', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.render.RecallReview'
+    if (project.hasProperty('recallEvidence')) args project.property('recallEvidence')
+    workingDir = layout.buildDirectory.dir('recall-review').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('recallReview') }

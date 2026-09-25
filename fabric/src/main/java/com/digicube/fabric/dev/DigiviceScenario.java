@@ -76,8 +76,9 @@ public final class DigiviceScenario {
                 check(!device.isRemoved() && !water.isRemoved() && !lava.isRemoved() && !abyss.isRemoved(), "no despawn after 6500 real server ticks");
                 check(!device.isRemoved(), "hopper cannot collect the dropped device");
                 var data = DigiviceSavedData.get(level.getServer());
-                var encoded = DigiviceSavedData.CODEC.encodeStart(NbtOps.INSTANCE, data).getOrThrow();
-                var decoded = DigiviceSavedData.CODEC.parse(NbtOps.INSTANCE, encoded).getOrThrow();
+                var ops = net.minecraft.resources.RegistryOps.create(NbtOps.INSTANCE, level.registryAccess());
+                var encoded = DigiviceSavedData.CODEC.encodeStart(ops, data).getOrThrow();
+                var decoded = DigiviceSavedData.CODEC.parse(ops, encoded).getOrThrow();
                 check(decoded.devices().equals(data.devices()), "ledger codec preserves owners, credentials, dimensions and positions");
                 var disk = data.device(DISK_OWNER);
                 if (disk == null) {

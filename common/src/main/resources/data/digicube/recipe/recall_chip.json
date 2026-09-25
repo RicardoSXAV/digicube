@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [" G ", "CRC", " C "],
+  "key": {
+    "G": "minecraft:gold_nugget",
+    "C": "minecraft:copper_ingot",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "digicube:recall_chip",
+    "count": 1
+  }
+}

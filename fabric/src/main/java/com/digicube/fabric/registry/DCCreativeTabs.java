@@ -21,7 +21,7 @@ public final class DCCreativeTabs {
             FabricCreativeModeTab.builder()
                     .title(Component.translatable("creative_tab.digicube.main"))
                     .icon(() -> new ItemStack(DCItems.DIGIVICE))
-                    .displayItems((parameters, output) -> output.accept(DCItems.DIGIVICE))
+                    .displayItems((parameters, output) -> { output.accept(DCItems.DIGIVICE); output.accept(DCItems.RECALL_CHIP); })
                     .build());
 
     private DCCreativeTabs() {}
@@ -29,6 +29,6 @@ public final class DCCreativeTabs {
     /** Registers the tab and category entries after the shared item registry is initialized. */
     public static void init() {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
-                .register(output -> output.insertAfter(Items.COMPASS, DCItems.DIGIVICE));
+                .register(output -> output.insertAfter(Items.COMPASS, DCItems.DIGIVICE, DCItems.RECALL_CHIP));
     }
 }

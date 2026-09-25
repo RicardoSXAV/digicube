@@ -21,9 +21,18 @@ public final class FabricDigivices {
         });
         PayloadTypeRegistry.clientboundPlay().register(DigiviceLocatorPayload.TYPE, DigiviceLocatorPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(DigiviceRemovedPayload.TYPE, DigiviceRemovedPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(com.digicube.digivice.DigiviceRecallPayload.TYPE,
+                com.digicube.digivice.DigiviceRecallPayload.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(com.digicube.digivice.DigiviceCursorPayload.TYPE,
+                com.digicube.digivice.DigiviceCursorPayload.STREAM_CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(com.digicube.digivice.DigiviceCursorPayload.TYPE,
+                (payload, context) -> context.server().execute(() -> com.digicube.digivice.DigiviceCursorPayload.handle(context.player(), payload)));
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                server.execute(() -> DigiviceSavedData.get(server).creativeCursor(handler.getPlayer().getUUID(), null)));
         ServerEntityEvents.ALLOW_LOAD.register((entity, level, reason, existing) -> Digivices.allowLoad(entity, level));
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             DigiviceSavedData.get(server).clearDeaths();
+            com.digicube.digivice.DigiviceStorage.tick(server);
             for (var player : server.getPlayerList().getPlayers()) Digivices.reconcile(player);
             boolean changed = DigiviceSavedData.get(server).takeLocatorChanges();
             for (var player : server.getPlayerList().getPlayers()) {
@@ -32,6 +41,7 @@ public final class FabricDigivices {
             }
         });
         ServerTickEvents.END_LEVEL_TICK.register(new com.digicube.fabric.dev.DigiviceScenario()::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(new com.digicube.fabric.dev.RecallScenario()::tick);
     }
     public static DigiviceLocatorPayload snapshot(net.minecraft.server.level.ServerPlayer player) {
         var dimension = player.level().dimension().identifier();

@@ -14,6 +14,7 @@ public final class EvolutionRenderType {
     public static final RenderType PARTICLES=create("evolution_particles",true);
     public static final RenderType DATA_STREAM=create("evolution_stream",true);
     public static final RenderType DIGIVICE_BEACON=create("digivice_beacon",true);
+    public static final RenderType RECALL_CHIP=create("recall_chip",false);
     private static RenderType create(String name,boolean particles) {
         var base=RenderPipelines.ENTITY_CUTOUT;
         var builder=RenderPipeline.builder().withLocation(Constants.id("pipeline/"+name))

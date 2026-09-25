@@ -32,18 +32,63 @@ public final class DigiviceSavedData extends SavedData {
                 UUIDUtil.CODEC.fieldOf("token").forGetter(Device::token),
                 Drop.CODEC.optionalFieldOf("drop").forGetter(Device::drop)).apply(i, Device::new));
     }
+    public record Snapshot(UUID owner, net.minecraft.world.item.ItemStack stack) {
+        static final Codec<Snapshot> CODEC = RecordCodecBuilder.create(i -> i.group(
+                UUIDUtil.CODEC.fieldOf("owner").forGetter(Snapshot::owner),
+                net.minecraft.world.item.ItemStack.CODEC.fieldOf("stack").forGetter(Snapshot::stack)).apply(i, Snapshot::new));
+    }
+    /** Where a device was last seen in someone's hands or menu: the Recall Chip searches the containers around it. */
+    public record Seen(UUID owner, Identifier dimension, Vec3 position) {
+        static final Codec<Seen> CODEC = RecordCodecBuilder.create(i -> i.group(
+                UUIDUtil.CODEC.fieldOf("owner").forGetter(Seen::owner),
+                Identifier.CODEC.fieldOf("dimension").forGetter(Seen::dimension),
+                Vec3.CODEC.fieldOf("position").forGetter(Seen::position)).apply(i, Seen::new));
+    }
     public static final Codec<DigiviceSavedData> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Device.CODEC.listOf().optionalFieldOf("devices", List.of()).forGetter(DigiviceSavedData::devices)).apply(i, DigiviceSavedData::new));
+            Device.CODEC.listOf().optionalFieldOf("devices", List.of()).forGetter(DigiviceSavedData::devices),
+            Snapshot.CODEC.listOf().optionalFieldOf("snapshots", List.of()).forGetter(d -> List.copyOf(d.snapshots.values())),
+            Seen.CODEC.listOf().optionalFieldOf("seen", List.of()).forGetter(d -> List.copyOf(d.seen.values())))
+            .apply(i, DigiviceSavedData::new));
     public static final SavedDataType<DigiviceSavedData> TYPE = new SavedDataType<>(
             Constants.id("digivices"), DigiviceSavedData::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
     private final Map<UUID, Device> devices = new LinkedHashMap<>();
+    private final Map<UUID, Snapshot> snapshots = new LinkedHashMap<>();
     private long revision;
     private long publishedRevision = -1;
     // A same-tick safety snapshot; never saved. Only a confirmed death consumes it.
     private final Map<UUID, net.minecraft.world.item.ItemStack> deaths = new java.util.HashMap<>();
+    private final Map<UUID, Seen> seen = new LinkedHashMap<>();
+    // Never saved: the credential a creative client reports on its inventory cursor, which the server cannot see.
+    private final Map<UUID, UUID> creativeCursors = new java.util.HashMap<>();
 
     public DigiviceSavedData() {}
-    private DigiviceSavedData(List<Device> entries) { for (var e : entries) devices.putIfAbsent(e.owner(), e); }
+    private DigiviceSavedData(List<Device> entries, List<Snapshot> saved, List<Seen> places) {
+        for (var e : entries) devices.putIfAbsent(e.owner(), e);
+        for (var s : saved) snapshots.put(s.owner(), s);
+        for (var s : places) seen.put(s.owner(), s);
+    }
+    public Seen seen(UUID owner) { return seen.get(owner); }
+    /** Saved only when it moved a block or more, so a device in hand does not dirty the world every tick. */
+    public void see(UUID owner, Identifier dimension, Vec3 position) {
+        var old = seen.get(owner);
+        if (old != null && old.dimension().equals(dimension) && old.position().distanceToSqr(position) < 1) return;
+        seen.put(owner, new Seen(owner, dimension, position));
+        setDirty();
+    }
+    public UUID creativeCursor(UUID player) { return creativeCursors.get(player); }
+    public void creativeCursor(UUID player, UUID token) {
+        if (token == null) creativeCursors.remove(player); else creativeCursors.put(player, token);
+    }
+    public void rememberStack(UUID owner, net.minecraft.world.item.ItemStack stack) {
+        var old = snapshots.get(owner);
+        if (old == null || !net.minecraft.world.item.ItemStack.matches(old.stack(), stack)) {
+            snapshots.put(owner, new Snapshot(owner, stack.copyWithCount(1))); setDirty();
+        }
+    }
+    public net.minecraft.world.item.ItemStack snapshot(UUID owner) {
+        var saved = snapshots.get(owner);
+        return saved == null ? net.minecraft.world.item.ItemStack.EMPTY : saved.stack().copy();
+    }
     public static DigiviceSavedData get(MinecraftServer server) { return server.overworld().getDataStorage().computeIfAbsent(TYPE); }
     public List<Device> devices() { return List.copyOf(devices.values()); }
     public Device device(UUID owner) { return devices.get(owner); }

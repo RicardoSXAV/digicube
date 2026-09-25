@@ -29,6 +29,8 @@ public final class DCItems {
     /** The tamer's core tool: scans, stores and digivolves a partner Digimon. */
     public static final ResourceKey<Item> DIGIVICE_KEY = key("digivice");
     public static final Item DIGIVICE = register(DIGIVICE_KEY, Item::new, new Item.Properties().stacksTo(1));
+    public static final Item RECALL_CHIP = register(key("recall_chip"), com.digicube.digivice.RecallChip::new,
+            new Item.Properties().stacksTo(16));
 
     private DCItems() {}
 

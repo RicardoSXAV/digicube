@@ -58,6 +58,8 @@ public final class FabricPartyNetworking {
 
     private static InteractionResult use(Player player, InteractionHand hand) {
         if (!player.getItemInHand(hand).is(DCItems.DIGIVICE) || player.isSpectator()) return InteractionResult.PASS;
+        // A held use button must not open the device UI in the middle of a recall arrival.
+        if (player.getCooldowns().isOnCooldown(player.getItemInHand(hand))) return InteractionResult.FAIL;
         if (player instanceof ServerPlayer serverPlayer) {
             com.digicube.digivice.Digivices.reconcile(serverPlayer);
             if (!com.digicube.digivice.Digivices.usable(serverPlayer, player.getItemInHand(hand))) return InteractionResult.FAIL;

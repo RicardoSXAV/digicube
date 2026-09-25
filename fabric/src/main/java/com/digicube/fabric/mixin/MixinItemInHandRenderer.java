@@ -13,6 +13,7 @@ import net.minecraft.world.entity.player.PlayerModelType;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
+import com.digicube.fabric.client.digivice.RecallVisuals;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,6 +21,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** Ordinary held items omit the arm; the Digivice has a visible one-handed grip. */
 @Mixin(ItemInHandRenderer.class)
 public class MixinItemInHandRenderer {
+
+    @Inject(method = "submitArmWithItem", at = @At("HEAD"), cancellable = true)
+    private void digicube$recallInHand(net.minecraft.client.player.AbstractClientPlayer player,float partial,float pitch,
+            net.minecraft.world.InteractionHand hand,float swing,ItemStack item,float equip,PoseStack pose,
+            SubmitNodeCollector collector,int light,CallbackInfo ci) {
+        if(RecallVisuals.firstPersonHand(player,hand,partial,equip,pose,collector,light))ci.cancel();
+    }
     @Inject(method = "renderItem", at = @At("HEAD"))
     private void digicube$holdDevice(LivingEntity entity, ItemStack item, ItemDisplayContext context,
                                     PoseStack pose, SubmitNodeCollector collector, int light, CallbackInfo ci) {

@@ -27,7 +27,7 @@ public final class Digivices {
         if (value.isEmpty()) return null;
         try { return UUID.fromString(value); } catch (IllegalArgumentException e) { return null; }
     }
-    private static void bind(ItemStack stack, UUID owner, UUID token) {
+    static void bind(ItemStack stack, UUID owner, UUID token) {
         stack.setCount(1);
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
             tag.putString(OWNER, owner.toString()); tag.putString(TOKEN, token.toString());
@@ -57,22 +57,41 @@ public final class Digivices {
         var device = DigiviceSavedData.get(player.level().getServer()).device(player.getUUID());
         return device != null && device.token().equals(token(stack)) && device.drop().isEmpty();
     }
+    /**
+     * The device is with its owner: in the inventory or on the menu cursor (moving between slots). The creative
+     * inventory keeps its cursor on the client, which reports a Digivice held there ({@link DigiviceCursorPayload}).
+     */
     public static boolean hasDevice(ServerPlayer player) {
-        return player.getInventory().contains(stack -> usable(player, stack));
+        if (player.getInventory().contains(stack -> usable(player, stack)) || usable(player, player.containerMenu.getCarried())) return true;
+        if (!player.isCreative()) return false;
+        var data = DigiviceSavedData.get(player.level().getServer());
+        var device = data.device(player.getUUID());
+        return device != null && device.drop().isEmpty() && device.token().equals(data.creativeCursor(player.getUUID()));
+    }
+    /** Whether this player was ever handed a device in this world. */
+    public static boolean tracked(ServerPlayer player) {
+        return DigiviceSavedData.get(player.level().getServer()).device(player.getUUID()) != null;
+    }
+
+    /**
+     * Revokes the owner's current credential wherever that copy is (a container, the ground, an unloaded chunk) and
+     * returns the new one. Loaded drops vanish at once; any other old copy is rejected on its next encounter.
+     */
+    static UUID revoke(MinecraftServer server, UUID owner) {
+        var data = DigiviceSavedData.get(server);
+        var previous = data.device(owner);
+        if (previous != null) previous.drop().ifPresent(drop -> removeSignal(server, drop));
+        UUID credential = UUID.randomUUID();
+        data.put(new DigiviceSavedData.Device(owner, credential, Optional.empty()));
+        for (var level : server.getAllLevels()) for (var entity : level.getAllEntities()) {
+            if (entity instanceof DroppedDigivice drop && owner.equals(owner(drop.stack()))) drop.discard();
+        }
+        return credential;
     }
 
     /** Operator /give is a replacement, never an additional device. Validate input before calling. */
     public static void replace(ServerPlayer player, ItemStack requested) {
-        var server = player.level().getServer();
-        var data = DigiviceSavedData.get(server);
-        var previous = data.device(player.getUUID());
-        if (previous != null) previous.drop().ifPresent(drop -> removeSignal(server, drop));
-        UUID credential = UUID.randomUUID();
-        data.put(new DigiviceSavedData.Device(player.getUUID(), credential, Optional.empty()));
-        // Revocation also covers old stacks in unopened containers/unloaded entities on their next encounter.
-        for (var level : server.getAllLevels()) for (var entity : level.getAllEntities()) {
-            if (entity instanceof DroppedDigivice drop && player.getUUID().equals(owner(drop.stack()))) drop.discard();
-        }
+        UUID credential = revoke(player.level().getServer(), player.getUUID());
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             var stack = player.getInventory().getItem(i);
             if (stack.is(DCItems.DIGIVICE) && (owner(stack) == null || player.getUUID().equals(owner(stack))))
@@ -88,7 +107,7 @@ public final class Digivices {
         player.containerMenu.broadcastChanges();
     }
 
-    private static void removeSignal(MinecraftServer server, DigiviceSavedData.Drop drop) {
+    static void removeSignal(MinecraftServer server, DigiviceSavedData.Drop drop) {
         var payload = new DigiviceRemovedPayload(drop.entity());
         for (var viewer : server.getPlayerList().getPlayers()) Services.PLATFORM.sendToPlayer(viewer, payload);
     }
@@ -121,8 +140,15 @@ public final class Digivices {
         player.drop(snapshot, true);
     }
 
-    /** Includes the menu cursor: foreign devices taken out of containers return to the world, never rebound. */
+    /**
+     * Includes the menu cursor: foreign devices taken out of containers return to the world, never rebound. A new,
+     * unbound Digivice (the creative tab, a command) becomes the player's device when theirs is not with them, so
+     * clearing an inventory never leaves a player without one; the old copy is revoked wherever it is.
+     */
     public static void reconcile(ServerPlayer player) {
+        var server = player.level().getServer();
+        var data = DigiviceSavedData.get(server);
+        boolean holding = hasDevice(player);
         var seen = new HashSet<UUID>();
         // Visit the actual inventory first. Menu slots may reference exactly these same stack objects.
         var stacks = new java.util.ArrayList<ItemStack>();
@@ -132,9 +158,15 @@ public final class Digivices {
         boolean changed = false;
         for (ItemStack stack : stacks) {
             if (!stack.is(DCItems.DIGIVICE) || !visited.add(stack)) continue;
-            if (!adopt(player.level().getServer(), stack, player.getUUID())) { stack.setCount(0); changed = true; continue; }
+            if (owner(stack) == null) {
+                if (data.device(player.getUUID()) == null) adopt(server, stack, player.getUUID());
+                else if (!holding) bind(stack, player.getUUID(), revoke(server, player.getUUID()));
+                else { stack.setCount(0); changed = true; continue; }
+                holding = true;
+                changed = true;
+            }
             UUID owner = owner(stack);
-            var d = DigiviceSavedData.get(player.level().getServer()).device(owner);
+            var d = data.device(owner);
             if (d == null || !d.token().equals(token(stack)) || d.drop().isPresent() || !seen.add(owner)) {
                 stack.setCount(0); changed = true; continue;
             }
@@ -143,9 +175,37 @@ public final class Digivices {
                 stack.setCount(0);
                 player.drop(returned, false);
                 changed = true;
-            } else if (stack.getCount() != 1) { stack.setCount(1); changed = true; }
+            } else {
+                if (stack.getCount() != 1) { stack.setCount(1); changed = true; }
+                // A device later lost (a destroyed chest, a cleared inventory) is summoned back as it was last seen,
+                // and one put away is searched for around here.
+                data.rememberStack(owner, stack);
+                data.see(owner, player.level().dimension().identifier(), player.position());
+            }
         }
+        if (inspectOpenContainer(player, data)) changed = true;
         if (changed) player.containerMenu.broadcastChanges();
+    }
+    /**
+     * The container a player has open: a revoked copy in it (recalled or replaced since it was put there) is gone the
+     * moment anyone looks, and a live device in it is remembered as seen here, so a chip searches the right place.
+     */
+    private static boolean inspectOpenContainer(ServerPlayer player, DigiviceSavedData data) {
+        var menu = player.containerMenu;
+        if (menu == player.inventoryMenu) return false;
+        boolean changed = false;
+        for (var slot : menu.slots) {
+            if (slot.container instanceof net.minecraft.world.entity.player.Inventory) continue;
+            var stack = slot.getItem();
+            UUID owner = stack.is(DCItems.DIGIVICE) ? owner(stack) : null;
+            if (owner == null) continue;
+            var d = data.device(owner);
+            if (d == null || !d.token().equals(token(stack)) || d.drop().isPresent()) {
+                slot.set(ItemStack.EMPTY);
+                changed = true;
+            } else data.see(owner, player.level().dimension().identifier(), player.position());
+        }
+        return changed;
     }
 
     /** Fabric's allow-load hook handles Q, death, containers, commands and saved vanilla legacy drops. */
@@ -177,6 +237,7 @@ public final class Digivices {
         var data = DigiviceSavedData.get(level.getServer());
         var d = data.device(owner);
         if (d == null || !d.token().equals(token(drop.stack()))) return;
+        data.rememberStack(owner, drop.stack());
         data.put(new DigiviceSavedData.Device(owner, d.token(), Optional.of(
                 new DigiviceSavedData.Drop(drop.getUUID(), level.dimension().identifier(), drop.position(), drop.beaconAt()))));
     }

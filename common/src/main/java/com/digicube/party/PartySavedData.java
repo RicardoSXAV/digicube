@@ -44,6 +44,8 @@ public final class PartySavedData extends SavedData {
         public VecSafePosition lastSafePosition;
         /** The player is in creative: test play, where Champions need no Rookie return form and never spend DigiSoul. */
         public boolean creative;
+        /** Server tick since which the Digivice has not been with the player, or -1 while it is. */
+        public int deviceAwaySince = -1;
     }
     public record VecSafePosition(net.minecraft.server.level.ServerLevel level,net.minecraft.world.phys.Vec3 position) {}
 }

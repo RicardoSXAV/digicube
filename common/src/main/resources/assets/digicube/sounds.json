@@ -143,5 +143,47 @@
         "attenuation_distance": 48
       }
     ]
+  },
+  "digivice_recall_call": {
+    "subtitle": "subtitles.digicube.digivice.recall_call",
+    "sounds": [
+      {
+        "name": "digicube:digivice/recall_call",
+        "volume": 1.0,
+        "preload": true
+      }
+    ]
+  },
+  "digivice_recall_wake": {
+    "subtitle": "subtitles.digicube.digivice.recall_wake",
+    "sounds": [
+      {
+        "name": "digicube:digivice/recall_wake",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "digivice_recall_flight": {
+    "subtitle": "subtitles.digicube.digivice.recall_flight",
+    "sounds": [
+      {
+        "name": "digicube:digivice/recall_flight",
+        "volume": 1.0,
+        "preload": true,
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "digivice_recall_catch": {
+    "subtitle": "subtitles.digicube.digivice.recall_catch",
+    "sounds": [
+      {
+        "name": "digicube:digivice/recall_catch",
+        "volume": 1.0,
+        "preload": true
+      }
+    ]
   }
 }

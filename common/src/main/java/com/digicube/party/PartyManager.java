@@ -6,6 +6,7 @@ import com.digicube.digimon.Progression;
 import com.digicube.digimon.EvolutionRules;
 import com.digicube.entity.EvolutionController;
 import com.digicube.entity.DigimonEntity;
+import com.digicube.digivice.Digivices;
 import com.digicube.registry.DCEntityTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -43,7 +44,8 @@ public final class PartyManager {
         data.session(player.getUUID()).creative = player.isCreative();
         digimon.setOwner(player);
         PartyMember member = remember(data, digimon);
-        if(needsOrigin(data,member)){member.setSlot(-1);data.setDirty();return member;}
+        // Partners come out of the Digivice: without it they wait in the Digispace.
+        if(needsOrigin(data,member)||away(player)){member.setSlot(-1);data.setDirty();return member;}
         // A cramped room must not force a large partner inside a wall. It stays selected
         // and waits for space, while subsequent gifts still respect the three-slot cap.
         if (member.active()) deploy(data, member, player);
@@ -245,15 +247,59 @@ public final class PartyManager {
                 capture(data, member, entity);
             }
         }
-        boolean regenerate = server.getTickCount() % Progression.RESERVE_REGEN_INTERVAL_TICKS == 0;
-        if (server.getTickCount() % 20 != 0) return;
+        int now = server.getTickCount();
+        // Every tick: a Digivice put down takes its partners with it at once.
+        var away = new java.util.HashSet<UUID>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player.isAlive() && !player.isSpectator() && checkDevice(player, now)) away.add(player.getUUID());
+        boolean regenerate = now % Progression.RESERVE_REGEN_INTERVAL_TICKS == 0;
+        if (now % 20 != 0) return;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (!player.isAlive() || player.isSpectator()) continue;
             if (regenerate) regenerateReserve(data, player.getUUID());
+            if (away.contains(player.getUUID())) continue;
             for (PartyMember member : data.roster().party(player.getUUID())) {
                 if (!data.live.containsKey(member.id())) deploy(data, member, player);
             }
         }
+    }
+
+    /**
+     * In creative only: how long the Digivice may be missing before the party goes in, time for the client's report of
+     * it on the creative cursor ({@link com.digicube.digivice.DigiviceCursorPayload}) to arrive. Survival is instant.
+     */
+    public static final int CREATIVE_GRACE_TICKS = 3;
+
+    /** A tamer who was handed a Digivice and has not got it with them now. */
+    private static boolean away(ServerPlayer player) {
+        return Digivices.tracked(player) && !Digivices.hasDevice(player);
+    }
+
+    /**
+     * Partners live in the Digivice: the moment it leaves its tamer (dropped, put in a chest, lost), every partner out
+     * in the world goes back to the Digispace ({@link #CREATIVE_GRACE_TICKS} later in creative). One in the middle of
+     * carrying a rider goes once the rider is down.
+     * @return whether the device is away, so nobody is deployed (a respawn without it sends no partner out)
+     */
+    public static boolean checkDevice(ServerPlayer player, int now) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartySavedData.Session session = data.session(player.getUUID());
+        if (!away(player)) { session.deviceAwaySince = -1; return false; }
+        if (session.deviceAwaySince < 0) session.deviceAwaySince = now;
+        if (player.isCreative() && now - session.deviceAwaySince < CREATIVE_GRACE_TICKS) return true;
+        int stowed = 0;
+        for (PartyMember member : data.roster().party(player.getUUID())) {
+            if (busy(data, member)) continue;
+            member.setSlot(-1);
+            recall(data, member);
+            stowed++;
+        }
+        if (stowed > 0) {
+            session.sync.invalidate();
+            data.setDirty();
+            player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("gui.digicube.party.stowed"));
+        }
+        return true;
     }
 
     public static void disconnect(ServerPlayer player) {

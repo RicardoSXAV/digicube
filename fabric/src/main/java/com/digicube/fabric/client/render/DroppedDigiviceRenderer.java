@@ -1,6 +1,7 @@
 package com.digicube.fabric.client.render;
 
 import com.digicube.digivice.DroppedDigivice;
+import com.digicube.fabric.client.digivice.RecallVisuals;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -19,6 +20,7 @@ public final class DroppedDigiviceRenderer extends EntityRenderer<DroppedDigivic
     public static final class State extends EntityRenderState {
         public final ItemStackRenderState item = new ItemStackRenderState();
         public float pitch, yaw;
+        public boolean recalled;
     }
     public DroppedDigiviceRenderer(EntityRendererProvider.Context context) {
         super(context); resolver = context.getItemModelResolver(); shadowRadius = .25F;
@@ -32,19 +34,23 @@ public final class DroppedDigiviceRenderer extends EntityRenderer<DroppedDigivic
         super.extractRenderState(entity, state, partial);
         resolver.updateForNonLiving(state.item, entity.stack(), ItemDisplayContext.NONE, entity);
         state.pitch = entity.pitch(partial); state.yaw = entity.getYRot();
+        state.recalled = RecallVisuals.replaces(entity.getUUID());
     }
     @Override public void submit(State state, PoseStack pose, SubmitNodeCollector collector, CameraRenderState camera) {
+        if (state.recalled) return;
         pose.pushPose();
         // Rest the rotated model's lowest point on the collision surface, including during its final settle.
-        var bounds = state.item.getModelBoundingBox();
-        double angle = Math.toRadians(state.pitch), lowest = Double.POSITIVE_INFINITY;
-        for (double y : new double[]{bounds.minY, bounds.maxY}) for (double z : new double[]{bounds.minZ, bounds.maxZ})
-            lowest = Math.min(lowest, (y * Math.cos(angle) - z * Math.sin(angle)) * SCALE);
-        pose.translate(0, .002 - lowest, 0);
+        pose.translate(0, restHeight(state.item.getModelBoundingBox(), state.pitch), 0);
         pose.mulPose(Axis.YP.rotationDegrees(state.yaw)); pose.mulPose(Axis.XP.rotationDegrees(state.pitch));
         pose.scale(SCALE, SCALE, SCALE);
         state.item.submit(pose, collector, state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor);
         pose.popPose();
         super.submit(state, pose, collector, camera);
+    }
+    public static double restHeight(net.minecraft.world.phys.AABB bounds, float pitch) {
+        double angle = Math.toRadians(pitch), lowest = Double.POSITIVE_INFINITY;
+        for (double y : new double[]{bounds.minY, bounds.maxY}) for (double z : new double[]{bounds.minZ, bounds.maxZ})
+            lowest = Math.min(lowest, (y * Math.cos(angle) - z * Math.sin(angle)) * SCALE);
+        return .002 - lowest;
     }
 }

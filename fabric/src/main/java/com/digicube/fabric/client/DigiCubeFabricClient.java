@@ -40,6 +40,8 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         new PartyClient().init();
         new StarterClient().init();
         new com.digicube.fabric.client.digivice.DigiviceLocator().init();
+        com.digicube.fabric.client.digivice.RecallVisuals.init();
+        com.digicube.fabric.client.digivice.DigiviceCursor.init();
         new DevClient().init();
         new AerialMountClient().init();
         com.digicube.fabric.client.render.PixelPlaneParticle.register();
