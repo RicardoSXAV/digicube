@@ -32,7 +32,10 @@ public final class EvolutionRenderType {
             builder.withBindGroupLayout(uniforms.build());
         }
         var pipeline=MixinEvolutionPipelines.digicube$register(builder.build());
-        return MixinEvolutionRenderType.digicube$create(Constants.id(name).toString(),RenderSetup.builder(pipeline).createRenderSetup());
+        // Additive glows write no depth: draw them after water and ice, or those paint over them.
+        var setup=RenderSetup.builder(pipeline);
+        if(particles)setup.setOutputTarget(com.digicube.fabric.client.render.AfterWaterEffects.TARGET);
+        return MixinEvolutionRenderType.digicube$create(Constants.id(name).toString(),setup.createRenderSetup());
     }
     private EvolutionRenderType() {}
 }

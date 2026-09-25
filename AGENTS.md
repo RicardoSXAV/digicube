@@ -505,6 +505,14 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   sub-tick), kept apart from `motion()` so the fireball keeps its own positioning rules; the ball's box centre, where
   its core is drawn, leaves the snout. A hit holds the ball still for `PepperBreathEntity.IMPACT_TICKS` to play
   `fireball_impact`, with no further collision. `:fabric:nativeAgumonTest` pins the drawn snout to the server's table.
+- Glows over water: 26.2 draws translucent entity models and custom geometry *before* translucent terrain, so a glow
+  that writes no depth (vanilla `entityTranslucentEmissive`, any additive pipeline) gets water and ice painted over it
+  and looks sunk below the surface. Use `AfterWaterEffects.glow(texture)` instead of `entityTranslucentEmissive`, and
+  give a custom glow pipeline's `RenderSetup` `AfterWaterEffects.TARGET` (`EvolutionRenderType` does for its additive
+  types): `MixinSubmitNodeCollection` moves those into vanilla's after-terrain phase (where translucent particles go),
+  and with improved transparency they draw into the water layer. Like vanilla particles, a glow under a water surface
+  is then hidden from above it. Depth-writing `entityTranslucent` effects are left before the water on purpose, so
+  submerged fish and bubbles still show through it.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner. Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin

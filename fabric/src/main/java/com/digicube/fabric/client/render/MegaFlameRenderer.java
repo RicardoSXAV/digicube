@@ -9,7 +9,6 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
@@ -60,7 +59,7 @@ public class MegaFlameRenderer extends EntityRenderer<MegaFlameEntity, MegaFlame
         poseStack.mulPose(Axis.XP.rotationDegrees(state.xRot));
         poseStack.scale(-SCALE, -SCALE, SCALE);
         poseStack.translate(0, EntityModel.MODEL_Y_OFFSET, 0);
-        collector.submitModel(model, state, poseStack, RenderTypes.entityTranslucentEmissive(TEXTURE),
+        collector.submitModel(model, state, poseStack, AfterWaterEffects.glow(TEXTURE),
                 LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
         poseStack.popPose();
     }

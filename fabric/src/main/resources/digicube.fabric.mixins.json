@@ -9,6 +9,7 @@
     "MixinMinecraft",
     "MixinEvolutionRenderType",
     "MixinEvolutionPipelines",
+    "MixinSubmitNodeCollection",
     "MixinEntityRenderer",
     "MixinHumanoidModel",
     "MixinItemInHandRenderer",

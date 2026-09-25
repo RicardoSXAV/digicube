@@ -56,7 +56,7 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
         stack.pushPose();
         transform(stack, state.yaw, state.pitch, state.scale);
         collector.submitModel(model, state, stack,
-                state.emissive?RenderTypes.entityTranslucentEmissive(Constants.id("textures/entity/projectile/" + state.projectile + ".png"))
+                state.emissive?AfterWaterEffects.glow(Constants.id("textures/entity/projectile/" + state.projectile + ".png"))
                         :RenderTypes.entityTranslucent(Constants.id("textures/entity/projectile/" + state.projectile + ".png")),
                 state.emissive?LightCoordsUtil.FULL_BRIGHT:state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor, null);
         stack.popPose();
