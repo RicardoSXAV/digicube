@@ -147,7 +147,31 @@
       "walk_blend": false,
       "attack_blend_in": 4,
       "attack_blend_out": 6,
-      "support_floor": true
+      "support_floor": true,
+      "pitch_path": [
+        "root"
+      ],
+      "pitch_at_rider": true,
+      "ridden_pitch": 45,
+      "swim_pitch": 0,
+      "rider": {
+        "path": [
+          "root",
+          "mantle",
+          "mantle_tier_5"
+        ],
+        "point": [
+          0,
+          0.25,
+          0.28125
+        ],
+        "pose": [
+          -0.1,
+          0,
+          0.9,
+          2.5
+        ]
+      }
     },
     "ikkakumon": {
       "culling_margin": 3,
@@ -382,6 +406,70 @@
           ]
         }
       ]
+    },
+    "pukamon": {
+      "culling_margin": 1,
+      "walk_blend": false,
+      "expressions": [
+        {
+          "clip": "bubble_blow",
+          "from": 5,
+          "until": 8,
+          "texture": "pukamon_bubbles_closed"
+        },
+        {
+          "clip": "bubble_blow",
+          "from": 8,
+          "until": 19,
+          "texture": "pukamon_bubbles_blowing"
+        }
+      ]
+    },
+    "mojyamon": {
+      "culling_margin": 4,
+      "walk_blend": true,
+      "attack_blend_in": 2,
+      "attack_blend_out": 3,
+      "upper_body": [
+        "mojyamon",
+        "pelvis",
+        "waist"
+      ],
+      "carried": "bone_back",
+      "rider": {
+        "path": [
+          "mojyamon",
+          "pelvis",
+          "waist",
+          "body",
+          "head"
+        ],
+        "point": [0, 0.139, 1.102],
+        "pose": [-1.55, 0.5, 0.4]
+      },
+      "look": {
+        "path": [
+          "mojyamon",
+          "pelvis",
+          "waist",
+          "body",
+          "head"
+        ],
+        "yaw": 6,
+        "pitch": 3,
+        "carry": [
+          {
+            "path": [
+              "mojyamon",
+              "pelvis",
+              "waist"
+            ],
+            "share": 0.75,
+            "yaw": 18,
+            "pitch": 8
+          }
+        ]
+      }
     }
   }
 }

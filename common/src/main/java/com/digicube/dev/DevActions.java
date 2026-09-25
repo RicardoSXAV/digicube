@@ -14,15 +14,14 @@ import java.util.Set;
 public final class DevActions {
     /** Ask for the current readout without doing anything. */
     public static final String REFRESH = "refresh";
-    /** Stage a fight between two wild Digimon in front of the player: {@link BattleTest#start}. */
+    /** Stage a fight between two sides of wild Digimon in front of the player: {@link BattleTest#start}. */
     public static final String BATTLE_START = "battle_start";
     /** Remove the staged fighters. */
     public static final String BATTLE_CLEAR = "battle_clear";
 
-    public static final String SPECIES_A_ARG = "species_a";
-    public static final String SPECIES_B_ARG = "species_b";
-    public static final String LEVEL_A_ARG = "level_a";
-    public static final String LEVEL_B_ARG = "level_b";
+    /** Each side of a fight: a list written by {@link BattleRoster#write}. */
+    public static final String SIDE_A_ARG = "side_a";
+    public static final String SIDE_B_ARG = "side_b";
 
     private static final Map<String, DevAction> ACTIONS = new LinkedHashMap<>();
 

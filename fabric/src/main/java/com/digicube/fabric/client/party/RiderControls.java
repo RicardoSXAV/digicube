@@ -112,6 +112,7 @@ public final class RiderControls {
         DigimonEntity.localRiderDives = mount != null && minecraft.gui.screen() == null && diveKey.isDown();
         DigimonEntity.localRiderDraws = false;
         speed(mount);
+        seaSight(minecraft, mount);
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
             java.util.Arrays.fill(wasDown, false);
@@ -121,10 +122,15 @@ public final class RiderControls {
             return;
         }
         LocalPlayer player = minecraft.player;
+        catchRing(mount);
+        turnMark(mount, player);
         List<DigimonAttack> attacks = mount.riderAttacks();
         boolean free = handsFree(player);
         softTarget = null;
-        for (DigimonAttack attack : attacks) if (softTarget == null) softTarget = mount.softTarget(player, attack);
+        // The attack under way outlines what it goes for; a bone that is away has nothing to aim.
+        DigimonAttack busy = mount.getAnimatingAttack();
+        if (busy != null && attacks.contains(busy) && aims(mount, busy)) softTarget = mount.softTarget(player, busy);
+        for (DigimonAttack attack : attacks) if (softTarget == null && aims(mount, attack)) softTarget = mount.softTarget(player, attack);
 
         // Slot 0 is the quick button, slot 1 the special one; what a button does comes from the attack's rider data.
         for (int slot = 0; slot < Math.min(attacks.size(), SLOTS); slot++) {
@@ -164,6 +170,11 @@ public final class RiderControls {
         }
     }
 
+    /** The attack has something to aim right now: anything but a returning weapon that is away from its thrower. */
+    private static boolean aims(DigimonEntity mount, DigimonAttack attack) {
+        return com.digicube.digimon.ThrownAttacks.returning(attack) == null || mount.boneCarried();
+    }
+
     /** Asks the server for rider slot {@code slot} when it is ready or close enough for the server to buffer. */
     private static boolean cast(DigimonEntity mount, int slot) {
         if (mount.seenCooldown(mount.riderAttacks().get(slot)) > DigimonEntity.RIDER_BUFFER_TICKS || !ClientPlayNetworking.canSend(PartyActionPayload.TYPE)) return false;
@@ -196,6 +207,72 @@ public final class RiderControls {
                     mount.level().addAlwaysVisibleParticle(dust, at.x, at.y, at.z, 0, 0, 0);
                 }
             }
+        }
+    }
+
+    /** Blocks from the bone's home within which the body stands for its fist to take the bone out of the air. */
+    private static final double CATCH_RING = .7;
+    private static final int RING_ICE = 0x9FDCFF, RING_SET = 0xFFFFFF;
+
+    /**
+     * A thrower's bone comes home to a fixed spot beside where it left the fist, and it is caught only if the body is
+     * there. While it flies, the rider sees that spot: a ring of frost on the ground, turning white once the body stands
+     * in it. Only the rider sees it (these are the local client's particles).
+     */
+    private static void catchRing(DigimonEntity mount) {
+        var bone = mount.seenBone();
+        if (bone == null || bone.phase() != com.digicube.entity.BoomerangEntity.Phase.FLYING || bone.path() == null || mount.tickCount % 2 != 0) return;
+        Vec3 home = bone.path().catchPoint();
+        var floor = mount.level().clip(new net.minecraft.world.level.ClipContext(home.add(0, 1, 0), home.add(0, -4, 0),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.ANY, mount));
+        double y = (floor.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? home.y - 1.2 : floor.getLocation().y) + .08;
+        boolean set = mount.position().subtract(home).horizontalDistance() <= CATCH_RING;
+        DustParticleOptions dust = new DustParticleOptions(set ? RING_SET : RING_ICE, set ? 1F : .8F);
+        int points = 16;
+        double turn = mount.tickCount * .04;
+        for (int i = 0; i < points; i++) {
+            double a = turn + i * Math.PI * 2 / points;
+            mount.level().addAlwaysVisibleParticle(dust, home.x + Math.cos(a) * CATCH_RING, y, home.z + Math.sin(a) * CATCH_RING, 0, 0, 0);
+        }
+    }
+
+    private static final int MARK_NEAR = 0xFFE7A8, MARK_FULL = 0xFFFFFF, MARK_SHORT = 0xB0B8C8;
+
+    /**
+     * While the bone's wind-up is held, where it will turn: a ring on the ground along the crosshair, at the aim if the
+     * charge reaches it, else as far as it does, sliding out as the charge grows (white at a full charge, grey and
+     * smaller while the aim is still out of reach). The reach is the server's: the charge, a leap and the pace along
+     * the throw ({@link com.digicube.digimon.ThrownAttacks#impulse}), read off the rider's own mount.
+     */
+    private static void turnMark(DigimonEntity mount, LocalPlayer player) {
+        if (mount.tickCount % 2 != 0 || !mount.windingUpThrow()) return;
+        var spec = com.digicube.digimon.ThrownAttacks.returning(mount.getAnimatingAttack());
+        if (spec == null) return;
+        float charge = mount.throwCharge();
+        Vec3 look = player.getLookAngle();
+        float impulse = com.digicube.digimon.ThrownAttacks.impulse(!mount.onGround() && !mount.isInWater(), mount.getDeltaMovement(), look,
+                spec.speed()[0] * spec.mix(spec.chargeSpeed(), charge), spec.airBoost());
+        double reach = spec.reach(charge) * impulse;
+        Vec3 eye = player.getEyePosition(), aim;
+        if (softTarget != null) aim = softTarget.position();
+        else {
+            var hit = mount.level().clip(new net.minecraft.world.level.ClipContext(eye, eye.add(look.scale(reach + 12)),
+                    net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, mount));
+            aim = hit.getLocation();
+        }
+        Vec3 flat = aim.subtract(mount.position()).multiply(1, 0, 1);
+        if (flat.lengthSqr() < 1.0E-4) return;
+        boolean short_ = flat.length() > reach;
+        Vec3 at = mount.position().add(flat.normalize().scale(Math.min(flat.length(), reach)));
+        var floor = mount.level().clip(new net.minecraft.world.level.ClipContext(at.add(0, 3, 0), at.add(0, -6, 0),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.ANY, mount));
+        double y = (floor.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? mount.getY() : floor.getLocation().y) + .08;
+        double radius = short_ ? .45 : .6 + .15 * Math.sin(mount.tickCount * .5) * charge;
+        DustParticleOptions dust = new DustParticleOptions(short_ ? MARK_SHORT : charge >= 1 ? MARK_FULL : MARK_NEAR, short_ ? .7F : 1F);
+        int points = 12;
+        for (int i = 0; i < points; i++) {
+            double a = -mount.tickCount * .06 + i * Math.PI * 2 / points;
+            mount.level().addAlwaysVisibleParticle(dust, at.x + Math.cos(a) * radius, y, at.z + Math.sin(a) * radius, 0, 0, 0);
         }
     }
 
@@ -246,6 +323,18 @@ public final class RiderControls {
         if (shot >= 0 && shot < 6) { nod -= 1.8F * Mth.square(1 - shot / 6); fov += .025F * Mth.square(1 - shot / 6); }
         return shake == 0 && fov == 1 && nod == 0 ? null : new float[] {shake * Mth.sin(time * 2.9F), shake * Mth.cos(time * 3.7F) + nod, fov};
     }
+
+    /**
+     * A swimmer shares its sight as it shares its breath: under water its rider's eyes adjust as fast as a spectator's
+     * (vanilla's ten ticks a tick, full in 3 s instead of 30), so the fog opens out as soon as the mount dives.
+     */
+    private static void seaSight(Minecraft minecraft, DigimonEntity mount) {
+        if (mount == null || !mount.canSwim() || !(minecraft.player instanceof com.digicube.fabric.mixin.LocalPlayerAccessor eyes)
+                || !minecraft.player.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) return;
+        eyes.digicube$setWaterVisionTime(Math.min(SEA_SIGHT_FULL, eyes.digicube$waterVisionTime() + SEA_SIGHT_RATE));
+    }
+    /** Vanilla's full adjustment, and what the saddle adds on top of vanilla's own tick a tick. */
+    private static final int SEA_SIGHT_FULL = 600, SEA_SIGHT_RATE = 9;
 
     /**
      * The view widens a little as the mount picks up speed (a few degrees at a gallop, most at the peak of a jet

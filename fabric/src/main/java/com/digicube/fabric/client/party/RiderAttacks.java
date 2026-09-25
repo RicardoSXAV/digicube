@@ -84,7 +84,8 @@ public final class RiderAttacks {
 
     /**
      * One attack tile, {@code size} GUI units square. While the attack cools down the dull twin covers the part
-     * of the clock face that is still to come, and the seconds left stand on it.
+     * of the clock face that is still to come, and the seconds left stand on it. A stacked attack (Gold Rush) shows
+     * its ready uses in the bottom right corner; while one is left the sweep of the next only shades the tile.
      */
     static void tile(GuiGraphicsExtractor g, Font font, DigimonEntity mount, DigimonAttack attack, int x, int y, int size, float partial, int alpha) {
         Identifier ready = attack.id().withPath(path -> "textures/gui/attack/" + path + ".png");
@@ -100,8 +101,15 @@ public final class RiderAttacks {
         // A hold is only lit while it has prey: a dull tile says a press would do nothing.
         var spec = mount.riderSpec(attack);
         if (done >= 1 && spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.GRAB && mount.grabPrey() == null) done = 0;
-        if (done >= 1) return;
+        boolean stacked = com.digicube.digimon.AttackCharges.of(attack) > 1;
+        int uses = stacked ? mount.readyUses(attack) : 0;
+        if (done >= 1) {
+            if (stacked) uses(g, x, y, size, uses, alpha);
+            return;
+        }
         Identifier off = attack.id().withPath(path -> "textures/gui/attack/" + path + "_off.png");
+        // With a use still ready the tile stays lit: the refill only shades it (55 % lit, 45 % dull, as approved in v3).
+        int sweep = stacked && uses > 0 ? DigiTheme.withAlpha(DigiTheme.WHITE, alpha * 115 / 255) : color;
         g.pose().pushMatrix();
         g.pose().translate(x, y);
         g.pose().scale(size / (float) TEXTURE, size / (float) TEXTURE);
@@ -112,16 +120,37 @@ public final class RiderAttacks {
                 boolean dull = column < TEXTURE - 1 && angle(column, row) >= done;
                 if (dull && start < 0) start = column;
                 else if (!dull && start >= 0) {
-                    g.blit(RenderPipelines.GUI_TEXTURED, off, start, row, start, row, column - start, 1, column - start, 1, TEXTURE, TEXTURE, color);
+                    g.blit(RenderPipelines.GUI_TEXTURED, off, start, row, start, row, column - start, 1, column - start, 1, TEXTURE, TEXTURE, sweep);
                     start = -1;
                 }
             }
         }
         g.pose().popMatrix();
-        if (left >= 20 && size >= HUD_TILE) {
+        if (stacked) uses(g, x, y, size, uses, alpha);
+        if (left >= 20 && size >= HUD_TILE && uses == 0) {
             String seconds = Integer.toString((int) Math.ceil(left / 20));
             g.text(font, seconds, x + (size - font.width(seconds)) / 2 + 1, y + (size - 8) / 2 + 1, DigiTheme.withAlpha(DigiTheme.WHITE, alpha), true);
         }
+    }
+
+    /** 3 x 5 texel digits for the stack count. */
+    private static final String[] DIGITS = {"111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001",
+            "111100111001111", "111100111101111", "111001010010010", "111101111101111", "111101111001111"};
+    private static final int PLATE = 0xFF1C100A, INK = 0xFFFFF6B0, INK_SPENT = 0xFF8C8C96;
+
+    /**
+     * The ready uses of a stacked attack in the tile's bottom right corner, in the tile's own texels: a dark plate
+     * 5 x 7 against the frame (texels 26-30, 24-30) and the digit centred on it, grey at none.
+     */
+    private static void uses(GuiGraphicsExtractor g, int x, int y, int size, int uses, int alpha) {
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        g.pose().scale(size / (float) TEXTURE, size / (float) TEXTURE);
+        g.fill(26, 24, 31, 31, DigiTheme.withAlpha(PLATE, alpha));
+        String rows = DIGITS[Math.clamp(uses, 0, 9)];
+        int ink = DigiTheme.withAlpha(uses > 0 ? INK : INK_SPENT, alpha);
+        for (int i = 0; i < 15; i++) if (rows.charAt(i) == '1') g.fill(27 + i % 3, 25 + i / 3, 28 + i % 3, 26 + i / 3, ink);
+        g.pose().popMatrix();
     }
 
     /** Clock angle of a texel's centre, 0..1 clockwise from twelve: the same sweep as the approved preview. */

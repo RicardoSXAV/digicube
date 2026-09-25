@@ -1,6 +1,7 @@
 package com.digicube.fabric.client.dev;
 
 import com.digicube.Constants;
+import com.digicube.dev.BattleRoster;
 import com.digicube.dev.BattleTest;
 import com.digicube.dev.DevActionPayload;
 import com.digicube.dev.DevStatePayload;
@@ -15,8 +16,10 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.Identifier;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,10 +50,19 @@ public final class DevClient {
     final Map<DevTabs.Tab, Integer> scroll = new HashMap<>();
     final Set<DevTabs.Section> collapsed = new HashSet<>();
 
-    // Battle Testing picks; the species list is static, so they survive worlds too
-    Identifier fighterA, fighterB;
-    int levelA = Progression.CHAMPION_LEVEL, levelB = Progression.CHAMPION_LEVEL;
+    // Battle Testing sides; the species list is static, so they survive worlds too
+    final List<Fighter> sideA = new ArrayList<>(), sideB = new ArrayList<>();
     DevTabs.Section battleSection;
+
+    /** One kind on a Battle Testing side: how many of which Digimon at which level; no species yet while being picked. */
+    static final class Fighter {
+        Identifier species;
+        int level = Progression.CHAMPION_LEVEL, count = 1;
+
+        Fighter(Identifier species) { this.species = species; }
+
+        BattleRoster.Entry entry() { return new BattleRoster.Entry(species.toString(), level, count); }
+    }
 
     /** The running fight as {@link BattleTest} describes it, or null. */
     private CompoundTag battle;
@@ -62,8 +74,8 @@ public final class DevClient {
         DevCatalog.declare(this);
         index = DevSearch.index(tabs);
         List<DigimonSpecies> fighters = DigimonSpeciesRegistry.all().stream().filter(DigimonSpecies::canFight).toList();
-        fighterA = pick(fighters, "agumon", 0);
-        fighterB = pick(fighters, "gabumon", 1);
+        sideA.add(new Fighter(pick(fighters, "agumon", 0)));
+        sideB.add(new Fighter(pick(fighters, "gabumon", 1)));
 
         ClientPlayNetworking.registerGlobalReceiver(DevStatePayload.TYPE, (payload, context) ->
                 context.client().execute(() -> {
@@ -78,7 +90,7 @@ public final class DevClient {
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, Constants.id("dev_battle"), (graphics, delta) -> {
             Minecraft client = Minecraft.getInstance();
             if (battle == null || client.player == null || client.gui.hud.isHidden() || client.gui.screen() instanceof DevPanelScreen) return;
-            BattleReadout.draw(graphics, client.font, client.getWindow().getGuiScaledWidth(), battle, battleAge);
+            BattleReadout.draw(graphics, client.font, client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScale(), battle, battleAge);
         });
     }
 
@@ -88,6 +100,15 @@ public final class DevClient {
     }
 
     boolean fighting() { return battle != null; }
+
+    /** Both sides have a Digimon in every row. */
+    boolean ready() {
+        return !sideA.isEmpty() && !sideB.isEmpty() && sideA.stream().allMatch(f -> f.species != null) && sideB.stream().allMatch(f -> f.species != null);
+    }
+
+    static ListTag write(List<Fighter> side) {
+        return BattleRoster.write(side.stream().map(Fighter::entry).toList());
+    }
 
     void send(String action, CompoundTag args) {
         if (ClientPlayNetworking.canSend(DevActionPayload.TYPE)) ClientPlayNetworking.send(new DevActionPayload(action, args));

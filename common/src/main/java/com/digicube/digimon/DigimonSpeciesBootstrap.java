@@ -18,11 +18,6 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("pepper_breath"), DigimonAttack.Kind.FIREBALL,
             1.5F, 100, 24, 12, 10.0, false);
 
-    /** Agumon's basic swipe: quick, alternates hands. */
-    public static final DigimonAttack CLAW = new DigimonAttack(
-            Constants.id("claw"), DigimonAttack.Kind.MELEE,
-            0.7F, 20, 10, 4, 0.0, true);
-
     /** Shared baby-stage move: a small bubble stream every two seconds. */
     public static final DigimonAttack BUBBLE_BLOW = new DigimonAttack(
             Constants.id("bubble_blow"), DigimonAttack.Kind.BUBBLES,
@@ -91,7 +86,7 @@ public final class DigimonSpeciesBootstrap {
     public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
 
     public static Map<Identifier, DigimonAttack> attacks() {
-        return java.util.stream.Stream.concat(java.util.stream.Stream.concat(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack), KineticAttacks.all().stream().map(KineticAttacks.Definition::attack)), java.util.stream.Stream.of(PEPPER_BREATH, CLAW, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
+        return java.util.stream.Stream.concat(java.util.stream.Stream.concat(java.util.stream.Stream.concat(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack), KineticAttacks.all().stream().map(KineticAttacks.Definition::attack)), ThrownAttacks.attacks().stream()), java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
                 BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, FREEZE_FANG, HOWLING_BLASTER, ROCK_PUNCH, TECTONIC_FIST,
                 ICE_BLAST, CONSTRICTION))
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));

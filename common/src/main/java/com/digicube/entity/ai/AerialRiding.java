@@ -121,7 +121,8 @@ public final class AerialRiding {
             target = new Vec3(target.x * .3, p.climbSpeed() * power, target.z * .3);
         }
         if (phase == FlightPhase.APPROACH) {
-            double down = Math.min(p.descendSpeed(), .07 + groundDistance(3) * .12);
+            // Settles in rather than drops: about a second from where an approach begins, touching down at .035 a tick.
+            double down = Math.min(p.descendSpeed(), .035 + groundDistance(3) * .07);
             target = new Vec3(target.x * .3, -down, target.z * .3);
         }
         if (mob.getFlightFuel() <= 0) target = new Vec3(target.x * .3, -p.descendSpeed(), target.z * .3);
@@ -149,15 +150,14 @@ public final class AerialRiding {
 
     /** Measure the remaining descent to solid terrain.
      * @param limit maximum probe distance
-     * @return distance to solid support, in eighth-block increments, or the limit */
+     * @return distance from the feet down to the top of the highest supporting collision under them, or the limit */
     public double groundDistance(double limit) {
         AABB feet = mob.getBoundingBox();
-        for (double d = .125; d <= limit; d += .125) {
-            AABB probe = new AABB(feet.minX + .1, feet.minY - d, feet.minZ + .1,
-                    feet.maxX - .1, feet.minY - d + .125, feet.maxZ - .1);
-            if (mob.level().getBlockCollisions(mob, probe).iterator().hasNext()) return d;
-        }
-        return limit;
+        AABB probe = new AABB(feet.minX + .1, feet.minY - limit, feet.minZ + .1, feet.maxX - .1, feet.minY, feet.maxZ - .1);
+        double top = Double.NEGATIVE_INFINITY;
+        for (var shape : mob.level().getBlockCollisions(mob, probe))
+            if (!shape.isEmpty()) top = Math.max(top, shape.max(net.minecraft.core.Direction.Axis.Y));
+        return top == Double.NEGATIVE_INFINITY ? limit : Mth.clamp(feet.minY - top, 0, limit);
     }
 
     /** Check loaded space, borders, and the taller rider's clearance.

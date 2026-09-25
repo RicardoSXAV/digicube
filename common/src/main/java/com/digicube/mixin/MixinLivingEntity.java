@@ -40,6 +40,9 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     /** Like the ink's: the longest the current Exposed has been, and until when its emblem blinks for a critical hit. */
     @Unique
     private int digicube$exposedLength, digicube$exposedFlashUntil;
+    /** The longest the fire a Digimon lit on this body has been, in ticks; 0 while it is not Burned. */
+    @Unique
+    private int digicube$burnLength;
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void digicube$defineMarks(SynchedEntityData.Builder builder, CallbackInfo ci) {
@@ -71,9 +74,12 @@ public abstract class MixinLivingEntity implements CombatMarkState {
                 cracked == null ? 0 : cracked.isInfiniteDuration() ? 1 : Math.min(1F, cracked.getDuration() / (float) CrackMark.CRACKED_TICKS)));
         MobEffectInstance exposed = living.getEffect(DCEffects.EXPOSED);
         digicube$exposedLength = exposed == null ? 0 : Math.max(digicube$exposedLength, exposed.getDuration());
-        living.getEntityData().set(digicube$MARKS2, !living.isAlive() || exposed == null ? 0 : CombatMarkState.pack2(
-                exposed.isInfiniteDuration() ? 1 : exposed.getDuration() / (float) Math.max(1, digicube$exposedLength),
-                living.tickCount < digicube$exposedFlashUntil));
+        // Burned while the fire lasts: water, rain or the fire running out ends it, whatever lit it again since.
+        if (!living.isOnFire()) digicube$burnLength = 0;
+        living.getEntityData().set(digicube$MARKS2, !living.isAlive() ? 0 : CombatMarkState.pack2(
+                exposed == null ? 0 : exposed.isInfiniteDuration() ? 1 : exposed.getDuration() / (float) Math.max(1, digicube$exposedLength),
+                living.tickCount < digicube$exposedFlashUntil,
+                digicube$burnLength == 0 ? 0 : Math.min(1F, living.getRemainingFireTicks() / (float) digicube$burnLength)));
     }
 
     @Override
@@ -89,6 +95,13 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     @Override
     public void digicube$exposedCrit() {
         digicube$exposedFlashUntil = ((LivingEntity) (Object) this).tickCount + ExposedMark.FLASH_TICKS;
+    }
+
+    @Override
+    public void digicube$burn(int ticks) {
+        LivingEntity living = (LivingEntity) (Object) this;
+        if (!living.isOnFire()) return; // fire-proof bodies are never Burned
+        digicube$burnLength = Math.max(digicube$burnLength, Math.max(ticks, living.getRemainingFireTicks()));
     }
 
     @Override

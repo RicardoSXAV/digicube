@@ -133,6 +133,14 @@ public final class PartyHudReadout {
         return guiScale >= 3 ? (guiScale - 0.5F) / guiScale : 1.0F;
     }
 
+    /** Distance of the strip from the top and left edges of the screen, in unscaled GUI units. */
+    public static final int STRIP_MARGIN = 4;
+
+    /** Where the strip ends on the right, in GUI units: other top-of-screen readouts start past it. */
+    public static int stripRight(int guiScale) {
+        return STRIP_MARGIN + (int) Math.ceil(CARD_WIDTH * stripScale(guiScale));
+    }
+
     /** Height of the whole strip in units: header, cards, stubs and the gaps between them. */
     public static int stackHeight(int filled, int empty, boolean header) {
         int slots = filled + empty;

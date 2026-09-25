@@ -185,5 +185,85 @@
         "preload": true
       }
     ]
+  },
+  "digmon_drill_spin": {
+    "subtitle": "subtitles.digicube.digmon.drill_spin",
+    "sounds": [
+      {
+        "name": "digicube:attack/digmon_drill_spin",
+        "volume": 0.7,
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "gold_rush_launch": {
+    "subtitle": "subtitles.digicube.gold_rush.launch",
+    "sounds": [
+      {
+        "name": "digicube:attack/gold_rush_launch_1",
+        "volume": 0.9,
+        "attenuation_distance": 32
+      },
+      {
+        "name": "digicube:attack/gold_rush_launch_2",
+        "volume": 0.9,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "gold_rush_flight": {
+    "subtitle": "subtitles.digicube.gold_rush.flight",
+    "sounds": [
+      {
+        "name": "digicube:attack/gold_rush_flight",
+        "volume": 0.6,
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "gold_rush_impact": {
+    "subtitle": "subtitles.digicube.gold_rush.impact",
+    "sounds": [
+      {
+        "name": "digicube:attack/gold_rush_impact_1",
+        "volume": 1.0,
+        "attenuation_distance": 32
+      },
+      {
+        "name": "digicube:attack/gold_rush_impact_2",
+        "volume": 1.0,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "big_crack_grind": {
+    "subtitle": "subtitles.digicube.big_crack.grind",
+    "sounds": [
+      {
+        "name": "digicube:attack/big_crack_grind",
+        "volume": 1.0,
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "big_crack_rupture": {
+    "subtitle": "subtitles.digicube.big_crack.rupture",
+    "sounds": [
+      {
+        "name": "digicube:attack/big_crack_rupture_1",
+        "volume": 1.0,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "digicube:attack/big_crack_rupture_2",
+        "volume": 1.0,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "digicube:attack/big_crack_rupture_3",
+        "volume": 1.0,
+        "attenuation_distance": 40
+      }
+    ]
   }
 }

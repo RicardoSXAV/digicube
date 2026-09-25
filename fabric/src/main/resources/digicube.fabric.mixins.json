@@ -16,7 +16,8 @@
     "MixinItemInHandLayer",
     "MixinGuiGraphicsExtractor",
     "MixinHud",
-    "KeyMappingAccessor"
+    "KeyMappingAccessor",
+    "LocalPlayerAccessor"
   ],
   "server": [],
   "injectors": {

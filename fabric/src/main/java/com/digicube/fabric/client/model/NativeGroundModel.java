@@ -30,8 +30,19 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         public int column(float run) { return Math.round(Math.clamp(run, 0, 1) * (down.length - 1)); }
         public boolean hind(int hoof) { return hooves.get(hoof).startsWith("rear"); }
     }
-    /** Ordinary head look ({@code look} in the catalog): the part turned toward where the entity looks, limited in degrees. */
-    public record Look(java.util.List<String> path, float yaw, float pitch) {}
+    /**
+     * Ordinary head look ({@code look} in the catalog): the part turned toward where the entity looks, limited in degrees.
+     * A head fused to its trunk (Mojyamon's face sits on its chest) cannot turn far on its own without burying the face
+     * in the fur: {@code carry} hands a share of the look to parts further down the chain (the waist twists the whole
+     * upper body), each within its own limits, and the head takes what is left.
+     */
+    public record Look(java.util.List<String> path, float yaw, float pitch, java.util.List<Carry> carry) {
+        public Look(java.util.List<String> path, float yaw, float pitch) { this(path, yaw, pitch, java.util.List.of()); }
+        /** The share of the head's own turn: what the carrying parts leave. */
+        public float headShare() { float s = 1; for (var c : carry) s -= c.share(); return s; }
+    }
+    /** A part that takes {@code share} of the look, limited to {@code yaw} and {@code pitch} degrees. */
+    public record Carry(java.util.List<String> path, float share, float yaw, float pitch) {}
     /**
      * Caster-anchored clips of one effect model ({@code attack_effects}), drawn in the caster's frame while the attack
      * animation of the same name plays and on its clock: a charge in the mouth, a streak behind a claw.
@@ -41,7 +52,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                              float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
                              java.util.List<ClothChains.Chain> cloth, java.util.List<String> upperBody, Flames flames,
-                             HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes) {
+                             HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes,
+                             String carried, float swimPitch, boolean pitchAtRider) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -66,6 +78,10 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private final ModelPart upperBase;
     private final java.util.Set<ModelPart> flameParts;
     private final ModelPart lookPart;
+    private final ModelPart[] carryParts;
+    /** Everything the upper body does not carry (legs and hips), for a thrower's layered performances; and the carried weapon. */
+    private final java.util.Set<ModelPart> lowerParts;
+    private final ModelPart carriedPart;
 
     public NativeGroundModel(ModelPart root, Definition definition) {
         super(NativeModelGeometry.apply(root, definition.geometry()));
@@ -84,6 +100,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         ModelPart look=null;
         if(definition.look()!=null){look=root;for(String name:definition.look().path())look=look.getChild(name);}
         lookPart=look;
+        carryParts=new ModelPart[definition.look()==null?0:definition.look().carry().size()];
+        for(int i=0;i<carryParts.length;i++){ModelPart c=root;for(String name:definition.look().carry().get(i).path())c=c.getChild(name);carryParts[i]=c;}
+        if(upperParts==null)lowerParts=null;
+        else{lowerParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());lowerParts.addAll(root.getAllParts());lowerParts.removeAll(upperParts);}
+        carriedPart=definition.carried()==null?null:animations.part(definition.carried());
     }
 
     public static Map<Identifier, Definition> definitions() { return DEFINITIONS; }
@@ -100,6 +121,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     /** The authored pose for this frame: idle, gait, swim and the attack in progress. Cloth hangs from it afterwards. */
     private void pose(DigimonRenderState state) {
         animations.hideMembranes();
+        if (carriedPart != null) carriedPart.visible = state.boneCarried;
+        if (state.attackAnimationName != null && state.attackAnimation.isStarted() && upperParts != null
+                && com.digicube.digimon.ThrownAttacks.handles(state.attackDefinition)) {
+            thrownPerformance(state);
+            return;
+        }
         // Also under a rider: mounted combat casts from the saddle, and a mount that does not fight never starts one.
         if (state.attackAnimationName != null && state.attackAnimation.isStarted()) {
             String attackClip=state.attackInWater && animations.has(state.attackAnimationName+"_water")
@@ -156,6 +183,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                     aimPart.xRot+=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
                 }
                 look(state,1-weight);
+                divePitch(state,1-weight);
             }
             supportFloor(state);
             return;
@@ -169,24 +197,110 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             for(var part:flameParts)part.visible=true;
         }
         bank(state);
-        if (definition.pitchPath()!=null) {
-            // The part that carries a swimmer's dive and climb: the rider's by default, the neck base of a serpent.
-            ModelPart back=rootPart;
-            for(String name:definition.pitchPath())back=back.getChild(name);
-            float water=Math.clamp(state.swimAnimationAmount,0,1);
-            float limit=state.isBeingRidden?definition.riddenPitch():65;
-            back.xRot+=Math.clamp(state.xRot,-limit,limit)*((float)Math.PI/180)*water;
-            back.zRot+=state.swimBank*(state.isBeingRidden?.25F:1)*((float)Math.PI/180)*water;
-        }
+        divePitch(state,1);
         supportFloor(state);
     }
 
-    /** Turns the look part toward where the entity looks (vanilla's head yaw and pitch), within the catalog's limits. */
+    /**
+     * A swimmer's dive and climb, {@code keep} of it (an attack takes the body level as it blends in, as its hits are):
+     * the pitch part (the rider's by default, the neck base of a serpent) turns by the body's pitch within its limit
+     * ({@code ridden_pitch} under a rider, {@code swim_pitch} without; 0 keeps the body upright) and banks into the turn.
+     * With {@code pitch_at_rider} it turns about the rider's seat instead of its own pivot: the rider stays where the
+     * saddle is (and where the first-person camera is) and the body swings under them.
+     */
+    private void divePitch(DigimonRenderState state,float keep) {
+        if(definition.pitchPath()==null || keep<=0)return;
+        float limit=state.isBeingRidden?definition.riddenPitch():definition.swimPitch();
+        if(limit<=0)return;
+        ModelPart back=rootPart;
+        for(String name:definition.pitchPath())back=back.getChild(name);
+        float water=Math.clamp(state.swimAnimationAmount,0,1)*keep;
+        float pitch=Math.clamp(state.xRot,-limit,limit)*((float)Math.PI/180)*water;
+        float roll=state.swimBank*(state.isBeingRidden?.25F:1)*((float)Math.PI/180)*water;
+        if(!definition.pitchAtRider() || definition.rider()==null) {
+            back.xRot+=pitch;
+            back.zRot+=roll;
+            return;
+        }
+        // The seat in the pitch part's parent frame, in pixels: the rider's path runs on from the pitch part.
+        var stack=new com.mojang.blaze3d.vertex.PoseStack();
+        ModelPart part=back;part.translateAndRotate(stack);
+        var path=definition.rider().path();
+        for(int i=definition.pitchPath().size();i<path.size();i++){part=part.getChild(path.get(i));part.translateAndRotate(stack);}
+        var v=definition.rider().point();
+        var seat=stack.last().pose().transformPosition((float)v.x,(float)-v.z,(float)v.y,new org.joml.Vector3f()).mul(16);
+        var turn=new org.joml.Matrix3f().rotationZ(roll).rotateX(pitch);
+        var from=new org.joml.Vector3f(back.x,back.y,back.z).sub(seat);
+        turn.transform(from).add(seat);
+        back.setPos(from.x,from.y,from.z);
+        var angles=new org.joml.Matrix3f(turn).mul(new org.joml.Matrix3f().rotationZYX(back.zRot,back.yRot,back.xRot)).getEulerAnglesZYX(new org.joml.Vector3f());
+        back.setRotation(angles.x,angles.y,angles.z);
+    }
+
+    /**
+     * A thrower's performance (throw, catch, pickup, the icicle's form, hold and release): the upper body plays it over
+     * the gait, the hips and legs take its own footwork only as far as the body stands still, so a throw on the walk
+     * keeps its steps and one from a standstill shifts its weight. A clip name that is a blend (the icicle's hold and
+     * release, the bone's held wind-up and its release) mixes its light and heavy performances by the synced charge.
+     * Clips that continue a performance (a hold, the release after it) do not blend in again, nor do the form and the
+     * hold blend out. In the air the legs keep the leap.
+     */
+    private void thrownPerformance(DigimonRenderState state) {
+        String clip = state.attackAnimationName;
+        float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
+        boolean continues = com.digicube.digimon.ThrownAttacks.continues(clip);
+        boolean goesOn = com.digicube.digimon.ThrownAttacks.goesOn(clip);
+        float weight = 1, length = com.digicube.digimon.ThrownAttacks.length(clip);
+        if (definition.attackBlendIn() > 0 && !continues) weight = Math.min(weight, tick / definition.attackBlendIn());
+        if (definition.attackBlendOut() > 0 && !goesOn) weight = Math.min(weight, (length - tick) / definition.attackBlendOut());
+        weight = Math.clamp(weight, 0, 1); weight = weight * weight * (3 - 2 * weight);
+        float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
+        applyGround(state, 1);
+        // In the air the legs keep the jump (a throw from a leap): the performance has the upper body only.
+        float lower = weight * (1 - amount) * (1 - leap(state));
+        fromRest(upperParts, 1 - weight);
+        fromRest(lowerParts, 1 - lower);
+        if (animations.blendOnly(clip)) {
+            animations.blend(clip, state.throwCharge, tick, weight, upperParts);
+            animations.blend(clip, state.throwCharge, tick, lower, lowerParts);
+        } else {
+            animations.apply(clip, tick, weight, upperParts);
+            animations.apply(clip, tick, lower, lowerParts);
+        }
+        look(state, 1 - weight);
+        supportFloor(state);
+    }
+
+    /**
+     * Turns the look part toward where the entity looks (vanilla's head yaw and pitch), within the catalog's limits; the
+     * parts that carry it take their shares first.
+     */
     private void look(DigimonRenderState state, float amount) {
         if(lookPart==null||amount<=0)return;
+        // A head with the rider sitting on it carries them and holds still (the clips still move it).
+        if(state.isBeingRidden&&ridesLook())return;
         var l=definition.look();
-        lookPart.yRot+=Math.clamp(state.yRot,-l.yaw(),l.yaw())*amount*((float)Math.PI/180);
-        lookPart.xRot+=Math.clamp(state.xRot,-l.pitch(),l.pitch())*amount*((float)Math.PI/180);
+        float toRad=(float)Math.PI/180;
+        for(int i=0;i<carryParts.length;i++) {
+            var c=l.carry().get(i);
+            carryParts[i].yRot+=Math.clamp(state.yRot*c.share(),-c.yaw(),c.yaw())*amount*toRad;
+            carryParts[i].xRot+=Math.clamp(state.xRot*c.share(),-c.pitch(),c.pitch())*amount*toRad;
+        }
+        float share=l.headShare();
+        lookPart.yRot+=Math.clamp(state.yRot*share,-l.yaw(),l.yaw())*amount*toRad;
+        lookPart.xRot+=Math.clamp(state.xRot*share,-l.pitch(),l.pitch())*amount*toRad;
+    }
+
+    /** The rider is attached to the look part, a part that carries its look, or something they carry. */
+    private boolean ridesLook() {
+        var rider=definition.rider();var look=definition.look();
+        if(rider==null||look==null)return false;
+        if(starts(rider.path(),look.path()))return true;
+        for(var c:look.carry())if(starts(rider.path(),c.path()))return true;
+        return false;
+    }
+    private static boolean starts(java.util.List<String> path,java.util.List<String> prefix) {
+        return path.size()>=prefix.size()&&path.subList(0,prefix.size()).equals(prefix);
     }
 
     /** Ticks at either end of a rider's moving attack over which the upper body blends from and back to the gait. */
@@ -234,14 +348,19 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         rootPart.y-=Math.max(0,lowest[0]-1.5F)*16;
     }
 
+    /** How much of the pose a leap has: its {@code jump} clip takes over from the gait (DigimonEntity.tickLeapPose). */
+    private float leap(DigimonRenderState state) {
+        return state.leapWeight > 0 && animations.has("jump") ? Math.clamp(state.leapWeight, 0, 1) : 0;
+    }
+
     private static final String[] DIRECTIONS={"walk","walk_back","strafe_left","strafe_right"};
     private void applyGround(DigimonRenderState state,float weight) {
         if(weight<=0)return;
         float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
         float water=definition.amphibious()?Math.clamp(state.swimAnimationAmount,0,1):0;
+        // A leap takes over from the gait: takeoff, flight and landing (DigimonEntity.tickLeapPose), and hands back.
+        float leap = leap(state);
         if (definition.gallop()) {
-            // A leap takes over from the gait: takeoff, flight and landing (DigimonEntity.tickLeapPose), and hands back.
-            float leap = state.leapWeight > 0 && animations.has("jump") ? Math.clamp(state.leapWeight, 0, 1) : 0;
             float gait = weight * (1 - leap);
             if (amount == 0) animations.apply("idle", state.ageInTicks, gait);
             else {
@@ -253,6 +372,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             if (leap > 0) animations.apply("jump", state.leapTick, weight * leap);
             return;
         }
+        if (leap > 0) animations.apply("jump", state.leapTick, weight * leap * (1 - water));
+        weight *= 1 - leap;
         animations.apply("idle", state.ageInTicks, (1 - amount)*(1-water)*weight);
         // The lattice excludes the idle-at-zero contribution. Its amplitude zero
         // is rest, so the independent idle clock never doubles body or tail motion.
@@ -260,7 +381,9 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         float run=animations.has("run")?Math.clamp(state.groundRunAmount,0,1):0;
         if(definition.walkBlend() && animations.blendNames().contains("walk_back")) {
             // Directional gait: planted clips per direction on one phase, mixed by the share of the movement each one carries.
-            for(int i=0;i<DIRECTIONS.length;i++) animations.blend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight);
+            // A run clip takes over the forward share as the pace passes the walk's.
+            for(int i=0;i<DIRECTIONS.length;i++) animations.blend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight*(i==0?1-run:1));
+            if(run>0 && animations.blendNames().contains("run")) animations.blend("run", amount, state.groundAnimationPhase, state.gaitShares[0]*run*(1-water)*weight);
         } else if(definition.walkBlend()) {
             animations.blend("walk", amount, state.groundAnimationPhase, (1-run)*(1-water)*weight);
             if(run>0) animations.blend("run", amount, state.groundAnimationPhase, run*(1-water)*weight);
@@ -291,7 +414,18 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         l.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));
         float yaw=l.get("yaw").getAsFloat(),pitch=l.get("pitch").getAsFloat();
         if(path.isEmpty()||!(yaw>=0&&yaw<=90)||!(pitch>=0&&pitch<=90))throw new IllegalArgumentException("Invalid head look");
-        return new Look(java.util.List.copyOf(path),yaw,pitch);
+        var carry=new java.util.ArrayList<Carry>();
+        if(l.has("carry"))for(var item:l.getAsJsonArray("carry")){
+            var c=item.getAsJsonObject();var names=new java.util.ArrayList<String>();
+            c.getAsJsonArray("path").forEach(n->names.add(n.getAsString()));
+            var entry=new Carry(java.util.List.copyOf(names),c.get("share").getAsFloat(),c.get("yaw").getAsFloat(),c.get("pitch").getAsFloat());
+            if(names.isEmpty()||!(entry.share()>0&&entry.share()<1)||!(entry.yaw()>=0&&entry.yaw()<=90)||!(entry.pitch()>=0&&entry.pitch()<=90))
+                throw new IllegalArgumentException("Invalid look carry");
+            carry.add(entry);
+        }
+        var look=new Look(java.util.List.copyOf(path),yaw,pitch,java.util.List.copyOf(carry));
+        if(!(look.headShare()>0))throw new IllegalArgumentException("Invalid head look shares");
+        return look;
     }
 
     private static AttackEffects attackEffects(com.google.gson.JsonObject config) {
@@ -351,7 +485,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         GsonHelper.getAsBoolean(config,"walk_blend",true),java.util.List.copyOf(aim),
                         GsonHelper.getAsFloat(config,"attack_blend_in",0),GsonHelper.getAsFloat(config,"attack_blend_out",0),GsonHelper.getAsBoolean(config,"gallop",false),GsonHelper.getAsBoolean(config,"support_floor",false),rider,
                         pitch,GsonHelper.getAsFloat(config,"ridden_pitch",8),java.util.List.copyOf(expressions),ClothChains.read(config),upper,flames,hoofBeats,
-                        look(config),attackEffects(config),RopeChains.read(config)));
+                        look(config),attackEffects(config),RopeChains.read(config),
+                        // A thrower's returning weapon, drawn where it is carried while the Digimon holds it.
+                        GsonHelper.getAsString(config,"carried",null),
+                        // The dive pitch without a rider, and whether it turns the body about the rider's seat.
+                        GsonHelper.getAsFloat(config,"swim_pitch",65),GsonHelper.getAsBoolean(config,"pitch_at_rider",false)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

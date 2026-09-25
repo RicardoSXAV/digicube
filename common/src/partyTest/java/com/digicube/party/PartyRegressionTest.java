@@ -170,8 +170,7 @@ public final class PartyRegressionTest {
             check(PartyActionPayload.STREAM_CODEC.decode(buffer).equals(action), "recall action round-trip");
             buffer.clear();
             CompoundTag devArgs = new CompoundTag();
-            devArgs.putString(DevActions.SPECIES_A_ARG, "agumon");
-            devArgs.putInt(DevActions.LEVEL_A_ARG, 7);
+            devArgs.put(DevActions.SIDE_A_ARG, com.digicube.dev.BattleRoster.write(List.of(new com.digicube.dev.BattleRoster.Entry("agumon", 7, 3))));
             DevActionPayload devAction = new DevActionPayload(DevActions.BATTLE_START, devArgs);
             DevActionPayload.STREAM_CODEC.encode(buffer, devAction);
             check(DevActionPayload.STREAM_CODEC.decode(buffer).equals(devAction), "dev action round-trip");

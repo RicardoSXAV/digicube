@@ -94,7 +94,16 @@ public class DigiCubeFabricClient implements ClientModInitializer {
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(name));
         }
         EntityRendererRegistry.register(DCEntityTypes.KINETIC_PROJECTILE, com.digicube.fabric.client.render.KineticProjectileRenderer::new);
+        // Thrown weapons: one mesh each (every species shares the entity types; today only Mojyamon throws).
+        var boneMesh = com.digicube.digimon.ThrownAttacks.returning().stream().findFirst().map(com.digicube.digimon.ThrownAttacks.Returning::projectile).orElse(null);
+        var icicleMesh = com.digicube.digimon.ThrownAttacks.charged().stream().findFirst().map(com.digicube.digimon.ThrownAttacks.Charged::projectile).orElse(null);
+        for (String name : new String[]{boneMesh, icicleMesh}) if (name != null)
+            ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(name),
+                    () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(name));
+        if (boneMesh != null) EntityRendererRegistry.register(DCEntityTypes.BOOMERANG, com.digicube.fabric.client.render.ThrownPropRenderer.bone(boneMesh));
+        if (icicleMesh != null) EntityRendererRegistry.register(DCEntityTypes.ICICLE, com.digicube.fabric.client.render.ThrownPropRenderer.icicle(icicleMesh));
         EntityRendererRegistry.register(DCEntityTypes.MARCHING_FISHES, MarchingFishesRenderer::new);
+        EntityRendererRegistry.register(DCEntityTypes.VOLLEY_MISSILE, com.digicube.fabric.client.render.VolleyMissileRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.TECTONIC_WAVE, com.digicube.fabric.client.render.TectonicWaveRenderer::new);
 
         Constants.LOG.info("DigiCube client initialised.");

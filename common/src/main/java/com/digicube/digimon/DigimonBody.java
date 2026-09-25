@@ -13,8 +13,13 @@ import java.util.Optional;
  * @param dimensions collision dimensions and eye height in blocks
  * @param mount optional seat and movement settings
  * @param hitParts extra hittable volumes for bodies that extend well beyond the collision box
+ * @param headTurn degrees the head looks off the body's line before the body turns after it ({@code head_turn}; vanilla's
+ *                 75 without one). A head fused to its trunk that can hardly turn on its own (Mojyamon) sets it low, so
+ *                 the whole body comes round to what it looks at.
  */
-public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts) {
+public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn) {
+    /** Vanilla's {@code Mob.getMaxHeadYRot}. */
+    public static final float HEAD_TURN = 75;
 
     /** Original rookie dimensions, retained for existing species and unknown ids. */
     public static final DigimonBody DEFAULT = new DigimonBody(0.75F,
@@ -27,6 +32,11 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
         Objects.requireNonNull(dimensions, "dimensions");
         Objects.requireNonNull(mount, "mount");
         hitParts = List.copyOf(Objects.requireNonNull(hitParts, "hitParts"));
+        if (!Float.isFinite(headTurn) || headTurn < 5 || headTurn > 180) throw new IllegalArgumentException("Invalid head turn");
+    }
+
+    public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts) {
+        this(modelScale, dimensions, mount, hitParts, HEAD_TURN);
     }
 
     /** Bodies whose collision box already covers them. */

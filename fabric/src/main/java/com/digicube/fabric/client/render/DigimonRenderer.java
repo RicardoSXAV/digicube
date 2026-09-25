@@ -191,6 +191,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
         state.groundRunAmount = entity.getGroundRunAmount(partialTick);
         state.gaitShares = entity.getGaitShares(partialTick);
+        state.throwCharge = entity.throwCharge();
+        state.boneCarried = entity.boneCarried();
         state.riderAim.heights = com.digicube.fabric.client.party.RiderControls.aimedWave(entity);
         if (state.riderAim.heights != null && entity.getControllingPassenger() instanceof net.minecraft.world.entity.player.Player rider) {
             var aim = state.riderAim;
@@ -209,6 +211,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.aerialPitch=entity.getAerialPitch(partialTick);
         state.flightGroundDistance=entity.aerialMount()!=null && state.flightPhase==com.digicube.entity.ai.FlightPhase.APPROACH
                 ? (float)entity.aerialRiding().groundDistance(3) : 3;
+        state.flightLandingProgress=entity.landingProgress(partialTick);
         state.swimBank = entity.getSwimBank(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         if (entity.isGuiPreview()) {
@@ -265,7 +268,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             // Keep its rendered body aligned with the server's steering direction.
             state.bodyRot = state.attackAnimation.isStarted() && state.attackDefinition != null
                     && (state.attackDefinition.kind()==DigimonAttack.Kind.GROUND_WAVE || state.attackDefinition.kind()==DigimonAttack.Kind.FIST
-                    || com.digicube.digimon.AuthoredAttacks.handles(state.attackDefinition))
+                    || com.digicube.digimon.AuthoredAttacks.handles(state.attackDefinition)
+                    || state.attackDefinition.kind()==DigimonAttack.Kind.FIREBALL && entity.attackYawFresh())
                     ? entity.getAttackYaw(partialTick) : Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
             state.yRot = 0.0F;
         }

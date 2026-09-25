@@ -45,7 +45,7 @@ final class PartyHud {
     private static final int GAP = PartyHudReadout.GAP;
     private static final int HEADER = PartyHudReadout.HEADER_HEIGHT;
     /** Distance from the top and left edges of the screen, in unscaled GUI units. */
-    private static final int MARGIN = 4;
+    private static final int MARGIN = PartyHudReadout.STRIP_MARGIN;
     /** The strip stays visible but steps back while the chat is open. */
     private static final float CHAT_FADE = 0.45F;
     private static final int GHOST_HOLD_TICKS = 10;

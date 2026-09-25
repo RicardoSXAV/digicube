@@ -19,7 +19,17 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 20, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 22, "all bundled species loaded");
+            var mojyamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("mojyamon"));
+            check(mojyamon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("boomerang_bone", "icicle_rod"))
+                            && ThrownAttacks.returning(mojyamon.attacks().get(0)) != null && ThrownAttacks.charged(mojyamon.attacks().get(1)) != null,
+                    "Mojyamon throws a returning bone and a charged icicle");
+            var mojyamonGait = mojyamon.locomotion().groundGait();
+            // Planted walk and run (harness/v2/out/mojyamon/motion_01/source/author.py): one 14-tick phase, the run played in 10, at the Golemon-sized scale .45.
+            check(mojyamonGait != null && mojyamonGait.cycleTicks() == 14 && mojyamonGait.directional()
+                            && Math.abs(mojyamonGait.fullSpeed(mojyamon.body().modelScale()) - 3.2 * .45 / 14) < 1.0E-6
+                            && Math.abs(mojyamonGait.runSpeed(mojyamon.body().modelScale()) - 4.6 * .45 / 10) < 1.0E-6,
+                    "Mojyamon's gait is the authored planted stride");
             var betamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("betamon"));
             check(betamon.stage() == DigimonStage.CHILD && betamon.attribute() == DigimonAttribute.VIRUS
                     && betamon.locomotion().canSwim(), "Betamon is an amphibious virus rookie");
@@ -37,8 +47,11 @@ public final class SpeciesRegressionTest {
             check(digmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("gold_rush", "big_crack")),
                     "Digmon has both authored signature attacks");
             var digmonGait = digmon.locomotion().groundGait();
-            check(digmonGait != null && digmonGait.cycleTicks() == 32 && digmonGait.stride() == 2,
-                    "Digmon ground animation uses the authored 1.6-second, two-unit stride");
+            // The planted walk (harness/v2/out/digmon/mount_01/gen_walk.py): .125 blocks a tick at full amplitude,
+            // his walking, ridden and fighting pace.
+            check(digmonGait != null && digmonGait.cycleTicks() == 16 && digmonGait.stride() == 4
+                            && Math.abs(digmonGait.fullSpeed(digmon.body().modelScale()) - .125) < 1.0E-6,
+                    "Digmon ground animation uses the planted 0.8-second, four-unit stride");
             com.digicube.entity.AuthoredAttackRegressionTest.run();
             com.digicube.entity.GolemonRegressionTest.run();
             com.digicube.entity.KineticRegressionTest.run();
@@ -162,6 +175,18 @@ public final class SpeciesRegressionTest {
                     && inflatedBubbles.power() == bubble.power() && inflatedBubbles.cooldownTicks() == bubble.cooldownTicks()
                     && inflatedBubbles.hitTick() == bubble.hitTick() && inflatedBubbles.motion() != null && bubble.motion() == null,
                     "Motimon changes the shared volley muzzle without changing the other babies");
+            var pukamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("pukamon"));
+            var slap = pukamon.attacks().getFirst();
+            var blownBubbles = pukamon.attacks().get(1);
+            check(pukamon.stage() == DigimonStage.BABY_II && pukamon.locomotion().hovers() && !pukamon.locomotion().canFly()
+                    && !mochimon.locomotion().hovers() && pukamon.baseSpeed() == mochimon.baseSpeed(),
+                    "Bukamon hovers on its fins at Motimon's pace without burst flight");
+            check(slap.alternateSides() && slap.kind() == DigimonAttack.Kind.BOX_SWEEP && AuthoredAttacks.get(slap).maxHits() == 1
+                    && CrackMark.charges(slap) == 0 && blownBubbles.id().equals(bubble.id()) && blownBubbles.motion() != null
+                    && blownBubbles.motion() != inflatedBubbles.motion(),
+                    "Flipper Slap alternates flippers once per cast; Bubbles leaves Bukamon's own mouth");
+            check(pukamon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("gomamon"), 5))),
+                    "Bukamon digivolves to Gomamon");
             check(tsunomon.body().equals(koromon.body()) && tsunomon.baseSpeed() == koromon.baseSpeed(),
                     "shared model scale and follow speed");
             check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
@@ -186,8 +211,13 @@ public final class SpeciesRegressionTest {
                     && agumon.body().dimensions().eyeHeight() == DigimonBody.DEFAULT.dimensions().eyeHeight()
                     && agumon.body().mount().isEmpty() && Math.abs(agumon.body().modelScale() - 1.3F / 7) < 1e-5,
                     "Agumon stats and dimensions preserved at the native model's scale");
-            check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, DigimonSpeciesBootstrap.CLAW)),
+            var leapingClaw = AuthoredAttacks.get(Constants.id("claw"));
+            check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, leapingClaw.attack())),
                     "Agumon attack priority preserved");
+            check(leapingClaw.leap() != null && leapingClaw.leap().edge() && leapingClaw.attack().alternateSides()
+                    && leapingClaw.hitWindows().getFirst()[0] >= leapingClaw.leap().land() - 1
+                    && leapingClaw.particles() == com.digicube.entity.StrikeParticles.CLAW,
+                    "Agumon's claw is a leap that strikes as it lands, with either hand");
             check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20))), "Champion prototype has one level-20 route");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10

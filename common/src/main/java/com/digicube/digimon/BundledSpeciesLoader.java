@@ -152,7 +152,8 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
-                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false)) : null);
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false)) : null,
+                json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0);
     }
 
     private static DigimonFlight flight(JsonObject json) {
@@ -202,7 +203,8 @@ public final class BundledSpeciesLoader {
             }
         }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
-                EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts);
+                EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts,
+                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN));
     }
 
     private static AerialMount aerialMount(JsonObject j) {

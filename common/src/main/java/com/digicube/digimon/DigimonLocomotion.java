@@ -9,10 +9,16 @@ package com.digicube.digimon;
  * @param swimSpeed target water speed in blocks per tick; zero disables aquatic locomotion
  * @param flight optional burst-flight settings; null retains ground/aquatic movement
  * @param groundGait optional authored stride and cycle measurements
+ * @param hoverFallSpeed a body that hovers on fins instead of feet (Bukamon) glides down at most this many blocks per
+ *                       tick, takes no fall damage and makes no footsteps; zero means it walks
  */
 public record DigimonLocomotion(float followStartDistance, float followStopDistance,
                                double walkSpeed, double runSpeed, double swimSpeed, DigimonFlight flight,
-                               DigimonGait groundGait) {
+                               DigimonGait groundGait, double hoverFallSpeed) {
+    public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
+                             DigimonGait groundGait) {
+        this(start, stop, walk, run, swim, flight, groundGait, 0);
+    }
     public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight) {
         this(start, stop, walk, run, swim, flight, null);
     }
@@ -30,9 +36,15 @@ public record DigimonLocomotion(float followStartDistance, float followStopDista
                 || followStopDistance <= 0 || followStartDistance <= followStopDistance
                 || !Double.isFinite(walkSpeed) || !Double.isFinite(runSpeed)
                 || walkSpeed <= 0 || runSpeed < walkSpeed
-                || !Double.isFinite(swimSpeed) || swimSpeed < 0 || swimSpeed > 1) {
+                || !Double.isFinite(swimSpeed) || swimSpeed < 0 || swimSpeed > 1
+                || !Double.isFinite(hoverFallSpeed) || hoverFallSpeed < 0 || hoverFallSpeed > 1) {
             throw new IllegalArgumentException("Invalid species locomotion settings");
         }
+    }
+
+    /** @return whether the body floats above the ground on fins rather than standing on it */
+    public boolean hovers() {
+        return hoverFallSpeed > 0;
     }
 
     /** @return whether this species has a faster sprint-following pace */

@@ -204,6 +204,7 @@ public final class MegaFlameEntity extends ThrowableProjectile {
             if (shooter instanceof DigimonEntity digimon && entity instanceof LivingEntity victim) power = com.digicube.digimon.CriticalHits.roll(level, digimon, victim, power);
             if (entity.hurtServer(level, damageSources().mobProjectile(this, shooter), power)) {
                 entity.setRemainingFireTicks(Math.max(entity.getRemainingFireTicks(), 120));
+                if (entity instanceof CombatMarkState marked) marked.digicube$burn(120);
                 if (shooter != null) shooter.setLastHurtMob(entity);
             }
         }

@@ -3,15 +3,16 @@ package com.digicube.dev;
 import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
-import com.digicube.digimon.Progression;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
@@ -24,23 +25,27 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The developer panel's Battle Testing: two wild Digimon staged in front of the player, set on
- * each other, fighting to a knockout with their real stats. Nothing is healed or boosted, so the
- * winner, the time and the health left are calibration numbers. One fight per player; starting
- * another replaces it. The survivor is removed a few seconds after the result.
+ * The developer panel's Battle Testing: two sides of wild Digimon staged in front of the player, set on each other,
+ * fighting until one side is down, with their real stats. A side is up to {@link BattleRoster#MAX_KINDS} kinds, each
+ * any number of one species at one level ({@link BattleRoster}). Nothing is healed or boosted, so the winner, the time
+ * and the health left are calibration numbers. A side's fighters spare each other, and every fighter that can carry a
+ * rider takes one on a right click ({@link DigimonEntity#battleSide}). One fight per player; starting another replaces
+ * it. The survivors are removed a few seconds after the result.
  *
- * <p>The fight's readout travels to the player in {@link DevStatePayload} under {@link #BATTLE}
- * every {@link #SYNC_TICKS} ticks; an empty state means no fight.
+ * <p>The fight's readout travels to the player in {@link DevStatePayload} under {@link #BATTLE} every
+ * {@link #SYNC_TICKS} ticks; an empty state means no fight.
  */
 public final class BattleTest {
     public static final String BATTLE = "battle";
     public static final String SIDE_A = "a", SIDE_B = "b";
-    public static final String SPECIES = "species", LEVEL = "level", HEALTH = "health", MAX_HEALTH = "max_health";
+    /** Readout of a side: its kinds (species, level, count, alive) and the health of the whole side. */
+    public static final String KINDS = "kinds", ALIVE = "alive", HEALTH = "health", MAX_HEALTH = "max_health";
     public static final String TICKS = "ticks", WINNER = "winner";
 
     /** Marks a staged fighter, so a leftover from a crashed or reloaded session can still be cleared. */
     private static final String FIGHTER_TAG = "digicube_battle_test";
-    private static final double AHEAD = 9, APART = 4;
+    /** Blocks ahead of the player to the middle of the field, and from there to each front rank beyond half a body. */
+    private static final double AHEAD = 9, APART = 3.5, GAP = 0.75;
     private static final int SETTLE_TICKS = 20, RESULT_TICKS = 100, SYNC_TICKS = 5, MAX_GROUND_STEP = 6;
 
     private static final Map<UUID, Fight> FIGHTS = new HashMap<>();
@@ -48,18 +53,35 @@ public final class BattleTest {
     private BattleTest() {}
 
     private static final class Fight {
-        final DigimonEntity a, b;
+        /** Who staged it; a headless scenario's stand-in is never in the player list, so it is kept here too. */
+        final ServerPlayer owner;
+        final List<BattleRoster.Entry> kindsA, kindsB;
+        final List<DigimonEntity> a = new ArrayList<>(), b = new ArrayList<>();
         int ticks, resultTicks;
         String winner = "";
 
-        Fight(DigimonEntity a, DigimonEntity b) { this.a = a; this.b = b; }
+        Fight(ServerPlayer owner, List<BattleRoster.Entry> kindsA, List<BattleRoster.Entry> kindsB) {
+            this.owner = owner;
+            this.kindsA = kindsA;
+            this.kindsB = kindsB;
+        }
+
+        List<DigimonEntity> all() {
+            List<DigimonEntity> all = new ArrayList<>(a);
+            all.addAll(b);
+            return all;
+        }
     }
 
-    static String start(MinecraftServer server, ServerPlayer player, CompoundTag args) {
-        DigimonSpecies speciesA = DigimonSpeciesRegistry.resolve(args.getStringOr(DevActions.SPECIES_A_ARG, "")).orElse(null);
-        DigimonSpecies speciesB = DigimonSpeciesRegistry.resolve(args.getStringOr(DevActions.SPECIES_B_ARG, "")).orElse(null);
-        if (speciesA == null || speciesB == null) return "Pick both fighters";
-        if (!speciesA.canFight() || !speciesB.canFight()) return (speciesA.canFight() ? speciesB : speciesA).name() + " has no attacks";
+    public static String start(MinecraftServer server, ServerPlayer player, CompoundTag args) {
+        List<BattleRoster.Entry> kindsA = BattleRoster.read(args.getListOrEmpty(DevActions.SIDE_A_ARG));
+        List<BattleRoster.Entry> kindsB = BattleRoster.read(args.getListOrEmpty(DevActions.SIDE_B_ARG));
+        if (kindsA.isEmpty() || kindsB.isEmpty()) return "Pick a fighter for both sides";
+        for (BattleRoster.Entry entry : concat(kindsA, kindsB)) {
+            DigimonSpecies species = DigimonSpeciesRegistry.resolve(entry.species()).orElse(null);
+            if (species == null) return "Unknown Digimon " + entry.species();
+            if (!species.canFight()) return species.name() + " has no attacks";
+        }
         remove(player);
         ServerLevel level = player.level();
         Vec3 look = player.getLookAngle();
@@ -67,20 +89,46 @@ public final class BattleTest {
         forward = forward.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : forward.normalize();
         Vec3 right = new Vec3(-forward.z, 0, forward.x);
         Vec3 centre = player.position().add(forward.scale(AHEAD));
-        DigimonEntity a = spawn(level, speciesA, args.getIntOr(DevActions.LEVEL_A_ARG, Progression.MIN_LEVEL), centre.subtract(right.scale(APART)), player.getY());
-        DigimonEntity b = spawn(level, speciesB, args.getIntOr(DevActions.LEVEL_B_ARG, Progression.MIN_LEVEL), centre.add(right.scale(APART)), player.getY());
-        if (a == null || b == null) {
-            if (a != null) a.discard();
-            if (b != null) b.discard();
+
+        Fight fight = new Fight(player, kindsA, kindsB);
+        boolean staged = stage(level, fight.a, kindsA, 1, centre, right.scale(-1), forward, player.getY())
+                && stage(level, fight.b, kindsB, 2, centre, right, forward, player.getY());
+        if (!staged) {
+            discard(fight);
             return "Could not create the fighters";
         }
-        face(a, b);
-        face(b, a);
-        FIGHTS.put(player.getUUID(), new Fight(a, b));
-        return speciesA.name() + " Lv " + a.getLevel() + " vs " + speciesB.name() + " Lv " + b.getLevel();
+        for (DigimonEntity fighter : fight.a) face(fighter, centre.add(right.scale(APART)));
+        for (DigimonEntity fighter : fight.b) face(fighter, centre.subtract(right.scale(APART)));
+        FIGHTS.put(player.getUUID(), fight);
+        return describe(kindsA) + " vs " + describe(kindsB);
     }
 
-    static String clear(MinecraftServer server, ServerPlayer player, CompoundTag args) {
+    /** Spawns one side in ranks facing the middle, {@code outward} pointing away from it; false if a fighter could not be made. */
+    private static boolean stage(ServerLevel level, List<DigimonEntity> fighters, List<BattleRoster.Entry> kinds, int side,
+                                 Vec3 centre, Vec3 outward, Vec3 along, double playerY) {
+        List<DigimonSpecies> bodies = new ArrayList<>();
+        List<Integer> levels = new ArrayList<>();
+        double widest = 0;
+        for (BattleRoster.Entry entry : kinds) {
+            DigimonSpecies species = DigimonSpeciesRegistry.resolve(entry.species()).orElseThrow();
+            widest = Math.max(widest, species.body().dimensions().width());
+            for (int i = 0; i < entry.count(); i++) {
+                bodies.add(species);
+                levels.add(entry.level());
+            }
+        }
+        double spacing = widest + GAP, front = APART + widest / 2;
+        for (int i = 0; i < bodies.size(); i++) {
+            double[] place = BattleRoster.place(i, bodies.size(), front, spacing);
+            DigimonEntity fighter = spawn(level, bodies.get(i), levels.get(i), centre.add(outward.scale(place[0])).add(along.scale(place[1])), playerY);
+            if (fighter == null) return false;
+            fighter.joinBattleSide(side);
+            fighters.add(fighter);
+        }
+        return true;
+    }
+
+    public static String clear(MinecraftServer server, ServerPlayer player, CompoundTag args) {
         int removed = remove(player);
         // Also sweep fighters that outlived their fight: a reloaded world, a crashed session.
         List<Entity> leftovers = new ArrayList<>();
@@ -94,8 +142,9 @@ public final class BattleTest {
     public static void tick(MinecraftServer server) {
         for (Iterator<Map.Entry<UUID, Fight>> it = FIGHTS.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<UUID, Fight> entry = it.next();
-            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
             Fight fight = entry.getValue();
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player == null && !fight.owner.hasDisconnected() && !fight.owner.isRemoved()) player = fight.owner;
             if (player == null || !step(fight)) {
                 discard(fight);
                 it.remove();
@@ -109,25 +158,56 @@ public final class BattleTest {
     /** Advances one fight; false once it is over and its result has been shown long enough. */
     private static boolean step(Fight fight) {
         if (!fight.winner.isEmpty()) return ++fight.resultTicks <= RESULT_TICKS;
-        boolean aDown = !fight.a.isAlive() || fight.a.isRemoved(), bDown = !fight.b.isAlive() || fight.b.isRemoved();
-        if (aDown || bDown) {
+        List<DigimonEntity> standingA = standing(fight.a), standingB = standing(fight.b);
+        if (standingA.isEmpty() || standingB.isEmpty()) {
             // A double knockout goes to nobody.
-            fight.winner = aDown && bDown ? "-" : aDown ? SIDE_B : SIDE_A;
+            fight.winner = standingA.isEmpty() && standingB.isEmpty() ? "-" : standingA.isEmpty() ? SIDE_B : SIDE_A;
             fight.resultTicks = 1;
-            Constants.LOG.info("[battle] {} after {} ticks: {} {}/{} vs {} {}/{}", fight.winner.equals("-") ? "double knockout" : "winner " + describe(fight.winner.equals(SIDE_A) ? fight.a : fight.b),
-                    fight.ticks, describe(fight.a), health(fight.a), Math.round(fight.a.getMaxHealth()), describe(fight.b), health(fight.b), Math.round(fight.b.getMaxHealth()));
+            Constants.LOG.info("[battle] {} after {} ticks: A {} ({}/{} standing, {}) vs B {} ({}/{} standing, {})",
+                    fight.winner.equals("-") ? "double knockout" : "winner " + fight.winner.toUpperCase(Locale.ROOT), fight.ticks,
+                    describe(fight.kindsA), standingA.size(), fight.a.size(), health(fight.a),
+                    describe(fight.kindsB), standingB.size(), fight.b.size(), health(fight.b));
             return true;
         }
         if (fight.ticks++ < SETTLE_TICKS) {
             // Nobody strolls off before the bell.
-            fight.a.getNavigation().stop();
-            fight.b.getNavigation().stop();
+            fight.all().forEach(fighter -> fighter.getNavigation().stop());
             return true;
         }
-        // Keep them on each other: a stray mob or the tamer's partner must not pull one away.
-        if (fight.a.getTarget() != fight.b) fight.a.setTarget(fight.b);
-        if (fight.b.getTarget() != fight.a) fight.b.setTarget(fight.a);
+        // Keep everyone on the other side: a stray mob, a team-mate or the tamer's partner must not pull one away.
+        aim(standingA, standingB);
+        aim(standingB, standingA);
         return true;
+    }
+
+    /** Gives every riderless fighter without a standing enemy as its target the nearest one. */
+    private static void aim(List<DigimonEntity> fighters, List<DigimonEntity> enemies) {
+        for (DigimonEntity fighter : fighters) {
+            if (fighter.rider() != null) continue; // the rider picks the fights
+            LivingEntity target = fighter.getTarget();
+            if (target instanceof DigimonEntity enemy && enemies.contains(enemy)) continue;
+            DigimonEntity nearest = null;
+            for (DigimonEntity enemy : enemies) {
+                if (nearest == null || fighter.distanceToSqr(enemy) < fighter.distanceToSqr(nearest)) nearest = enemy;
+            }
+            fighter.setTarget(nearest);
+        }
+    }
+
+    private static List<DigimonEntity> standing(List<DigimonEntity> side) {
+        return side.stream().filter(fighter -> fighter.isAlive() && !fighter.isRemoved()).toList();
+    }
+
+    /** The fighters of side {@link #SIDE_A} or {@link #SIDE_B} in this player's fight, fallen ones included; empty without a fight. */
+    public static List<DigimonEntity> fighters(ServerPlayer player, String side) {
+        Fight fight = FIGHTS.get(player.getUUID());
+        return fight == null ? List.of() : List.copyOf(side.equals(SIDE_A) ? fight.a : fight.b);
+    }
+
+    /** This player's fight's result: empty while it runs or without one, {@link #SIDE_A}, {@link #SIDE_B}, or "-" for a double knockout. */
+    public static String winner(ServerPlayer player) {
+        Fight fight = FIGHTS.get(player.getUUID());
+        return fight == null ? "" : fight.winner;
     }
 
     /** The readout for this player: the running fight, or an empty tag. */
@@ -138,8 +218,8 @@ public final class BattleTest {
 
     private static CompoundTag state(Fight fight) {
         CompoundTag battle = new CompoundTag();
-        battle.put(SIDE_A, side(fight.a));
-        battle.put(SIDE_B, side(fight.b));
+        battle.put(SIDE_A, side(fight.kindsA, fight.a));
+        battle.put(SIDE_B, side(fight.kindsB, fight.b));
         battle.putInt(TICKS, Math.max(0, fight.ticks - SETTLE_TICKS));
         battle.putString(WINNER, fight.winner);
         CompoundTag state = new CompoundTag();
@@ -147,12 +227,30 @@ public final class BattleTest {
         return state;
     }
 
-    private static CompoundTag side(DigimonEntity fighter) {
+    private static CompoundTag side(List<BattleRoster.Entry> kinds, List<DigimonEntity> fighters) {
         CompoundTag tag = new CompoundTag();
-        tag.putString(SPECIES, fighter.getSpecies().map(species -> species.id().toString()).orElse(""));
-        tag.putInt(LEVEL, fighter.getLevel());
-        tag.putFloat(HEALTH, fighter.isAlive() ? fighter.getHealth() : 0);
-        tag.putFloat(MAX_HEALTH, fighter.getMaxHealth());
+        ListTag list = new ListTag();
+        int first = 0;
+        float health = 0, max = 0;
+        for (BattleRoster.Entry entry : kinds) {
+            int alive = 0;
+            for (DigimonEntity fighter : fighters.subList(first, Math.min(fighters.size(), first + entry.count()))) {
+                boolean up = fighter.isAlive() && !fighter.isRemoved();
+                if (up) alive++;
+                health += up ? fighter.getHealth() : 0;
+                max += fighter.getMaxHealth();
+            }
+            first += entry.count();
+            CompoundTag kind = new CompoundTag();
+            kind.putString(BattleRoster.SPECIES, DigimonSpeciesRegistry.resolve(entry.species()).map(species -> species.id().toString()).orElse(entry.species()));
+            kind.putInt(BattleRoster.LEVEL, entry.level());
+            kind.putInt(BattleRoster.COUNT, entry.count());
+            kind.putInt(ALIVE, alive);
+            list.add(kind);
+        }
+        tag.put(KINDS, list);
+        tag.putFloat(HEALTH, health);
+        tag.putFloat(MAX_HEALTH, max);
         return tag;
     }
 
@@ -160,13 +258,13 @@ public final class BattleTest {
         BlockPos ground = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, BlockPos.containing(spot));
         // Under a roof or in a cave the heightmap is the surface far above: stay on the player's floor then.
         double y = Math.abs(ground.getY() - playerY) <= MAX_GROUND_STEP ? ground.getY() : playerY;
-        DigimonEntity fighter = DigimonEntity.spawnWild(level, species, Progression.clampLevel(digimonLevel), new Vec3(spot.x, y, spot.z));
+        DigimonEntity fighter = DigimonEntity.spawnWild(level, species, digimonLevel, new Vec3(spot.x, y, spot.z));
         if (fighter != null) fighter.addTag(FIGHTER_TAG);
         return fighter;
     }
 
-    private static void face(DigimonEntity fighter, DigimonEntity other) {
-        float yaw = (float) (Math.toDegrees(Math.atan2(other.getZ() - fighter.getZ(), other.getX() - fighter.getX())) - 90);
+    private static void face(DigimonEntity fighter, Vec3 toward) {
+        float yaw = (float) (Math.toDegrees(Math.atan2(toward.z - fighter.getZ(), toward.x - fighter.getX())) - 90);
         fighter.setYRot(yaw);
         fighter.yBodyRot = fighter.yHeadRot = yaw;
     }
@@ -178,7 +276,7 @@ public final class BattleTest {
 
     private static int discard(Fight fight) {
         int removed = 0;
-        for (DigimonEntity fighter : new DigimonEntity[]{fight.a, fight.b}) {
+        for (DigimonEntity fighter : fight.all()) {
             if (!fighter.isRemoved()) { fighter.discard(); removed++; }
         }
         return removed;
@@ -188,11 +286,25 @@ public final class BattleTest {
         Services.PLATFORM.sendToPlayer(player, new DevStatePayload(state, ""));
     }
 
-    private static String describe(DigimonEntity fighter) {
-        return fighter.getSpecies().map(DigimonSpecies::name).orElse("?") + " Lv " + fighter.getLevel();
+    private static List<BattleRoster.Entry> concat(List<BattleRoster.Entry> a, List<BattleRoster.Entry> b) {
+        List<BattleRoster.Entry> all = new ArrayList<>(a);
+        all.addAll(b);
+        return all;
     }
 
-    private static String health(DigimonEntity fighter) {
-        return String.format(Locale.ROOT, "%.1f", fighter.isAlive() ? fighter.getHealth() : 0F);
+    /** "10 Gotsumon Lv 20 + Golemon Lv 30". */
+    private static String describe(List<BattleRoster.Entry> kinds) {
+        List<String> parts = new ArrayList<>();
+        for (BattleRoster.Entry entry : kinds) {
+            String name = DigimonSpeciesRegistry.resolve(entry.species()).map(DigimonSpecies::name).orElse(entry.species());
+            parts.add((entry.count() > 1 ? entry.count() + " " : "") + name + " Lv " + entry.level());
+        }
+        return String.join(" + ", parts);
+    }
+
+    private static String health(List<DigimonEntity> side) {
+        float health = 0;
+        for (DigimonEntity fighter : side) health += fighter.isAlive() ? fighter.getHealth() : 0;
+        return String.format(Locale.ROOT, "%.1f hp", health);
     }
 }

@@ -19,6 +19,8 @@ public interface CombatMarkState {
     int EXPOSED_UNITS = 127;
     /** In the second readout: a critical hit just landed on this Exposed body, and its emblem blinks. */
     int EXPOSED_FLASH = 1 << 7;
+    /** Remaining Burn travels as a fraction of its full length, in this many units (second readout, bits 8-14). */
+    int BURN_UNITS = 127;
 
     /**
      * Bits 0-3 flags, 4-8 Cold charge (ticks), 9-13 remaining Cold (steps), 14-20 remaining Inked
@@ -27,11 +29,20 @@ public interface CombatMarkState {
      */
     int digicube$marks();
 
-    /** The second readout: bits 0-6 remaining Exposed (fraction, {@link #EXPOSED_UNITS}), 7 {@link #EXPOSED_FLASH}. */
+    /**
+     * The second readout: bits 0-6 remaining Exposed (fraction, {@link #EXPOSED_UNITS}), 7 {@link #EXPOSED_FLASH},
+     * 8-14 remaining Burn (fraction, {@link #BURN_UNITS}). Bits 15-31 free for the next marks.
+     */
     int digicube$marks2();
 
     /** A critical hit landed on this Exposed body. */
     void digicube$exposedCrit();
+
+    /**
+     * A Digimon's fire attack set this body alight for this many ticks: it is Burned for as long as it keeps burning.
+     * Vanilla's fire does the damage and water puts it out; the mark is how the fight reads it.
+     */
+    void digicube$burn(int ticks);
 
     /** One tick of landed frost. True once the charge is complete; the caller then applies Cold. */
     boolean digicube$chill();
@@ -52,15 +63,19 @@ public interface CombatMarkState {
                 | Math.min(CRACK_UNITS, (int) Math.ceil(Math.max(0, crackedRemaining) * CRACK_UNITS)) << 24;
     }
 
-    static int pack2(float exposedRemaining, boolean exposedFlash) {
+    static int pack2(float exposedRemaining, boolean exposedFlash, float burnRemaining) {
         return Math.min(EXPOSED_UNITS, (int) Math.ceil(Math.max(0, exposedRemaining) * EXPOSED_UNITS))
-                | (exposedFlash && exposedRemaining > 0 ? EXPOSED_FLASH : 0);
+                | (exposedFlash && exposedRemaining > 0 ? EXPOSED_FLASH : 0)
+                | Math.min(BURN_UNITS, (int) Math.ceil(Math.max(0, burnRemaining) * BURN_UNITS)) << 8;
     }
 
     static boolean has(int marks, int flag) { return (marks & flag) != 0; }
 
     /** 0..1 of Exposed's length, from the second readout; above zero the target is Exposed. */
     static float exposedRemaining(int marks2) { return (marks2 & EXPOSED_UNITS) / (float) EXPOSED_UNITS; }
+
+    /** 0..1 of the Burn's length, from the second readout; above zero the target is Burned. */
+    static float burnRemaining(int marks2) { return (marks2 >> 8 & BURN_UNITS) / (float) BURN_UNITS; }
 
     /** 0..1 */
     static float coldCharge(int marks) { return Math.min(1F, (marks >> 4 & 31) / (float) IceCombo.COLD_CHARGE_TICKS); }

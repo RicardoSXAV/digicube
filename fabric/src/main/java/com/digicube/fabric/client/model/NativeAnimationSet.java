@@ -295,6 +295,31 @@ public final class NativeAnimationSet {
         apply(b.clip,tick,mix*weight);
     }
 
+    /** As {@link #blend(String, float, float, float)}, on the parts in {@code only} alone (null for all). */
+    public void blend(String name, float value, float tick, float weight, java.util.Set<ModelPart> only) {
+        if (weight <= 0) return;
+        var points = blends.get(name);
+        if (points == null) throw new IllegalArgumentException("Missing native blend " + name);
+        int lower=0;
+        while (lower+2<points.length && points[lower+1].value<=value) lower++;
+        var a=points[lower];var b=points[lower+1];
+        float mix=Math.clamp((value-a.value)/(b.value-a.value),0,1);
+        apply(a.clip,tick,(1-mix)*weight,only);
+        apply(b.clip,tick,mix*weight,only);
+    }
+
+    /** Length of a clip, or of a blend's first clip. */
+    public float lengthOf(String name) {
+        var points = blends.get(name);
+        return points != null && !clips.containsKey(name) ? length(points[0].clip) : length(name);
+    }
+
+    /** Whether {@code name} is a blend only (no clip of that name): a lattice driven by some amount. */
+    public boolean blendOnly(String name) { return blends.containsKey(name) && !clips.containsKey(name); }
+
+    /** The part of this name, or null. */
+    public ModelPart part(String name) { return named.get(name); }
+
     /** @return the parts whose names start with {@code prefix}, in no order */
     public java.util.Set<ModelPart> partsNamed(String prefix) {
         var result = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ModelPart, Boolean>());

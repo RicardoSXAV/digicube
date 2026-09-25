@@ -92,12 +92,19 @@ final class IceComboRegressionTest {
                 "stone blows fill the Crack gauge (punch one, spikes two of three), other attacks do not");
         check(!com.digicube.entity.CombatMarkState.has(com.digicube.entity.CombatMarkState.pack(false, false, 0, 0, 0, 0, 0),
                 com.digicube.entity.CombatMarkState.INKED), "no ink, no Inked flag");
-        int readout2 = com.digicube.entity.CombatMarkState.pack2(.5F, true);
+        int readout2 = com.digicube.entity.CombatMarkState.pack2(.5F, true, 0);
         check(Math.abs(com.digicube.entity.CombatMarkState.exposedRemaining(readout2) - .5F) < .01F
                         && com.digicube.entity.CombatMarkState.has(readout2, com.digicube.entity.CombatMarkState.EXPOSED_FLASH)
-                        && com.digicube.entity.CombatMarkState.exposedRemaining(com.digicube.entity.CombatMarkState.pack2(.001F, false)) > 0
-                        && com.digicube.entity.CombatMarkState.pack2(0, true) == 0,
+                        && com.digicube.entity.CombatMarkState.exposedRemaining(com.digicube.entity.CombatMarkState.pack2(.001F, false, 0)) > 0
+                        && com.digicube.entity.CombatMarkState.pack2(0, true, 0) == 0,
                 "the second readout carries half an Exposed and its crit blink; its last tick still shows; no Exposed, no blink");
+        int burning = com.digicube.entity.CombatMarkState.pack2(0, false, .25F);
+        check(Math.abs(com.digicube.entity.CombatMarkState.burnRemaining(burning) - .25F) < .01F
+                        && com.digicube.entity.CombatMarkState.exposedRemaining(burning) == 0
+                        && com.digicube.entity.CombatMarkState.burnRemaining(com.digicube.entity.CombatMarkState.pack2(1, true, .001F)) > 0
+                        && com.digicube.entity.CombatMarkState.exposedRemaining(com.digicube.entity.CombatMarkState.pack2(1, true, 1)) == 1
+                        && com.digicube.entity.CombatMarkState.burnRemaining(com.digicube.entity.CombatMarkState.pack2(1, true, 0)) == 0,
+                "Burn rides beside Exposed in the second readout without touching it; its last tick still shows");
         check(ExposedMark.CRIT_BONUS == .30F && CriticalHits.BASE_CHANCE + ExposedMark.CRIT_BONUS < 1
                         && CriticalHits.ADVANTAGE_CHANCE + ExposedMark.CRIT_BONUS < 1,
                 "Exposed turns a neutral 10 % crit chance into 40 %, and no roll becomes certain");

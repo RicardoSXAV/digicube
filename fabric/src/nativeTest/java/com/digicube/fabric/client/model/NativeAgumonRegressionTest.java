@@ -12,7 +12,8 @@ import java.util.*;
 
 /**
  * Agumon's compiled renderer against the server: the snout the fireball charges and leaves from, the ember drawn in
- * the mouth, the flying core on the centre of the ball's hitbox, the claws at the hit, the head look and the gait.
+ * the mouth, the flying core on the centre of the ball's hitbox, the leaping claw inside the server's volume, the head
+ * look and the gait.
  */
 public final class NativeAgumonRegressionTest {
     private static final float SCALE = 1.3F / 7;
@@ -56,6 +57,18 @@ public final class NativeAgumonRegressionTest {
         if (error > tolerance) throw new AssertionError(label + " error=" + error + " expected=" + a + " actual=" + b);
     }
     private static void check(boolean condition, String label) { checks++; if (!condition) throw new AssertionError(label); }
+    /** Every drawn vertex lies inside the server's cuboid (which pads the drawn claw on every side). */
+    private static void inside(com.digicube.entity.AttackBox box, List<Vec3> vertices, String label) {
+        check(!vertices.isEmpty(), label + " has drawn vertices");
+        for (Vec3 axis : new Vec3[]{box.x(), box.y(), box.z()}) {
+            double length = axis.length();
+            for (Vec3 v : vertices) {
+                double along = Math.abs(v.subtract(box.center()).dot(axis) / length);
+                checks++;
+                if (along > length + TOLERANCE) throw new AssertionError(label + ": drawn " + along + " past the volume's " + length);
+            }
+        }
+    }
 
     public static void main(String[] args) {
         net.minecraft.SharedConstants.tryDetectVersion(); net.minecraft.server.Bootstrap.bootStrap();
@@ -74,7 +87,7 @@ public final class NativeAgumonRegressionTest {
         for (String clip : List.of("claw", "claw_mirrored", "mouth_charge", "fireball_flight", "fireball_impact"))
             check(effect.has(clip), "effect clip " + clip);
 
-        var pepper = DigimonSpeciesBootstrap.PEPPER_BREATH; var claw = DigimonSpeciesBootstrap.CLAW;
+        var pepper = DigimonSpeciesBootstrap.PEPPER_BREATH; var authoredClaw = AuthoredAttacks.get(Constants.id("claw")); var claw = authoredClaw.attack();
         check(species.attacks().equals(List.of(pepper, claw)), "move priority preserved");
         var muzzle = FireballMuzzles.get(pepper).orElseThrow();
         check(FireballMuzzles.get(claw).isEmpty() && pepper.motion() == null, "only the fireball reads a muzzle; it takes no motion rules");
@@ -125,22 +138,33 @@ public final class NativeAgumonRegressionTest {
         check(effectRoot.getAllParts().stream().noneMatch(p -> p != effectRoot && p.visible),
                 "nothing of the flare outlives the impact ticks");
 
-        // Claws: the striking hand leaves the body at the hit tick; its streak is drawn only for the swipe.
+        // Claws: a leap that strikes as it lands. Through the hit window every drawn claw of the striking hand is inside
+        // the server's volume, with either hand and at every heading; its streak is drawn only for the swipe.
+        check(authoredClaw.leap() != null && authoredClaw.hitWindows().getFirst()[0] >= authoredClaw.leap().land() - 1, "the claw lands before it can hurt");
         state.attackDefinition = claw;
-        double reach = 0;
+        double reach = 0; int swept = 0;
         for (boolean mirrored : new boolean[]{false, true}) {
-            state.attackAnimationName = claw.animationName(mirrored); state.ageInTicks = claw.hitTick(); model.setupAnim(state);
-            var parts = rendered(root, stack(0, Vec3.ZERO));
-            String side = mirrored ? "left" : "right";
-            double tip = parts.entrySet().stream().filter(e -> e.getKey().startsWith(side + "_hand_claw")).flatMap(e -> e.getValue().stream())
-                    .mapToDouble(Vec3::z).max().orElseThrow();
-            reach = Math.max(reach, tip);
+            state.attackAnimationName = claw.animationName(mirrored);
+            String side = mirrored ? "right" : "left";
+            for (float t = (float) authoredClaw.hitWindows().getFirst()[0]; t <= authoredClaw.hitWindows().getLast()[1]; t += .25F) {
+                state.ageInTicks = t; model.setupAnim(state);
+                var box = authoredClaw.sample(t, false, mirrored)[0];
+                for (int h = 0; h < 8; h++) {
+                    float yaw = h * 45; var origin = new Vec3(13, 80, -19);
+                    var hand = rendered(root, stack(yaw, origin)).entrySet().stream()
+                            .filter(e -> e.getKey().startsWith(side + "_hand") || e.getKey().startsWith(side + "_digit"))
+                            .flatMap(e -> e.getValue().stream()).toList();
+                    inside(box.world(origin, yaw, 0), hand, "the " + side + " claw at " + t + " yaw " + yaw);
+                    if (h == 0) reach = Math.max(reach, hand.stream().mapToDouble(v -> v.z - origin.z).max().orElseThrow());
+                }
+                swept++;
+            }
             fx.clip = state.attackAnimationName; fx.tick = claw.hitTick(); effect.setupAnim(fx);
             check(effectRoot.getChild("claw_streak_0").visible, "the streak shows at the hit, " + side);
             fx.tick = claw.durationTicks() - 1; effect.setupAnim(fx);
             check(!effectRoot.getChild("claw_streak_0").visible, "and is gone in the recovery, " + side);
         }
-        check(reach > species.body().dimensions().width() / 2, "the claw reaches past the body: " + reach);
+        check(swept >= 16 && reach > species.body().dimensions().width() / 2, "the claw reaches past the body: " + reach);
         Constants.LOG.info("Agumon claw tip at the hit: {} blocks ahead of the feet (half width {})", reach, species.body().dimensions().width() / 2);
 
         // Head look turns only the head, within its limits; an attack in full swing overrides it.

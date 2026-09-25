@@ -1,0 +1,58 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 12,
+  "base_defence": 10,
+  "base_speed": 0.223,
+  "attacks": [
+    "boomerang_bone",
+    "icicle_rod"
+  ],
+  "evolutions": [],
+  "tactics": {
+    "hold_range": [
+      4.5,
+      10
+    ],
+    "dodge_chance": 0.25,
+    "reaction_ticks": 4,
+    "strafe": true,
+    "lead_ticks": 6
+  },
+  "locomotion": {
+    "follow_start_distance": 4.0,
+    "follow_stop_distance": 2.0,
+    "walk_speed": 1.0,
+    "run_speed": 1.42,
+    "ground_gait": {
+      "cycle_ticks": 14,
+      "stride": 3.2,
+      "side_stride": 1.9,
+      "back_stride": 2.2,
+      "run_cycle_ticks": 10,
+      "run_stride": 4.6,
+      "max_playback_rate": 2.2
+    }
+  },
+  "body": {
+    "model_scale": 0.45,
+    "width": 1.95,
+    "height": 2.78,
+    "eye_height": 2.12,
+    "head_turn": 24,
+    "mount": {
+      "seat": [0, 2.54, 0.05],
+      "step_height": 1.0,
+      "turn_rate": 12.0,
+      "sprint": 1.5,
+      "sprint_build": 30,
+      "jump": 0.52,
+      "camera_distance": 5.0,
+      "rider_attacks": [
+        {"attack": "boomerang_bone", "aim": "shot", "input": "hold", "cone": 15, "reach": 26, "move": true},
+        {"attack": "icicle_rod", "aim": "shot", "input": "hold", "cone": 8, "move": true}
+      ]
+    }
+  }
+}

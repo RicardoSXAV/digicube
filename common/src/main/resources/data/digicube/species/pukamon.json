@@ -1,0 +1,42 @@
+{
+  "stage": "baby_ii",
+  "attribute": "free",
+  "base_health": 12,
+  "base_attack": 2,
+  "base_defence": 2,
+  "base_speed": 0.25,
+  "attacks": [
+    "flipper_slap",
+    "bubble_blow"
+  ],
+  "attack_motion": {
+    "bubble_blow": "pukamon_bubbles"
+  },
+  "evolutions": [
+    {
+      "target": "gomamon",
+      "min_level": 5
+    }
+  ],
+  "body": {
+    "model_scale": 0.2,
+    "width": 0.6,
+    "height": 1.2,
+    "eye_height": 1.0
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 1.15,
+    "run_speed": 1.15,
+    "swim_speed": 0,
+    "hover": {
+      "fall_speed": 0.12
+    },
+    "ground_gait": {
+      "cycle_ticks": 16,
+      "stride": 12.0,
+      "max_playback_rate": 1.5
+    }
+  }
+}

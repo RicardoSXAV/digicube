@@ -23,15 +23,13 @@ final class DevCatalog {
 
         client.battleSection = tabs.tab("COMBAT").section("BATTLE TESTING")
                 .body(new BattleTestingBody(client))
-                .keywords("fighter a", "fighter b", "fighter level", "start battle", "clear fighters")
-                .note(() -> client.fighterA == null || client.fighterB == null ? "PICK BOTH FIGHTERS" : client.fighting() ? "A FIGHT IS RUNNING" : "SPAWNS IN FRONT OF YOU")
+                .keywords("side a", "side b", "fighter level", "fighter count", "add fighter", "ride fighter", "start battle", "clear fighters")
+                .note(() -> !client.ready() ? "PICK EVERY FIGHTER" : client.fighting() ? "A FIGHT IS RUNNING" : "SPAWNS IN FRONT OF YOU")
                 .action("CLEAR", () -> true, () -> { client.send(DevActions.BATTLE_CLEAR, new CompoundTag()); return ""; })
-                .primary("START BATTLE", () -> client.fighterA != null && client.fighterB != null, () -> {
+                .primary("START BATTLE", client::ready, () -> {
                     CompoundTag args = new CompoundTag();
-                    args.putString(DevActions.SPECIES_A_ARG, client.fighterA.toString());
-                    args.putString(DevActions.SPECIES_B_ARG, client.fighterB.toString());
-                    args.putInt(DevActions.LEVEL_A_ARG, client.levelA);
-                    args.putInt(DevActions.LEVEL_B_ARG, client.levelB);
+                    args.put(DevActions.SIDE_A_ARG, DevClient.write(client.sideA));
+                    args.put(DevActions.SIDE_B_ARG, DevClient.write(client.sideB));
                     client.send(DevActions.BATTLE_START, args);
                     // Out of the way: the fight is the thing to watch, and the readout takes over.
                     Minecraft.getInstance().gui.setScreen(null);

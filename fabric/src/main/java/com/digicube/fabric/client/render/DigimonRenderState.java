@@ -27,6 +27,9 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public com.digicube.fabric.client.model.RopeChains.State ropes;
     /** Directional gait: shares forwards, backwards, left, right. */
     public float[] gaitShares = {1, 0, 0, 0};
+    /** A thrower: the charged throw in its hands (0 to 1) and whether its returning weapon is on its back. */
+    public float throwCharge;
+    public boolean boneCarried = true;
     /** The spike wave its rider is aiming, drawn as a phantom; heights null when there is none. */
     public final NativeEffectState riderAim = new NativeEffectState();
     public net.minecraft.world.phys.Vec3 kineticOffset = net.minecraft.world.phys.Vec3.ZERO;
@@ -37,6 +40,8 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float aerialBank;
     public float aerialPitch;
     public float flightGroundDistance=3;
+    /** How far an approach has come down, 0 where it began to 1 on the ground ({@code DigimonEntity.landingProgress}). */
+    public float flightLandingProgress;
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
     public com.digicube.digimon.ConstrictionMotion.Fit constrictionFit = new com.digicube.digimon.ConstrictionMotion.Fit(34,36);

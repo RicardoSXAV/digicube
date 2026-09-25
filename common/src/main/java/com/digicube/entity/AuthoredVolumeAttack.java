@@ -18,7 +18,9 @@ public final class AuthoredVolumeAttack {
     /** Where the leading volume was last tick, and whether the landing burst has gone off: the cues for trail, release and landing. */
     private Vec3 lastLead;
     private boolean released,landed;
-    public void reset() { counts.clear();lastHit.clear();beats.clear();lastLead=null;released=landed=false; }
+    /** Volumes that have opened this cast: a grounded burst's sections each erupt once. */
+    private boolean[] opened;
+    public void reset() { counts.clear();lastHit.clear();beats.clear();lastLead=null;released=landed=false;opened=null; }
     public static AttackBox aimed(AttackBox box,DigimonAttack attack,double tick,float pitch) {
         if(attack.kind()!=DigimonAttack.Kind.BOX_BURST)return box;
         var f=attack.motion().sample(tick);
@@ -107,7 +109,7 @@ public final class AuthoredVolumeAttack {
     public static Vec3 leapLanding(DigimonEntity caster,AuthoredAttacks.Leap leap,Vec3 feet,LivingEntity target) {
         Vec3 flat=target.position().subtract(feet).multiply(1,0,1);
         if(flat.horizontalDistanceSqr()<1.0E-6)return null;
-        Vec3 spot=feet.add(flat.normalize().scale(Math.max(0,flat.length()-leap.lead())));
+        Vec3 spot=feet.add(flat.normalize().scale(Math.max(0,flat.length()-leap.lead(target))));
         Vec3 floor=landing(caster.level(),caster,new Vec3(spot.x,target.getY(),spot.z));
         return floor==null || Math.abs(floor.y-feet.y)>LANDING_STEP?null:floor;
     }
@@ -123,6 +125,12 @@ public final class AuthoredVolumeAttack {
                 if(!caster.level().noBlockCollision(caster,body.move(p.subtract(feet))))return false;
             }
             return true;
+        }
+        if(d.fires()) {
+            // The missiles steer; they only need the way open from the drills to some part of the target.
+            Vec3 launch=AttackGeometry.world(feet,d.volley().missiles().getFirst().launch().center(),AttackGeometry.yaw(feet,targetPoint));
+            for(var volume:HitParts.of(target))if(clear(caster.level(),caster,launch,volume.getCenter()))return true;
+            return false;
         }
         if(d.anchored()) {
             // Seen from where the caster would stand, on a floor near its own, with the last stretch of the fall open.
@@ -163,6 +171,20 @@ public final class AuthoredVolumeAttack {
         }
         if(!d.anchored() && lead!=null && tick==attack.motion().activeFrom())d.particles().swing(level,lead);
         lastLead=lead;
+        if(d.grounded() && tick==attack.motion().activeFrom()) {
+            // The drills or fists meet the floor between the motion's two contact points.
+            var frame=attack.motion().sample(tick);
+            Vec3 contact=AttackGeometry.world(feet,frame.hornBase().add(frame.hornTip()).scale(.5),caster.getYRot());
+            d.particles().bite(level,new Vec3(contact.x,feet.y,contact.z));
+        }
+        if(d.grounded()) {
+            if(opened==null)opened=new boolean[cells.length];
+            for(int i=0;i<cells.length;i++) if(cells[i]!=null && !opened[i]) {
+                opened[i]=true;
+                var box=cells[i].world(feet,caster.getYRot(),0);
+                if(visible(level,caster,attack,tick,feet,caster.getYRot(),box) && supported(level,caster,box))d.particles().erupt(level,box.center(),i);
+            }
+        }
         if(d.anchored() && !landed && cells.length>1 && cells[1]!=null) {
             landed=true;
             var burst=cells[1].world(feet,caster.getYRot(),0);
@@ -173,6 +195,10 @@ public final class AuthoredVolumeAttack {
     public void tick(ServerLevel level,DigimonEntity caster,DigimonAttack attack,int tick) {
         var d=AuthoredAttacks.get(attack);Vec3 feet=origin(caster,attack);
         if(feet==null)return;
+        if(d.fires()) {
+            if(tick==d.volley().launchTick())VolleyMissileEntity.launch(level,caster,attack,d);
+            return;
+        }
         cues(level,caster,attack,d,feet,tick);
         if(tick<attack.motion().activeFrom() || tick>attack.motion().activeUntil())return;
         for(int q=0;q<=8;q++) {

@@ -19,8 +19,37 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
         super(mob);
     }
 
+    /** This tick's facing walk (see {@link #walkFacing}); consumed by the next {@link #tick}. */
+    private boolean facing;
+    private float facingYaw, facingForward, facingLeft;
+    private double facingSpeed;
+
+    /**
+     * Walk along ({@code forward}, {@code left}), a direction in the body's own frame, while the body turns to
+     * {@code yaw}: a thrower side-stepping to its catch or backing off with its weapon raised, watching its enemy.
+     * Valid for one tick; the directional gait plays the steps. The pace matches an ordinary move at {@code speed}.
+     */
+    public void walkFacing(float yaw, double forward, double left, double speed) {
+        facing = true; facingYaw = yaw; facingForward = (float) forward; facingLeft = (float) left; facingSpeed = speed;
+        operation = Operation.WAIT;
+    }
+
     @Override
     public void tick() {
+        if (facing && !mob.combatControlsLocked() && (!mob.canSwim() || !mob.isInWater())) {
+            facing = false;
+            mob.setYRot(rotlerp(mob.getYRot(), facingYaw, 24));
+            mob.yBodyRot = mob.getYRot();
+            float speed = (float) (facingSpeed * mob.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
+            float length = Mth.sqrt(facingForward * facingForward + facingLeft * facingLeft);
+            mob.setSpeed(speed);
+            if (length < 1.0E-3) { mob.setZza(0); mob.setXxa(0); return; }
+            // Mob input carries the speed (as vanilla's MOVE_TO does); travel applies it once more.
+            mob.setZza(facingForward / length * speed);
+            mob.setXxa(facingLeft / length * speed);
+            return;
+        }
+        facing = false;
         // Mob runs controls after customServerAiStep. Stopping navigation alone
         // leaves MOVE_TO/JUMPING queued and can overwrite the cast's heading.
         if (mob.combatControlsLocked()) {

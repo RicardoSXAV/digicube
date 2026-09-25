@@ -36,5 +36,7 @@ public class DigiCubeFabric implements ModInitializer {
         // Headless combat rehearsals on a development server (DIGICUBE_SCENARIO); inert otherwise.
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.dev.CombatScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.RiderScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.SeaMountScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.BattleScenario::tick);
     }
 }

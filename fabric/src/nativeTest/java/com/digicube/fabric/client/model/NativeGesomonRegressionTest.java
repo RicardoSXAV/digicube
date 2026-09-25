@@ -30,8 +30,12 @@ public final class NativeGesomonRegressionTest {
         worst=Math.max(worst,error);
         if(error>.008)throw new AssertionError(label+" vertex error "+error+" at "+expected);
     }
+    static void check(boolean ok,String label) {
+        if(!ok)throw new AssertionError(label);
+    }
     public static void main(String[] args)throws Exception {
         net.minecraft.SharedConstants.tryDetectVersion();net.minecraft.server.Bootstrap.bootStrap();
+        com.digicube.digimon.DigimonSpeciesBootstrap.registerBuiltIn();
         var def=NativeGroundModel.definitions().get(Constants.id("gesomon"));
         var root=NativeModelGeometry.apply(def.createLayer().bakeRoot(),def.geometry());
         var animation=new NativeAnimationSet(root,def.animation());
@@ -100,6 +104,32 @@ public final class NativeGesomonRegressionTest {
             }
             renderState.attackAnimation.stop();runtime.setupAnim(renderState);
         }
-        Constants.LOG.info("[gesomon-parity] PASS {} full vertex/solid fixtures, maximum error {} blocks; ground/water transition playback",fixtures,worst);
+        // The rider sits astride the mantle's peak (harness gesomon/mount_01): drawn at rest where the sheet seats it, on land
+        // and afloat (the swim pose carries the peak forward: water_seat_offset), and the dive pitch turns the body about the
+        // rider, so the rider, and the first-person eye with it, stays in the saddle while the body swings under them.
+        var mount=com.digicube.digimon.DigimonSpeciesRegistry.getOrThrow(Constants.id("gesomon")).body().mount().orElseThrow();
+        renderState.attackAnimationName=null;renderState.attackDefinition=null;renderState.isBeingRidden=true;
+        renderState.ageInTicks=0;renderState.groundAnimationAmount=0;renderState.xRot=0;
+        renderState.swimAnimationAmount=renderState.swimMotionAmount=0;renderState.mountAnchor=mount.position(0);
+        Vec3 seated=runtime.riderOffset(renderState);
+        check(seated.length()<.06,"the rider is drawn at the sheet's seat on land: "+seated);
+        renderState.swimAnimationAmount=renderState.swimMotionAmount=1;renderState.mountAnchor=mount.position(1);
+        double drift=0;
+        for(float t=0;t<36;t+=.5F){renderState.swimAnimationPhase=t;drift=Math.max(drift,runtime.riderOffset(renderState).length());}
+        check(drift<.2,"afloat the rider rides the swim within 0.2 blocks of the sheet's water seat: "+drift);
+        renderState.swimAnimationPhase=9;
+        Vec3 level=runtime.riderOffset(renderState);
+        Vec3 mantle=points(runtime.root(),new PoseStack()).get("mantle_tier_0").get(0);
+        for(float pitch:new float[]{-60,-45,-20,20,45,60}) {
+            renderState.xRot=pitch;
+            near(level,List.of(runtime.riderOffset(renderState)),"diving at "+pitch+" degrees the rider stays in the saddle");
+            fixtures++;
+        }
+        renderState.xRot=45;runtime.setupAnim(renderState);
+        check(points(runtime.root(),new PoseStack()).get("mantle_tier_0").get(0).distanceTo(mantle)>.5,"the body pitches under its rider");
+        renderState.isBeingRidden=false;runtime.setupAnim(renderState);
+        near(mantle,List.of(points(runtime.root(),new PoseStack()).get("mantle_tier_0").get(0)),"without a rider the body stays upright (swim_pitch 0)");
+        Constants.LOG.info("[gesomon-parity] PASS {} full vertex/solid fixtures, maximum error {} blocks; ground/water transition playback; seat {} blocks off at rest, {} afloat",
+                fixtures,worst,String.format(Locale.ROOT,"%.3f",seated.length()),String.format(Locale.ROOT,"%.3f",drift));
     }
 }

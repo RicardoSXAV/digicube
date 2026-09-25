@@ -1,5 +1,7 @@
 package com.digicube.fabric.client.dev;
 
+import com.digicube.dev.BattleRoster;
+
 import java.util.List;
 
 /**
@@ -86,6 +88,21 @@ public final class DevPanelRegressionTest {
         check(DevLayout.fromSlider(row, 0.5) == 2 && DevLayout.fromSlider(row, 2) == 3 && DevLayout.fraction(row, 2) == 0.5, "the slider maps across the range");
         check(DevLayout.format(row).equals("2.00 x") && DevLayout.format(damage.rows().get(1)).equals("5 %") && DevLayout.format(timing.rows().get(0)).equals("20 t"), "numbers print by their step, with the unit");
         check(DevLayout.panelWidth(500) == 420 && DevLayout.panelWidth(320) == 300 && DevLayout.panelHeight(240) == 220, "the panel shrinks on a small screen");
+
+        // Battle Testing sides
+        var five = List.of(new BattleRoster.Entry("digicube:agumon", 20, 1), new BattleRoster.Entry("digicube:gabumon", 20, 1),
+                new BattleRoster.Entry("digicube:gotsumon", 20, 1), new BattleRoster.Entry("digicube:golemon", 20, 1), new BattleRoster.Entry("digicube:tentomon", 20, 1));
+        var kinds = BattleRoster.read(BattleRoster.write(five));
+        check(kinds.size() == BattleRoster.MAX_KINDS && kinds.equals(five.subList(0, 4)), "a side keeps at most four kinds, in order");
+        var wild = new BattleRoster.Entry("digicube:agumon", 999, 99);
+        check(wild.count() == BattleRoster.MAX_COUNT && wild.level() == com.digicube.digimon.Progression.LEVEL_CAP, "a kind's count and level are clamped");
+        var crowd = BattleRoster.read(BattleRoster.write(List.of(new BattleRoster.Entry("digicube:gotsumon", 20, 10),
+                new BattleRoster.Entry("digicube:agumon", 20, 20), new BattleRoster.Entry("digicube:golemon", 30, 20), new BattleRoster.Entry("digicube:gabumon", 20, 5))));
+        check(crowd.size() == 3 && crowd.get(2).count() == 10 && BattleRoster.total(crowd) == BattleRoster.MAX_SIDE, "a side never passes forty bodies");
+        check(BattleRoster.read(new net.minecraft.nbt.ListTag()).isEmpty(), "an empty side stays empty");
+        double[] first = BattleRoster.place(0, 1, 4, 2), centre = BattleRoster.place(2, 5, 4, 2), back = BattleRoster.place(5, 7, 4, 2);
+        check(first[0] == 4 && first[1] == 0 && centre[1] == 0 && BattleRoster.place(0, 5, 4, 2)[1] == -4, "a rank is centred on the line between the sides");
+        check(back[0] == 6 && back[1] == -1 && BattleRoster.place(6, 7, 4, 2)[1] == 1, "the next rank stands one spacing further out, centred too");
 
         System.out.println("PASS: developer panel rules hold (" + checks + " checks)");
     }

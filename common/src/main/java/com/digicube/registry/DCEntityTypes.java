@@ -38,7 +38,7 @@ public final class DCEntityTypes {
                     .updateInterval(1));
 
     public static final ResourceKey<EntityType<?>> PEPPER_BREATH_KEY = key("pepper_breath");
-    /** Agumon's fireball: a one-block ball that bends toward its target, so clients get velocity every other tick. */
+    /** Agumon's fireball: a one-block ball flying dead straight, so clients get its velocity every other tick. */
     public static final EntityType<PepperBreathEntity> PEPPER_BREATH = register(PEPPER_BREATH_KEY,
             EntityType.Builder.<PepperBreathEntity>of(PepperBreathEntity::new, MobCategory.MISC)
                     .sized(0.9F, 0.9F)
@@ -61,6 +61,21 @@ public final class DCEntityTypes {
     public static final EntityType<com.digicube.entity.KineticProjectileEntity> KINETIC_PROJECTILE = register(key("kinetic_projectile"),
             EntityType.Builder.<com.digicube.entity.KineticProjectileEntity>of(com.digicube.entity.KineticProjectileEntity::new, MobCategory.MISC)
                     .sized(.1F, .1F).clientTrackingRange(12).updateInterval(1));
+
+    /** A part of a caster's body fired as a homing missile (Digmon's drills in Gold Rush); drawn with the part itself. */
+    public static final EntityType<com.digicube.entity.VolleyMissileEntity> VOLLEY_MISSILE = register(key("volley_missile"),
+            EntityType.Builder.<com.digicube.entity.VolleyMissileEntity>of(com.digicube.entity.VolleyMissileEntity::new, MobCategory.MISC)
+                    .sized(.25F, .25F).clientTrackingRange(10).updateInterval(1));
+
+    /** A returning throw (Mojyamon's bone): flies its synced path, then falls and lies where it lands. */
+    public static final EntityType<com.digicube.entity.BoomerangEntity> BOOMERANG = register(key("boomerang"),
+            EntityType.Builder.<com.digicube.entity.BoomerangEntity>of(com.digicube.entity.BoomerangEntity::new, MobCategory.MISC)
+                    .sized(.6F, .25F).clientTrackingRange(12).updateInterval(1));
+
+    /** A charged throw (Mojyamon's icicle): its size and weight ride along as entity data. */
+    public static final EntityType<com.digicube.entity.IcicleEntity> ICICLE = register(key("icicle"),
+            EntityType.Builder.<com.digicube.entity.IcicleEntity>of(com.digicube.entity.IcicleEntity::new, MobCategory.MISC)
+                    .sized(.25F, .25F).clientTrackingRange(12).updateInterval(1));
 
     /** Koromon's small bubble volley; its visual trail follows behind the hitbox. */
     public static final EntityType<BubbleBlowEntity> BUBBLE_BLOW = register(key("bubble_blow"),

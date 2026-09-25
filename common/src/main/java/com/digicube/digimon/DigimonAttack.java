@@ -110,7 +110,11 @@ public record DigimonAttack(
         /** An aimed, non-burning projectile whose authored cuboids sweep the world. */
         KINETIC_SHOT,
         /** A supported retreat with a conditional, once-per-opponent hoof strike. */
-        RETREAT_KICK
+        RETREAT_KICK,
+        /** A weapon thrown out along a curve that comes back to a fixed point, to be caught there or lost ({@link ThrownAttacks}). */
+        RETURNING_THROW,
+        /** A projectile formed in the hands and held to grow heavier before a ballistic throw ({@link ThrownAttacks}). */
+        CHARGED_THROW
     }
 
     /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -120,11 +124,12 @@ public record DigimonAttack(
 
     public boolean isRanged() {
         return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
-                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT;
+                || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT
+                || kind == Kind.RETURNING_THROW || kind == Kind.CHARGED_THROW;
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */
     public boolean locksBodyFacing() {
-        return kind == Kind.BUBBLES || kind == Kind.CONSTRICTION || motion != null;
+        return kind == Kind.BUBBLES || kind == Kind.CONSTRICTION || kind == Kind.FIREBALL || motion != null;
     }
 }

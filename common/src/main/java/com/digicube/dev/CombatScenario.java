@@ -63,12 +63,17 @@ public final class CombatScenario {
     public static void tick(ServerLevel level) {
         if (NAME == null || done || level.dimension() != Level.OVERWORLD || !Services.PLATFORM.isDevelopmentEnvironment()) return;
         if (NAME.equals("rider_checks")) return; // staged by the Fabric module, which has a fake player to ride with
+        if (NAME.equals("sea_mount_checks")) return; // so is the sea mounts' ride through a pool
+        if (NAME.equals("battle_checks")) return; // Battle Testing, also staged by the Fabric module with its fake player
         if (NAME.startsWith("digivice_checks")) return;
+        if (NAME.startsWith("recall_checks")) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
+        if (NAME.equals("thrower_checks")) { ThrowerScenario.tick(level); return; }
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
         if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
+        if (NAME.equals("agumon_checks")) { AgumonScenario.tick(level); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
         if (NAME.startsWith("balance:")) { BalanceScenario.tick(level, NAME.substring(8)); return; }
         try {

@@ -19,10 +19,13 @@
     "betamon",
     "mochimon",
     "gotsumon",
-    "dinohyumon"
+    "dinohyumon",
+    "pukamon",
+    "mojyamon"
   ],
   "command_names": {
     "centalmon": "centarumon",
-    "mochimon": "motimon"
+    "mochimon": "motimon",
+    "pukamon": "bukamon"
   }
 }

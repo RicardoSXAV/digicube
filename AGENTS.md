@@ -299,8 +299,10 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   **Exposed** (`ExposedMark`): a kinetic shot with `expose_ticks` (Hunting Cannon, 80) leaves its
   victim `digicube:exposed`: +30 points of crit chance on every Digimon hit against it (on top of the
   triangle, in `CriticalHits.chance`) and no dodging (`DigimonAttackGoal.dodgeChance`); a crit on it
-  blinks the emblem (`mark_exposed_flash`). The first readout is full (one bit left); new marks go in
-  the second (`digicube$marks2`, bits 8-31 free). Read `../design/combat-marks.md` before adding a mark.
+  blinks the emblem (`mark_exposed_flash`). **Burn**: fire a Digimon's attack lights (Pepper Breath, Mega Flame; call
+  `digicube$burn(ticks)` after igniting) is a Burn for as long as the body keeps burning; vanilla fire does the damage and
+  water puts it out, the emblem's rim drains with the fire (`mark_burn`). The first readout is full (one bit left); new marks go in
+  the second (`digicube$marks2`: Exposed bits 0-7, Burn 8-14, bits 15-31 free). Read `../design/combat-marks.md` before adding a mark.
 - A ground gait only looks planted when the clip's stride matches the ground covered: the phase advances by
   travel / stride (`DigimonGait`), so a stride far shorter than the species' real pace hits `max_playback_rate`
   and the feet slide (Golemon walked at the player's .216 blocks/tick on a .043 stride). Golemon's gait is
@@ -315,7 +317,7 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `NativeGroundModel` mixes the lattices by them. Change strides in the script and the species sheet together.
 - Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
   (`sweep`/`line`/`shot`/`stream`/`grab`/`charge`), `input` (`tap`/`hold`), soft-target `cone`/`reach` and `move` (`RiderAttack`;
-  Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon). A rider has no target: `startRiderAttack` shares `beginAttack`
+  Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon, Gesomon). A rider has no target: `startRiderAttack` shares `beginAttack`
   with the AI, aims at the soft target or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray
   in third person too), and commits every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing.
   Check with `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps
@@ -341,10 +343,22 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   `MixinHumanoidModel` reads it, so the first-person camera is untouched. Water: a land Digimon floats at 55 % of
   its height (`getFluidJumpThreshold`), keeps every attack that does not need the ground (`wadingAttack`; the
   spike wave does), paddles over prey it has no path to (`DigimonAttackGoal`), and under a rider floats by itself
-  and rises with the jump key (`tickRidden`). A sea mount (`body.mount.water_turn_rate` > 0, Seadramon) gets the
+  and rises with the jump key (`tickRidden`). A sea mount (`body.mount.water_turn_rate` > 0, Seadramon, Gesomon) gets the
   full water controls (`seaMount()`): forward follows the view to 70 degrees, jump rises and the dive key (C,
   `DigimonEntity.localRiderDives`, client only) sinks, the surface holds the body unless it surges (`water_sprint`),
-  a surge through the surface is a breach, the rider's air refills. A wrap is a rider move (`RiderAttack.Aim.GRAB`):
+  a surge through the surface is a breach, the rider's air refills. The surface is a float line (90 % of the height
+  under water, `floatLine`): above it the body settles back and its climb is damped (`surfaceAndHaul`; before, a swimmer,
+  which has no gravity, coasted up on its momentum and stood on the water). Pushing into a bank or a quay no higher than
+  `HAUL_ABOVE` (1.6) over the water, or a ledge under it, it hauls itself up at `HAUL_PACE` until its feet clear the top
+  and walks on (`haulsOut`; a floating body is never on the ground, so vanilla's step never helped it out). A surge
+  streams bubbles and sets off with a squirt on every client (`seaWake`, read from the body's travel). A swimmer shares
+  its sight: under water the rider's eyes adjust at a spectator's rate (`RiderControls.seaSight`, `LocalPlayerAccessor`).
+  A rider's shot under water leaves along the line to the aim, not held to `max_pitch` (`KineticSession.waterLine`).
+  Check with `DIGICUBE_SCENARIO=sea_mount_checks` (`[sea] RESULT n of n`, `DIGICUBE_SEA_TRACE=true` traces every check):
+  the server drives each sea mount with a fake rider's keys and view through the real ridden code
+  (`DigimonEntity.driveScenarioRider` makes the server simulate the ride, which vanilla leaves to the rider's client)
+  in a pool with a quay: cruise, surge, dive, the surface, the rise and dive keys, a breach, the haul-out, walking on
+  land and back in, and the rider's attacks afloat. A wrap is a rider move (`RiderAttack.Aim.GRAB`):
   the server picks the prey near the crosshair (`grabPick`, synced as `DATA_GRAB_PREY`), the client outlines it
   in magenta and lights the tile (dull = a press does nothing), one press lunges at it (`tickGrabLunge`) and wraps;
   through lunge and wrap `getControllingPassenger` is null (`wrapOwnsBody`) so the server owns the body as it does unridden. Use
@@ -407,6 +421,37 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   (24 without the step down). A charge that reaches its prey in the air drops and bucks once down. Scaling a species changes
   exported geometry baked at the old scale (`kinetic_motion.json`, `attack_motion`, `model_scale` in the attack data,
   the seat): Centarumon went .325 -> .36 on 22 September 2026. Design: `../design/mounted-combat.md`.
+  Digmon (24 September 2026) rides on `NativeFlyingMountModel`, whose `<species>.presentation.json` holds the seat:
+  `rider_point` (model units in the frame of `rider_path`'s last part; Digmon sits on the shell's flat top), and the rider's
+  legs in radians as `MixinHumanoidModel` sets them (`rider_leg_pitch`, `rider_leg_splay`, optional `rider_leg_roll`,
+  `rider_leg_hips`); keep `body.mount.seat` at the rest pose's visual seat or the first-person eye sits apart from the body.
+  The model plays a rider's casts (the seat follows the brace). An approach draws its landing clip on
+  `DigimonEntity.landingProgress` (rendered height against the height the approach began at, so it starts from the flight
+  pose and meets the ground with the feet), and `AerialRiding` settles in at `.035 + .07 x height` a tick on the exact
+  `groundDistance`. Digmon's walk is generated, not keyed: `../harness/v2/out/digmon/mount_01/gen_walk.py` solves both
+  legs (thigh pitch and roll, shin, foot pitch/yaw/roll) so the stance ankle slides straight back at the body's pace with
+  the sole flat on the ground (drift 0.000 px on the written keys), 16 ticks, stride 4 units = .125 blocks a tick, which is
+  his walk, ridden and fighting pace (`run_speed` 2.21 and `tactics.fight_speed` 2.21, no `body.mount.speed`; measured
+  .124-.130 a tick chasing in a balance trace, where the attack goal's own 1.25 had left him crawling at .04); `install.py` beside it writes it and the flight feet
+  (the approved takeoff spun each foot -182 degrees; they now trail at 40) into `digmon.animation.json`, always from its
+  `backup_animation.json`. An authored attack may stack uses (`charges` in `authored_attacks.json`, Gold Rush 3,
+  `AttackCharges`): each cast starts its own refill of the cooldown and the body's cooldown clock says "ready now" while a
+  use is left, so the AI's choice, the wrap's looming check and saves need nothing else; the client mirrors the refills
+  from the starts it sees (`readyUses`) and `RiderAttacks` draws the count on a plate in the tile's corner, the next
+  refill only shading a tile that still has a use. `RiderAttacks` owns the mount-hearts slot for every Digimon mount,
+  flying ones included (`AerialMountClient` draws only the flight reserve, on the experience bar's row). Gold Rush is a
+  volley (`volley` in `authored_attacks.json`, `AttackVolley`): its volumes never strike; at `launch_tick` each drill leaves
+  as a `VolleyMissileEntity` from where the clip holds it (`attack_motion/gold_rush_volley.json`, written from the body's
+  own FK by `../harness/v2/out/digmon/gold_rush_02/make_volley.py`), coasts out, lights after its delay, homes on the
+  target or the rider's aim at up to `turn` degrees a tick until it passes it, and deals `power` of the attack per hit
+  (volley damage type, so all five land); `VolleyMissileRenderer` draws that drill's own quads from the species mesh,
+  spinning. The clip hides the drills at the release and grows them back (`mount_01/install.py` removed its shrink);
+  the effect keeps only the socket flashes (`gold_rush_02/trim_fx.py`). `rider_checks` casts it from 3 blocks inside its
+  16-block range too. Both moves use `"particles": "drill"` (`StrikeParticles.DRILL`): drill whine and an armadillo call
+  instead of the growl, a grind where a grounded burst bites the floor (`bite`), one rupture per volume as each opens
+  (`erupt`, Big Crack's seven sections), and the missiles' ignition, entity-bound whistle, trail and burst. The sounds are
+  synthesised by `../harness/v2/out/digmon/sound_01/make_digmon_audio.py`. A species' own voice (ambient, hurt, death,
+  pitch) is `data/digicube/voices.json` (`DigimonVoices`); without an entry a Digimon keeps vanilla's.
 - How a species fights *between* attacks is data too: the optional `tactics` block on the
   species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
   `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`, `fight_speed`, and the
@@ -496,15 +541,32 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   acceleration and air drag, then holds every segment in front of the colliders within its reach. State is per
   entity in `DigimonRenderer`. `:fabric:nativeDinohyumonTest` pins the blades, the buried sword, the cloth's hinges
   and that a forward thigh pushes the cloth forward.
-- Agumon is a native model (harness `out/agumon/motion_02`, installed by `integration_01`); the Java `AgumonModel` and
+- Agumon is a native model (harness `out/agumon/motion_02` clips, installed by `integration_01`; the body is
+  `mouth_quality_01` since `integration_02`, whose `retarget.py` recomposes the hand keys onto a changed hand rest:
+  rerun it after any rest change); the Java `AgumonModel` and
   the billboard `PepperBreathModel` are gone, and Agumon's native body at Agumon's scale is the fallback for a species
   without a model. Two catalog keys in `ground_models.json` are generic: `look` turns one part by vanilla's head yaw
-  and pitch within limits (faded out as an attack blends in), and `attack_effects` draws clips of one effect model in
+  and pitch within limits (faded out as an attack blends in; `carry` hands shares of it to parts further down the chain,
+  each within its own limits: Mojyamon's face sits on its chest, so its waist takes three quarters and the head six
+  degrees, and a head turned alone buried the face in the fur; `body.head_turn` on the sheet, `getMaxHeadYRot`, then
+  brings the whole body round past 24 degrees), and `attack_effects` draws clips of one effect model in
   the caster's frame while the attack animation of the same name plays (Agumon's mouth ember and claw streaks). A
   FIREBALL move charges and fires from `attack_motion/<attack>_muzzle.json` (`FireballMuzzles`: mouth and head per
   sub-tick), kept apart from `motion()` so the fireball keeps its own positioning rules; the ball's box centre, where
   its core is drawn, leaves the snout. A hit holds the ball still for `PepperBreathEntity.IMPACT_TICKS` to play
   `fireball_impact`, with no further collision. `:fabric:nativeAgumonTest` pins the drawn snout to the server's table.
+  Pepper Breath flies dead straight (no homing, 25 September 2026): hitting a moving body is the shooter's skill.
+  `TargetMotion` reads the target's last second (pace and rate of turn, falls under gravity, walls) and measures how well
+  that reading has foretold the last few ticks; through the wind-up the body turns onto the meeting point by
+  `FIREBALL_TURN` degrees a tick and commits it through `DATA_ATTACK_YAW` (the renderer draws that facing), and a shot
+  is only started while the reading can be trusted over the flight (`fireballWorthIt`: a juker is shot from closer).
+  The claw is a leaping burst (`authored_attacks.json` `claw`, clips by `../harness/v2/out/agumon/claw_leap_01/author_claw.py`,
+  which also writes the claw volume, the motion markers and the streaks): crouch, pounce, a diagonal chop outside the
+  cheek and across the front as it lands, either hand in turn. A leap's `edge: true` measures its lead from the target's
+  side, so a short reach lands as close to Golemon as to a player; every leap now aims at where `TargetMotion` puts the
+  victim at the landing and settles the facing there. Check with `DIGICUBE_SCENARIO=agumon_checks`
+  (`[agumon-checks] RESULT PASS`: balls landed per movement kind, facing error, leaps landed from 1.2 to 3.6 blocks,
+  no blow before the landing, the Burn a ball leaves and water putting it out).
 - Glows over water: 26.2 draws translucent entity models and custom geometry *before* translucent terrain, so a glow
   that writes no depth (vanilla `entityTranslucentEmissive`, any additive pipeline) gets water and ice painted over it
   and looks sunk below the surface. Use `AfterWaterEffects.glow(texture)` instead of `entityTranslucentEmissive`, and
@@ -513,15 +575,106 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   and with improved transparency they draw into the water layer. Like vanilla particles, a glow under a water surface
   is then hidden from above it. Depth-writing `entityTranslucent` effects are left before the water on purpose, so
   submerged fish and bubbles still show through it.
+- A body can **hover** on fins instead of walking (Bukamon, `pukamon`): `locomotion.hover.fall_speed` (`DigimonLocomotion.hovers`).
+  It is still a ground mob with ground navigation and the whole combat planner; the model is exported lifted above
+  the entity's feet (root `24 - lift` px, `harness/v2/out/pukamon/integration_01/source/export_native.py`, lift 1.5
+  native units = 0.3 blocks) and the hitbox covers the gap. Off a ledge it glides down at `fall_speed` (`glide`), it
+  takes no fall damage and makes no footsteps, and its travel clip (`fly`, shipped as `walk` on the ground gait) keeps
+  playing off the ground. This is not burst flight (`locomotion.flight`, Tentomon): it never climbs.
+- Thrown weapons (Mojyamon, `data/digicube/thrown_attacks.json`, hand anchors in `thrown_motion/<species>.json`;
+  design `../design/mojyamon-integration.md`). `RETURNING_THROW`: a bone carried on the back (`carried` part in
+  `ground_models.json`, synced `DATA_BONE_CARRIED`) flies a `BoomerangPath` fixed at the release (out to the range, back
+  to a catch point `catch_side` blocks aside; in height it dips from the hand to `cruise_height` and comes home at the
+  catching fist's height), striking each enemy once each way; caught on the last `catch_window` of the return, otherwise
+  it drops and is picked up or regrows after `drop_ticks`. The catch clip starts when the bone will be within
+  `catch_radius` of the fist on the clip's contact tick (the hands set and reach while it flies on; only its last two
+  ticks blend into the fist), so the brain must have the fist in place that contact lead early. It is drawn spinning
+  about an axis that leans from nearly upright off the hand, into its turn, to flat coming home
+  (`BoomerangEntity.spinAxis`). The throw and catch follow `../harness/v2/out/mojyamon/motion_01/review/throw_research.md`
+  (overhand, stride, hips before trunk before arm, two-handed catch beside the body). Keep a big body's width off
+  exactly 2.0: vanilla steers to path node + `(int)(width + 1) / 2`, which jumps half a block there, and the facing
+  walk then circles a spot it never reaches (Mojyamon is 1.95).
+  `CHARGED_THROW`: formed, held (charge over `charge_ticks`) and thrown on a solved ballistic arc (`Ballistics`); every
+  number is a [tap, full] pair; ground travel is capped at the walk while forming or holding
+  (`DigimonEntity.capChargingPace`) and a blow breaks a charge past `ThrowerState.BREAKS_ABOVE`. `ThrowerState` runs
+  the stages (it owns `activeAttack` for them: `tickAttackTimeline` skips them) and plays the clips on the sustained
+  channel; a clip whose name is a blend (`icicle_hold`, `icicle_throw`) mixes by the synced `DATA_THROW_CHARGE`.
+  Thrower clips play on the upper body over the gait (`NativeGroundModel.thrownPerformance`), so `upper_body` must not
+  carry the legs: Mojyamon's hierarchy is re-rooted (mojyamon > pelvis > waist > body). The AI is `ThrowerBrain`
+  (throw planning over headings/sides/ranges against predicted enemies and a reachable catch, catch interception,
+  fetch, charge by expected damage per tick, openings), walking facing its enemy through `FacingWalk` and
+  `DigimonMoveControl.walkFacing`; `ThrowerFetchGoal` catches and fetches out of a fight. The generic chooser never
+  starts thrown attacks (`canAttackFrom` refuses them). Check with `DIGICUBE_SCENARIO=thrower_checks`
+  (`[thrower-checks] RESULT n of n`) and `:fabric:nativeMojyamonTest` (drawn fist vs server anchors). Animations are
+  generated by `../harness/v2/out/mojyamon/motion_01/source/author.py` (planted IK gait, props, clips) and shipped by
+  `rebuild.sh` there (bake, export, `fix_coplanar.py`, install); never edit the installed JSON by hand. The bone's arms
+  (throw, catch, pickup; revision 3, 2026-09-25) are then re-keyed without Blender by
+  `../harness/v2/out/mojyamon/motion_02/author_arms.py`: two-bone IK in the body's frame from wrist arcs about the
+  shoulder, bone and finger directions and an elbow pole, eased by monotone cubic; it also rolls the in-hand bone 60
+  degrees about its own axis in the mesh (as exported the fist met the bone on the back inside the shoulder mantle)
+  and rewrites the three bone anchors in `thrown_motion`. `check.py` there measures how deep each arm segment sinks
+  into the torso and head and draws contact sheets with the offenders in red. Its arms are 39 px on a 44 px torso: a
+  hand cannot cross the body, so the throw releases beside the head and the catch is two-handed across the chest's
+  front with the elbows out. The Icicle Rod's five clips are rebuilt the same way by `author_ice.py` beside it (which
+  `author_arms.py` runs last): a javelin throw, the spear held high over the right shoulder clear of the head and aimed
+  at the target, the glove arm pointing, the charge winding the trunk further back (light and heavy share key times and
+  euler branches so the game's linear charge mix stays between them; form end = hold start = release start, since the
+  game switches those clips without blending); `ice_check.py` measures and draws them per charge. After a Blender
+  re-export delete `backup_*.json` there and rerun `author_arms.py`.
+  Ridden (2026-09-25), thrown weapons go through `ThrowerState` too, never `beginAttack`: `startRiderThrow` throws the bone
+  at the crosshair (`ThrowerBrain.riderThrow` finds the heading and turn that pass through the soft target or the
+  crosshair's spot, both ways if it can, re-aimed every tick of the wind-up), curving home on the side of the strafe key
+  held (left without one); a press beside a lost bone picks it up; the icicle forms and grows while the button is held
+  (`ThrowerState.riderHold`: no auto-release) and goes on release at the crosshair, led. The ridden tick runs
+  `thrower.tick` (no AI step under a rider). The rider's client caps its own pace while the ice is in hand
+  (`chargingPaceCap`; the server's `capChargingPace` would fight the client), stands for the pickup (`riderAttackLocked`),
+  and squares the body to the crosshair during the wind-up (`THROW_TURN`). `RiderControls.catchRing` draws the bone's home
+  as a frost ring for the rider; the bone's tile fills as it flies home and shows the regrow when lost
+  (`BoomerangEntity.regrowIn`, synced `LOST_AT`). The rider sits on the crown (`rider` path ends at `head`, found by
+  `../harness/v2/out/mojyamon/mount_01/search.py` against every clip: the arms, bone and spear never touch the rider),
+  and a look part that carries its rider does not look around (`NativeGroundModel.ridesLook`).
+  Harder throws (2026-09-25), rider and AI alike. The bone is `input: hold`: tapped it goes as before; held, the throw
+  stops cocked at `hold_at` (`BONE_HOLD`, clip blend `bone_hold`, the charge on `DATA_THROW_CHARGE`) and goes on release
+  (`BONE_RELEASE`, blend `bone_release`, the bone leaves at 3); the charge (`charge_ticks`) stretches the reach from
+  `max_range` to `far_range` (`Returning.reach`), the pace and the power (`charge_speed`, `charge_power`) and moves the
+  release fist to `bone_release_heavy` in `thrown_motion`. Either weapon leaves the hand harder for the body's own
+  motion (`ThrownAttacks.impulse`: `air_boost` more from a leap, plus the pace along the throw as a share of its speed, 40 %
+  at most): pace, reach, power and knockback go with it; `ThrowerState` measures the body's travel and air time itself
+  (a ridden body's position comes from its rider's client). A bone thrown from a leap cruises over the floor it left
+  (`BoomerangPath.floor`), and its far turn climbs or sinks toward the aim (`lift`); `pace`, `floor` and `lift` are synced
+  on the entity. Thrown weapons fire in the air (`startRiderAttack`). Mojyamon leaps (`body.mount.jump` 0.52): the jump
+  clip layers over any ground gait (`NativeGroundModel.applyGround`; before only gallopers had one) and keeps the legs
+  under a thrower's performance. A ridden body walking onto its lost bone picks it up with no press (`pickUpUnderRider`),
+  and every pickup stands only until the bone is in the fist (`ThrowerState.PICKUP_STANDS`). While the wind-up is held
+  `RiderControls.turnMark` draws where the bone will turn. The AI (`ThrowerBrain`) weighs every bone throw at charge
+  0, .5 and 1, standing or from a leap, the icicle standing or from a leap, and takes off `LEAP_LEAD` ticks before the
+  weapon leaves the hand (`DigimonEntity.leapForThrow`), at most every `LEAP_EVERY`; `thrower_checks` has `far` (a
+  charged throw past a tap's reach) and `leap` (a throw from a leap past a full charge's), `rider_checks` a held far
+  throw, both weapons from a leap and the walk-over pickup. The clips are generated without Blender by
+  `../harness/v2/out/mojyamon/mount_02/author_bone_charge.py` (a heavy throw built like the tap one, both cut at the
+  hold) and `author_jump.py` (key poses, the feet planted by leg IK through the landing); `author_arms.py` runs both.
+  Gesomon (25 September 2026) is a sea mount: the rider sits astride the mantle's peak behind its top tier, which is the
+  pommel (`rider` on `mantle_tier_5`, legs straight down the stepped flanks rolled out 0.9 with hips 2.5; sheet seat
+  `[0, 4.16, 0.16]`, `water_seat_offset` `[0, -0.22, 0.91]` because a ridden swimmer keeps its swim pose, which carries
+  the peak forward). Found offline by `../harness/v2/out/gesomon/mount_01` (`fk.py` poses the installed mesh as
+  `NativeGroundModel` does, `search.py` scores seats and leg poses, `review.py` checks every clip; the long arms never
+  come within 32 model px of the rider). In water the body pitches with the view about the rider's seat
+  (`ground_models.json` `pitch_path` `["root"]`, `pitch_at_rider`, `ridden_pitch` 45; `swim_pitch` 0 keeps the wild one
+  upright as before): the rider and the first-person eye stay put and the body swings under them, and an attack takes
+  the body level as it blends in (`divePitch`). Devil Bashing is the quick button (`sweep`), Deadly Shade the special
+  (`shot`, down or up at any angle under water). `:fabric:nativeGesomonTest` pins the drawn seat to the sheet's, on land
+  and afloat, and that the pitch leaves the rider in the saddle. Open: his walk clip is planted to 0.03 blocks a tick and
+  he crawls at 0.26 (alone and ridden), so the short arms slide on land.
 - Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
   spawns a partner (a Champion at no less than `Progression.CHAMPION_LEVEL`: below it the party stores it for evolution
   on its first tick, so it used to vanish on arrival). Owned Digimon follow their tamer and join their fights.
 - Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
   ray (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a
   big fireball drawn one block wide would miss like a needle. `PepperBreathEntity` is the
-  pattern: lead the target (`predictImpactPoint`), sweep the projectile's own box for
-  hits before `super.tick()`, and bend a few degrees per tick toward the target while it
-  stays ahead. Tune those constants before touching speed or hitbox size.
+  pattern: the shooter aims at where the target will be (`TargetMotion.intercept`) and
+  faces it, and the projectile sweeps its own box for hits before `super.tick()`. It does
+  not steer: Ricardo wants a straight shot a player can dodge, and an AI that is good at
+  leading. Tune those before touching speed or hitbox size.
 
 - Progression: every balance number of levels, XP and rest (the curve, stage yields, the
   level-gap multiplier, stat scaling, the damage-proportional split and the Digivice
@@ -652,9 +805,15 @@ The domain lives in `common/src/main/java/com/digicube/digimon/`.
   balance testing happens); `DevActions` is the registry of server actions, each a
   `(server, player, args) -> reply` lambda. The two payloads (`DevActionPayload`: action id
   + argument tag, `DevStatePayload`: state tag + reply) never change when an action is
-  added. Battle Testing (`BattleTest`) stages two wild Digimon in front of the player, keeps
-  them on each other and lets them fight to a knockout with their real stats; the readout
-  travels in the state tag every five ticks and `BattleReadout` draws it as a HUD bar.
+  added. Battle Testing (`BattleTest`) stages two sides of wild Digimon in front of the player
+  (`BattleRoster`: up to four kinds a side, each a species, level and count, at most 40 bodies,
+  in ranks), keeps every fighter on the nearest enemy and lets them fight until a side is down
+  with their real stats; the readout travels in the state tag every five ticks and
+  `BattleReadout` draws it as a HUD bar. A staged fighter carries its side
+  (`DigimonEntity.battleSide`, synced): team-mates spare each other, and one that can carry a
+  rider takes any player on a right click (`mobInteract`) and hands them the reins; this is the
+  only place a right click mounts, never outside a developer fight. Check with
+  `DIGICUBE_SCENARIO=battle_checks` (`[battle-checks] RESULT n of n checks passed`).
 
 Species are loaded from the bundled `data/digicube/species.json` catalog and
 `data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at

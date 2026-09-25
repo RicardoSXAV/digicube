@@ -1,0 +1,132 @@
+{
+  "boomerang_bone": {
+    "kind": "RETURNING_THROW",
+    "motion": "mojyamon",
+    "projectile": "boomerang_bone_projectile",
+    "model_scale": 0.45,
+    "power": 0.85,
+    "return_power": 0.6,
+    "recovery": 14,
+    "cooldown": 22,
+    "duration": 22,
+    "hit_tick": 13,
+    "range": 14,
+    "min_range": 4,
+    "max_range": 12,
+    "far_range": 26,
+    "hold_at": 10,
+    "charge_ticks": 30,
+    "max_hold": 100,
+    "charge_speed": [
+      1.0,
+      1.4
+    ],
+    "charge_power": [
+      1.0,
+      1.35
+    ],
+    "air_boost": 0.3,
+    "lift": [
+      -0.5,
+      6.0
+    ],
+    "catch_side": [
+      1.0,
+      0.3
+    ],
+    "bulge": 1.0,
+    "cruise_height": 1.25,
+    "speed": [
+      0.9,
+      0.3,
+      0.8
+    ],
+    "spin": 45,
+    "hit_radius": 0.93,
+    "hit_height": 0.46,
+    "catch_radius": 2.0,
+    "catch_window": 0.5,
+    "drop_ticks": 120,
+    "pickup_radius": 2.4,
+    "clips": {
+      "throw": [
+        "boomerang_bone",
+        22,
+        13
+      ],
+      "catch": [
+        "bone_catch",
+        18,
+        5
+      ],
+      "pickup": [
+        "bone_pickup",
+        22,
+        8
+      ],
+      "hold": "bone_hold",
+      "release": [
+        "bone_release",
+        12,
+        3
+      ]
+    }
+  },
+  "icicle_rod": {
+    "kind": "CHARGED_THROW",
+    "motion": "mojyamon",
+    "projectile": "icicle_rod_projectile",
+    "model_scale": 0.45,
+    "power": 1.0,
+    "cooldown": 30,
+    "duration": 22,
+    "hit_tick": 12,
+    "range": 18,
+    "charge_power": [
+      0.5,
+      1.9
+    ],
+    "speed": [
+      1.5,
+      0.75
+    ],
+    "gravity": [
+      0.015,
+      0.058
+    ],
+    "size": [
+      1.0,
+      2.4
+    ],
+    "half_width": [
+      0.2,
+      0.53
+    ],
+    "half_length": [
+      0.6,
+      1.46
+    ],
+    "knockback": [
+      0.1,
+      1.0
+    ],
+    "charge_ticks": 40,
+    "max_hold": 100,
+    "embed_ticks": 40,
+    "walk_pace": 1.0,
+    "air_boost": 0.3,
+    "clips": {
+      "form": [
+        "icicle_form",
+        8,
+        0
+      ],
+      "hold": "icicle_hold",
+      "release": [
+        "icicle_throw",
+        14,
+        4
+      ]
+    }
+  }
+}

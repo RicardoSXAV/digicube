@@ -155,9 +155,10 @@ final class BalanceScenario {
     private static String state(Side side) {
         var f = side.fighter;
         var effects = f.getActiveEffects().stream().map(e -> e.getEffect().value().getDescriptionId().replaceAll(".*\\.", "") + e.getDuration()).toList();
-        return String.format(Locale.ROOT, "%s hp=%.0f %s%s tgt=%s eff=%s", side.name(), f.getHealth(),
+        return String.format(Locale.ROOT, "%s hp=%.0f %s%s v=%.3f tgt=%s eff=%s", side.name(), f.getHealth(),
                 f.getActiveAttack() == null ? "-" : f.getActiveAttack().id().getPath() + "@" + f.currentAttackTick(),
-                f.getNavigation().isDone() ? " still" : " moving", f.getTarget() == null ? "none" : "yes", effects);
+                f.getNavigation().isDone() ? " still" : " moving", Math.hypot(f.getX() - f.xo, f.getZ() - f.zo),
+                f.getTarget() == null ? "none" : "yes", effects);
     }
 
     private static void engage() {

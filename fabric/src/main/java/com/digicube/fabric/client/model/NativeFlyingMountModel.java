@@ -20,7 +20,7 @@ public final class NativeFlyingMountModel extends EntityModel<DigimonRenderState
     private final Vector3f riderPoint;
     private final RiderPose riderPose;
     private final double margin;
-    private final float landingContact, approachDistance, liftTick, takeoffTicks;
+    private final float landingContact, liftTick, takeoffTicks;
     private static Identifier asset(Identifier id,String suffix) { return id.withPath("models/entity/"+id.getPath()+suffix); }
     /** Load a species' exact native quads.
      * @param id species identifier
@@ -40,17 +40,19 @@ public final class NativeFlyingMountModel extends EntityModel<DigimonRenderState
             var chain=j.getAsJsonArray("rider_path");riderPath=new ModelPart[chain.size()];p=root;
             for (int i=0;i<chain.size();i++) { p=p.getChild(chain.get(i).getAsString());riderPath[i]=p; }
             var v=j.getAsJsonArray("rider_point");riderPoint=new Vector3f(v.get(0).getAsFloat(),v.get(1).getAsFloat(),v.get(2).getAsFloat());
-            riderPose=new RiderPose(j.get("rider_leg_pitch").getAsFloat(),j.get("rider_leg_splay").getAsFloat(),0);
+            // Radians, as MixinHumanoidModel sets them: leg pitch (forward is negative), splay, roll outward, hips in px.
+            riderPose=new RiderPose(j.get("rider_leg_pitch").getAsFloat(),j.get("rider_leg_splay").getAsFloat(),
+                    GsonHelper.getAsFloat(j,"rider_leg_roll",0),GsonHelper.getAsFloat(j,"rider_leg_hips",0));
             margin=j.get("culling_margin").getAsDouble();
             landingContact=j.get("landing_contact_tick").getAsFloat();
-            approachDistance=j.get("approach_distance").getAsFloat();
             liftTick=j.get("lift_tick").getAsFloat();
             takeoffTicks=j.get("takeoff_ticks").getAsFloat();
         } catch (java.io.IOException e) { throw new IllegalStateException("Cannot read flight presentation",e); }
     }
     @Override public void setupAnim(DigimonRenderState s) {
         super.setupAnim(s);
-        if (!s.isBeingRidden && s.attackAnimationName != null && s.attackAnimation.isStarted()) {
+        // A rider's cast plays too: the seat is read from this pose, so the rider rides the brace and the recoil.
+        if (s.attackAnimationName != null && s.attackAnimation.isStarted()) {
             animations.apply(s.attackAnimationName, s.attackAnimation.getTimeInMillis(s.ageInTicks) / 50F, 1);
             return;
         }
@@ -66,14 +68,16 @@ public final class NativeFlyingMountModel extends EntityModel<DigimonRenderState
             }
             case FLYING -> animations.apply("fly",s.flightLoopTime,1);
             case APPROACH -> {
-                float blend=smooth(1-s.flightGroundDistance/approachDistance);
+                // The landing clip runs with the descent itself, from the height the approach began at to the ground:
+                // it starts from the flight pose wherever that was and meets the ground as the feet do.
+                float blend=smooth(s.flightLandingProgress);
                 animations.apply("fly",s.flightLoopTime,1-blend);
-                animations.apply("land",landingContact*blend,blend);
+                animations.apply("land",landingContact*s.flightLandingProgress,blend);
             }
             case LANDING -> animations.apply("land",landingContact+t,1);
         }
         float air=s.flightPhase.airborne()?smooth(s.flightPhase==com.digicube.entity.ai.FlightPhase.TAKEOFF?(t-liftTick)/(takeoffTicks-liftTick):1):0;
-        if (s.flightPhase==com.digicube.entity.ai.FlightPhase.APPROACH) air*=smooth(s.flightGroundDistance/approachDistance);
+        if (s.flightPhase==com.digicube.entity.ai.FlightPhase.APPROACH) air*=smooth(1-s.flightLandingProgress);
         // This is a rigid steering transform over the native pose, so every limb stays attached.
         // Pivot around the animated seat to keep the rider and first-person clearance stable.
         if (air > 0) {

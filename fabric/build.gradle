@@ -90,6 +90,8 @@ loom {
             setConfigName('DigiCube Client (Fabric)')
             ideConfigGenerated(true)
             runDir('runs/client')
+            // A fixed name keeps the offline UUID, and with it the owned Digivice and party, across launches.
+            programArgs('--username', 'Dev')
         }
         server {
             server()
@@ -189,6 +191,16 @@ tasks.register('nativeDinohyumonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeDinohyumonTest') }
+tasks.register('nativeMojyamonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeMojyamonRegressionTest'
+    if (project.hasProperty('mojyamonEvidence')) args project.property('mojyamonEvidence')
+    workingDir = layout.buildDirectory.dir('native-mojyamon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeMojyamonTest') }
 tasks.register('nativeAgumonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath

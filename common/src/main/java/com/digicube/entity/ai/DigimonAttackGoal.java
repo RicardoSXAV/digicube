@@ -42,6 +42,8 @@ public final class DigimonAttackGoal extends Goal {
 
     private final DigimonEntity mob;
     private final double speedModifier;
+    /** The planner of a species that fights with thrown weapons; null for everyone else. */
+    private ThrowerBrain brain;
     private int ticksUntilPathRecalc;
     private Vec3 positionedTarget;
     private int positionedAtTick;
@@ -99,6 +101,12 @@ public final class DigimonAttackGoal extends Goal {
         }
         mob.traceCombat(target);
         DigimonTactics tactics = mob.tactics();
+        // A thrower plans its throws, catches and footwork itself; it still sidesteps like everyone else.
+        if (ThrowerBrain.handles(mob)) {
+            if (brain == null) brain = new ThrowerBrain(mob);
+            brain.tick(target, tactics, () -> tickDodge(target, tactics));
+            return;
+        }
         if (mob.shootingOnTheRun()) { tickOnTheRun(target, tactics); return; }
         if (mob.isAttacking()) {
             // A stream can be cut to get out of the way of a shot or a spike wave; anything else is committed.

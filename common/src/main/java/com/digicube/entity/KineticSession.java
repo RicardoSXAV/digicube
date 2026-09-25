@@ -29,6 +29,8 @@ public final class KineticSession {
     private final HashSet<UUID> hit = new HashSet<>();
     private boolean kick;
     private float pitch;
+    /** Where the shot was last aimed (the led target, or the rider's crosshair point). */
+    private Vec3 aimedAt;
     /** Under a rider: a shot aimed by the view, or a buck committed at once. */
     private final boolean ridden;
     /** A rider's shot loosed on the run: the rider's client moves and turns the mount, the upper body turns to the aim. */
@@ -140,6 +142,7 @@ public final class KineticSession {
                     point = PepperBreathEntity.predictImpactPoint(target, owner.position(), definition.projectileSpeed(), definition.maxLead());
                     if(definition.projectileMotion()!=null) point=point.add(targetPoint(definition,target).subtract(AttackGeometry.chest(target.getBoundingBox())));
                 } else point = viewPoint.get();
+                aimedAt = point;
                 var aim = KineticGeometry.aim(definition, owner.position(), point);
                 aimYaw = aim.yaw();
                 if (!twists) face(aimYaw);
@@ -203,6 +206,16 @@ public final class KineticSession {
         return false;
     }
 
+    /**
+     * Under water a rider's shot is not held to the body's reach up and down ({@code max_pitch}, a spit from a standing
+     * body): it leaves the muzzle along the line to where it was aimed, up or down, as a swimmer turns to spit.
+     */
+    private Vec3 waterLine(Vec3 muzzle, Vec3 aimed) {
+        if (!ridden || aimedAt == null || !owner.isInWater()) return aimed;
+        Vec3 line = aimedAt.subtract(muzzle);
+        return line.lengthSqr() > 1 && line.normalize().dot(aimed) > .3 ? line.normalize() : aimed;
+    }
+
     public void fire(ServerLevel level) {
         var frame = definition.motion().sample(definition.attack().hitTick());
         // Under a rider the facing arrives from the client a moment late; the shot leaves along the solved aim.
@@ -214,7 +227,7 @@ public final class KineticSession {
             aim = new KineticGeometry.Aim(aim.yaw(), aim.pitch(), aim.muzzle().add(shift), aim.direction());
             pivot = pivot.add(shift);
         }
-        Vec3 muzzle = aim.muzzle(), direction = aim.direction();
+        Vec3 muzzle = aim.muzzle(), direction = waterLine(muzzle, aim.direction());
         if (!KineticGeometry.clear(level, owner, pivot, muzzle)) return;
         if (definition.projectileBoxes().stream().anyMatch(b -> KineticGeometry.blocked(level, owner,
                 KineticGeometry.flightBox(b, muzzle, direction)))) return;

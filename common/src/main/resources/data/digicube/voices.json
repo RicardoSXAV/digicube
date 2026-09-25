@@ -1,0 +1,9 @@
+{
+  "digmon": {
+    "ambient": "minecraft:entity.armadillo.ambient",
+    "hurt": "minecraft:entity.armadillo.hurt",
+    "death": "minecraft:entity.armadillo.death",
+    "pitch": 0.8,
+    "ambient_interval": 320
+  }
+}

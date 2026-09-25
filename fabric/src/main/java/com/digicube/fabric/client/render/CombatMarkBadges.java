@@ -40,6 +40,8 @@ public final class CombatMarkBadges {
     private static final Identifier EXPOSED = Constants.id("textures/entity/status/mark_exposed.png");
     private static final Identifier EXPOSED_SPENT = Constants.id("textures/entity/status/mark_exposed_spent.png");
     private static final Identifier EXPOSED_FLASH = Constants.id("textures/entity/status/mark_exposed_flash.png");
+    private static final Identifier BURN = Constants.id("textures/entity/status/mark_burn.png");
+    private static final Identifier BURN_SPENT = Constants.id("textures/entity/status/mark_burn_spent.png");
     /** Half an emblem's fixed world size, the gap between two, and the most one entity shows. */
     private static final float HALF = .28F, GAP = .05F;
     private static final int MAX_EMBLEMS = 3;
@@ -105,6 +107,8 @@ public final class CombatMarkBadges {
                 if (CombatMarkState.has(packed, CombatMarkState.INKED)) emblems.add(Emblem.INKED);
                 float exposed = CombatMarkState.exposedRemaining(packed2);
                 if (exposed > 0) emblems.add(Emblem.EXPOSED);
+                float burn = CombatMarkState.burnRemaining(packed2);
+                if (burn > 0) emblems.add(Emblem.BURN);
                 int count = Math.min(MAX_EMBLEMS, emblems.size());
                 float step = 2 * HALF + GAP;
                 pose.pushPose();
@@ -128,6 +132,11 @@ public final class CombatMarkBadges {
                                 full(collector, pose, EXPOSED_SPENT, centre, WHITE);
                                 wedge(collector, pose, EXPOSED, centre, exposed);
                             }
+                        }
+                        case BURN -> {
+                            // A status: the rim drains as the fire burns down, and goes out with it.
+                            full(collector, pose, BURN_SPENT, centre, WHITE);
+                            wedge(collector, pose, BURN, centre, burn);
                         }
                         case CRACK -> {
                             // Like Cold: the stone fills charge by charge, then the rim lights and drains with Cracked.
@@ -155,7 +164,7 @@ public final class CombatMarkBadges {
         });
     }
 
-    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED, EXPOSED }
+    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED, EXPOSED, BURN }
 
     /** A small fixed world size; depth-tested so an emblem never reveals mobs through walls. */
     private static void full(SubmitNodeCollector collector, PoseStack pose, Identifier texture, float centre, int color) {
