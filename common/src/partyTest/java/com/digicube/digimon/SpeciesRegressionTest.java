@@ -25,7 +25,7 @@ public final class SpeciesRegressionTest {
                             && ThrownAttacks.returning(mojyamon.attacks().get(0)) != null && ThrownAttacks.charged(mojyamon.attacks().get(1)) != null,
                     "Mojyamon throws a returning bone and a charged icicle");
             var mojyamonGait = mojyamon.locomotion().groundGait();
-            // Planted walk and run (harness/v2/out/mojyamon/motion_01/source/author.py): one 14-tick phase, the run played in 10, at the Golemon-sized scale .45.
+            // Planted walk and run: one 14-tick phase, the run played in 10, at the Golemon-sized scale .45.
             check(mojyamonGait != null && mojyamonGait.cycleTicks() == 14 && mojyamonGait.directional()
                             && Math.abs(mojyamonGait.fullSpeed(mojyamon.body().modelScale()) - 3.2 * .45 / 14) < 1.0E-6
                             && Math.abs(mojyamonGait.runSpeed(mojyamon.body().modelScale()) - 4.6 * .45 / 10) < 1.0E-6,
@@ -47,7 +47,7 @@ public final class SpeciesRegressionTest {
             check(digmon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("gold_rush", "big_crack")),
                     "Digmon has both authored signature attacks");
             var digmonGait = digmon.locomotion().groundGait();
-            // The planted walk (harness/v2/out/digmon/mount_01/gen_walk.py): .125 blocks a tick at full amplitude,
+            // The planted walk: .125 blocks a tick at full amplitude,
             // his walking, ridden and fighting pace.
             check(digmonGait != null && digmonGait.cycleTicks() == 16 && digmonGait.stride() == 4
                             && Math.abs(digmonGait.fullSpeed(digmon.body().modelScale()) - .125) < 1.0E-6,

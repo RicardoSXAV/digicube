@@ -7,7 +7,7 @@ import com.digicube.party.PartyMemberView;
  * What a party card says, derived from a {@link PartyMemberView} and the age of the
  * snapshot it came from. No drawing and no client classes, so the rules are checked
  * headless by {@code PartyHudRegressionTest}; the layout numbers live here for the same
- * reason. Design: {@code design/party-hud-strip.md} section 12.
+ * reason.
  */
 public final class PartyHudReadout {
     private PartyHudReadout() {}

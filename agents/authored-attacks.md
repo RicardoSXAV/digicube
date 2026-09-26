@@ -1,9 +1,9 @@
 # Authored attacks: volumes, bursts, leaps and volleys
 
-Read this before adding or changing a move authored in the harness (`authored_attacks.json` with its volumes,
-effects and motion): bursts summoned at the target, travelling sweeps, leaps, contact parts, strike particle
-styles, stacked uses and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and
-export are in [animation.md](animation.md).
+Read this before adding or changing an authored move (`authored_attacks.json` with its volumes, effects and
+motion): bursts summoned at the target, travelling sweeps, leaps, contact parts, strike particle styles,
+stacked uses and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and the asset
+gates are in [animation.md](animation.md).
 
 ## Bursts summoned at the target
 
@@ -62,10 +62,9 @@ refill only shading a tile that still has a use.
 
 Gold Rush is a volley (`volley` in `authored_attacks.json`, `AttackVolley`): its volumes never strike; at
 `launch_tick` each drill leaves as a `VolleyMissileEntity` from where the clip holds it
-(`attack_motion/gold_rush_volley.json`, written from the body's own FK by
-`../harness/v2/out/digmon/gold_rush_02/make_volley.py`), coasts out, lights after its delay, homes on the
+(`attack_motion/gold_rush_volley.json`, sampled from the body's own forward kinematics), coasts out, lights
+after its delay, homes on the
 target or the rider's aim at up to `turn` degrees a tick until it passes it, and deals `power` of the attack
 per hit (volley damage type, so all five land); `VolleyMissileRenderer` draws that drill's own quads from the
-species mesh, spinning. The clip hides the drills at the release and grows them back (`mount_01/install.py`
-removed its shrink); the effect keeps only the socket flashes (`gold_rush_02/trim_fx.py`). `rider_checks`
-casts it from 3 blocks inside its 16-block range too.
+species mesh, spinning. The clip hides the drills at the release and grows them back; the effect keeps only
+the socket flashes. `rider_checks` casts it from 3 blocks inside its 16-block range too.

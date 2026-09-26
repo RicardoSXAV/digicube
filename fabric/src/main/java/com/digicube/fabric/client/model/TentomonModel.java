@@ -9,7 +9,7 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.resources.Identifier;
 
-/** Approved native Tentomon. Reproduce with harness/blender/export_tentomon_release.py. */
+/** Native Tentomon. */
 public final class TentomonModel extends EntityModel<DigimonRenderState> {
     private static final Identifier GEOMETRY = Constants.id("models/entity/tentomon.mesh.json");
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(Constants.id("tentomon"), "main");

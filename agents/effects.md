@@ -19,8 +19,8 @@ through it.
 A kinetic shot may have a `shot_style` (`ShotStyle`, `cannon` for the Hunting Cannon): the report and the
 burst are server-sent sounds and particles, the trail is strewn by each client along the stretch the bolt
 flew. The particles are `DCParticles`, flat pixel planes that tumble in 3D, drawn by
-`fabric/.../render/PixelPlaneParticle` (two quads, since particles cull back faces); sounds are synthesised by
-`harness/v2/out/centalmon/cannon_fx_01/make_cannon_audio.py`. The `water` style (Crabmon's Water Shot) is in
+`fabric/.../render/PixelPlaneParticle` (two quads, since particles cull back faces); the sounds are original
+cues in `DCSounds`. The `water` style (Crabmon's Water Shot) is in
 [species/ganimon.md](species/ganimon.md).
 
 ## Strike particle styles

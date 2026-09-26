@@ -5,8 +5,6 @@ rider's pose, water and sea mounts, the wrap as a rider move, mount pace, sprint
 mounts, charges and drawn shots, and flying mounts. Check with `rider_checks` and `sea_mount_checks`
 ([testing.md](testing.md#index-of-checks)).
 
-Design: `../design/mounted-combat.md`.
-
 ## Rider attacks
 
 Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
@@ -24,7 +22,7 @@ the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E insi
 ## Attack tiles
 
 `RiderAttacks` replaces vanilla's mount hearts with the attack tiles
-(`textures/gui/attack/<attack>[_off].png`, made by `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`),
+(`textures/gui/attack/<attack>[_off].png`),
 each in its own 20-unit frame one unit above the experience bar, the 7x9 mouse glyphs together on their left
 in tile order (layout approved 20 September 2026).
 
@@ -114,8 +112,8 @@ most of a second (`gallopMomentum`); `body.mount.jump` leaps on a tap.
 to 2.8x; the high jump, `LEAP_TOP`, comes in the last stretch of it).
 
 The leap (`body.mount.jump`) is thrown forward and a little higher by the pace (`LEAP_PUSH`, `LEAP_LIFT`), a
-leaper lands 3 blocks of fall free (`causeFallDamage`), and its pose is the `jump` clip (authored by
-`harness/v2/out/centalmon/jump_01/author_jump.py`), driven on every client by `DigimonEntity.tickLeapPose`
+leaper lands 3 blocks of fall free (`causeFallDamage`), and its pose is the `jump` clip, driven on every client
+by `DigimonEntity.tickLeapPose`
 from the body's own motion: takeoff and landing on time, the flight by vertical speed.
 
 ## Four-legged mounts
@@ -141,8 +139,8 @@ moves the muzzle to match. `charge_flames` names the clip and parts a charge bur
 The charge fires in the air too (no gather, a small thrust, its fall held while it burns), goes where the
 movement keys point (`riderKeysTurn`, the server reads `ServerPlayer.getLastClientInput`), picks up an enemy
 crossing its path, and bucks from `BUCK_REACH` out: the buck is the kick on a faster clock (`rider_kick` in
-`kinetic_attacks.json`, clip `jet_dash_buck` made from `jet_dash_kick` by
-`harness/v2/out/centalmon/buck_01/make_buck.py`, rerun it after changing the clock) that skids and turns onto
+`kinetic_attacks.json`, clip `jet_dash_buck`: `jet_dash_kick` retimed to that clock, so a new clock needs the
+clip retimed too) that skids and turns onto
 its prey until the hooves swing (`KineticSession.homing`). Use `standing()`, not `onGround()`, inside a
 server-owned move: a level `move` clears `onGround`. A charge that reaches its prey in the air drops and bucks
 once down.

@@ -15,9 +15,7 @@ import java.util.TreeSet;
  * Z-fighting check for a native mesh: two quads that face the same way, lie on one plane and
  * overlap flicker in game, because the depth buffer cannot order them. Checked in the rest pose,
  * which is the {@code idle} clip at tick 0 (tracks and visibility; a hidden part hides its
- * children) or the bare mesh without one. Same rules and numbers as the harness tool
- * {@code ../harness/v2/tools/coplanar_poses.py}, which also samples the other clips and is what a
- * model is fixed with.
+ * children) or the bare mesh without one.
  */
 final class MeshSurfaceCheck {
     private MeshSurfaceCheck() {}

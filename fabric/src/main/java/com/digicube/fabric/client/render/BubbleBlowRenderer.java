@@ -23,7 +23,7 @@ public class BubbleBlowRenderer extends EntityRenderer<BubbleBlowEntity, BubbleB
     private final BubbleBlowModel model;
 
     /**
-     * Bakes the harness-authored bubble geometry and animations.
+     * Bakes the authored bubble geometry and animations.
      * @param context client renderer context
      */
     public BubbleBlowRenderer(EntityRendererProvider.Context context) {

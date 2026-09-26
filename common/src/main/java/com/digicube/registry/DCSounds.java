@@ -5,7 +5,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.sounds.SoundEvent;
 
-/** Original procedural cues: evolution, the Hunting Cannon's report and burst, Digmon's drills, and the Digivice recall. The reproducible sources live in harness v2. */
+/** Original procedural cues: evolution, the Hunting Cannon's report and burst, Digmon's drills, and the Digivice recall. */
 public final class DCSounds {
     public static final SoundEvent GATHER=register("evolution_gather"),SHED=register("evolution_shed"),RESHAPE=register("evolution_reshape"),
             RECONSTRUCT=register("evolution_reconstruct"),ARRIVAL=register("evolution_arrival"),SHORT=register("evolution_short"),

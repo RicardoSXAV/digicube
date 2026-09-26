@@ -3,6 +3,7 @@ package com.digicube;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,8 +17,9 @@ import java.util.stream.Stream;
 /**
  * Keeps the agent instructions navigable. {@code AGENTS.md} is loaded into every agent task, so it stays within a
  * budget and holds a map; each topic guide under {@code agents/} is listed in that map and stays within its own
- * budget; every relative link and anchor between them resolves; and nothing silently changes which file an agent
- * loads. The rules are in {@code AGENTS.md}, section 7. Every failure says what to fix.
+ * budget; every relative link and anchor between them and in {@code README.md} resolves; no link or path in them
+ * leaves the repository; and nothing silently changes which file an agent loads. The rules are in
+ * {@code AGENTS.md}, golden rule 2 and section 7. Every failure says what to fix.
  */
 public final class AgentDocsRegressionTest {
     private AgentDocsRegressionTest() {}
@@ -33,6 +35,15 @@ public final class AgentDocsRegressionTest {
     /** An {@code @path} outside code is an import Claude Code inlines into every task. */
     private static final Pattern IMPORT = Pattern.compile("(?:^|\\s)@[\\w./~-]+");
     private static final Pattern CODE_SPAN = Pattern.compile("`[^`]*`");
+    /**
+     * A path that leaves the repository: a leading {@code ../} (paths outside links are relative to the repository
+     * root), a drive letter, a home folder, or {@code ~/} other than the Gradle cache. The {@code .../} that elides
+     * part of a path inside the repository is not one.
+     */
+    private static final Pattern OUTSIDE_PATH =
+            Pattern.compile("(?<![\\w.])\\.\\./|\\b[A-Za-z]:[\\\\/]|(?<![\\w.~])/(?:Users|home)/|~/(?!\\.gradle/)");
+    /** Links to the web are not paths. */
+    private static final Pattern WEB = Pattern.compile("(?i)https?://|mailto:");
 
     /** @param args the repository root */
     public static void main(String[] args) throws IOException {
@@ -72,8 +83,16 @@ public final class AgentDocsRegressionTest {
                         + " and map both");
             }
             checkLinks(root, guide, text, errors);
+            checkPaths(root, guide, text, errors);
         }
         checkLinks(root, map, mapText, errors);
+        checkPaths(root, map, mapText, errors);
+        Path readme = root.resolve("README.md");
+        if (Files.exists(readme)) {
+            String readmeText = read(readme);
+            checkLinks(root, readme, readmeText, errors);
+            checkPaths(root, readme, readmeText, errors);
+        }
 
         for (String claude : CLAUDE_FILES) {
             Path file = root.resolve(claude);
@@ -87,7 +106,7 @@ public final class AgentDocsRegressionTest {
 
         if (!errors.isEmpty()) throw new AssertionError("agent docs:\n  " + String.join("\n  ", errors));
         System.out.println("agent docs: AGENTS.md " + mapLines + " lines, " + mapBytes + " bytes; "
-                + guides.size() + " guides; every link resolves");
+                + guides.size() + " guides; every link resolves inside the repository");
     }
 
     /** Relative links must reach a file inside the repository, and an anchor a heading in it. */
@@ -96,18 +115,42 @@ public final class AgentDocsRegressionTest {
         Matcher link = LINK.matcher(text);
         while (link.find()) {
             String target = link.group(1);
-            if (target.contains("://") || target.startsWith("mailto:")) continue;
+            if (WEB.matcher(target).lookingAt()) continue;
             int hash = target.indexOf('#');
             String path = hash < 0 ? target : target.substring(0, hash);
             String anchor = hash < 0 ? null : target.substring(hash + 1);
-            Path resolved = path.isEmpty() ? file : file.getParent().resolve(path).normalize();
-            // The design documents and the harness are private sibling folders a clone may not have.
-            if (!resolved.startsWith(root)) continue;
+            Path resolved;
+            try {
+                resolved = path.isEmpty() ? file : file.getParent().resolve(path).normalize();
+            } catch (InvalidPathException notAPath) {
+                resolved = null;
+            }
+            if (resolved == null || !resolved.startsWith(root)) {
+                errors.add(name + " links outside the repository (" + target + "): the repository describes only"
+                        + " what is in it (AGENTS.md golden rule 2); drop the link");
+                continue;
+            }
             if (!Files.exists(resolved)) {
                 errors.add(name + " links to missing " + target + ": fix the path or drop the link");
             } else if (anchor != null && !anchor.isEmpty() && !Files.isDirectory(resolved)
                     && !anchors(read(resolved)).contains(anchor)) {
                 errors.add(name + " links to missing anchor " + target + ": point it at a heading that exists");
+            }
+        }
+    }
+
+    /** Outside links, a path that leaves the repository names something a clone of it does not have. */
+    private static void checkPaths(Path root, Path file, String text, List<String> errors) {
+        String name = root.relativize(file).toString().replace('\\', '/');
+        int number = 0;
+        for (String line : text.split("\n")) {
+            number++;
+            String prose = LINK.matcher(line).replaceAll("]()");
+            Matcher outside = OUTSIDE_PATH.matcher(prose);
+            if (outside.find()) {
+                String excerpt = prose.substring(outside.start(), Math.min(prose.length(), outside.start() + 40));
+                errors.add(name + " line " + number + " names a path outside the repository (" + excerpt.strip()
+                        + "): describe what the repository holds instead (AGENTS.md golden rule 2)");
             }
         }
     }

@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Blender-exported contact markers and root travel, in blocks relative to the feet.
+ * Authored contact markers and root travel, in blocks relative to the feet.
  * @param frames immutable sub-tick samples
  * @param samplesPerTick sampling frequency of the source data
  * @param minimumRange minimum target distance for a clear strike
@@ -75,7 +75,7 @@ public record AttackMotion(List<Frame> frames, int samplesPerTick, double minimu
     }
 
     /**
-     * Load original motion data exported by the model harness; never client classes.
+     * Load the attack's bundled motion data; never client classes.
      * @param id attack identifier
      * @return validated motion profile
      */

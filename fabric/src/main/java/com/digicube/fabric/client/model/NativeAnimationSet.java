@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Saved Blender curves in model coordinates. Data keeps animation out of Java bytecode.
+ * Animation curves in model coordinates. Data keeps animation out of Java bytecode.
  *
  * <p>Format 1: {@code paths} names each part by its child chain from the root, {@code clips}
  * hold tracks of keys. A key row is {@code [tick, x, y, z, xRot, yRot, zRot]} with an optional

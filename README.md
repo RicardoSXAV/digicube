@@ -216,8 +216,7 @@ summaries are sent to their client. Future species automatically use
 `assets/<namespace>/textures/gui/digimon/<species>.png`, with a neutral fallback
 if a resource pack omits an icon.
 
-Garurumon's approved 32×32 party icon appears in the Digivice and party HUD. Its
-editable source and approved face-v8 snapshot live in `../harness/art/pixel_sprites/`.
+Garurumon's 32×32 party icon appears in the Digivice and party HUD.
 
 `gradlew.bat build` includes the headless `:common:partyTest` regression suite.
 Manually try swapping, recalling, repeated species, a large collection, saving and
@@ -226,51 +225,21 @@ dedicated server. The dedicated server's EULA must be accepted manually before
 `:fabric:runServer` can start its world. Existing dev partners are tied to the dev
 username/UUID, so keep the same `--username` when testing across client launches.
 
-### Model authoring with Blender MCP
+### Koromon
 
-The local [model harness](../harness/README.md) owns geometry, pixel textures and
-keyframe animations. Koromon's source is `../harness/digimon/koromon.py`; its saved
-Blender scene and preview renders are under `../harness/out/koromon/`.
-
-Rebuild through Blender MCP:
-
-```python
-SPECIES = "koromon"
-exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/run.py", encoding="utf-8").read())
-```
-
-Copy the generated `KoromonModel.java` into
-`fabric/src/main/java/com/digicube/fabric/client/model/`, and `koromon.png` into
-`common/src/main/resources/assets/digicube/textures/entity/digimon/`, then build.
-Edit the harness source to change geometry or motion; keep the exports reproducible.
-
-Animations are data, not Java. Whatever a harness export produces, the mod reads
-`common/src/main/resources/assets/digicube/models/entity/<name>.animation.json`
-through `NativeAnimationSet`. Convert a generated keyframe class and reduce a native
-export with the harness tool (Blender's bundled Python works; the machine has no other):
-
-```bash
-python ../harness/tools/native_animation.py java-to-native common/src/main/resources/assets/digicube/models/entity/koromon.animation.json --hierarchy fabric/src/main/java/com/digicube/fabric/client/model/KoromonModel.java ../harness/out/koromon/KoromonAnimations.java
-```
-
-```bash
-python ../harness/tools/native_animation.py simplify common/src/main/resources/assets/digicube/models/entity/golemon.animation.json
-```
-
-`simplify` drops keys a linear loader reproduces anyway (tolerances 0.0002 rad, 0.001 px),
-collapses walk-amplitude variants the blend already interpolates, and verifies its own
-output; `round-motion` trims constriction and attack-motion tables to four and six
-decimals. The `assetTest` step of `gradlew.bat build` rejects dense or unrounded tables,
-and the same sentences below that mention copying a `*Animations.java` file mean
-converting it this way.
+Models and animations are data, not Java: the mod reads each model's mesh, texture and
+clips from `common/src/main/resources/assets/digicube/`, the clips from
+`models/entity/<name>.animation.json` through `NativeAnimationSet`. The `assetTest` step
+of `gradlew.bat build` rejects dense animation tables (keys that interpolating their
+neighbours reproduces) and motion tables with more decimals than they need.
 
 Koromon uses a 128×64 atlas, thin folded ear tips and a looping 16-tick hop with
 squash, stretch and delayed ear motion. Movement controls animation speed and weight;
 standing still fades the hop out. This is a visual walk cycle; collision and navigation
 still use the shared Digimon entity dimensions.
 The shaded blowing expression replaces the normal face on ticks 5–18 using explicit
-visibility switches. Facial planes export only their front polygon and sit clear of
-the body surface; keep this setup when regenerating to avoid depth flicker.
+visibility switches. Facial planes have only their front polygon and sit clear of the
+body surface, which keeps them from flickering.
 
 Try `/digicube give koromon`, then walk away to see your partner hop after you.
 Use `/digicube give <species> [player]` to give a partner to yourself or a selected
@@ -284,29 +253,18 @@ cooldown. Hit a nearby hostile mob to have your partner join the fight.
 During the windup, Koromon turns his whole body toward the predicted bubble aim point
 and holds that facing through the blow. The projectile uses that same point at release.
 
-The bubble rig and its flight/pop clips live in `../harness/digimon/bubble_blow.py`.
-Export it with the same `run.py` command using `SPECIES = "bubble_blow"`; copy its
-model and animation Java beside Koromon's, and its PNG to
-`common/src/main/resources/assets/digicube/textures/entity/projectile/`.
-`../harness/blender/preview_bubble_blow.py`, run after Koromon's export, produces an
-editable combined attack scene and frames under `../harness/out/koromon/`.
-
 Use `/digicube spawn agumon` alongside it to check species model selection.
-In-game testing is manual; the harness provides front, side, three-quarter and
-airborne renders plus animation filmstrips for inspection outside Minecraft.
 
 ### Tsunomon
 
 Tsunomon has a stepped orange body, a cream heart-shaped face, red-orange eyes,
 thin fur planes and a curved slate horn. Its original 128×64 pixel atlas includes
-the normal smile and shaded blowing expression. The harness source is
-`../harness/digimon/tsunomon.py`; run `blender/run.py` through Blender MCP with
-`SPECIES = "tsunomon"` to rebuild its scene, renders, model and animations.
+the normal smile and shaded blowing expression.
 
-It imports Koromon's body keyframes for the same 16-tick hopping walk and 24-tick
+It shares Koromon's body keyframes for the same 16-tick hopping walk and 24-tick
 Bubble Blow, including the face swap on ticks 5–18. It uses the same shared bubble
 attack, projectile, aim, damage, range and cooldown. Its horn moves with the body.
-The 32×32 party icon source is `../harness/art/pixel_sprites/tsunomon/sprite.json`.
+It has its own 32×32 party icon.
 
 Try `/digicube give tsunomon`, walk away to see the hop, and hit a nearby hostile
 mob to see the bubble attack. Open the Digivice to check the collection preview
@@ -323,11 +281,11 @@ and rejects malformed species content.
 
 ### Gabumon
 
-Gabumon uses the approved revised model: a fuller belly with its fitted emblem,
+Gabumon's model has a fuller belly with its fitted emblem,
 sturdier legs, and yellow arms holding the striped coat through shared shoulder,
-elbow and wrist joints. The 256×64 pixel atlas, idle pose, 32-tick walk and 16-tick
-anime run come from the approved Blender files. The coat follows his hands; both
-arms sweep behind him when running. Movement fades back to the approved idle.
+elbow and wrist joints. He has a 256×64 pixel atlas, an idle pose, a 32-tick walk
+and a 16-tick anime run. The coat follows his hands; both arms sweep behind him when
+running. Movement fades back to the idle.
 
 ```
 /digicube give gabumon
@@ -342,33 +300,12 @@ from 1.15× to 1.65× while his owner sprints, with a short visual walk/run blen
 The server controls this state; another player's sprint does not trigger it.
 Other species retain their existing follow behavior. Gabumon is a [Data Rookie](https://digimon.net/reference_en/detail.php?directory_name=gabumon)
 with starter stats matching Agumon. His model scale is 0.6, with a 0.95×1.45-block
-collision box. His approved 32×32 party icon appears in the Digivice and party HUD;
-its source is `../harness/art/pixel_sprites/gabumon/sprite.json` (face v3).
+collision box. His 32×32 party icon appears in the Digivice and party HUD.
 Evolution branches are not authored yet. Dedicated-server partner behavior should be checked too.
 
-The source is `../harness/digimon/gabumon_locomotion.py`. Approved idle, walk and run
-files live in `../harness/out/gabumon_locomotion/`; previous revisions are retained.
-Export through Blender MCP in a background process (the script opens all three
-saved files), or save any interactive Blender edits before running it there:
-
-```python
-exec(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_gabumon_locomotion.py",
-          encoding="utf-8").read())
-```
-
-This exporter verifies geometry, UVs and paint against the approved scenes, samples
-their saved native animation curves at sixteenth ticks, and writes
-`GabumonModel.java`, `GabumonAnimations.java` and `gabumon.png` under
-`../harness/out/gabumon_locomotion_release/`. Copy the Java files to
-`fabric/src/main/java/com/digicube/fabric/client/model/` and the atlas to
-`common/src/main/resources/assets/digicube/textures/entity/digimon/gabumon.png`.
-It exports one polygon per flat sheet to avoid depth flicker. Run
-`gradlew.bat -I ../harness/tools/verify_gabumon_locomotion.init.gradle :fabric:verifyGabumonLocomotionExport`
-to compare the compiled Minecraft model with all sampled Blender poses and check
-walk/run blending and a clean idle reset.
-The transition audit (`blender/audit_gabumon_game_blends.py`) supplies its Blender
-comparison poses. During the game-only fade, hands clear the thighs before the
-legs step, and feet stay above ground. The approved idle and full cycles are unchanged.
+Each flat sheet is a single polygon, which keeps it from flickering. When he starts or
+stops moving, his hands clear his thighs before the legs step, and his feet stay above
+the ground.
 
 The optional species `locomotion` object supplies `follow_start_distance`,
 `follow_stop_distance`, `walk_speed` and `run_speed`. Speeds are navigation modifiers;
@@ -397,7 +334,7 @@ tracking Gabumon halfway through a breath.
 
 **Horn Attack** is the short-range fallback: brace, lower the horn, drive up to
 0.95 blocks, then recover. Its starting range is 0.65–2.3 blocks, cooldown is
-26 ticks (1.3 seconds), and animation lasts 22 ticks. The exported horn segment
+26 ticks (1.3 seconds), and animation lasts 22 ticks. The horn segment
 checks contact on ticks 7–12 and hits once per use at 0.7× attack power. Its damage
 type suppresses vanilla hurt knockback as well as the extra impulse Great Antler
 uses. Movement respects walls and unsupported drops.
@@ -409,32 +346,11 @@ cover, allies in the stream, and recalling/redeploying during recharge. Existing
 Gabumon partners gain the attacks automatically. Dedicated-server combat is a manual
 check; the dev server's EULA must be accepted before it can open a world.
 
-The attack source is `../harness/digimon/gabumon_attacks.py`; flame geometry, pixel
-paint and flow animation are in `../harness/digimon/blue_blaster.py`. Through Blender
-MCP, run `../harness/blender/launch_gabumon_attacks.py`. It launches the reproducible
-`build_gabumon_attacks.py` export in a background Blender process, preserving the
-interactive scene and the approved idle/walk/run files. Copy `GabumonModel.java`,
-`GabumonAnimations.java` and both attack-motion JSON files from `out/gabumon_attacks/`,
-plus `BlueBlasterModel.java`, `BlueBlasterAnimations.java` and `blue_blaster.png` from
-`out/blue_blaster/`, to their corresponding mod model, motion and projectile-texture
-folders. Use this combined exporter for future Gabumon releases so attacks remain
-included alongside the approved locomotion.
-
-`build_blue_blaster.py` exports the flame alone; `preview_blue_blaster_v2.py` renders
-the current flame and aimed animation against a moving practice target. The older
-`preview_gabumon_attacks.py` retains the Horn Attack preview. Set `GABUMON_SCRIPT` to
-the desired script before running the launcher. Source references and the limits
-of the art-directed flow approximation are in `../harness/digimon/blue_blaster_research.md`.
-`tools/verify_gabumon_attacks.init.gradle` adds the
-`:fabric:verifyGabumonAttacks` task: compiled-model mouth/horn alignment at fractional
-ticks and varied aim, planted soles, usable horn range, idle reset and valid flame
-poses. It also verifies the actual flame renderer transform across 150 headings/pitches,
-target alignment at varied heights/ranges, and clipping individual tongues. Standard
 `build` includes common-side cardinal aim, plume volume, transport and fuel regressions.
 
 ### Garurumon and riding
 
-Garurumon uses the approved Minecraft-style wolf model, including its fitted eyes,
+Garurumon uses a Minecraft-style wolf model, including its fitted eyes,
 tapered muzzle and paws, closed mouth and stepped pixel teeth. The native 16-tick
 run is the only moving gait; stopping restores the standing pose. Its cadence
 follows traveled distance, so it accelerates with movement instead of sliding
@@ -452,17 +368,7 @@ feet and 0.375 blocks behind the origin. A wider seated leg pose fits the wolf's
 back. The rider's visible position follows the animated seat while the physical
 attachment retains the existing server-authoritative mounting controls.
 
-Approved model/texture source: `../harness/digimon/garurumon.py`; saved native clips:
-`../harness/out/garurumon_visible_teeth/`. Export through Blender MCP with
-`../harness/blender/export_garurumon_release.py`; review scenes and videos are in
-`../harness/out/garurumon_release/`. That exporter preserves the refined surfaces
-as mesh JSON as well as exporting the saved native animation curves. Regenerating
-only the old cuboid source loses the approved refinements.
-
-The compiled export check is
-`gradlew.bat -I ../harness/tools/verify_garurumon.init.gradle :fabric:verifyGarurumonExport`.
-It verifies native geometry/UVs, the full run, partial movement, idle reset and the
-moving rider seat. In game, check walking away from Garurumon, mounting, steering,
+In game, check walking away from Garurumon, mounting, steering,
 stopping, one-block rises and dismounting, including armor and another player's
 view. Dedicated-server mounting still needs a manual test; the dev server's EULA
 must be accepted before it can open a world.
@@ -496,7 +402,7 @@ he cannot approach. Positioning changes with the combo phase, including an immed
 replan when a mark is applied or a target freezes.
 
 All Digimon now check actual attack geometry before committing. Horns and bites
-rehearse the exported contact path, including body clearance and ground support;
+rehearse their contact path, including body clearance and ground support;
 shots check the mouth's line of fire. Breath aims at a clear point inside the upper
 body and includes the moving mouth and aim blend. When an attack cannot connect,
 navigation searches for a reachable firing/striking position, including stepping
@@ -511,16 +417,7 @@ Also try cover, a moving target, an enemy very close to his chest, and recalling
 or mounting during emission. Mounting always cancels combat. Existing partners gain
 both moves. Full dedicated-server combat remains a manual check after EULA acceptance.
 
-The reproducible Blender source is `../harness/blender/build_garurumon_attacks.py`.
-Claim a task-owned Blender session, run that script and `build_howling_blaster.py`,
-then install with `../harness/tools/install_garurumon_attacks.py`. This preserves the
-approved native model and gallop and adds the separate generated attack holder.
-Saved clips, complete previews and verification reports are in
-`../harness/out/garurumon_attacks/`. The compiled attack check is
-`gradlew.bat --init-script ../harness/tools/verify_garurumon_attacks.init.gradle :fabric:verifyGarurumonAttacks`.
-The badge's editable pixel grid is `../harness/art/pixel_sprites/ice_mark_badge/sprite.json`;
-render it with `../harness/tools/render_pixel_sprites.py`, then copy its native PNG to
-`assets/digicube/textures/entity/status/`. Source grids and enlarged previews stay in the harness.
+The Ice Mark badge is a native pixel PNG in `assets/digicube/textures/entity/status/`.
 
 ### Gomamon on land and in water
 
@@ -532,8 +429,7 @@ Use `/digicube spawn gomamon` for a wild one. He is not rideable.
 
 The two-second swim cycle combines a broad forepaw power stroke, feathered recovery,
 a streamlined glide and delayed motion through the hips and tail. Stroke intensity
-and cadence ease with speed; entering and leaving water blends with the approved
-walk. The cuboid model, pixel texture and head-surface cleanup are preserved.
+and cadence ease with speed; entering and leaving water blends with the walk.
 Aquatic movement is enabled by species data through `locomotion.swim_speed` (blocks
 per tick); Gomamon uses `0.46`. On land the aquatic move control applies his base speed
 `0.08` and follow multiplier `1.3` once, unlike the squared pace of vanilla walkers, which
@@ -542,13 +438,6 @@ Vanilla steers bodies wider than a block to a block corner but only counts the b
 as reached, which left Gomamon spinning at the end of a path; Digimon navigation also
 accepts the steering target as arrival.
 
-Authoring source: `../harness/digimon/gomamon_swim.py`. The approved native model and
-walk, glide and swim files are in `../harness/out/gomamon_swim/`, including the review
-GIFs. Export the saved Blender files with
-`../harness/blender/build_gomamon_attacks.py`; it includes the native locomotion
-export and preserves native faces and UVs while adding the attack clips.
-Run `gradlew.bat --init-script ../harness/tools/gomamon-verification.gradle build
-:fabric:verifyGomamon` to check native-to-compiled poses, transitions and idle reset.
 In game, check following on dry ground, diving into deep water, turning, stopping,
 surfacing and returning up a bank. Dedicated-server aquatic movement also needs a
 manual check after the dev server's EULA is accepted.
@@ -578,14 +467,7 @@ targets at 4–10 blocks, then close combat during the wave cooldown. Also check
 walls and corners, small mobs, allies near the wave, and recalling/redeploying during
 cooldown. Dedicated-server combat remains a manual check after accepting its EULA.
 
-Attack sources: `../harness/digimon/gomamon_attacks.py` and
-`../harness/digimon/marching_fishes.py`. Rebuild with Blender MCP using
-`blender/build_gomamon_attacks.py` and `blender/build_marching_fishes.py`; inspect
-their saved scenes and full-motion filmstrips under `out/gomamon_attacks/` and
-`out/marching_fishes/`. `blender/preview_gomamon_attacks.py` creates the combined scene.
-Run `gradlew.bat --init-script ../harness/tools/verify_gomamon_attacks.init.gradle
-:fabric:verifyGomamonAttacks` to compare compiled locomotion, attack curves, blends
-and reset poses against Blender. `build` also checks wave steering and collision.
+`build` checks wave steering and collision.
 
 ### Ikkakumon: standing mount and fast swimming
 
@@ -594,20 +476,13 @@ stands on the broad back, slightly to one side so the horn leaves the crosshair
 clear. **WASD** steers; in water, look up/down while moving to ascend/dive.
 **Shift** dismounts. `/digicube spawn ikkakumon` creates a wild Ikkakumon.
 
-The approved cuboid model, painted atlas, paired push/glide walk, water idle, swim
-and finished 32×32 party sprite come from the harness. The model retains its
-2.75-block fur crown and 3.88-block horn tip. Attacks are deferred until authored.
+Ikkakumon has a cuboid model with a painted atlas, a paired push/glide walk, a water
+idle, a swim and a 32×32 party sprite. The model reaches 2.75 blocks at its fur crown
+and 3.88 blocks at its horn tip. Attacks are deferred until authored.
 Walking responds to travel but is capped at one push/glide cycle per second, keeping
-the approved ground speed without frantic leg motion. A sampled amplitude table
+the ground speed without frantic leg motion. A sampled amplitude table
 keeps the feet above the floor during slow movement. Swimming has an independent cruise speed, and
 the standing attachment rises gradually with the water posture.
-
-The editable native file, rider-eye views and playback previews are in
-`../harness/out/ikkakumon_release`. Reproduce the asset export with
-`../harness/blender/export_ikkakumon_release.py` through a reserved Blender MCP
-session, then install with `../harness/tools/install_ikkakumon_release.py`.
-`gradlew.bat -I ../harness/tools/verify_ikkakumon.init.gradle :fabric:verifyIkkakumonExport`
-checks the compiled poses against Blender, including partial walks and water blends.
 
 ### Tentomon: biped walking and short flights
 
@@ -630,38 +505,18 @@ obstacle between him and his owner, depletion/recovery, and recalling/redeployin
 mid-flight. Real-world navigation and dedicated-server behavior need manual testing;
 the current dev server requires EULA acceptance before it can open a world.
 
-The approved sources are in `../harness/out/tentomon_biped_locomotion/`. Reproduce
-the installed mesh, packed atlas and saved animation curves with Blender MCP using
-`../harness/blender/export_tentomon_release.py`. Run the compiled comparison with
-`gradlew.bat --init-script ../harness/tools/verify_tentomon.init.gradle :fabric:verifyTentomonExport`.
-`build` also runs the fuel, decision and steering regression suite. The full design
-is in [../design/rookie-flight.md](../design/rookie-flight.md).
+`build` runs the fuel, decision and steering regression suite.
 
-Tentomon currently has his approved idle and locomotion. His attacks will be added
-after authoring; he is not yet in the starter or natural spawn tables.
+Tentomon currently has his idle and locomotion. His attacks come later; he is not yet
+in the starter or natural spawn tables.
 
 ### Greymon and riding
 
-Greymon uses the approved reference model: a three-horned skull mask, inset red eyes,
-painted orange shading, navy tiger stripes, and three-digit hands with flat claws.
-The 256×256 atlas includes the fix for helmet flicker. Its 40-tick walk preserves the
-approved foot placements, weight shifts and delayed arm/tail motion. Animation speed
-tracks distance traveled; a full cycle covers 2.4 blocks at the authored scale.
-
-Source: `../harness/digimon/greymon_reference.py`. Open the approved scene at
-`../harness/out/greymon_reference/greymon_reference.blend`
-and export through Blender MCP:
-
-```python
-exec(compile(open(r"C:/Users/Administrador/Desktop/Coding/harness/blender/export_greymon_reference.py",
-                  encoding="utf-8").read(), "export_greymon_reference.py", "exec"))
-```
-
-The exporter backs up the open scene, verifies its geometry, UVs and texture against
-the approved source, and includes the baked foot corrections. Copy `GreymonModel.java`,
-`GreymonAnimations.java`, and `greymon.png` from `../harness/out/greymon_reference_release/`
-to the mod locations above. Preview renders remain under `../harness/out/greymon_reference/`.
-The species id and model layer remain `greymon`, so existing partners use the new model.
+Greymon's model has a three-horned skull mask, inset red eyes, painted orange shading,
+navy tiger stripes, and three-digit hands with flat claws. The 256×256 atlas avoids
+helmet flicker. Its 40-tick walk has planted foot placements, weight shifts and delayed
+arm/tail motion. Animation speed tracks distance traveled; a full cycle covers 2.4
+blocks at the model's scale.
 
 Try this in a large open area:
 
@@ -689,8 +544,8 @@ its EULA manually.
 
 Greymon prioritizes **Mega Flame** whenever it is ready and has a clear shot. It
 inhales, opens its jaw, fires on tick 16, recoils, then settles over a 40-tick clip.
-The flame's mouth flare, flickering sheets, hot core and ten-tick impact breakup
-are all authored in Blender. Its cooldown is **160 ticks (8 seconds)** and range is
+The flame has a mouth flare, flickering sheets, a hot core and a ten-tick impact
+breakup. Its cooldown is **160 ticks (8 seconds)** and range is
 **3.4–16 blocks**. The shot leads moving targets, collides as a 1.2-block volume,
 damages visible opponents within 1.8 blocks of impact and burns them for 6 seconds.
 It protects the tamer and allies and does not destroy terrain or place fire blocks.
@@ -702,19 +557,8 @@ segment is checked on ticks 11–19, with one damaging hit and knockback per use
 Movement respects walls and stops before an unsupported drop. Greymon backs up if
 the target is too close to bring its horn to bear.
 
-The creature clips live in `../harness/digimon/greymon_reference.py`; the fire rig
-and charge/flight/burst clips live in `../harness/digimon/mega_flame.py`.
-Run `../harness/blender/build_greymon_attacks.py` through Blender MCP to export the
-model, all animations, flame assets and contact profiles. Copy the Greymon Java
-files from `out/greymon_reference_release/`, flame Java/PNG from `out/mega_flame/`,
-and `mega_flame.json` / `great_antler.json` from `out/greymon_attacks/` into the
-corresponding model, projectile texture and `data/digicube/attack_motion/` folders.
-These contact profiles are bundled data; datapack reload support is not implemented.
-`preview_greymon_attacks.py` produces editable combined scenes and preview frames;
-`package_greymon_attacks.py` packages the frames as GIFs. The motion design uses
-[anticipation and stored energy](https://www.animationmentor.com/blog/anticipation-the-12-basic-principles-of-animation/)
-and the [rhino's heavy head and horn](https://animals.sandiegozoo.org/animals/rhinoceros)
-as references, adapted to Greymon's bipedal anatomy.
+The contact profiles, `data/digicube/attack_motion/mega_flame.json` and
+`great_antler.json`, are bundled data; datapack reload support is not implemented.
 
 To test, give yourself a Greymon and hit a nearby hostile mob in an open area.
 Watch Mega Flame first, followed by Great Antler while the flame is cooling down.
@@ -722,21 +566,13 @@ Mounting cancels an attack and reserves control for the rider; dismount before
 testing autonomous combat. Also check allies near an impact, walls, moving targets,
 and mounting during the windup. Dedicated-server combat still needs a manual test.
 
-The harness's `tools/verify_greymon_attacks.init.gradle` runs the compiled model
-against the exported mouth and horn markers at fractional ticks, checks the attack
-order/cooldowns/range, flame clips, idle reset and the rider seat during late attack
-events. `tools/verify_greymon.init.gradle` retains the approved walk and mount checks.
-
 ### Wild Digimon, levels and XP
 
 Every Digimon has a level (1–50) and XP, and species base stats now reach the
 entity: max health is `base_health × (1 + 0.04 × (level − 1))` and attack is
 `base_attack × (1 + 0.03 × (level − 1))`, so a Koromon and a Greymon finally differ
-in health and damage. Partners saved before this change load at level 1. The
-design, balance tables and the multiplayer research behind them are in
-[../design/wild-spawns-and-progression.md](../design/wild-spawns-and-progression.md),
-kept beside the repository like the harness;
-every constant lives in `Progression` and `:common:progressionTest` reproduces the tables.
+in health and damage. Partners saved before this change load at level 1. Every
+balance constant lives in `Progression`, and `:common:progressionTest` pins the tables.
 
 XP comes only from defeating wild (unowned) Digimon. A wild Digimon keeps a ledger
 of the health it lost to each partner. When it dies, its yield
@@ -812,10 +648,7 @@ data. The candidates and their level come from `data/digicube/starters.json`.
 The screen is also the pilot of the DigiCube GUI language, drawn entirely with
 primitives from `fabric/.../client/gui/DigiTheme` (colours and knobs) and `DigiPanels`
 (chamfered frames, corner brackets, the green data grid, breathing blue data squares,
-platforms, buttons). The design, the layout rules and what to judge in game are in
-[../design/starter-selection-and-gui-language.md](../design/starter-selection-and-gui-language.md),
-kept beside the repository. The Digivice screen keeps its old look until this one is
-approved.
+platforms, buttons).
 
 ```
 /digicube starter                  reopen the choice while still eligible (everyone)
@@ -878,7 +711,7 @@ Working:
 - Levels and XP: species stats scale with level, and defeating wild Digimon splits XP by damage dealt
 - Neutral wild Digimon spawning from bundled spawn tables, controlled with `/digicube wild`
 - A first-partner prompt on entering a world, and the Partner Link screen that pilots the DigiCube GUI language
-- Harness-authored models and animations rendered with Minecraft's native model API
+- Models and animations as JSON data, rendered with Minecraft's native model API
 - A working mixin, as proof the pipeline runs
 - CI that builds on every push
 
@@ -891,7 +724,7 @@ Not built yet, roughly in the order it should be tackled:
 
 ### Kabuterimon: flying partner
 
-`/digicube give kabuterimon` adds the blue adult partner with the approved native
+`/digicube give kabuterimon` adds the blue adult partner with its native
 model. Right-click your partner to ride. Space launches/climbs; normal movement
 and mouse look steer. Hold forward and look down to dive: sustained steep descents
 build speed, which carries through a smooth pull-up. Climbs and hard turns spend
@@ -904,8 +737,6 @@ The rider is centered behind the horn. Flying uses a forward body lean, tucked
 legs, swept arms, turn banking and a dive angle that follows actual movement, with continuous native takeoff/flight/landing
 clips. The reusable flight profile lives in the species sheet; future aerial
 species supply the same native clip/presentation contract without new physics.
-Source, packed Blender scenes, multi-angle reviews and real-client previews are in
-`../harness/out/kabuterimon_release/README.md`.
 
 The dive revision has passed deterministic handling and compiled pose checks;
 its in-game feel awaits manual review. Try gaining altitude, diving with W, then

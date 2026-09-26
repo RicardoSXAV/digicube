@@ -25,7 +25,6 @@ import org.lwjgl.glfw.GLFW;
  * in the dead zone or the order is unavailable. Under the orders sits the Digivice key, which opens
  * the Digivice; with nobody in the party it is all the wheel offers. Space steps to the next partner. The party
  * strip stays visible behind the veil, so the partner is shown here by its icon alone.
- * Design: {@code design/command-wheel.md}.
  */
 public final class CommandWheelScreen extends Screen {
     private static final int W = CommandWheelReadout.MODULE_WIDTH;

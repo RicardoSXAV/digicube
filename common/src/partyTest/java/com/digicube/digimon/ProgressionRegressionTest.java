@@ -10,7 +10,7 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * Reproduces the balance tables of {@code ../design/wild-spawns-and-progression.md}
+ * Pins the balance tables of {@code Progression} (levels, XP and rest)
  * without a game, so a tuning change shows up here before it shows up in play.
  */
 public final class ProgressionRegressionTest {

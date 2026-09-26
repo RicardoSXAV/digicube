@@ -11,8 +11,8 @@ import java.util.Objects;
  * paired with a frost stream instead plans a combo from target status, fuel and range.
  *
  * <p>Timing is in ticks (20 per second). The animation on the client is looked up by
- * {@code id().getPath()} (plus {@code _mirrored} for the alternate side), so the harness
- * animation must carry the same name as the attack id.
+ * {@code id().getPath()} (plus {@code _mirrored} for the alternate side), so the clip
+ * must carry the same name as the attack id.
  *
  * @param id             unique id, e.g. {@code digicube:pepper_breath}
  * @param kind           how the hit is delivered
@@ -22,7 +22,7 @@ import java.util.Objects;
  * @param hitTick        tick within the animation when the damage lands / projectile leaves
  * @param range          blocks; melee uses the vanilla reach test instead
  * @param alternateSides whether consecutive uses mirror the animation (left claw, right claw)
- * @param motion         optional Blender-exported origin, contact and movement profile
+ * @param motion         optional authored origin, contact and movement profile
  * @param fuel           fuel timing for a sustained attack, otherwise null
  * @param knockback      extra impulse for horn contact; zero also suppresses vanilla hurt knockback
  */
@@ -54,7 +54,7 @@ public record DigimonAttack(
         if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
                 || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST || kind == Kind.BOX_SWEEP || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT || kind == Kind.RETREAT_KICK)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
-            throw new IllegalArgumentException(id + ": missing or mismatched Blender motion");
+            throw new IllegalArgumentException(id + ": missing or mismatched attack motion");
         }
         // A tank smaller than the authored window simply ends emission early, into the exhale.
         if ((kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM) != (fuel != null)
@@ -117,7 +117,7 @@ public record DigimonAttack(
         CHARGED_THROW
     }
 
-    /** Harness animation name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
+    /** Clip name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
     public String animationName(boolean mirrored) {
         return mirrored ? id.getPath() + "_mirrored" : id.getPath();
     }

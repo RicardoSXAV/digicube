@@ -11,7 +11,7 @@ import com.digicube.party.PartyMemberView;
 import java.util.UUID;
 
 /**
- * Pins the command wheel's rules from {@code design/command-wheel.md}: which order each
+ * Pins the command wheel's rules: which order each
  * sector offers, when it can be given and why not, and how the cursor picks a sector.
  * No game, no window, no test framework.
  */

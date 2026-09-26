@@ -30,14 +30,17 @@ read it from there.
    about who asked for something: state the rule or the reason itself ("the design wants a straight shot a player
    can dodge"), or say "the user" when a person must be meant. Leave `LICENSE` and `mod_author` in
    `gradle.properties` as they are; authorship there is the maintainer's call.
-2. **Reply in the user's language; think and write everything else in English.** Portuguese is the default; when
+2. **Keep the repository self-contained.** Code, comments, data and docs describe what is in this repository and
+   how the game reads it. They never name, link or depend on a folder, repository or path outside it (the
+   standard toolchain aside: the JDK, Gradle and its caches), and never name the tool or script that made a file.
+3. **Reply in the user's language; think and write everything else in English.** Portuguese is the default; when
    the user writes in another language, reply in that one. The reply is the only text an agent produces in that
    language. Thinking, plans, code, identifiers, comments, log lines, lang and data files, commit messages, docs
-   (this file, `agents/`, `README.md`, `../design/`), memory notes, file and branch names, published pages,
-   prompts to other agents and their reports are all English, and a decision taken from a message in another
-   language is recorded in English. Inside a reply, keep code, paths, commands, quoted log lines and in-game names
-   exactly as written. The one exception is a translation the user asks for (a `pt_br.json`, say).
-3. **Never invent an API.** If you are not certain a Minecraft or Fabric method exists in `26.2`, do not guess a
+   (this file, `agents/`, `README.md`), memory notes, file and branch names, published pages, prompts to other
+   agents and their reports are all English, and a decision taken from a message in another language is recorded
+   in English. Inside a reply, keep code, paths, commands, quoted log lines and in-game names exactly as written.
+   The one exception is a translation the user asks for (a `pt_br.json`, say).
+4. **Never invent an API.** If you are not certain a Minecraft or Fabric method exists in `26.2`, do not guess a
    plausible name. A wrong guess costs a full Gradle build to discover. This is not hypothetical: the first version
    of this scaffold used `ResourceLocation` because that is the name everywhere pre-26, and every file using it
    failed to compile.
@@ -55,37 +58,35 @@ read it from there.
 
    Use `jar tf | grep` to find where a class lives, and `javap` to read its exact method signatures before calling
    one. When the docs and reality disagree, **the decompiled Minecraft source in the IDE is the truth.**
-4. **`common/` must never import a loader.** No `net.fabricmc.*`, no `net.neoforged.*`. See
+5. **`common/` must never import a loader.** No `net.fabricmc.*`, no `net.neoforged.*`. See
    [agents/architecture.md](agents/architecture.md).
-5. **Client code must never run on a dedicated server.** See
+6. **Client code must never run on a dedicated server.** See
    [agents/architecture.md](agents/architecture.md#client--server-side-safety). This is the single most common way
    to crash a modded server.
-6. **The build must pass before you say you are done.** `./gradlew build`. Not "it should compile". On Windows use
+7. **The build must pass before you say you are done.** `./gradlew build`. Not "it should compile". On Windows use
    `gradlew.bat`; the rest of the commands are in [agents/build-and-run.md](agents/build-and-run.md).
-7. **Content is data, code is mechanics.** Adding a new Digimon should not require new Java. If it does, the system
+8. **Content is data, code is mechanics.** Adding a new Digimon should not require new Java. If it does, the system
    is wrong — fix the system.
-8. **One concern per commit**, with a one-line `type: description` message. "Add Greymon" and "refactor the
+9. **One concern per commit**, with a one-line `type: description` message. "Add Greymon" and "refactor the
    evolution engine" are two commits. See [section 5](#5-commits).
-9. **Never edit anything under `build/`, `runs/`, or `.gradle/`.** Those are generated.
-10. **Keep knowledge where it belongs.** A change that alters a rule or a mechanic updates the guide that covers it
+10. **Never edit anything under `build/`, `runs/`, or `.gradle/`.** Those are generated.
+11. **Keep knowledge where it belongs.** A change that alters a rule or a mechanic updates the guide that covers it
     in the same change; see [section 7](#7-keeping-these-docs-useful).
 
 ## 3. Map: read only what the task needs
 
 Markdown links are relative to the file they sit in; paths in backticks are relative to the repository root.
-`../design/` and `../harness/` are private sibling folders (design documents, and the art and animation harness)
-that a clone may not have; skip what depends on them when they are missing.
 
 | Guide | Read it when the task touches |
 |---|---|
 | [agents/architecture.md](agents/architecture.md) | a new class, loader hook, mixin, platform service (`IPlatformHelper`) or resource file; the layout; client vs server; `assets/` vs `data/` |
 | [agents/conventions.md](agents/conventions.md) | a new identifier (`Constants.id`), registry entry (`DC*`), item (checklist), translation key or Creative tab entry; formatting |
 | [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
-| [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, model reviews, the index of every check |
+| [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, the index of every check |
 | [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), healing, creative play, spawning |
 | [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`), attacks as data (`DigimonAttack`, `IceCombo`), tactics (`DigimonTactics`) and matchup balance, wraps, ink, projectiles |
 | [agents/authored-attacks.md](agents/authored-attacks.md) | a move in `authored_attacks.json` (`AuthoredVolumeAttack`): bursts at the target, travelling sweeps, leaps, particle styles, stacked uses, volleys |
-| [agents/animation.md](agents/animation.md) | any Blender session; models and clips as native JSON; `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `cloth`, `ropes`) |
+| [agents/animation.md](agents/animation.md) | models and clips as native JSON (`NativeAnimationSet`); `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `cloth`, `ropes`); rescaling a species |
 | [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips, stepping down, hovering, `travel_facing`, wide bodies and pathing |
 | [agents/mounts.md](agents/mounts.md) | anything a rider does (`RiderAttack`, `RiderControls`, attack tiles): getting on, pose, water and sea mounts, pace, leaps, charges, flying mounts |
 | [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), particles (`DCParticles`), shot styles (`ShotStyle`), voices (`voices.json`) |
@@ -147,7 +148,7 @@ Rules:
 
 - Lowercase after the colon. No trailing full stop.
 - Imperative mood: "add x", not "added x" or "adds x".
-- Keep it under ~70 characters. If it does not fit, the commit is doing too much — split it (see golden rule 8).
+- Keep it under ~70 characters. If it does not fit, the commit is doing too much — split it (see golden rule 9).
 - **No trailers of any kind.** No `Co-Authored-By`, no "generated with" or other tool-attribution footer. The
   message is the one line and nothing else.
 
@@ -173,14 +174,12 @@ Rules:
   into the topic guide and leave the species examples.
 - Every guide opens with a title and a line saying what it covers and when to read it; its map row says the same
   in short, naming the classes and files a task would mention.
-- Write how things work now: the rule, the class or file, and the check that pins it. History and rationale belong
-  in `../design/` or the git history; keep a "because" only when it prevents a known regression.
+- Write how things work now: the rule, the class or file, and the check that pins it. Describe the files the game
+  reads (formats, keys, limits), not how they were made. History and rationale belong in the git history; keep a
+  "because" only when it prevents a known regression.
 - This file and `agents/` are the only instructions both Codex and Claude Code read. A `CLAUDE.md` would switch
   Claude Code off this file unless its first line imports it (an `@` import of `AGENTS.md`); never name a guide
   `AGENTS.md` or `CLAUDE.md`.
-- `:common:agentDocsTest`, part of `./gradlew build`, enforces the budgets, the map, the links and anchors, and
-  the two rules above; its failure message says what to fix.
-
-**Design documents live outside the repository.** Mechanics designs (balance tables, spawn rules, research) sit in
-`../design/`, a sibling of `digicube/` like `../harness`, and are never committed. Read the relevant one before
-implementing a feature and update it when a decision changes.
+- `:common:agentDocsTest`, part of `./gradlew build`, enforces the budgets, the map, the links and anchors, the
+  two rules above, and that no link or path in these docs or `README.md` leaves the repository; its failure
+  message says what to fix.

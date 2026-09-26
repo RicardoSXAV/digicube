@@ -1,7 +1,7 @@
 # The Digivice item and the recall chip
 
 Read this before touching how the Digivice is handed out, bound, stored, dropped, found, recalled or drawn in
-flight. Design: `../design/digivice-item-lifecycle.md`.
+flight.
 
 The Digivice is handed out, never crafted: `StarterFlow.handDigivice` (common) runs first on every join and
 gives one to any non-spectator the `digicube:starters` data has not marked yet, so it is one per player per
@@ -31,7 +31,7 @@ without chunk tickets. The beam waits eight ticks after settling, then fades in 
 withdraws its signal. The owner's drop gets a distinct Digivice icon in the vanilla locator bar, even beyond
 beam range in the same dimension. `/give <player> digicube:digivice` replaces that owner's existing
 credential/device via `MixinGiveCommand`, never creates an additional device. Headless checks:
-`digivice_checks` and `digivice_checks_reload`; design: `../design/digivice-item-lifecycle.md`.
+`digivice_checks` and `digivice_checks_reload`.
 
 ## The recall chip
 
@@ -58,9 +58,7 @@ device (straight up) or a sealed room crosses blocks. A distant device enters 24
 open air nearest its bearing (steeply from the sky in a ravine).
 
 `RecallFx` draws the shooting star (per-vertex-coloured streak, glinting head, stateless stardust) with the
-beacon shader; the four cues are `DCSounds.RECALL_*`, synthesised by
-`harness/v2/out/digivice_item/recall_audio_02/MakeRecallAudio.java` (plain Java, Ogg through the harness's
-libsndfile via FFM), and the flight rush follows the device. The flight ends exactly on the held pose (no
+beacon shader; the four cues are `DCSounds.RECALL_*`, and the flight rush follows the device. The flight ends exactly on the held pose (no
 separate catch lerp); near the eye it moves to the hand pass. Note the 26.2 hand pass's pose stack starts with
 the *inverse view rotation* (`GameRenderer.renderItemInHand`), so a view-space matrix must be premultiplied by
 the camera orientation, and `RecallFlight.handMatrix`'s view-space squeeze makes both passes project

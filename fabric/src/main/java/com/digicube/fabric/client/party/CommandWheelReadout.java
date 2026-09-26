@@ -8,7 +8,6 @@ import com.digicube.party.PartyMemberView;
  * What the command wheel offers for a partner and which order the cursor points at. No
  * drawing and no client classes, so the rules are checked headless by
  * {@code CommandWheelRegressionTest}; the layout numbers live here for the same reason.
- * Design: {@code design/command-wheel.md}.
  */
 public final class CommandWheelReadout {
     private CommandWheelReadout() {}

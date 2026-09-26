@@ -78,7 +78,7 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public final AnimationState attackAnimation = new AnimationState();
 
     /**
-     * Harness animation name to play with {@link #attackAnimation}, e.g. {@code claw},
+     * Attack clip name to play with {@link #attackAnimation}, e.g. {@code claw},
      * {@code claw_mirrored}, {@code pepper_breath}; null while idle. Generated models look
      * it up in their baked animation map.
      */

@@ -17,8 +17,7 @@ import java.util.List;
  * An authored burst that fires parts of the caster's own body as homing missiles (Digmon's Gold Rush: the nose and hand
  * drills). The clip hides those parts from {@code launchTick} and grows them back; in between each flies as a
  * {@code VolleyMissileEntity}, drawn with the part's own geometry. {@code volley} in {@code authored_attacks.json} holds the
- * flight, {@code attack_motion/<attack>_volley.json} (harness {@code digmon/gold_rush_02/make_volley.py}) where each part
- * leaves the body.
+ * flight, {@code attack_motion/<attack>_volley.json} where each part leaves the body.
  *
  * @param launchTick  attack tick at which the parts leave
  * @param speed       full thrust, blocks a tick

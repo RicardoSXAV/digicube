@@ -2,7 +2,7 @@
 
 Read this before verifying a change whose outcome shows up in world state, entity state or the log (step 2 of
 the definition of done in [AGENTS.md](../AGENTS.md)): the scenario runner and its names, balance runs, gait
-checks, model reviews outside the game, and the index of every named check.
+checks, and the index of every named check.
 
 ## Headless scenarios: the AI tests gameplay in the real game
 
@@ -79,12 +79,6 @@ its travel (0 walking ahead, about 90 for a side-on scuttle, see `travel_facing`
 of its own passes the run pace on its walk clips. Run it after setting a new species' `base_speed` or strides;
 vanilla's ground pace is about k x (base_speed x modifier)^2 blocks a tick with k near 2.1-2.2, so measure
 rather than trust k.
-
-## Model verification outside the game
-
-Model verification **outside** the game is different and encouraged: rendering a Blender model (the harness in
-`../harness` produces idle, front, side and action renders) and looking at the images before handing the model
-over is expected.
 
 ## Index of checks
 

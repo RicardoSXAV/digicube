@@ -9,8 +9,7 @@ import java.util.UUID;
  * Every balance number of the level and XP system, in one place.
  *
  * <p>Nothing else in the code base holds a progression constant, so tuning is a diff of
- * this file and the headless {@code :common:progressionTest} suite reproduces the tables
- * in {@code ../design/wild-spawns-and-progression.md}, kept beside the repository. All
+ * this file and the headless {@code :common:progressionTest} suite pins the tables. All
  * arithmetic is integer or a
  * single correctly rounded division, so the same inputs give the same XP on every
  * machine and no floating-point drift can turn an exact share into one less.

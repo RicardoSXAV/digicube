@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Finite-length Blender wrap lattice, shared by server collision and client pose selection. */
+/** Finite-length wrap lattice, shared by server collision and client pose selection. */
 public final class ConstrictionMotion {
     public static final int CAPTURE_TICK = 40;
     public static final int RELEASE_TICK = 80;

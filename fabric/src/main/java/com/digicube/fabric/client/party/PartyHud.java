@@ -32,7 +32,7 @@ import java.util.UUID;
  * top-left corner of the screen at a little under full GUI size. Each card is the
  * Digivice's reading of one partner: sprite on the data grid, level plate, name band, HP,
  * status code, XP rail and the DigiSoul cell. Everything is {@code fill} calls in GUI units
- * plus the species sprite, drawn inside one scaled pose. Design: {@code design/party-hud-strip.md} section 12.
+ * plus the species sprite, drawn inside one scaled pose.
  *
  * <p>The strip keeps a little client memory per partner (last health for the damage
  * ghost, last level for the level-up flash), advanced from the client tick, never from

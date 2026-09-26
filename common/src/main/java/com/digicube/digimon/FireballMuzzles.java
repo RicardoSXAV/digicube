@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Where a FIREBALL move charges and leaves: the snout of the animated head, sampled from the harness export as
+ * Where a FIREBALL move charges and leaves: the snout of the animated head, sampled from its clip as
  * {@code attack_motion/<attack>_muzzle.json} (mouth and head points in blocks at the caster's feet, per sub-tick).
  * Kept apart from {@link DigimonAttack#motion()} on purpose: an attack with a motion also takes the motion attacks'
  * positioning, aim and wind-up rules, and a fireball keeps its own. A move without a table uses the fixed snout.

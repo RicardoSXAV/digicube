@@ -9,7 +9,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.LightCoordsUtil;
 
-/** Renders the original Blender flame rig at the actual animated mouth. */
+/** Renders the original flame rig at the actual animated mouth. */
 public final class BlueBlasterRenderer {
     private static final Identifier TEXTURE = Constants.id("textures/entity/projectile/blue_blaster.png");
     private static final Identifier HOWLING_TEXTURE = Constants.id("textures/entity/projectile/howling_blaster.png");

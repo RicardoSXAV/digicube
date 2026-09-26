@@ -4276,7 +4276,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
     }
 
-    /** Harness animation name currently playing on the client, or null when idle. */
+    /** Attack clip name currently playing on the client, or null when idle. */
     public String getAttackAnimationName() {
         return attackAnimationName;
     }

@@ -15,14 +15,13 @@ import java.util.stream.Stream;
 
 /**
  * Keeps the bundled animation and motion tables lean. Exports arrive as dense sub-tick samples
- * with full double precision; the harness tool ({@code ../harness/tools/native_animation.py})
- * reduces them within tolerances no eye can see. A dense or unrounded table is a pipeline
- * mistake and fails the build here, before it multiplies the jar size.
+ * with full double precision; they ship reduced within tolerances no eye can see. A dense or
+ * unrounded table fails the build here, before it multiplies the jar size.
  */
 public final class AssetRegressionTest {
     private AssetRegressionTest() {}
 
-    /** Same tolerances as the harness tool: radians, model pixels, scale factor. */
+    /** Reduction tolerances: radians, model pixels, scale factor. */
     private static final double ROTATION = 2e-4, POSITION = 1e-3, SCALE = 2e-4;
     /** Share of keys a linear loader would never need; reduced exports sit far below this. */
     private static final double MAX_REDUNDANT = .25;
@@ -32,8 +31,7 @@ public final class AssetRegressionTest {
     /**
      * Escape hatch for the z-fighting gate: a species model listed here may keep that many part
      * pairs whose faces share a plane in the rest pose (see {@link MeshSurfaceCheck}), and the number
-     * may only go down. Empty since 2026-09-18, when all nine species were cleaned with
-     * {@code ../harness/v2/tools/fix_coplanar.py}; keep it empty. A model that is not listed must have none.
+     * may only go down. Empty since 2026-09-18, when all nine species were cleaned; keep it empty. A model that is not listed must have none.
      */
     private static final Map<String, Integer> KNOWN_COPLANAR_PAIRS = Map.of();
 
@@ -76,7 +74,7 @@ public final class AssetRegressionTest {
         int allowed = KNOWN_COPLANAR_PAIRS.getOrDefault(name, 0);
         check(pairs.size() <= allowed, name + ".mesh.json will flicker in game (z-fighting): " + pairs.size() + " part pairs have same-facing faces on one plane"
                 + " that overlap in the rest pose (allowed " + allowed + "): " + pairs.stream().limit(12).toList()
-                + ". Run ../harness/v2/tools/coplanar_poses.py on it and move one face of each pair by 0.25 px.");
+                + ". Move one face of each pair by 0.25 px.");
         check(pairs.size() == allowed, name + ".mesh.json improved to " + pairs.size() + " coplanar pairs; lower its entry in KNOWN_COPLANAR_PAIRS (" + allowed + ").");
         return true;
     }
@@ -106,7 +104,7 @@ public final class AssetRegressionTest {
         }
         double share = keys == 0 ? 0 : (double) redundant / keys;
         check(share <= MAX_REDUNDANT, file.getFileName() + " is a dense export: " + Math.round(share * 100)
-                + "% of its keys are linear filler. Run ../harness/tools/native_animation.py simplify on it.");
+                + "% of its keys are linear filler: drop the keys that interpolating their neighbours reproduces.");
     }
 
     private static double[] tolerance(JsonObject track, int width) {
@@ -126,7 +124,7 @@ public final class AssetRegressionTest {
     private static void checkDecimals(Path file, Pattern pattern, String decimals) throws IOException {
         var matcher = pattern.matcher(Files.readString(file));
         check(!matcher.find(), file.getFileName() + " carries unrounded numbers such as " + (matcher.hitEnd() ? "" : matcher.group())
-                + ". Run ../harness/tools/native_animation.py round-motion with " + decimals + " decimals.");
+                + ". Round it to " + decimals + " decimals.");
     }
 
     private static Path resource(String name) throws URISyntaxException {

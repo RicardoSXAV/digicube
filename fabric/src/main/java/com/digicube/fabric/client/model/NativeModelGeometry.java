@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Loads harness-authored quads, including tapered solids and single pixel sheets. */
+/** Loads authored quads, including tapered solids and single pixel sheets. */
 public final class NativeModelGeometry {
     private NativeModelGeometry() {}
 

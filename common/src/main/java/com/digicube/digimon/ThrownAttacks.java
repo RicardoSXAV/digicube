@@ -21,7 +21,7 @@ import java.util.Map;
  * projectile formed in the hands and held to grow bigger and heavier before it is thrown on a ballistic arc).
  *
  * <p>Read from {@code data/digicube/thrown_attacks.json}; the hand positions the clips release, catch and pick up at
- * come from the harness export {@code data/digicube/thrown_motion/<species>.json}, in the entity's frame (blocks,
+ * come from {@code data/digicube/thrown_motion/<species>.json}, in the entity's frame (blocks,
  * x = its left, y = up, z = ahead).
  */
 public final class ThrownAttacks {

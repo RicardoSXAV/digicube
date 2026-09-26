@@ -73,7 +73,7 @@ public final class KineticAttacks {
 
     /**
      * A rider's buck: the kick replayed on a faster clock, {@code clock} being [buck tick, kick tick] pairs (piecewise
-     * linear, from 0 to the kick's end), with its own clip made from the kick on the same clock (harness buck_01).
+     * linear, from 0 to the kick's end), with its own clip: the kick retimed to the same clock.
      */
     public record RiderKick(String animation, float[][] clock) {
         public float length() { return clock[clock.length - 1][0]; }

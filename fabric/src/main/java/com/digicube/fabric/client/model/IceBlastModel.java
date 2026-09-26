@@ -7,7 +7,7 @@ import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 
-/** Original Blender stepped cuboids and breath sheets, clipped to the shared physical jet. */
+/** Original stepped cuboids and breath sheets, clipped to the shared physical jet. */
 public final class IceBlastModel extends EntityModel<BlueBlasterRenderState> {
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(Constants.id("ice_blast_fx"),"main");
     private final NativeAnimationSet animation;

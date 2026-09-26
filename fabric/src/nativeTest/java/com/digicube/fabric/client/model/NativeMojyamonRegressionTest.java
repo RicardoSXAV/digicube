@@ -158,7 +158,7 @@ public final class NativeMojyamonRegressionTest {
         check(turned > most * .7 && turned < most + 3, "the face follows the look through the waist: " + turned + " of at most " + most);
         state.yRot = 0;
 
-        // The rider sits on the crown (harness mount_01/seat.py): drawn at rest where the sheet seats it (so the first
+        // The rider sits on the crown: drawn at rest where the sheet seats it (so the first
         // person eye is there too), carried by the head through every performance, and the head carrying it does not look.
         var mount = species.body().mount().orElseThrow();
         state.attackAnimation.stop(); state.attackAnimationName = null; state.groundAnimationAmount = 0; state.boneCarried = true;

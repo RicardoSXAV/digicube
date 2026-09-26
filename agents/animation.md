@@ -1,42 +1,24 @@
 # Animation and model assets
 
-Read this before any Blender session and before installing or changing a model, a clip, `ground_models.json`
-or anything else the harness exports: how models and clips ship as native JSON, the reduction tools and the
-`assetTest` gates, clip naming for attacks, the generic catalog keys, cloth and rope chains, and rescaling.
-How gaits follow the body's travel is in [locomotion.md](locomotion.md).
-
-## Blender sessions
-
-For Blender/model/animation work, first read [the shared Blender session
-instructions](C:/Users/Administrador/Desktop/Coding/harness/BLENDER_SESSIONS.md). Claim a task-owned session
-with the canonical harness `tools/blender_slots.py`; it atomically assigns one of five sessions (`blender_a`
-through `blender_e`, ports 9877 through 9881 respectively) using the current Codex task ID. Use only that
-connection and its ownership guards, then save and release it before handing work back. Never use the old
-shared `blender:9876` connection or another task's slot. Use the canonical harness paths even from a Git
-worktree so all chats coordinate through the same reservation registry.
-
-A clip that a script generates is never edited by hand in its installed JSON: rerun the script (each species
-doc names it).
+Read this before adding or changing a model, a clip, `ground_models.json` or any other model asset: how models
+and clips ship as native JSON, the `assetTest` gates, clip naming for attacks, the generic catalog keys, cloth
+and rope chains, and rescaling. How gaits follow the body's travel is in [locomotion.md](locomotion.md).
 
 ## Attack clips
 
-The client animation is looked up by the attack id path, so an attack named `digicube:claw` needs a harness
-animation called `claw` (plus `claw_mirrored` when it alternates sides). Author animations in `../harness`
-(README §3c), never by hand in Java.
+The client animation is looked up by the attack id path, so an attack named `digicube:claw` needs a clip called
+`claw` in the species' animation file (plus `claw_mirrored` when it alternates sides).
 
 ## Native JSON and the asset gates
 
-Animations ship as data: `assets/digicube/models/entity/<name>.animation.json`, read by `NativeAnimationSet`
-(linear keys, or `"interpolation":"catmullrom"` for Minecraft's own spline). A harness export that still
-produces a `*Animations.java` keyframe class is converted with
-`../harness/tools/native_animation.py java-to-native` and the class is never committed. Every export goes
-through that tool's `simplify` (bounded-error key reduction) and motion tables through `round-motion`; the
-`assetTest` build check fails on dense or unrounded tables, because they multiply the jar size for no visible
-gain. `assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no same-facing
-faces on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they flicker in game). All nine species
-are clean since 2026-09-18 and `AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty. Find with
-`../harness/v2/tools/coplanar_poses.py <mesh> <animation>`, repair an export with `fix_coplanar.py` next to it
-(rule and Blender-side check: `../harness/v2/docs/surfaces.md`); `install_assets.py` refuses such a mesh too.
+Animations ship as data, never as Java: `assets/digicube/models/entity/<name>.animation.json`, read by
+`NativeAnimationSet` (linear keys, or `"interpolation":"catmullrom"` for Minecraft's own spline); no
+`*Animations.java` keyframe class is committed. The `assetTest` build check fails on dense or unrounded tables
+(keys that interpolating their neighbours reproduces, motion values with more decimals than they need), because
+they multiply the jar size for no visible gain. `assetTest` also fails on z-fighting: a species mesh (one with an
+`idle` clip) may have no same-facing faces on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they
+flicker in game). All nine species are clean since 2026-09-18 and `AssetRegressionTest.KNOWN_COPLANAR_PAIRS`
+stays empty; the failure names each pair.
 
 ## Generic catalog keys
 

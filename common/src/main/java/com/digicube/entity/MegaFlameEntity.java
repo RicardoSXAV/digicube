@@ -22,7 +22,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A large flame shot with a Blender-authored flight and ten-tick impact burst.
+ * A large flame shot with an authored flight and ten-tick impact burst.
  * Its full volume collides, it leads targets, and each impact deals damage once.
  * Fire affects combatants; the shot never places fire blocks or destroys terrain.
  */

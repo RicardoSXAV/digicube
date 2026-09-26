@@ -6,7 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
-/** Real Blender contact curves against stationary cows, changes of elevation and solid cover. */
+/** Real authored contact curves against stationary cows, changes of elevation and solid cover. */
 public final class AttackGeometryRegressionTest {
     private AttackGeometryRegressionTest() {}
 

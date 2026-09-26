@@ -104,7 +104,7 @@ public final class NativeGesomonRegressionTest {
             }
             renderState.attackAnimation.stop();runtime.setupAnim(renderState);
         }
-        // The rider sits astride the mantle's peak (harness gesomon/mount_01): drawn at rest where the sheet seats it, on land
+        // The rider sits astride the mantle's peak: drawn at rest where the sheet seats it, on land
         // and afloat (the swim pose carries the peak forward: water_seat_offset), and the dive pitch turns the body about the
         // rider, so the rider, and the first-person eye with it, stays in the saddle while the body swings under them.
         var mount=com.digicube.digimon.DigimonSpeciesRegistry.getOrThrow(Constants.id("gesomon")).body().mount().orElseThrow();

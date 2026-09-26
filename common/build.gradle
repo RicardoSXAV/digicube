@@ -102,7 +102,7 @@ tasks.register('locomotionTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('locomotionTest') }
 
-// Reproduces the balance tables of ../design/wild-spawns-and-progression.md (kept outside the repository).
+// Pins the balance tables of levels, XP and rest in Progression.
 tasks.register('progressionTest', JavaExec) {
     dependsOn tasks.named('partyTestClasses')
     classpath = sourceSets.partyTest.runtimeClasspath
@@ -151,7 +151,7 @@ tasks.register('flightTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('flightTest') }
 
-// Fails the build on dense or unrounded animation and motion tables; see ../harness/tools/native_animation.py.
+// Fails the build on dense or unrounded animation and motion tables and on z-fighting meshes; see AssetRegressionTest.
 tasks.register('assetTest', JavaExec) {
     dependsOn tasks.named('partyTestClasses')
     classpath = sourceSets.partyTest.runtimeClasspath
@@ -162,7 +162,8 @@ tasks.register('assetTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('assetTest') }
 
-// Keeps AGENTS.md a small map with every guide under agents/ listed and every link resolving; see AGENTS.md section 7.
+// Keeps AGENTS.md a small map with every guide under agents/ listed, every link resolving and no link or path
+// leaving the repository; see AGENTS.md section 7.
 tasks.register('agentDocsTest', JavaExec) {
     dependsOn tasks.named('partyTestClasses')
     classpath = sourceSets.partyTest.runtimeClasspath

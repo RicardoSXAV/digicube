@@ -32,8 +32,7 @@ at a canter, which must spend no tick in the air (24 without the step down).
 
 A body can **hover** on fins instead of walking (Bukamon, `pukamon`): `locomotion.hover.fall_speed`
 (`DigimonLocomotion.hovers`). It is still a ground mob with ground navigation and the whole combat planner;
-the model is exported lifted above the entity's feet (root `24 - lift` px,
-`harness/v2/out/pukamon/integration_01/source/export_native.py`, lift 1.5 native units = 0.3 blocks) and the
+the model is lifted above the entity's feet (root `24 - lift` px, lift 1.5 native units = 0.3 blocks) and the
 hitbox covers the gap. Off a ledge it glides down at `fall_speed` (`glide`), it takes no fall damage and makes
 no footsteps, and its travel clip (`fly`, shipped as `walk` on the ground gait) keeps playing off the ground.
 This is not burst flight (`locomotion.flight`, Tentomon): it never climbs.

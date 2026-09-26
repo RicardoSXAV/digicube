@@ -4,8 +4,7 @@ Read this before changing how any Digimon fights or tuning a matchup's balance (
 in [testing.md](testing.md#balance-runs) measure them): damage and crits, combat marks, attacks as data and their
 readiness checks, tactics and dodging, wraps, ink, projectiles and kinetic shots. How an authored move's
 volumes and effects are built is in [authored-attacks.md](authored-attacks.md); riding is in
-[mounts.md](mounts.md). Design and numbers: `../design/combat-ai.md`, `../design/combat-balance.md`,
-`../design/combat-marks.md`.
+[mounts.md](mounts.md).
 
 ## Damage and the attribute triangle
 
@@ -26,8 +25,7 @@ every Digimon hit against it (on top of the triangle, in `CriticalHits.chance`) 
 Digimon's attack lights (Pepper Breath, Mega Flame; call `digicube$burn(ticks)` after igniting) is a Burn for
 as long as the body keeps burning; vanilla fire does the damage and water puts it out, the emblem's rim drains
 with the fire (`mark_burn`). The first readout is full (one bit left); new marks go in the second
-(`digicube$marks2`: Exposed bits 0-7, Burn 8-14, bits 15-31 free). Read `../design/combat-marks.md` before
-adding a mark.
+(`digicube$marks2`: Exposed bits 0-7, Burn 8-14, bits 15-31 free).
 
 Combat marks are tracked for every living entity in one packed int (`MixinLivingEntity`) and drawn as emblems
 above the head by `fabric/.../client/render/CombatMarkBadges`; add a mark there, not as a new synced field.
@@ -56,8 +54,8 @@ How a species fights *between* attacks is data too: the optional `tactics` block
 (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`, `lead_ticks`, `press_impaired`,
 `prefer_close`, `charge_distance`, `charge_speed`, `fight_speed`, and the skirmisher's `gallop`,
 `shoot_moving`, `dash_dodge`, `dash_engage`, `dash_escape`), read by `DigimonAttackGoal` and `BlindGuardGoal`.
-A species without one closes in, never dodges and keeps list order. The skirmisher knobs are Centarumon's
-(design: `../design/combat-balance.md` §7): `gallop` circles and closes at the fight pace, `shoot_moving`
+A species without one closes in, never dodges and keeps list order. The skirmisher knobs are Centarumon's:
+`gallop` circles and closes at the fight pace, `shoot_moving`
 looses a shot that has `move` in its rider data on the run (the goal keeps the legs, `KineticSession.twists`,
 the client twists the upper body to `DATA_ATTACK_YAW`), and the jet of the species' `aim: charge` move is the
 AI's too (`DigimonEntity.startJetBurst`): a charge that bucks an Exposed or impaired target within
@@ -83,8 +81,7 @@ not blows: an attack already under way plays out and lands (`canStrike` on the h
 keeps aiming itself at its prey breaks off (a homing jet charge, a drawn kinetic shot: `attackTracksTarget`),
 and a body a whip has just touched feels where it came from for 5 s (`feels`).
 
-`DIGICUBE_TACTICS=<species>:key=value,...;<species>:...` overrides knobs per process for sweeps. Design and
-numbers: `../design/combat-ai.md`.
+`DIGICUBE_TACTICS=<species>:key=value,...;<species>:...` overrides knobs per process for sweeps.
 
 ## Projectiles
 

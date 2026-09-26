@@ -27,7 +27,7 @@ public record FlameStream(Vec3 origin, Vec3 end, double radius) {
 
     /**
      * A forceful jet slows as it entrains surrounding air. This is an art-directed flow
-     * approximation in blocks/ticks, shared with the Blender flame transport curves.
+     * approximation in blocks/ticks, shared with the flame clips' transport curves.
      * @param age time since emission in ticks
      * @return distance travelled in blocks
      */

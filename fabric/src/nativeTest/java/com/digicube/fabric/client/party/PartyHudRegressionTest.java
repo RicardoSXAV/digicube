@@ -8,7 +8,7 @@ import com.digicube.party.PartyMemberView;
 import java.util.UUID;
 
 /**
- * Pins the party strip's readout rules from {@code design/party-hud-strip.md}: the status
+ * Pins the party strip's readout rules: the status
  * priority, the local countdowns, the DigiSoul cell and the stack layout. No game, no
  * window, no test framework.
  */

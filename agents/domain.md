@@ -40,8 +40,8 @@ the rules; the `/digicube` root has no permission requirement, each operator sub
 
 Progression: every balance number of levels, XP and rest (the curve, stage yields, the level-gap multiplier,
 stat scaling, the damage-proportional split and the Digivice regeneration pulse) lives in `Progression`, next
-to the attribute triangle, and `:common:progressionTest` asserts the tables in
-`../design/wild-spawns-and-progression.md`. Never put a balance constant anywhere else. `DigimonEntity` holds
+to the attribute triangle, and `:common:progressionTest` pins its tables. Never put a balance constant anywhere
+else. `DigimonEntity` holds
 `level` and `xp`; a wild Digimon's `DamageLedger` records the health it lost to each partner, and
 `ExperienceAward` splits the yield at the end of `hurtServer` on the killing blow (vanilla calls `die` from
 inside `hurtServer`, before the last hit could be recorded).

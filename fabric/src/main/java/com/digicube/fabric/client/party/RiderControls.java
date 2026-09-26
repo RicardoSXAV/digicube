@@ -40,7 +40,6 @@ import java.util.Properties;
  * aimed along the ground is held to show where it will run and cast on release; a tap casts at once. Also
  * here: the soft target a swing would turn to (outlined by {@code MixinMinecraft}), the vanilla crosshair kept
  * in third person, the mounted camera (third person by default, remembered) and the camera's kick on impacts.
- * Design: {@code design/mounted-combat.md} section 5.
  */
 public final class RiderControls {
     private RiderControls() {}
