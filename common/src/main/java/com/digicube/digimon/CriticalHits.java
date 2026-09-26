@@ -13,7 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
  * Critical hits, and the attribute triangle as a chance edge rather than a damage multiplier.
  *
  * <p>Every Digimon hit rolls once. Against a Digimon the triangle moves the chance: the
- * favoured side crits more often, the countered side less (Ricardo, 2026-09-18: "a small
+ * favoured side crits more often, the countered side less (design decision, 2026-09-18: "a small
  * advantage, in percentage", so a same-level fight against a counter stays winnable). In
  * expectation the favoured side deals about 10 % more than the countered one; the rest is
  * luck, which is what keeps two equal fighters from always ending the same way. An Exposed victim

@@ -173,8 +173,8 @@ public final class ConstrictionMotion {
     }
 
     /**
-     * Bulky prey is coiled at the lattice's largest size. The limits are generous on purpose (Ricardo,
-     * 2026-09-18: refuse only prey it would look ridiculous to wrap): a Champion such as Gesomon, 2.25
+     * Bulky prey is coiled at the lattice's largest size. The limits are generous on purpose (design
+     * decision, 2026-09-18: refuse only prey it would look ridiculous to wrap): a Champion such as Gesomon, 2.25
      * wide and 3.7 tall, is held around its lower body; a body over about 3.2 blocks across or 4.9
      * tall at Seadramon's scale is refused.
      */
