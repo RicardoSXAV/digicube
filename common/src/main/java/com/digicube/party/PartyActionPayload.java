@@ -30,6 +30,11 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
     public static final int RIDER_RELEASE = 12;
     /** The owner asks the deployed partner it aims at for a ride; the server checks mount, reach and ownership. */
     public static final int RIDE = 13;
+    /**
+     * A jet swimmer's rider: its mount started a pulse ({@code value}: 256 when it thrusts, plus its length in ticks),
+     * which the rider's client runs; the server passes it on to everyone else who sees the mount.
+     */
+    public static final int JET_PULSE = 14;
     public static final UUID NO_MEMBER = new UUID(0, 0);
     public static final Type<PartyActionPayload> TYPE = new Type<>(Constants.id("party_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartyActionPayload> STREAM_CODEC =

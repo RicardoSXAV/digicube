@@ -22,7 +22,12 @@ public enum ShotStyle {
      * Centarumon's Hunting Cannon: a heavy report with a flash at the muzzle, yellow sparks behind the bolt, and a
      * burst of flat yellow pixel planes with a white-hot flash at its heart where it strikes. A full draw rings lower.
      */
-    CANNON;
+    CANNON,
+    /**
+     * Crabmon's Water Shot: a wet spit and a spray of droplets at the mouth, a slug that sheds drops and specks as it
+     * flies, and a splash of spray where it bursts. Water, so it also puts out a burning victim ({@link #douses}).
+     */
+    WATER;
 
     public static ShotStyle byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -33,6 +38,14 @@ public enum ShotStyle {
 
     /** The shot leaves the muzzle; {@code charge} is a rider's draw (1 for an unridden shot). */
     public void fire(ServerLevel level, Vec3 muzzle, Vec3 direction, float charge) {
+        if (this == WATER) {
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.PUFFER_FISH_BLOW_OUT, SoundSource.NEUTRAL, 1.1F, 1.25F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.SQUID_SQUIRT, SoundSource.NEUTRAL, .8F, 1.5F);
+            Vec3 ahead = muzzle.add(direction.scale(.25));
+            level.sendParticles(ParticleTypes.SPLASH, true, true, ahead.x, ahead.y, ahead.z, 14, .12, .08, .12, .05);
+            level.sendParticles(ParticleTypes.FALLING_WATER, true, true, muzzle.x, muzzle.y, muzzle.z, 5, .1, .03, .1, 0);
+            return;
+        }
         if (this != CANNON) return;
         level.playSound(null, muzzle.x, muzzle.y, muzzle.z, DCSounds.HUNTING_CANNON_FIRE, SoundSource.NEUTRAL, 1.6F, 1.12F - .16F * charge);
         flash(level, muzzle, .9F + .5F * charge);
@@ -42,6 +55,18 @@ public enum ShotStyle {
 
     /** Client, every tick of flight: sparks along the stretch from {@code from} to {@code to}. */
     public void trail(Level level, Vec3 from, Vec3 to, RandomSource random) {
+        if (this == WATER) {
+            // Drops fall off the slug and fine spray hangs where it passed.
+            Vec3 step = to.subtract(from);
+            int drops = Math.max(1, (int) Math.round(step.length() * 2.5));
+            for (int i = 0; i < drops; i++) {
+                Vec3 at = from.add(step.scale((i + random.nextDouble()) / drops));
+                level.addParticle(random.nextInt(3) == 0 ? ParticleTypes.FALLING_WATER : ParticleTypes.SPLASH, at.x, at.y, at.z,
+                        random.nextGaussian() * .03, .04 + random.nextDouble() * .05, random.nextGaussian() * .03);
+                if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.DOLPHIN, at.x, at.y, at.z, 0, 0, 0);
+            }
+            return;
+        }
         if (this != CANNON) return;
         Vec3 step = to.subtract(from);
         int sparks = Math.max(1, (int) Math.round(step.length() * SPARKS_PER_BLOCK));
@@ -55,6 +80,15 @@ public enum ShotStyle {
 
     /** The bolt strikes a block or a body at {@code at}. */
     public void impact(ServerLevel level, Vec3 at) {
+        if (this == WATER) {
+            RandomSource random = level.getRandom();
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_SPLASH, SoundSource.NEUTRAL, 1F, 1.1F + random.nextFloat() * .15F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_SPLASH, SoundSource.NEUTRAL, .7F, 1.4F);
+            level.sendParticles(ParticleTypes.SPLASH, true, true, at.x, at.y, at.z, 40, .3, .25, .3, .15);
+            level.sendParticles(ParticleTypes.FALLING_WATER, true, true, at.x, at.y, at.z, 12, .3, .2, .3, 0);
+            level.sendParticles(ParticleTypes.CLOUD, true, true, at.x, at.y, at.z, 3, .15, .1, .15, .02);
+            return;
+        }
         if (this != CANNON) return;
         RandomSource random = level.getRandom();
         level.playSound(null, at.x, at.y, at.z, DCSounds.HUNTING_CANNON_IMPACT, SoundSource.NEUTRAL, 2F, .92F + random.nextFloat() * .16F);
@@ -68,10 +102,18 @@ public enum ShotStyle {
 
     /** A bolt that flew its full range without striking anything fizzles out where it is. */
     public void fizzle(ServerLevel level, Vec3 at) {
+        if (this == WATER) {
+            level.sendParticles(ParticleTypes.SPLASH, true, true, at.x, at.y, at.z, 16, .2, .15, .2, .08);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_SPLASH, SoundSource.NEUTRAL, .4F, 1.5F);
+            return;
+        }
         if (this != CANNON) return;
         level.sendParticles(DCParticles.CANNON_SPARK, true, true, at.x, at.y, at.z, 10, .15, .15, .15, 0);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .35F, 1.8F);
     }
+
+    /** A shot of water puts out what it hits. */
+    public boolean douses() { return this == WATER; }
 
     /** One flash plane of the given size in blocks: sent with no count, so the size rides as the velocity's x. */
     private static void flash(ServerLevel level, Vec3 at, float size) {

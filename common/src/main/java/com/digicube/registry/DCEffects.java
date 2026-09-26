@@ -21,8 +21,13 @@ public final class DCEffects {
     public static final Holder<MobEffect> INKED = register("inked",new MobEffect(MobEffectCategory.HARMFUL,0x311B42) {
         @Override public boolean shouldApplyEffectTickThisTick(int ticks,int amplifier) { return true; }
         @Override public boolean applyEffectTick(ServerLevel level,LivingEntity entity,int amplifier) {
+            // It loses what it cannot see: a move that keeps aiming itself at its prey (a homing charge, a drawn shot)
+            // breaks off; a blow already begun plays out where it was aimed.
             if(entity instanceof Mob mob && mob.getTarget()!=null && blindTo(mob,mob.getTarget())) {
-                if(mob instanceof DigimonEntity digimon) { digimon.rememberThreat(mob.getTarget().position()); digimon.interruptAttack(); }
+                if(mob instanceof DigimonEntity digimon) {
+                    digimon.rememberThreat(mob.getTarget().position());
+                    if(digimon.attackTracksTarget()) digimon.interruptAttack();
+                }
                 mob.setTarget(null);
             }
             return true;
@@ -62,9 +67,23 @@ public final class DCEffects {
 
     private DCEffects() {}
 
-    /** Ink's reach of sight: an inked mob neither keeps nor takes a target further than three blocks. */
+    /**
+     * Ink's reach of sight: an inked mob neither keeps nor takes a target further than three blocks from its body (body
+     * to body: measured from the centres, two big Digimon were blind to each other unless they touched, and a whip
+     * strikes from four blocks and more). A body a whip has just touched feels where the blow came from, ink or not.
+     */
     public static boolean blindTo(LivingEntity mob, LivingEntity target) {
-        return mob.hasEffect(INKED) && mob.distanceToSqr(target) > 9;
+        return mob.hasEffect(INKED) && gap(mob.getBoundingBox(), target.getBoundingBox()) > INK_SIGHT
+                && !(mob instanceof DigimonEntity struck && struck.feels(target));
+    }
+    /** Blocks an inked mob still sees, from its body to another's. */
+    public static final double INK_SIGHT = 3;
+
+    private static double gap(net.minecraft.world.phys.AABB a, net.minecraft.world.phys.AABB b) {
+        double dx = Math.max(0, Math.max(a.minX - b.maxX, b.minX - a.maxX));
+        double dy = Math.max(0, Math.max(a.minY - b.maxY, b.minY - a.maxY));
+        double dz = Math.max(0, Math.max(a.minZ - b.maxZ, b.minZ - a.maxZ));
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     /** Pin the victim in place: it may still fall, but afloat it neither sinks nor drifts. */

@@ -24,11 +24,15 @@ public class MixinEntityRenderer {
         var extra = (FabricRenderState) state;
         extra.setData(CombatMarkBadges.MARKS, !Minecraft.getInstance().gui.hud.isHidden()
                 && entity instanceof LivingEntity living ? CombatMarkBadges.read(living, partialTick) : null);
+        // Deadly Shade's ink stains the body it hit (MixinLivingEntityRenderer draws it darker while the mark lasts).
+        extra.setData(com.digicube.fabric.client.render.InkedVisuals.INK,
+                entity instanceof LivingEntity living ? com.digicube.fabric.client.render.InkedVisuals.ink(living) : null);
         // The partner under the crosshair is outlined in blue, where a soft target keeps the white of vanilla.
         if (entity == com.digicube.fabric.client.party.PartyClient.aimedPartner()) state.outlineColor = com.digicube.fabric.client.party.PartyClient.AIM_OUTLINE;
         // So is the prey a press of the hold would take, in the colour of its tile.
         if (entity == com.digicube.fabric.client.party.RiderControls.grabPrey()) state.outlineColor = com.digicube.fabric.client.party.RiderControls.GRAB_OUTLINE;
         extra.setData(RiderVisuals.POSE, null);
+        extra.setData(RiderVisuals.YAW, null);
         if (entity.getVehicle() instanceof DigimonEntity mount
                 && Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(mount) instanceof DigimonRenderer renderer) {
             var visual = renderer.riderVisual(mount, partialTick);
@@ -36,6 +40,7 @@ public class MixinEntityRenderer {
                 var offset = visual.offset().yRot(-Mth.rotLerp(partialTick, mount.yRotO, mount.getYRot()) * Mth.DEG_TO_RAD);
                 state.passengerOffset = state.passengerOffset == null ? offset : state.passengerOffset.add(offset);
                 extra.setData(RiderVisuals.POSE, visual.pose());
+                if (Math.abs(visual.yaw()) > .01F) extra.setData(RiderVisuals.YAW, visual.yaw());
             }
         }
     }

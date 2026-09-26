@@ -1,0 +1,46 @@
+{
+  "stage": "child",
+  "attribute": "data",
+  "base_health": 20,
+  "base_attack": 6,
+  "base_defence": 6,
+  "base_speed": 0.2,
+  "attacks": [
+    "scissors_execution",
+    "water_shot"
+  ],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.2,
+    "width": 1.2,
+    "height": 0.85,
+    "eye_height": 0.55
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 2.0,
+    "walk_speed": 0.85,
+    "run_speed": 1.2,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 12,
+      "stride": 3.25,
+      "side_stride": 3.25,
+      "back_stride": 2.75,
+      "max_playback_rate": 3.5
+    },
+    "travel_facing": {
+      "side_on_from": 1.15,
+      "face_target_within": 7.0,
+      "turn_rate": 15
+    }
+  },
+  "tactics": {
+    "hold_min": 2.5,
+    "hold_max": 5.0,
+    "strafe": true,
+    "dodge_chance": 0.25,
+    "reaction_ticks": 5,
+    "lead_ticks": 4
+  }
+}

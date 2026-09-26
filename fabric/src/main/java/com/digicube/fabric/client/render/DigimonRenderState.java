@@ -67,6 +67,14 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float swimAnimationPhase;
     /** Observed movement blended between the glide and full stroke clips. */
     public float swimMotionAmount;
+    /**
+     * A whip (WhipArm, a rider's or the AI's): how much of the whipping arm's pose it has, which arm (and its side, +1 the
+     * left), and each section's yaw and pitch relative to the body, the pad last, in pairs.
+     */
+    public float whipWeight;
+    public com.digicube.digimon.WhipAttacks.Arm whipArm;
+    public int whipSide = 1;
+    public float[] whipAngles = new float[0];
     /** Slow land-cycle clock for aquatic species. */
     public float groundAnimationPhase;
     public float groundAnimationAmount;

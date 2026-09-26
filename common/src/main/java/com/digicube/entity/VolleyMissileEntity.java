@@ -172,7 +172,7 @@ public final class VolleyMissileEntity extends ThrowableProjectile {
         double nearest = from.distanceToSqr(end) + 1.0E-6;
         for (Entity entity : level.getEntities(this, new AABB(from, end).inflate(RADIUS + .5), e -> DigimonPart.livingOf(e) != null)) {
             LivingEntity living = DigimonPart.livingOf(entity);
-            if (living == owner || !living.isAlive() || owner.hasPassenger(living) || !owner.canAttack(living) || owner.isAllyOf(living)) continue;
+            if (living == owner || !living.isAlive() || owner.hasPassenger(living) || !owner.canStrike(living) || owner.isAllyOf(living)) continue;
             var hit = entity.getBoundingBox().inflate(RADIUS).clip(from, end);
             if (entity.getBoundingBox().inflate(RADIUS).contains(from)) hit = java.util.Optional.of(from);
             if (hit.isPresent() && from.distanceToSqr(hit.get()) < nearest) {

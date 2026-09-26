@@ -19,7 +19,26 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 22, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 24, "all bundled species loaded");
+            var ganimon = DigimonSpeciesRegistry.getOrThrow(Constants.id("ganimon"));
+            var ganimonGait = ganimon.locomotion().groundGait();
+            // The wave gait: 12 ticks, 52 px forward and side-on, 44 px back;
+            // the body faces its enemy close by and turns side-on when it hurries (travel_facing).
+            check(ganimon.stage() == DigimonStage.CHILD && ganimon.attribute() == DigimonAttribute.DATA
+                            && ganimon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("scissors_execution", "water_shot"))
+                            && ganimonGait != null && ganimonGait.cycleTicks() == 12 && ganimonGait.directional()
+                            && Math.abs(ganimonGait.fullSpeed(ganimon.body().modelScale()) - 3.25 * .2 / 12) < 1.0E-6
+                            && ganimon.locomotion().travelFacing() != null && ganimon.locomotion().travelFacing().sideOnFrom() > ganimon.locomotion().walkSpeed()
+                            && AuthoredAttacks.get(ganimon.attacks().getFirst()).leap() != null,
+                    "Crabmon is a data rookie with a leaping Scissors Execution and Water Shot, on the authored wave gait");
+            var meramon = DigimonSpeciesRegistry.getOrThrow(Constants.id("meramon"));
+            var meramonGait = meramon.locomotion().groundGait();
+            // Planted walk and run: one 18-tick phase, the run played in 13.
+            check(meramon.stage() == DigimonStage.ADULT && meramon.attribute() == DigimonAttribute.DATA && meramon.attacks().isEmpty()
+                            && meramonGait != null && meramonGait.cycleTicks() == 18 && meramonGait.directional()
+                            && Math.abs(meramonGait.fullSpeed(meramon.body().modelScale()) - 5.6 * .26 / 18) < 1.0E-6
+                            && Math.abs(meramonGait.runSpeed(meramon.body().modelScale()) - 10.4 * .26 / 13) < 1.0E-6,
+                    "Meramon is a data champion with no attacks yet, on the authored planted stride");
             var mojyamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("mojyamon"));
             check(mojyamon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("boomerang_bone", "icicle_rod"))
                             && ThrownAttacks.returning(mojyamon.attacks().get(0)) != null && ThrownAttacks.charged(mojyamon.attacks().get(1)) != null,

@@ -41,7 +41,12 @@ public enum StrikeParticles {
      * A small predator's pounce (Agumon's leaping claw): a fox's snarl as it crouches, a light hop, a swipe as the
      * claw comes down, a scratch and a sweep where it lands on a body, and a puff of the floor under its feet.
      */
-    CLAW;
+    CLAW,
+    /**
+     * A crab's pincer (Crabmon's Scissors Execution): the blades clack as the claw rises, whistle through the swing
+     * with a few glints, and snip shut on a body with a burst of white sparks. Small and bright, never a growl.
+     */
+    PINCER;
 
     public static StrikeParticles byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -57,6 +62,11 @@ public enum StrikeParticles {
     public boolean windUp(ServerLevel level, Vec3 at, boolean summoned) {
         if (this == CLAW) {
             play(level, at, SoundEvents.FOX_AGGRO, .8F, .95F);
+            return true;
+        }
+        if (this == PINCER) {
+            play(level, at, SoundEvents.SHEARS_SNIP, .9F, 1.5F);
+            play(level, at, SoundEvents.ARMADILLO_SCUTE_DROP, .7F, 1.4F);
             return true;
         }
         if (this == DRILL) {
@@ -76,6 +86,10 @@ public enum StrikeParticles {
             case STONE -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .6F, 1.45F);
             case STEEL -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .9F, .9F);
             case CLAW -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .8F, 1.35F);
+            case PINCER -> {
+                play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .8F, 1.25F);
+                play(level, at, SoundEvents.SHEARS_SNIP, 1F, 1.1F);
+            }
             default -> {}
         }
     }
@@ -98,6 +112,7 @@ public enum StrikeParticles {
                 level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 2, .12, .12, .12, .08);
                 level.sendParticles(ParticleTypes.ENCHANTED_HIT, true, true, at.x, at.y, at.z, 1, .1, .1, .1, .02);
             }
+            case PINCER -> level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 1, .06, .06, .06, .04);
             default -> {}
         }
     }
@@ -114,6 +129,13 @@ public enum StrikeParticles {
                 play(level, at, SoundEvents.RAVAGER_ROAR, .5F, 1.1F);
                 level.sendParticles(ParticleTypes.CLOUD, true, true, at.x, at.y + .1, at.z, 14, .45, .05, .45, .08);
                 level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .1, at.z, 8, .3, .1, .3, .04);
+            }
+            case PINCER -> {
+                // A cricket's kick off the big hind legs: a springy snap, the shell's clack and the floor kicked back.
+                play(level, at, SoundEvents.BREEZE_JUMP, .6F, 1.5F);
+                play(level, at, SoundEvents.ARMADILLO_SCUTE_DROP, .8F, 1.2F);
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 12, .3, .02, .3, .12);
+                level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 5, .25, .02, .25, .03);
             }
             case CLAW -> {
                 play(level, at, SoundEvents.GOAT_LONG_JUMP, .7F, 1.35F);
@@ -147,6 +169,12 @@ public enum StrikeParticles {
                 play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, 1.1F, 1.15F);
                 play(level, at, SoundEvents.TRIDENT_HIT, .9F, 1.3F);
             }
+            case PINCER -> {
+                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 12, .15, .15, .15, .3);
+                level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+                play(level, at, SoundEvents.SHEEP_SHEAR, 1.2F, 1.2F);
+                play(level, at, SoundEvents.PLAYER_ATTACK_CRIT, .8F, 1.3F);
+            }
             case CLAW -> {
                 level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);
                 level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 8, .15, .15, .15, .25);
@@ -165,6 +193,15 @@ public enum StrikeParticles {
             level.sendParticles(dust, true, true, at.x, at.y + .05, at.z, 10, .25, .02, .25, .1);
             level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 4, .2, .02, .2, .03);
             play(level, at, SoundEvents.PLAYER_SMALL_FALL, 1F, 1.1F);
+            return;
+        }
+        if (this == PINCER) {
+            // The shell comes down on its front legs: a dull thump, the plates rattling, a puff of the floor.
+            BlockParticleOption dust = new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at));
+            level.sendParticles(dust, true, true, at.x, at.y + .05, at.z, 14, .35, .02, .35, .12);
+            level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 5, .3, .02, .3, .03);
+            play(level, at, SoundEvents.ARMADILLO_LAND, 1F, .9F);
+            play(level, at, SoundEvents.PLAYER_SMALL_FALL, .8F, .9F);
             return;
         }
         if (this != STONE && this != STEEL) return;

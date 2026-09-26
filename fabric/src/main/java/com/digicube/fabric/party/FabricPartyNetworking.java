@@ -86,6 +86,10 @@ public final class FabricPartyNetworking {
             if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.stopRiderAttack(player);
             return;
         }
+        if (payload.action() == PartyActionPayload.JET_PULSE) {
+            if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.noteRiderJetPulse(player, payload.value());
+            return;
+        }
         boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.OPEN || payload.action() == PartyActionPayload.RIDE;
         // The V key and the command wheel act from the world, without the Digivice screen open.
         if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE && payload.action()!=PartyActionPayload.REVERT && !order) || !player.isAlive() || player.isSpectator()

@@ -121,7 +121,7 @@ public final class IcicleEntity extends Projectile {
             }
             for (var entity : level.getEntities(this, box.bounds())) {
                 LivingEntity victim = DigimonPart.livingOf(entity);
-                if (victim == null || victim == owner || !owner.canAttack(victim) || owner.isAllyOf(victim)
+                if (victim == null || victim == owner || !owner.canStrike(victim) || owner.isAllyOf(victim)
                         || HitParts.of(victim).stream().noneMatch(box::intersects)) continue;
                 float scale = spec.mix(spec.power(), charge) / spec.attack().power() * ThrownAttacks.impulsePower(impulse);
                 if (owner.hitWithAttack(level, spec.attack(), victim, at.subtract(velocity.normalize().scale(2)), scale)) {

@@ -63,26 +63,14 @@ public final class NativeGesomonRegressionTest {
             }
         }
         var ink=KineticAttacks.get(Constants.id("deadly_shade"));
-        var bash=com.digicube.digimon.AuthoredAttacks.all().stream().filter(d->d.attack().id().equals(Constants.id("devil_bashing"))).findFirst().orElseThrow();
-        for(float tick:new float[]{5,5.5F,6,7,7.5F,8,9.5F,10,10.5F,12,12.5F,13})for(int heading=0;heading<8;heading++) {
-            root.getAllParts().forEach(ModelPart::resetPose);animation.apply("devil_bashing",tick,1);
-            float yaw=heading*45;var origin=new Vec3(31,81,-22);var stack=new PoseStack();stack.translate(origin.x,origin.y,origin.z);
-            KineticProjectileRenderer.transform(stack,yaw,0,.5F);var actual=points(root,stack);
-            var boxes=bash.sample(tick);
-            for(int i=0;i<boxes.length;i++)if(boxes[i]!=null) {
-                var box=boxes[i].world(origin,yaw,0);String part=bash.parts().get(i);part=part.substring(0,part.lastIndexOf('_'));
-                for(int x:new int[]{-1,1})for(int y:new int[]{-1,1})for(int z:new int[]{-1,1})
-                    near(box.center().add(box.x().scale(x)).add(box.y().scale(y)).add(box.z().scale(z)),actual.get(part),"bash "+tick+" "+part);
-            }
-            fixtures++;
-        }
         var fxRoot=NativeEffectModel.createLayer("deadly_shade_ink").bakeRoot();
         var model=new NativeEffectModel(fxRoot,"deadly_shade_ink");
         var state=new NativeEffectState();
         for(float tick:new float[]{.05F,.125F,.5F,1,3,5})for(int heading=0;heading<8;heading++)for(float pitch:new float[]{-18,0,18}) {
             state.tick=tick;model.setupAnim(state);float yaw=heading*45;
             var origin=new Vec3(-17,81,29);var stack=new PoseStack();stack.translate(origin.x,origin.y,origin.z);
-            KineticProjectileRenderer.transform(stack,yaw,pitch,.5F);
+            // Drawn at the attack's model scale times its projectile scale, as the renderer draws it.
+            KineticProjectileRenderer.transform(stack,yaw,pitch,ink.modelScale()*ink.projectileScale());
             var actual=points(fxRoot,stack).get("ink_burst");
             double p=Math.toRadians(pitch),y=Math.toRadians(yaw);
             var direction=new Vec3(-Math.sin(y)*Math.cos(p),-Math.sin(p),Math.cos(y)*Math.cos(p));
@@ -95,7 +83,7 @@ public final class NativeGesomonRegressionTest {
         }
         var runtime=new NativeGroundModel(def.createLayer().bakeRoot(),def);
         var renderState=new com.digicube.fabric.client.render.DigimonRenderState();renderState.modelScale=.5F;
-        for(float water:new float[]{0,.5F,1})for(float movement:new float[]{0,.5F,1})for(var move:List.of(bash.attack(),ink.attack())) {
+        for(float water:new float[]{0,.5F,1})for(float movement:new float[]{0,.5F,1})for(var move:List.of(ink.attack())) {
             renderState.swimAnimationAmount=water;renderState.groundAnimationAmount=renderState.swimMotionAmount=movement;
             renderState.attackDefinition=move;renderState.attackAnimationName=move.id().getPath();renderState.attackAnimation.start(0);
             for(float tick=0;tick<=move.durationTicks();tick+=.125F) {
@@ -129,7 +117,95 @@ public final class NativeGesomonRegressionTest {
         check(points(runtime.root(),new PoseStack()).get("mantle_tier_0").get(0).distanceTo(mantle)>.5,"the body pitches under its rider");
         renderState.isBeingRidden=false;runtime.setupAnim(renderState);
         near(mantle,List.of(points(runtime.root(),new PoseStack()).get("mantle_tier_0").get(0)),"without a rider the body stays upright (swim_pitch 0)");
-        Constants.LOG.info("[gesomon-parity] PASS {} full vertex/solid fixtures, maximum error {} blocks; ground/water transition playback; seat {} blocks off at rest, {} afloat",
-                fixtures,worst,String.format(Locale.ROOT,"%.3f",seated.length()),String.format(Locale.ROOT,"%.3f",drift));
+        // The whip (Devil Bashing, a rider's or the AI's): the arm the client draws is the arm the server strikes with, joint
+        // by joint, through a long wind-up (the coil at a full charge) and a lash, with either arm. Held, the pad keeps its
+        // face: it used to roll a full turn every 11 ticks with the twirl, the hand spinning in the rider's view.
+        var whipSpec=com.digicube.digimon.WhipAttacks.get(Constants.id("devil_bashing"));
+        double whipWorst=0,padTurn=0;
+        for(int side:new int[]{1,-1}) {
+            var whip=new com.digicube.entity.WhipArm(whipSpec);
+            whip.wind(side);
+            org.joml.Matrix3f lastPad=null;
+            for(int t=0;t<50;t++) {
+                if(t==34)whip.release();
+                whip.tick(t<34?-side*20:35-(t-34)*6,t<34?5:25);
+                renderState.isBeingRidden=true;renderState.xRot=0;renderState.ageInTicks=0;renderState.groundAnimationAmount=0;
+                renderState.swimAnimationAmount=renderState.swimMotionAmount=0;renderState.mountAnchor=mount.position(0);
+                com.digicube.fabric.client.render.DigimonRenderer.pose(whip,renderState,1);renderState.whipWeight=1;
+                runtime.setupAnim(renderState);
+                var drawn=whipJoints(runtime.root(),renderState.whipArm,renderState.modelScale);
+                var struck=whip.joints(mount.position(0),0,0,0,1);
+                for(int i=0;i<struck.length;i++){
+                    double e=drawn.get(i).distanceTo(struck[i]);
+                    whipWorst=Math.max(whipWorst,e);
+                    check(e<.12,"whip joint "+i+" of side "+side+" at tick "+t+" is drawn "+e+" blocks from where it strikes");
+                }
+                var pad=partTurn(runtime.root(),renderState.whipArm);
+                if(t>=12&&t<34&&lastPad!=null){
+                    double turn=Math.toDegrees(between(new org.joml.Quaternionf().setFromNormalized(lastPad),new org.joml.Quaternionf().setFromNormalized(pad)));
+                    padTurn=Math.max(padTurn,turn);
+                    check(turn<10,"held at tick "+t+" the pad of side "+side+" turns "+turn+" degrees in a tick");
+                }
+                lastPad=pad;
+                fixtures++;
+            }
+        }
+        renderState.whipWeight=0;renderState.whipArm=null;
+        // Setting off, slowing and stopping mix the walk with the rest of the ground pose by the shortest turn, part by part:
+        // a part's turn from the idle pose plus its turn on to the walk's is the whole turn between them. Added up as Euler
+        // angles the long arms turned any which way at half a walk and flickered.
+        renderState.isBeingRidden=false;renderState.swimAnimationAmount=renderState.swimMotionAmount=0;renderState.ageInTicks=0;
+        double mixWorst=0;
+        for(float phase:new float[]{3,11.5F,19,27.5F,34})for(float amount:new float[]{.25F,.5F,.75F}) {
+            renderState.groundAnimationPhase=phase;
+            var idle=turns(runtime,renderState,0);var walk=turns(runtime,renderState,1);var mixed=turns(runtime,renderState,amount);
+            for(int i=0;i<mixed.size();i++){
+                double off=between(idle.get(i),mixed.get(i))+between(mixed.get(i),walk.get(i))-between(idle.get(i),walk.get(i));
+                mixWorst=Math.max(mixWorst,Math.toDegrees(off));
+                check(Math.toDegrees(off)<1,"at "+amount+" of the walk, phase "+phase+", part "+i+" turns "+Math.toDegrees(off)+" degrees off the shortest turn");
+            }
+            fixtures++;
+        }
+        renderState.groundAnimationAmount=0;
+        Constants.LOG.info("[gesomon-parity] PASS {} full vertex/solid fixtures, maximum error {} blocks; ground/water transition playback; seat {} blocks off at rest, {} afloat; whip drawn within {} blocks of where it strikes, held pad turns at most {} degrees a tick; walk mix within {} degrees of the shortest turn",
+                fixtures,worst,String.format(Locale.ROOT,"%.3f",seated.length()),String.format(Locale.ROOT,"%.3f",drift),String.format(Locale.ROOT,"%.3f",whipWorst),
+                String.format(Locale.ROOT,"%.1f",padTurn),String.format(Locale.ROOT,"%.2f",mixWorst));
+    }
+
+    /** The angle of the turn from one orientation to another, radians (the short way round). */
+    static double between(org.joml.Quaternionf a, org.joml.Quaternionf b) {
+        double w=Math.abs(a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w)/(Math.sqrt(a.lengthSquared()*b.lengthSquared()));
+        return 2*Math.acos(Math.min(1,w));
+    }
+
+    /** Every part's local turn, in the model's part order, with this much of the walk. */
+    static List<org.joml.Quaternionf> turns(NativeGroundModel model, com.digicube.fabric.client.render.DigimonRenderState state, float amount) {
+        state.groundAnimationAmount=amount;model.setupAnim(state);
+        var out=new ArrayList<org.joml.Quaternionf>();
+        for(var p:model.root().getAllParts())out.add(new org.joml.Quaternionf().rotationZYX(p.zRot,p.yRot,p.xRot));
+        return out;
+    }
+
+    /** The whip arm's pad's rotation in the model. */
+    static org.joml.Matrix3f partTurn(ModelPart root, com.digicube.digimon.WhipAttacks.Arm arm) {
+        var stack=new PoseStack();ModelPart part=root;part.translateAndRotate(stack);
+        for(String name:arm.parentPath()){part=part.getChild(name);part.translateAndRotate(stack);}
+        for(String name:arm.parts()){part=part.getChild(name);part.translateAndRotate(stack);}
+        return new org.joml.Matrix3f(stack.last().normal());
+    }
+
+    /** The drawn whip arm, root to pad tip, in blocks with the feet at the origin and the body facing +z. */
+    static List<Vec3> whipJoints(ModelPart root, com.digicube.digimon.WhipAttacks.Arm arm, float scale) {
+        var stack=new PoseStack();ModelPart part=root;part.translateAndRotate(stack);
+        for(String name:arm.parentPath()){part=part.getChild(name);part.translateAndRotate(stack);}
+        var out=new ArrayList<Vec3>();
+        for(String name:arm.parts()){
+            part=part.getChild(name);part.translateAndRotate(stack);
+            var p=stack.last().pose().transformPosition(0,0,0,new org.joml.Vector3f());
+            out.add(new Vec3(p.x,1.5-p.y,-p.z).scale(scale));
+        }
+        var tip=stack.last().pose().transformPosition(0,-arm.pad()/scale,0,new org.joml.Vector3f());
+        out.add(new Vec3(tip.x,1.5-tip.y,-tip.z).scale(scale));
+        return out;
     }
 }

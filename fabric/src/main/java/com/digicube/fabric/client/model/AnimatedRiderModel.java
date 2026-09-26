@@ -13,6 +13,12 @@ public interface AnimatedRiderModel {
     Vec3 riderOffset(DigimonRenderState state);
 
     /**
+     * How far the animated seat has turned from the mount's heading, degrees; the rider's body turns with it.
+     * @param state mount pose, as {@link #riderOffset} just set it up
+     */
+    default float riderYaw(DigimonRenderState state) { return 0; }
+
+    /**
      * Fit the rider to the mount's width.
      * @return rider leg angles (zero for standing)
      */

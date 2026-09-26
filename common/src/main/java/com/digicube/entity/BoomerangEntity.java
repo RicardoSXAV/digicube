@@ -218,7 +218,7 @@ public final class BoomerangEntity extends Projectile {
             var ledger = returning ? inbound : outbound;
             for (var entity : level.getEntities(this, box)) {
                 LivingEntity victim = DigimonPart.livingOf(entity);
-                if (victim == null || victim == owner || ledger.contains(victim.getUUID()) || !owner.canAttack(victim) || owner.isAllyOf(victim)
+                if (victim == null || victim == owner || ledger.contains(victim.getUUID()) || !owner.canStrike(victim) || owner.isAllyOf(victim)
                         || HitParts.of(victim).stream().noneMatch(box::intersects)) continue;
                 if (owner.hitWithAttack(level, spec.attack(), victim, at, (returning ? spec.returnPower() : 1) * power)) {
                     ledger.add(victim.getUUID());

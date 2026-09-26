@@ -233,6 +233,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> DATA_GRAB_LUNGE =
             SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.BOOLEAN);
+    /** A whip as the server runs it (a rider's or the AI's): stage, arm, charge and a count of wind-ups (whipCode). */
+    private static final EntityDataAccessor<Integer> DATA_WHIP =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
+    /** Where the AI's whip is aimed, relative to the body (a rider's follows the rider's own view on every side). */
+    private static final EntityDataAccessor<Float> DATA_WHIP_YAW =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> DATA_WHIP_PITCH =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.FLOAT);
+    /** A jet swimmer's pulses as the side moving the body starts them: a count, whether it thrusts, its length (jetCode). */
+    private static final EntityDataAccessor<Integer> DATA_JET_PULSE =
+            SynchedEntityData.defineId(DigimonEntity.class, EntityDataSerializers.INT);
     /**
      * A rider's jet charge: ticks since the press plus one while it runs, -1 through the buck it may end in, 0 otherwise.
      * Not 0 means the server moves the body.
@@ -568,6 +579,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         builder.define(DATA_RIDER_FUEL, 1.0F);
         builder.define(DATA_GRAB_PREY, -1);
         builder.define(DATA_GRAB_LUNGE, false);
+        builder.define(DATA_JET_PULSE, 0);
+        builder.define(DATA_WHIP, 0);
+        builder.define(DATA_WHIP_YAW, 0F);
+        builder.define(DATA_WHIP_PITCH, 0F);
         builder.define(DATA_RIDER_CHARGE, 0);
         builder.define(DATA_RIDER_DRAW, -1F);
         builder.define(DATA_BATTLE_SIDE, 0);
@@ -830,7 +845,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             super.travelInWater(input, gravity, falling, previousY);
             return;
         }
-        moveRelative(getSpeed(), input);
+        // A jet swimmer thrusts in pulses (jetStroke) on the side that moves it; it averages the same speed.
+        float thrust = jet() != null && isLocalInstanceAuthoritative() ? jetStroke(input) : 1;
+        moveRelative(getSpeed() * thrust, input);
         move(MoverType.SELF, getDeltaMovement());
         setDeltaMovement(getDeltaMovement().scale(DigimonMoveControl.WATER_DRAG));
     }
@@ -1493,9 +1510,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * the body moved, which every client sees, so nothing is synced for it.
      */
     private void seaWake() {
+        followJet();
         boolean surging = false;
         Vec3 moved = position().subtract(xo, yo, zo);
-        if (seaMount() && rider() != null && isInWater()) surging = moved.length() > getLocomotion().swimSpeed() * SURGE_WAKE;
+        // A jet swimmer's every pulse outruns its cruise for a moment: it sets off its own wake, pulse by pulse (jetWake).
+        if (seaMount() && rider() != null && isInWater() && jet() == null) surging = moved.length() > getLocomotion().swimSpeed() * SURGE_WAKE;
         if (surging && !wakeSurging)
             level().playLocalSound(getX(), getY() + getBbHeight() * .3, getZ(), net.minecraft.sounds.SoundEvents.SQUID_SQUIRT,
                     net.minecraft.sounds.SoundSource.NEUTRAL, .7F, .55F + random.nextFloat() * .1F, false);
@@ -1510,6 +1529,545 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Share of the cruise past which a ridden sea mount is surging, not swimming (the surge key reaches water_sprint). */
     private static final double SURGE_WAKE = 1.2;
     private boolean wakeSurging;
+
+    // --- jet swimming (locomotion.jet, JetSwim): a squid moves in pulses -------------------------------------------
+
+    /**
+     * The pulse under way: {@code jetPhase} 0 to 1 of a pulse {@code jetPulseTicks} long. The side that moves the body
+     * owns it (the rider's client under a rider, the server otherwise: isLocalInstanceAuthoritative) and starts every
+     * pulse in {@link #jetStroke}; the others follow {@link #DATA_JET_PULSE}, which the server sets from its own pulses
+     * or from those the rider's client reports ({@link #noteRiderJetPulse}). The swim clip, one pulse, plays on it.
+     */
+    private float jetPhase = 1, jetPulseTicks = 18;
+    private boolean jetPushing;
+    private int jetSeen = -1, jetPulses, lastJetThrustTick = -1000, lastJetReportTick = -1000;
+    /** Client, the rider's own: a pulse its mount started, to report to the server (-1 for none). */
+    private int jetToReport = -1;
+
+    public com.digicube.digimon.JetSwim jet() { return getLocomotion().jet(); }
+    /** Ticks since the last pulse that thrust (every client sees them), for the rider's camera. */
+    public int ticksSinceJetThrust() { return tickCount - lastJetThrustTick; }
+    /** The pulses started so far (either side), for the scenarios. */
+    public int jetPulses() { return jetPulses; }
+    /** The rider's client: a pulse its mount started for the server to pass on (-1 for none); taking it clears it. */
+    public int takeJetReport() { int report = jetToReport; jetToReport = -1; return report; }
+
+    private static int jetCode(int count, boolean thrust, float ticks) {
+        return (count & 0x3FFFFF) << 9 | (thrust ? 256 : 0) | Mth.clamp(Math.round(ticks), 1, 255);
+    }
+
+    /** Server: the controlling rider's client reports a pulse its mount started (thrust bit and length, as jetCode). */
+    public void noteRiderJetPulse(Player rider, int code) {
+        if (level().isClientSide() || getControllingPassenger() != rider || jet() == null || tickCount - lastJetReportTick < JET_REPORT_GAP) return;
+        lastJetReportTick = tickCount;
+        this.entityData.set(DATA_JET_PULSE, jetCode((this.entityData.get(DATA_JET_PULSE) >>> 9) + 1, (code & 256) != 0, code & 255));
+    }
+    /** Ticks a rider's reported pulses are at least apart (a surge's are 12): anything faster is dropped. */
+    private static final int JET_REPORT_GAP = 3;
+
+    /**
+     * The owning side, once per tick of travel in water: runs the pulse and returns the thrust multiplier. Pushing, it
+     * pulses at the cruise's rate or the surge's (a rider on the sprint key); setting off from a glide it squeezes at
+     * once. Not going anywhere it keeps pulsing slowly ({@code hover_rate}) without thrust, as a squid breathes.
+     */
+    private float jetStroke(Vec3 input) {
+        var jet = jet();
+        boolean pushing = input.lengthSqr() > 1.0E-4;
+        boolean surging = seaMount() && getControllingPassenger() instanceof Player rider && rider.isSprinting();
+        float ticks = surging ? jet.surgePulseTicks() : jet.pulseTicks();
+        // Setting off it squeezes at once, unless a squeeze has only just gone (tapping the key does not jet any faster).
+        if (pushing && !jetPushing && tickCount - lastJetThrustTick >= ticks * .5F) jetPhase = 1;
+        jetPushing = pushing;
+        if (jetPhase >= 1) startJetPulse(pushing, pushing ? ticks : jet.pulseTicks() / Math.max(.05F, jet.hoverRate()), surging);
+        // A pulse under way takes the pace asked for now (setting off within a breath, or the surge key going down).
+        else if (pushing) jetPulseTicks = ticks;
+        float thrust = pushing ? jet.thrust(jetPhase) : 1;
+        jetPhase += 1 / jetPulseTicks;
+        return thrust;
+    }
+
+    private void startJetPulse(boolean thrust, float ticks, boolean surge) {
+        jetPhase = 0;
+        jetPulseTicks = ticks;
+        jetPulses++;
+        if (thrust) lastJetThrustTick = tickCount;
+        if (!level().isClientSide()) {
+            this.entityData.set(DATA_JET_PULSE, jetCode((this.entityData.get(DATA_JET_PULSE) >>> 9) + 1, thrust, ticks));
+            return;
+        }
+        jetToReport = jetCode(0, thrust, ticks);
+        if (thrust) jetWake(surge);
+    }
+
+    /** Client, every tick: a body this client does not move follows the pulses it is sent; each that thrusts has its wake. */
+    private void followJet() {
+        var jet = jet();
+        if (jet == null) return;
+        int code = this.entityData.get(DATA_JET_PULSE);
+        boolean fresh = jetSeen >= 0 && code != jetSeen;
+        jetSeen = code;
+        if (isLocalInstanceAuthoritative() && isInWater()) return;
+        if (fresh) {
+            jetPhase = 0;
+            jetPulseTicks = code & 255;
+            if ((code & 256) != 0) {
+                lastJetThrustTick = tickCount;
+                jetWake(jetPulseTicks < jet.pulseTicks());
+            }
+        }
+        jetPhase += 1 / Math.max(1, jetPulseTicks);
+        // Past the end of a pulse with none new yet, it breathes on slowly.
+        if (jetPhase >= 1) { jetPhase -= 1; jetPulseTicks = jet.pulseTicks() / Math.max(.05F, jet.hoverRate()); }
+    }
+
+    // --- a rider's whip (RiderAttack.Aim.WHIP, WhipAttacks, WhipArm) ----------------------------------------------
+
+    /**
+     * The long arm used as a whip, when the species has one (Gesomon's Devil Bashing); null otherwise. A rider whips with
+     * it, and so does the AI. The server runs it to hit with, every client to draw it: the server starts each wind-up and
+     * lash and says so through {@link #DATA_WHIP}, the rider's own client starts them itself the moment the button moves
+     * ({@link #predictWhip}) so the arm answers the mouse at once, and each side steers a rider's with the rider's view as
+     * it sees it, the AI's with the aim the server syncs ({@link #DATA_WHIP_YAW}).
+     */
+    private WhipArm whip;
+    private boolean whipLooked;
+    private DigimonAttack whipAttack;
+    private int lastWhipSide = -1, whipSeen = -1, whipWinds;
+    private Vec3[] whipBefore;
+    private final java.util.Set<Integer> whipStruck = new java.util.HashSet<>();
+    private boolean whipFelt;
+    /** Server: the whip out is the AI's (not a rider's), and how long it plans to hold the wind-up. */
+    private boolean whipByAi;
+    private int whipPlan;
+    /** Server: the AI's whip is aimed at this point, the prey's last predicted place (kept if the prey is lost mid-lash). */
+    private Vec3 whipPoint;
+
+    /** The whip, made the first time it is asked for; null for a species without one. */
+    public WhipArm whip() {
+        if (!whipLooked) {
+            whipLooked = true;
+            for (DigimonAttack attack : attacks()) {
+                var data = com.digicube.digimon.WhipAttacks.get(attack);
+                if (data != null && com.digicube.digimon.WhipAttacks.handles(attack)) { whip = new WhipArm(data); whipAttack = attack; break; }
+            }
+        }
+        return whip;
+    }
+    /** The whip is out (held back, lashing or falling back). */
+    public boolean whipping() { return whip != null && whip.busy(); }
+
+    private static int whipCode(int winds, WhipArm arm) {
+        return (winds & 0xFFFF) << 8 | Math.round(arm.charge() * 31) << 3 | (arm.side() > 0 ? 4 : 0) | arm.stage().ordinal();
+    }
+    private void syncWhip() { this.entityData.set(DATA_WHIP, whipCode(whipWinds, whip)); }
+
+    /**
+     * The arm across from the crosshair: it sweeps through the front to reach it (a crosshair to the right draws the left
+     * arm). Aimed straight ahead, the arms take turns.
+     */
+    private int whipSide(Player rider) {
+        float off = Mth.wrapDegrees(rider.getYRot() - getYRot());
+        return off > WHIP_STRAIGHT ? 1 : off < -WHIP_STRAIGHT ? -1 : -lastWhipSide;
+    }
+    private static final float WHIP_STRAIGHT = 10;
+
+    /** The arm across from a point (the AI's prey): it sweeps through the front onto it. */
+    private int whipSideTo(Vec3 point) {
+        float off = Mth.wrapDegrees(AttackGeometry.yaw(position(), point) - whipBodyYaw());
+        return off > WHIP_STRAIGHT ? 1 : off < -WHIP_STRAIGHT ? -1 : -lastWhipSide;
+    }
+
+    /**
+     * The facing the whip's angles are measured from: a ridden body's own (its rider's client sets it and the body with
+     * it), otherwise the body's, which is the one drawn (an AI mob's head may be turned away from it).
+     */
+    private float whipBodyYaw() { return rider() != null ? getYRot() : yBodyRot; }
+
+    /** The body's dive pitch the whip's root turns with: only a ridden swimmer pitches (ground_models ridden_pitch). */
+    private float whipBodyPitch() { return rider() != null ? getXRot() : 0; }
+
+    /**
+     * Server: the AI whips its prey. The arm across from it is drawn back and held for as long as the moment calls for
+     * (quick against an enemy about to strike, full against a hampered or committed one), then lashes at where the prey
+     * will be and runs through it; the move is on its cooldown from the start, so a broken wind-up is not free.
+     */
+    private void beginAiWhip(DigimonAttack attack, LivingEntity target) {
+        var arm = whip();
+        if (arm == null || arm.busy() || target == null) return;
+        activeAttack = attack;
+        attackTarget = target;
+        attackTick = 0;
+        riderAttack = false;
+        whipByAi = true;
+        cooldownUntil.put(attack.id(), tickCount + attack.cooldownTicks());
+        int side = whipSideTo(target.position());
+        arm.wind(side);
+        lastWhipSide = side;
+        whipWinds++;
+        whipPlan = whipPlan(target, arm.spec().ai());
+        whipPoint = target.getBoundingBox().getCenter();
+        syncWhip();
+        lookAt(target, 60.0F, 60.0F);
+        if (COMBAT_TRACE) Constants.LOG.info("[whip-ai] {} winds its {} arm for {} ticks at {}", getSpeciesId().getPath(),
+                side > 0 ? "left" : "right", whipPlan, target.getType().toShortString());
+    }
+
+    /** How long the AI holds its wind-up: the lash that is worth it at this moment. */
+    private int whipPlan(LivingEntity target, com.digicube.digimon.WhipAttacks.Ai ai) {
+        int quick = ai.winds()[0], ordinary = ai.winds()[1], full = ai.winds()[2];
+        if (target instanceof DigimonEntity other && other.isAttacking()) {
+            int lands = other.attackLandsIn();
+            // Its blow is coming before an ordinary lash would: snap at it now.
+            if (lands >= 0 && lands <= ordinary + ai.lashLead()) return quick;
+            // Committed to a long move of its own: a full lash lands first.
+            if (lands > full + ai.lashLead()) return full;
+        }
+        return impaired(target) || target.hasEffect(DCEffects.CONSTRICTED) ? full : ordinary;
+    }
+
+    /**
+     * Server, every tick of the AI's whip: where it aims (relative to the body), and when the wound arm lets go. It leads
+     * the prey to where the lash will meet it, lets go once the plan's wind-up is in and the prey will be in reach, gives
+     * the arm up when the prey stays out of reach too long, and through the lash sweeps its aim from the arm's own side of
+     * the prey to past it, so the pad crosses the body at speed.
+     */
+    private float[] aiWhipAim(WhipArm arm) {
+        var ai = arm.spec().ai();
+        LivingEntity prey = attackTarget;
+        boolean lost = prey == null || !prey.isAlive() || !canStrike(prey) || isAllyOf(prey);
+        Vec3 root = arm.root(whipSeat(1), whipBodyYaw(), whipBodyPitch(), mountWaterAmount);
+        if (arm.stage() == WhipArm.Stage.WIND) {
+            if (lost) { arm.cancel(); endAiWhip(); return whipAimAt(arm, root, whipPoint); }
+            whipPoint = targetMotion().predict(prey, Math.max(0, whipPlan - arm.heldTicks()) + ai.lashLead());
+            if (arm.heldTicks() >= whipPlan && whipReaches(arm, root, prey, whipPoint)) arm.release();
+            else if (arm.heldTicks() > whipPlan + ai.patience()) { arm.cancel(); endAiWhip(); }
+            return whipAimAt(arm, root, whipPoint);
+        }
+        if (arm.stage() == WhipArm.Stage.LASH) {
+            if (!lost) whipPoint = targetMotion().predict(prey, Math.max(0, ai.lashLead() - arm.stageTicks()));
+            float[] aim = whipAimAt(arm, root, whipPoint);
+            float through = Math.min(1, arm.stageTicks() / (2F * Math.max(1, ai.lashLead())));
+            aim[0] += arm.side() * ai.sweep() * (2 * through - 1);
+            return aim;
+        }
+        if (activeAttack == whipAttack) endAiWhip();
+        return new float[]{this.entityData.get(DATA_WHIP_YAW), this.entityData.get(DATA_WHIP_PITCH)};
+    }
+
+    /** Blocks a tick the target is coming at us. */
+    private double closingSpeed(LivingEntity target) {
+        Vec3 toUs = position().subtract(target.position()).multiply(1, 0, 1);
+        // From where it went this tick: a jet charge moves the body itself and leaves no speed on it.
+        Vec3 moved = new Vec3(target.getX() - target.xo, 0, target.getZ() - target.zo);
+        return toUs.lengthSqr() < 1.0E-6 ? 0 : moved.dot(toUs.normalize());
+    }
+    /** A target closing faster than this (blocks a tick) is charging: the whip is wound for it before it arrives. */
+    private static final double WHIP_CLOSING = .25;
+
+
+    /** The AI's move is over (the lash is done, or it gave the arm up); the arm falls back on its own. */
+    private void endAiWhip() {
+        if (activeAttack != null && activeAttack == whipAttack) { activeAttack = null; attackTarget = null; }
+    }
+
+    /**
+     * Yaw (relative to the body) and pitch from the arm's root to a point. On the ground the lash is aimed no steeper than
+     * lets the pad just scrape the floor at the arm's full length, instead of ploughing on through it.
+     */
+    private float[] whipAimAt(WhipArm arm, Vec3 root, Vec3 at) {
+        Vec3 to = at.subtract(root);
+        float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z)), pitch = (float) -Math.toDegrees(Math.atan2(to.y, to.horizontalDistance()));
+        if (onGround() && !isInWater()) {
+            double reach = arm.spec().arm(arm.side()).reach();
+            pitch = Math.min(pitch, (float) Math.toDegrees(Math.asin(Math.clamp((root.y - getY() + WHIP_SCRAPE) / reach, 0, 1))));
+        }
+        return new float[]{Mth.wrapDegrees(yaw - whipBodyYaw()), pitch};
+    }
+    /** Blocks below the floor the pad may reach at the end of a lash aimed down on land. */
+    private static final double WHIP_SCRAPE = .3;
+
+    /** The prey, at {@code at}, is within the AI's share of the arm's reach from its root, with nothing solid between. */
+    private boolean whipReaches(WhipArm arm, Vec3 root, LivingEntity prey, Vec3 at) {
+        double reach = arm.spec().arm(arm.side()).reach() * arm.spec().ai().reach() + prey.getBbWidth() * .5;
+        return at.distanceToSqr(root) <= reach * reach && clearAttackLine(root, at);
+    }
+
+    /** Server: the AI's whip is held back, waiting for its moment. */
+    public boolean whipWinding() { return whipByAi && whip != null && whip.stage() == WhipArm.Stage.WIND; }
+
+    /** Server: the AI's wound whip cannot reach its prey from here (it closes in while it waits). */
+    public boolean whipOutOfReach() {
+        if (!whipWinding() || attackTarget == null) return false;
+        Vec3 root = whip.root(whipSeat(1), whipBodyYaw(), whipBodyPitch(), mountWaterAmount);
+        return !whipReaches(whip, root, attackTarget, attackTarget.getBoundingBox().getCenter());
+    }
+
+    /**
+     * Server: ticks until the attack under way lands, or -1 when it has (or there is none); what an enemy reads to get out
+     * of the way. The AI's whip lands on its own plan: the rest of the wind-up and the lash's lead.
+     */
+    public int attackLandsIn() {
+        if (activeAttack == null) return -1;
+        if (whipByAi && activeAttack == whipAttack && whip != null)
+            return whip.stage() == WhipArm.Stage.WIND ? Math.max(0, whipPlan - whip.heldTicks()) + whip.spec().ai().lashLead() : -1;
+        int remaining = activeAttack.hitTick() - attackTick;
+        return remaining > 0 ? remaining : -1;
+    }
+
+    /**
+     * Whether the whip can strike the target from {@code feet}, facing it (the AI turns onto its prey as it winds): either
+     * arm's root within the AI's share of its reach of the target's body, with nothing solid between.
+     */
+    private boolean whipReachesFrom(DigimonAttack attack, LivingEntity target, Vec3 feet, Vec3 chest) {
+        var spec = com.digicube.digimon.WhipAttacks.get(attack);
+        if (spec == null) return false;
+        float yaw = AttackGeometry.yaw(feet, target.position());
+        float water = isInWater() ? 1 : 0;
+        Vec3 seat = feet.add(getBody().mount().map(m -> m.position(water)).orElse(Vec3.ZERO).yRot(-yaw * Mth.DEG_TO_RAD));
+        double reach = spec.arm(1).reach() * spec.ai().reach() + target.getBbWidth() * .5;
+        for (int side : new int[]{1, -1}) {
+            Vec3 root = seat.add(spec.arm(side).base().lerp(spec.arm(side).waterBase(), water).yRot(-yaw * Mth.DEG_TO_RAD));
+            if (root.distanceToSqr(chest) <= reach * reach && clearAttackLine(root, chest)) return true;
+        }
+        return false;
+    }
+
+    /** Server: the button went down. Only when the whip is ready: it is not buffered (the release may come first). */
+    private boolean startRiderWhip(Player rider, DigimonAttack attack) {
+        var arm = whip();
+        if (arm == null || arm.stage() == WhipArm.Stage.WIND || arm.stage() == WhipArm.Stage.LASH
+                || cooldownUntil.getOrDefault(attack.id(), 0) > tickCount) return false;
+        int side = whipSide(rider);
+        arm.wind(side);
+        lastWhipSide = side;
+        whipWinds++;
+        syncWhip();
+        return true;
+    }
+
+    /** The rider's own client, the moment the button goes down: the arm is drawn back at once (the server follows). */
+    public boolean predictWhip(Player rider) {
+        var arm = whip();
+        if (arm == null || arm.stage() == WhipArm.Stage.WIND || arm.stage() == WhipArm.Stage.LASH || whipAttack == null
+                || seenCooldown(whipAttack) > 0) return false;
+        int side = whipSide(rider);
+        arm.wind(side);
+        lastWhipSide = side;
+        return true;
+    }
+    /** The rider's own client, the moment the button comes up. */
+    public void predictWhipRelease() { if (whip != null) whip.release(); }
+
+    /** The rider's seat in the world, where the arm's root is measured from. */
+    private Vec3 whipSeat(float partial) {
+        return getBody().mount().map(m -> position().add(m.position(Mth.lerp(partial, previousMountWaterAmount, mountWaterAmount))
+                .yRot(-whipBodyYaw() * Mth.DEG_TO_RAD))).orElse(position());
+    }
+
+    /**
+     * Both sides, every tick: a rider's arm follows the rider's view, the AI's its prey (the server aims it, the clients
+     * follow the synced aim); the server strikes with it while it lashes.
+     */
+    private void tickWhip() {
+        if (whip == null && !whipLooked) { if (rider() == null && this.entityData.get(DATA_WHIP) == 0) return; whip(); }
+        var arm = whip;
+        if (arm == null) return;
+        Player rider = getControllingPassenger() instanceof Player p ? p : null;
+        if (level().isClientSide()) followWhip(arm);
+        else if (rider == null && arm.busy() && !whipByAi) { arm.cancel(); syncWhip(); }
+        else if (rider != null && whipByAi) { arm.cancel(); endAiWhip(); whipByAi = false; syncWhip(); }
+        if (!arm.busy() && arm.weight(1) <= 0) { whipBefore = null; if (!level().isClientSide()) whipByAi = false; return; }
+        float[] aim;
+        if (rider != null) aim = whipAim(rider, arm);
+        else if (!level().isClientSide() && whipByAi) {
+            var before = arm.stage();
+            aim = aiWhipAim(arm);
+            this.entityData.set(DATA_WHIP_YAW, aim[0]);
+            this.entityData.set(DATA_WHIP_PITCH, aim[1]);
+            if (arm.stage() != before) syncWhip();
+        } else aim = new float[]{this.entityData.get(DATA_WHIP_YAW), this.entityData.get(DATA_WHIP_PITCH)};
+        if (WHIP_TRACE && !level().isClientSide() && rider != null)
+            Constants.LOG.info("[whip-trace] {} body yaw {} rider {}/{} eye {} aim {}/{}", arm.stage(), String.format("%.0f", getYRot()), String.format("%.0f", rider.getYRot()),
+                    String.format("%.0f", rider.getXRot()), rider.getEyePosition().subtract(position()), String.format("%.0f", aim[0]), String.format("%.0f", aim[1]));
+        var event = arm.tick(aim[0], aim[1]);
+        if (event == WhipArm.Event.LASH) {
+            whipStruck.clear();
+            whipFelt = false;
+            whipBefore = null;
+            // A rider's whip reloads from the lash; the AI's has been on its cooldown since the wind-up began.
+            if (whipAttack != null) {
+                if (level().isClientSide()) seenCooldownUntil.put(whipAttack.id(), tickCount + whipAttack.cooldownTicks());
+                else if (!whipByAi) cooldownUntil.put(whipAttack.id(), tickCount + whipAttack.cooldownTicks());
+            }
+        }
+        if (!level().isClientSide() && whipByAi && arm.stage() != WhipArm.Stage.WIND && arm.stage() != WhipArm.Stage.LASH) endAiWhip();
+        if (level() instanceof ServerLevel server) {
+            if (event != WhipArm.Event.NONE) syncWhip();
+            if (event == WhipArm.Event.LASH)
+                server.playSound(null, getX(), getY() + getBbHeight() * .5, getZ(), net.minecraft.sounds.SoundEvents.PLAYER_ATTACK_SWEEP,
+                        net.minecraft.sounds.SoundSource.HOSTILE, 1.1F, .55F + arm.charge() * .15F);
+            if (arm.stage() == WhipArm.Stage.LASH) whipHits(server, rider, arm);
+        } else if (arm.stage() == WhipArm.Stage.LASH && !whipFelt && isLocalInstanceAuthoritative()) whipFeel(arm);
+    }
+
+    /**
+     * Where the whip goes: at what the crosshair is on (the first block along the rider's view within
+     * {@link #WHIP_SIGHT}, or that far along it), seen from the arm's own root, which is far below the rider's eye; as
+     * yaw relative to the body and pitch.
+     */
+    private float[] whipAim(Player rider, WhipArm arm) {
+        Vec3 eye = rider.getEyePosition(), look = rider.getLookAngle();
+        var hit = level().clip(new net.minecraft.world.level.ClipContext(eye, eye.add(look.scale(WHIP_SIGHT)),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, rider));
+        Vec3 at = hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS ? eye.add(look.scale(WHIP_SIGHT * .6)) : hit.getLocation();
+        return whipAimAt(arm, arm.root(whipSeat(1), whipBodyYaw(), whipBodyPitch(), mountWaterAmount), at);
+    }
+    /** Blocks along the rider's view the whip looks for what the crosshair is on. */
+    private static final double WHIP_SIGHT = 9;
+
+    /** Client: follows the server's wind-ups and lashes; the rider's own client has started them itself already. */
+    private void followWhip(WhipArm arm) {
+        int code = this.entityData.get(DATA_WHIP);
+        if (code == whipSeen) return;
+        boolean first = whipSeen < 0;
+        whipSeen = code;
+        if (first) return;
+        var stage = WhipArm.Stage.values()[code & 3];
+        int side = (code & 4) != 0 ? 1 : -1;
+        boolean own = isLocalInstanceAuthoritative();
+        if (stage == WhipArm.Stage.WIND && (!own || arm.side() != side || arm.stage() != WhipArm.Stage.WIND)) {
+            arm.wind(side);
+            lastWhipSide = side;
+        } else if (stage == WhipArm.Stage.LASH && arm.stage() != WhipArm.Stage.LASH && arm.stage() != WhipArm.Stage.RECOVER) {
+            arm.lashNow((code >> 3 & 31) / 31F);
+            whipStruck.clear();
+            whipFelt = false;
+            if (whipAttack != null) seenCooldownUntil.put(whipAttack.id(), tickCount + whipAttack.cooldownTicks());
+        }
+    }
+
+    /**
+     * Server, every tick of a lash: the arm swept from where it was last tick to where it is now; whatever it passes
+     * through is struck once a lash, harder the more momentum was gathered and the faster the pad is going, and slapped
+     * along the way the pad goes. A body behind a wall from the arm's root is not struck. The AI's whip
+     * strikes only what it fights (its prey, and whatever is after it or its owner); a rider's anything but an ally.
+     */
+    private void whipHits(ServerLevel level, Player rider, WhipArm arm) {
+        var spec = arm.spec();
+        var limb = spec.arm(arm.side());
+        Vec3[] now = arm.joints(whipSeat(1), whipBodyYaw(), whipBodyPitch(), mountWaterAmount, 1);
+        Vec3[] before = whipBefore == null ? now : whipBefore;
+        whipBefore = now;
+        int tip = now.length - 1;
+        Vec3 swing = now[tip].subtract(before[tip]);
+        float padSpeed = (float) swing.length();
+        if (WHIP_TRACE) {
+            float[] r = arm.angles(0, 1), p = arm.angles(tip - 1, 1);
+            Constants.LOG.info("[whip-trace] side {} root {}/{} pad {}/{} root at {} tip at {} speed {}", arm.side(), String.format("%.0f", r[0]), String.format("%.0f", r[1]),
+                    String.format("%.0f", p[0]), String.format("%.0f", p[1]), now[0].subtract(position()), now[tip].subtract(position()), String.format("%.2f", padSpeed));
+        }
+        var reach = new net.minecraft.world.phys.AABB(now[0], now[0]).inflate(limb.reach() + 2);
+        for (Entity entity : level.getEntities(this, reach)) {
+            LivingEntity victim = DigimonPart.livingOf(entity);
+            if (victim == null || victim == this || victim == rider || !victim.isAlive() || whipStruck.contains(victim.getId())
+                    || !canStrike(victim) || isAllyOf(victim) || whipByAi && !fightsWith(victim)) continue;
+            var boxes = HitParts.of(victim);
+            Vec3 contact = null;
+            for (int i = 0; i < tip && contact == null; i++) {
+                double radius = i == tip - 1 ? limb.padRadius() : spec.radius();
+                // swept: this section at a few steps between where it was last tick and where it is now
+                for (int k = 0; k <= 3 && contact == null; k++) {
+                    double f = k / 3.0;
+                    contact = touch(boxes, before[i].lerp(now[i], f), before[i + 1].lerp(now[i + 1], f), radius);
+                }
+            }
+            if (contact == null || !clearAttackLine(now[0], victim.getBoundingBox().getCenter())) continue;
+            whipStruck.add(victim.getId());
+            // The blow is as hard as the pad meets the body: a body running into the lash (a charge) takes both speeds.
+            float impact = (float) swing.subtract(victim.getX() - victim.xo, victim.getY() - victim.yo, victim.getZ() - victim.zo).length();
+            float scale = spec.power(arm.charge()) * spec.speedScale(Math.max(padSpeed, impact));
+            Vec3 along = new Vec3(swing.x, 0, swing.z);
+            along = along.lengthSqr() < 1.0E-6 ? victim.position().subtract(position()).multiply(1, 0, 1).normalize() : along.normalize();
+            if (!hitWithAttack(level, whipAttack, victim, contact.subtract(along), scale)) continue;
+            if (victim instanceof DigimonEntity struck) struck.feel(this);
+            // A slap moves a body by its bulk: a player or a cow is flung, a Golemon rocks.
+            float slap = spec.knockback() * spec.speedScale(padSpeed) / Math.max(1, victim.getBbWidth() * victim.getBbHeight() / 2);
+            victim.push(along.x * slap, .16 * slap, along.z * slap);
+            victim.hurtMarked = true;
+            level.sendParticles(net.minecraft.core.particles.ParticleTypes.SWEEP_ATTACK, contact.x, contact.y, contact.z, 1, 0, 0, 0, 0);
+            level.sendParticles(victim.isInWater() ? net.minecraft.core.particles.ParticleTypes.SPLASH : net.minecraft.core.particles.ParticleTypes.CRIT,
+                    contact.x, contact.y, contact.z, 10, .25, .25, .25, .2);
+            level.playSound(null, contact.x, contact.y, contact.z, net.minecraft.sounds.SoundEvents.PLAYER_ATTACK_STRONG,
+                    net.minecraft.sounds.SoundSource.HOSTILE, 1F, .65F + level.getRandom().nextFloat() * .1F);
+            level.playSound(null, contact.x, contact.y, contact.z, net.minecraft.sounds.SoundEvents.SLIME_SQUISH,
+                    net.minecraft.sounds.SoundSource.HOSTILE, .8F, .75F);
+            Constants.LOG.info("[whip] {} lashed {} x{} (charge {}, pad {} blocks a tick, {} against the body)", getSpeciesId().getPath(),
+                    victim.getType().toShortString(), String.format("%.2f", scale), String.format("%.2f", arm.charge()), String.format("%.2f", padSpeed),
+                    String.format("%.2f", impact));
+        }
+    }
+
+    /** Server: who last struck this body by touch (a whip's lash), and until when it knows where they are. */
+    private int feltFrom = -1, feltUntil;
+    /** Ticks a body a lash touched knows where the whip came from, even Inked (DCEffects.blindTo). */
+    private static final int FELT_TICKS = 100;
+    void feel(Entity attacker) { feltFrom = attacker.getId(); feltUntil = tickCount + FELT_TICKS; }
+    public boolean feels(Entity attacker) { return attacker.getId() == feltFrom && tickCount < feltUntil; }
+
+    /** Server: the AI's own fight: the prey it whips at, or a mob after it or its owner. */
+    private boolean fightsWith(LivingEntity victim) {
+        if (victim == attackTarget || victim == getTarget()) return true;
+        return victim instanceof Mob mob && (mob.getTarget() == this || getOwner() != null && mob.getTarget() == getOwner());
+    }
+
+    /** Development: {@code DIGICUBE_WHIP_TRACE=true} logs the lashing arm every tick. */
+    private static final boolean WHIP_TRACE = "true".equals(System.getenv("DIGICUBE_WHIP_TRACE"));
+
+    /** The first point of segment pq within {@code radius} of any of the boxes, or null. */
+    private static Vec3 touch(java.util.List<net.minecraft.world.phys.AABB> boxes, Vec3 p, Vec3 q, double radius) {
+        for (int k = 0; k <= 5; k++) {
+            Vec3 at = p.lerp(q, k / 5.0);
+            for (var box : boxes) {
+                double dx = Math.max(Math.max(box.minX - at.x, 0), at.x - box.maxX);
+                double dy = Math.max(Math.max(box.minY - at.y, 0), at.y - box.maxY);
+                double dz = Math.max(Math.max(box.minZ - at.z, 0), at.z - box.maxZ);
+                if (dx * dx + dy * dy + dz * dz <= radius * radius) return at;
+            }
+        }
+        return null;
+    }
+
+    /** The rider's own client: the camera's shudder when its lash meets a body (the server decides the hit itself). */
+    private void whipFeel(WhipArm arm) {
+        Vec3[] now = arm.joints(whipSeat(1), whipBodyYaw(), whipBodyPitch(), mountWaterAmount, 1);
+        var reach = new net.minecraft.world.phys.AABB(now[0], now[0]).inflate(arm.spec().arm(arm.side()).reach() + 2);
+        for (Entity entity : level().getEntities(this, reach)) {
+            if (!(entity instanceof LivingEntity living) || entity == rider() || !living.isAlive()) continue;
+            var box = java.util.List.of(living.getBoundingBox());
+            for (int i = 0; i < now.length - 1; i++)
+                if (touch(box, now[i], now[i + 1], arm.spec().radius()) != null) { seenImpactTick = tickCount; whipFelt = true; return; }
+        }
+    }
+
+    /**
+     * Client: a pulse's wake. Water blows out of the siphon under the mantle, back along the way the body goes, in a
+     * puff of bubbles, with a soft squirt; a surge's pulse blows harder.
+     */
+    private void jetWake(boolean surge) {
+        if (!isInWater()) return;
+        Vec3 ahead = Vec3.directionFromRotation(getXRot(), getYRot());
+        Vec3 siphon = position().add(0, getBbHeight() * .3, 0).subtract(ahead.scale(getBbWidth() * .4));
+        int count = surge ? 16 : 9;
+        for (int i = 0; i < count; i++) {
+            double spread = .12;
+            level().addParticle(net.minecraft.core.particles.ParticleTypes.BUBBLE, siphon.x + (random.nextDouble() - .5) * .9,
+                    siphon.y + (random.nextDouble() - .5) * .9, siphon.z + (random.nextDouble() - .5) * .9,
+                    -ahead.x * .35 + (random.nextDouble() - .5) * spread, -ahead.y * .35 + (random.nextDouble() - .5) * spread,
+                    -ahead.z * .35 + (random.nextDouble() - .5) * spread);
+        }
+        level().playLocalSound(siphon.x, siphon.y, siphon.z, net.minecraft.sounds.SoundEvents.SQUID_SQUIRT, net.minecraft.sounds.SoundSource.NEUTRAL,
+                surge ? .45F : .22F, (surge ? .95F : .8F) + random.nextFloat() * .12F, false);
+    }
 
     /** Blocks above the water's surface a swimmer can haul its feet onto a bank: a one-block quay with room to spare. */
     private static final double HAUL_ABOVE = 1.6;
@@ -2094,6 +2652,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (spec.aim() == com.digicube.digimon.RiderAttack.Aim.CHARGE ? isInWater()
                 : !com.digicube.digimon.ThrownAttacks.handles(attack) && !onGround() && !isInWater()) return false;
         if (com.digicube.digimon.ThrownAttacks.handles(attack)) return startRiderThrow(rider, attack);
+        if (spec.aim() == com.digicube.digimon.RiderAttack.Aim.WHIP) return startRiderWhip(rider, attack);
         int wait = Math.max(activeAttack == null ? 0 : activeAttack.durationTicks() - attackTick,
                 cooldownUntil.getOrDefault(attack.id(), 0) - tickCount);
         if (wait > 0 || !isAttackReady(attack)) {
@@ -2139,6 +2698,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (level().isClientSide() || getControllingPassenger() != rider) return;
         bufferedRiderSlot = -1;
         if (riderAttack && activeAttack != null) riderReleased = true;
+        // A held whip lets go and lashes at the crosshair.
+        if (whip != null) whip.release();
         // A held icicle goes where the crosshair is now: straight from the hand once formed, a snap dart if it is still forming.
         if (thrower != null && thrower.charging()) {
             var charged = thrower.charged();
@@ -2447,8 +3008,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             return false;
         }
         // Ink: what it cannot see it cannot target, so the hurt-by goal does not hand the target back every few ticks.
-        if (DCEffects.blindTo(this, target)) return false;
+        if (!struckBlind && DCEffects.blindTo(this, target)) return false;
         return super.canAttack(target);
+    }
+
+    /** Set while an attack under way asks whether it may go on and land: Ink stops aiming, not a blow already begun. */
+    private boolean struckBlind;
+
+    /** Server: the AI's attack under way keeps aiming itself at its prey (a homing jet charge, a drawn kinetic shot). */
+    public boolean attackTracksTarget() {
+        return !riderAttack && (kinetic != null || this.entityData.get(DATA_RIDER_CHARGE) > 0);
+    }
+
+    /** {@link #canAttack}, blind or not: an attack already under way plays out, and a blow that lands, lands. */
+    public boolean canStrike(LivingEntity target) {
+        struckBlind = true;
+        try { return canAttack(target); } finally { struckBlind = false; }
     }
 
     /** Public view of {@link #considersEntityAsAlly} for this Digimon's own projectiles. */
@@ -2581,6 +3156,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public boolean combatControlsLocked() {
         // A thrower walks through its performances; only the pickup holds it still.
         if (thrower != null && thrower.busy()) return thrower.locksLegs();
+        // The AI's wound whip may close in on its prey while it waits for its moment.
+        if (whipWinding()) return false;
         return isAttacking() && !shootingOnTheRun() || constrictionPlanner != null && constrictionPlanner.aligning();
     }
 
@@ -2958,6 +3535,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public boolean canAttackFrom(DigimonAttack attack, LivingEntity target, Vec3 feet) {
         // Thrown weapons are planned by the thrower's own AI (ThrowerBrain), never picked by the generic chooser.
         if (com.digicube.digimon.ThrownAttacks.handles(attack)) return false;
+        if (com.digicube.digimon.WhipAttacks.handles(attack)) {
+            if (whipReachesFrom(attack, target, feet, target.getBoundingBox().getCenter())) return true;
+            // From where it stands, a target charging in is met: the whip is wound while it comes.
+            var spec = com.digicube.digimon.WhipAttacks.get(attack);
+            return feet.equals(position()) && closingSpeed(target) > WHIP_CLOSING && targetMotion().follows(target)
+                    && whipReachesFrom(attack, target, feet, targetMotion().predict(target, spec.ai().winds()[1] + spec.ai().lashLead()));
+        }
         double distance = feet.distanceToSqr(target.position());
         if (attack.kind() == DigimonAttack.Kind.MELEE) {
             // Prospective claw positions use a conservative margin inside vanilla mob reach.
@@ -3046,7 +3630,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 }
             }
         }
-        if (attacks().stream().anyMatch(a -> a.kind() == DigimonAttack.Kind.MELEE)) return 0.0;
+        // A fist or a whip works up close: a body that has one never backs off to make room for its other moves.
+        if (attacks().stream().anyMatch(a -> a.kind() == DigimonAttack.Kind.MELEE || a.kind() == DigimonAttack.Kind.WHIP)) return 0.0;
         return attacks().stream().filter(a -> a.motion() != null && a.kind() != DigimonAttack.Kind.RETREAT_KICK)
                 .mapToDouble(a -> a.motion().minimumRange()).min().orElse(0.0);
     }
@@ -3080,6 +3665,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * ({@code target} is the soft target or null, and the attack goes where the rider looks).
      */
     private void beginAttack(DigimonAttack attack, int index, LivingEntity target, Player rider) {
+        if (rider == null && com.digicube.digimon.WhipAttacks.handles(attack)) { beginAiWhip(attack, target); return; }
         if (com.digicube.digimon.AuthoredAttacks.handles(attack)) authoredVolumes.reset();
         activeAttack = attack;
         riderAttack = rider != null;
@@ -3163,6 +3749,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (activeAttack == null) {
             return;
         }
+        // The AI's whip runs on the arm's own clock (tickWhip, every tick); this only counts.
+        if (com.digicube.digimon.WhipAttacks.handles(activeAttack)) {
+            if (!isAlive() || isVehicle()) cancelAttack();
+            else attackTick++;
+            return;
+        }
         // A thrown attack runs on the thrower's own timeline (ThrowerState), ticked just before this.
         if (com.digicube.digimon.ThrownAttacks.handles(activeAttack)) {
             if (!isAlive() || isVehicle() && !riderAttack) cancelAttack();
@@ -3178,7 +3770,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         // The AI's jet runs on without a live target (a blinded getaway has none); a charge whose prey is gone just runs out.
         boolean jetting = kinetic == null && this.entityData.get(DATA_RIDER_CHARGE) > 0;
         if (isVehicle() && !riderAttack || !isAlive() || (!riderAttack && !jetting && activeAttack.fuel() == null && attackTick < activeAttack.hitTick()
-                && (attackTarget == null || !attackTarget.isAlive() || !canAttack(attackTarget)))) {
+                && (attackTarget == null || !attackTarget.isAlive() || !canStrike(attackTarget)))) {
             cancelAttack();
             return;
         }
@@ -3287,6 +3879,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (thrower != null && thrower.busy() && !level().isClientSide()) thrower.cancel();
         if (activeAttack == null) return;
         if (com.digicube.digimon.ThrownAttacks.handles(activeAttack)) { activeAttack = null; attackTarget = null; return; }
+        if (activeAttack == whipAttack && whipByAi) {
+            // The AI's whip falls back unstruck; its cooldown stands.
+            if (whip != null && whip.busy()) { whip.cancel(); syncWhip(); }
+            activeAttack = null; attackTarget = null;
+            return;
+        }
         if (kinetic != null) { kinetic = null; this.entityData.set(DATA_SUSTAINED_ATTACK, ""); }
         this.entityData.set(DATA_RIDER_CHARGE, 0);
         this.entityData.set(DATA_RIDER_DRAW, -1F);
@@ -3455,6 +4053,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return strikeAnchor() != null;
     }
 
+    /** Degrees a tick a rider's breath sweeps after the crosshair while it burns, across and up or down. */
+    private static final float RIDER_BREATH_TURN = 4.5F, RIDER_BREATH_PITCH = 3;
+
     /** Face the aim during anticipation, then commit to that direction through the strike. */
     private void aimAuthoredAttack() {
         boolean streaming = activeAttack.fuel() != null;
@@ -3465,6 +4066,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         // A jump is planned at launch, so the facing is settled there; a travelling combo keeps turning after its victim between blows.
         if (travelling != null && travelling.leap() != null) aimUntil = travelling.leap().launch();
         else if (travelling != null && travelling.rootTravel() && !travelling.hitWindows().isEmpty()) aimUntil = (int) travelling.hitWindows().getLast()[0] - 2;
+        // A rider's breath follows the crosshair (or the soft target) for as long as it burns, slower than the wind-up
+        // turned: a burst that strikes several times (Fire Blast) is swept across the enemies in front of the mount.
+        boolean sweeping = riderAttack && activeAttack.kind() == DigimonAttack.Kind.BOX_BURST && travelling != null
+                && travelling.maxHits() > 1 && travelling.leap() == null && !travelling.anchored();
+        if (sweeping) aimUntil = activeAttack.motion().activeUntil();
+        boolean burning = sweeping && attackTick >= activeAttack.hitTick();
+        // While it burns the view steers it: the soft target is picked again from where the rider looks, or none.
+        if (burning && getControllingPassenger() instanceof Player breather) attackTarget = softTarget(breather, activeAttack);
         LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
         // Without a soft target a rider's shot, stream or burst goes to the point under the crosshair.
         Vec3 viewPoint = aimed == null ? riderAimNow() : null;
@@ -3494,7 +4103,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (com.digicube.digimon.AuthoredAttacks.handles(activeAttack)) yaw = AuthoredVolumeAttack.yaw(activeAttack,position(),authoredAimPoint,attackMirrored);
                 setYRot(streaming ? Mth.approachDegrees(getYRot(), yaw,
                         attackTick < activeAttack.motion().activeFrom() ? 18.0F : 8.0F)
-                        : committed && attackTick>0 ? Mth.approachDegrees(entityData.get(DATA_ATTACK_YAW),yaw,10) : yaw);
+                        : committed && attackTick>0 ? Mth.approachDegrees(entityData.get(DATA_ATTACK_YAW),yaw,burning ? RIDER_BREATH_TURN : 10) : yaw);
                 if(committed) entityData.set(DATA_ATTACK_YAW,getYRot());
             }
             if (streaming) {
@@ -3514,7 +4123,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 // A clip whose aim starts at zero supplies its own smooth anticipation.
                 // Seed its destination now; a short windup cannot otherwise reach a low target.
                 this.entityData.set(DATA_ATTACK_AIM_PITCH,attackTick==0 && activeAttack.motion().sample(0).aimWeight()==0
-                        ? desired : Mth.approach(this.entityData.get(DATA_ATTACK_AIM_PITCH),desired,4));
+                        ? desired : Mth.approach(this.entityData.get(DATA_ATTACK_AIM_PITCH),desired,burning ? RIDER_BREATH_PITCH : 4));
             } else if (activeAttack.kind() == DigimonAttack.Kind.FLAME_SHOT) {
                 float pitch = FlameStream.aimPitch(release, position(), authoredAimPoint, getYRot(),
                         this.entityData.get(DATA_ATTACK_AIM_PITCH));
@@ -3923,7 +4532,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** @param scale share of the attack's damage this blow deals: a rider's snap shot, a trample at the tail of a charge */
     public boolean hitWithAttack(ServerLevel level, DigimonAttack attack, LivingEntity victim, Vec3 from, float scale) {
-        if (!victim.isAlive() || !canAttack(victim) || isAllyOf(victim)) return false;
+        if (!victim.isAlive() || !canStrike(victim) || isAllyOf(victim)) return false;
         float damage=damageAgainst(attack,victim)*scale;
         var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
         // Blows that come several to a cast (a combo's beats, a volley's missiles) each land: they bypass the hurt cooldown.
@@ -3935,7 +4544,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     boolean damageWithActiveAttack(LivingEntity target) {
-        if (!(level() instanceof ServerLevel server) || activeAttack == null || !canAttack(target) || isAllyOf(target)) return false;
+        if (!(level() instanceof ServerLevel server) || activeAttack == null || !canStrike(target) || isAllyOf(target)) return false;
         var source=activeAttack.kind()==DigimonAttack.Kind.CONSTRICTION ? DCDamageTypes.crushAttack(this) : DCDamageTypes.partnerAttack(this);
         float damage=damageAgainst(activeAttack,target);
         // A squeeze also takes a share of what the prey has: big bodies have more to crush, small ones are not deleted.
@@ -4159,6 +4768,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (!level().isClientSide() && canSwim() && rider() != null && rider().isEyeInFluid(FluidTags.WATER))
             rider().setAirSupply(Math.min(rider().getMaxAirSupply(), rider().getAirSupply() + 3));
         if (level().isClientSide()) seaWake();
+        tickWhip();
         if (bufferedRiderSlot >= 0 && !level().isClientSide()) {
             if (tickCount > bufferedRiderUntil || !(getControllingPassenger() instanceof Player rider)) bufferedRiderSlot = -1;
             else startRiderAttack(rider, bufferedRiderSlot);
@@ -4222,7 +4832,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             // three blocks and would lift the saddle with it); only the stroke slows down.
             swimStroke = Mth.lerp(.15F, swimStroke, motion);
             swimMotionAmount = Mth.lerp(.15F, swimMotionAmount, rider() != null ? 1 : motion);
-            swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimStroke, .45F, 1.0F);
+            if (jet() != null) {
+                // The swim clip is one pulse: it plays on the pulse's clock, and a new pulse starts it again from its
+                // squeeze (only ever forward, so the frames between two ticks never run back through the clip).
+                float clip = jet().clipTicks(), within = swimAnimationPhase % clip, pulseAt = Mth.clamp(jetPhase, 0, 1) * clip;
+                float step = pulseAt - within;
+                if (step < -1.0E-3F) step += clip;
+                swimAnimationPhase += step;
+            } else swimAnimationPhase += swimAnimationAmount * Mth.lerp(swimStroke, .45F, 1.0F);
             var gait = getLocomotion().groundGait();
             if (gait != null) {
                 double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());

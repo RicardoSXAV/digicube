@@ -45,6 +45,8 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         new DevClient().init();
         new AerialMountClient().init();
         com.digicube.fabric.client.render.PixelPlaneParticle.register();
+        com.digicube.fabric.client.render.InkParticle.register();
+        com.digicube.fabric.client.render.InkedVisuals.init();
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
             ModelLayerRegistry.registerModelLayer(definition.layer(), definition::createLayer);
         }
@@ -57,6 +59,7 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         }
         com.digicube.fabric.client.render.CombatMarkBadges.init();
         com.digicube.fabric.client.render.HoofBeats.init();
+        com.digicube.fabric.client.render.Stomps.init();
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);

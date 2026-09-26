@@ -112,6 +112,10 @@ public final class RiderControls {
         DigimonEntity.localRiderDraws = false;
         speed(mount);
         seaSight(minecraft, mount);
+        // A jet swimmer's pulses run on this client, which moves the mount: the server passes each on to the others.
+        int pulse = mount == null ? -1 : mount.takeJetReport();
+        if (pulse >= 0 && ClientPlayNetworking.canSend(PartyActionPayload.TYPE))
+            ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.JET_PULSE, PartyActionPayload.NO_MEMBER, pulse));
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
             java.util.Arrays.fill(wasDown, false);
@@ -146,6 +150,20 @@ public final class RiderControls {
                 continue;
             }
             boolean hold = spec.input() == RiderAttack.Input.HOLD;
+            if (spec.aim() == RiderAttack.Aim.WHIP) {
+                // Held, the arm swings back and gathers momentum; let go, it lashes at the crosshair and follows the mouse.
+                // It starts here at once (the server starts its own on the press): a button held through the cooldown
+                // winds up the moment the whip is ready.
+                boolean canSend = ClientPlayNetworking.canSend(PartyActionPayload.TYPE);
+                if (down && canSend && mount.predictWhip(player))
+                    ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_ATTACK, PartyActionPayload.NO_MEMBER, slot));
+                if (!down && wasDown[slot] && canSend) {
+                    mount.predictWhipRelease();
+                    ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_RELEASE, PartyActionPayload.NO_MEMBER, slot));
+                }
+                wasDown[slot] = down;
+                continue;
+            }
             if (hold && spec.aim() == RiderAttack.Aim.SHOT && down) DigimonEntity.localRiderDraws = true;
             if (hold && (spec.aim() == RiderAttack.Aim.STREAM || spec.aim() == RiderAttack.Aim.SHOT)) {
                 // Breathes (or holds a drawn shot raised) for as long as the button is held; a press while it recovers is tried again.
@@ -318,8 +336,17 @@ public final class RiderControls {
         // A leap's landing nods the view down with the forehand taking the weight, harder the further it fell.
         float landing = mount.ticksSinceLeapLanding() + partialTick, nod = 0;
         if (landing >= 0 && landing < 7) nod = 2.2F * mount.leapImpact() * Mth.sin(Mth.PI * landing / 7) * (1 - landing / 7);
+        // A heavy walker's stomps dip the view a little on every footfall, more at a run.
+        nod += com.digicube.fabric.client.render.Stomps.nod(mount, partialTick);
         float shot = mount.ticksSinceShot() + partialTick;
         if (shot >= 0 && shot < 6) { nod -= 1.8F * Mth.square(1 - shot / 6); fov += .025F * Mth.square(1 - shot / 6); }
+        // A jet swimmer's pulse surges the view out and back as the body shoots forward, and noses it down a touch.
+        float jet = mount.ticksSinceJetThrust() + partialTick;
+        if (mount.isInWater() && jet >= 0 && jet < 9) {
+            float push = Mth.sin(Mth.PI * jet / 9) * (1 - jet / 12);
+            fov += .03F * push;
+            nod += .5F * push;
+        }
         return shake == 0 && fov == 1 && nod == 0 ? null : new float[] {shake * Mth.sin(time * 2.9F), shake * Mth.cos(time * 3.7F) + nod, fov};
     }
 
@@ -340,7 +367,9 @@ public final class RiderControls {
      * charge) and narrows back as it slows: speed is sold by the camera, and the aim stays where it was.
      */
     private static void speed(DigimonEntity mount) {
-        double pace = mount == null ? 0 : Math.sqrt(Mth.square(mount.getX() - mount.xo) + Mth.square(mount.getZ() - mount.zo));
+        // Over the ground on land; in the water every way the body goes (a diving jet swimmer's pulses go down).
+        double pace = mount == null ? 0 : Math.sqrt(Mth.square(mount.getX() - mount.xo) + Mth.square(mount.getZ() - mount.zo)
+                + (mount.isInWater() ? Mth.square(mount.getY() - mount.yo) : 0));
         float wanted = (float) Mth.clamp((pace - .2) * .31, 0, .13);
         speedFov = Mth.lerp(wanted > speedFov ? .3F : .15F, speedFov, wanted);
         if (speedFov < 1.0E-4F) speedFov = 0;

@@ -114,7 +114,9 @@ public record DigimonAttack(
         /** A weapon thrown out along a curve that comes back to a fixed point, to be caught there or lost ({@link ThrownAttacks}). */
         RETURNING_THROW,
         /** A projectile formed in the hands and held to grow heavier before a ballistic throw ({@link ThrownAttacks}). */
-        CHARGED_THROW
+        CHARGED_THROW,
+        /** A long arm drawn back, coiled and lashed out on a spring; the swept arm strikes what it meets ({@link WhipAttacks}). */
+        WHIP
     }
 
     /** Clip name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */

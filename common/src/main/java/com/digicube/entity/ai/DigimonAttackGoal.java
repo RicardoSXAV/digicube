@@ -108,6 +108,14 @@ public final class DigimonAttackGoal extends Goal {
             return;
         }
         if (mob.shootingOnTheRun()) { tickOnTheRun(target, tactics); return; }
+        if (mob.whipWinding()) {
+            // A wound whip waits for its moment: the body turns onto the prey and closes in while it is out of reach.
+            mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
+            if (mob.whipOutOfReach()) mob.getNavigation().moveTo(target, tactics.fightSpeed() > 0 ? tactics.fightSpeed() : speedModifier);
+            else mob.getNavigation().stop();
+            dodgeTo = null;
+            return;
+        }
         if (mob.isAttacking()) {
             // A stream can be cut to get out of the way of a shot or a spike wave; anything else is committed.
             if (!(mob.getActiveAttack().fuel() != null && dodgeChance(mob, tactics) > 0 && breakStreamForShot(target, tactics))) {
@@ -298,8 +306,9 @@ public final class DigimonAttackGoal extends Goal {
         if (!(target instanceof DigimonEntity other) || !other.isAttacking()) return -1;
         DigimonAttack attack = other.getActiveAttack();
         if (attack == null || attack.isRanged() && attack.kind() != DigimonAttack.Kind.GROUND_WAVE) return -1;
-        // A wrap's hit tick is its capture, two seconds in: the one wind-up worth running from.
-        int remaining = attack.hitTick() - other.currentAttackTick();
+        // A wrap's hit tick is its capture, two seconds in: the one wind-up worth running from. A whip lands on its
+        // wielder's own plan (DigimonEntity.attackLandsIn).
+        int remaining = other.attackLandsIn();
         if (remaining <= 0) return -1;
         double reach = attack.range() + (mob.getBbWidth() + other.getBbWidth()) * .5 + 1;
         return mob.distanceToSqr(other) <= reach * reach ? remaining : -1;

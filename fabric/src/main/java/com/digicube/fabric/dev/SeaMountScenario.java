@@ -165,15 +165,30 @@ public final class SeaMountScenario {
         double swim = kind.locomotion().swimSpeed(), h = kind.body().dimensions().height();
         double afloat = SURFACE - .85 * h;
         List<Step> plan = new ArrayList<>();
-        plan.add(new Step("cruise", 40, () -> place(0, FLOOR + 5, START, 0), t -> keys(1, 0, false, false, false, 0, 0), () -> {
-            double v = pace(25, 39), drift = Math.abs(track.get(39).y - track.get(0).y);
-            return verdict(Math.abs(v - swim) <= .15 * swim && drift < .5,
+        // A jet swimmer's pace is measured over whole pulses (36 ticks: two of a cruise's, three of a surge's) once under way.
+        boolean jet = kind.locomotion().jet() != null;
+        int span = jet ? 62 : 40;
+        plan.add(new Step("cruise", span, () -> place(0, FLOOR + 5, START, 0), t -> keys(1, 0, false, false, false, 0, 0), () -> {
+            double v = pace(25, span - 1), drift = Math.abs(track.get(span - 1).y - track.get(0).y);
+            return verdict(Math.abs(v - swim) <= .15 * swim && drift < .6,
                     "%.3f blocks a tick (swim speed %.3f), %.2f blocks of drift up or down", v, swim, drift);
         }));
-        plan.add(new Step("surge", 40, () -> place(0, FLOOR + 5, START, 0), t -> keys(1, 0, false, true, false, 0, 0), () -> {
-            double v = pace(25, 39), want = swim * m.waterSprint();
+        plan.add(new Step("surge", span, () -> place(0, FLOOR + 5, START, 0), t -> keys(1, 0, false, true, false, 0, 0), () -> {
+            double v = pace(25, span - 1), want = swim * m.waterSprint();
             return verdict(v >= .85 * want, "%.3f blocks a tick on the surge key (%.2f x the swim, %.3f)", v, m.waterSprint(), want);
         }));
+        // A jet swimmer goes in pulses: fast after each squeeze, slow in the glide, pulse after pulse.
+        if (jet) {
+            int[] pulsesAt = new int[1];
+            plan.add(new Step("jet pulses", 62, () -> { place(0, FLOOR + 5, START, 0); pulsesAt[0] = mount.jetPulses(); },
+                    t -> keys(1, 0, false, false, false, 0, 0), () -> {
+                double lo = 1e9, hi = 0;
+                for (int i = 26; i < 61; i++) { double v = pace(i, i + 1); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+                int pulses = mount.jetPulses() - pulsesAt[0];
+                return verdict(hi >= 1.6 * lo && pulses >= 3, "%d pulses in %d ticks, between %.3f and %.3f blocks a tick (%.1f x)",
+                        pulses, 62, lo, hi, hi / Math.max(1.0E-6, lo));
+            }));
+        }
         plan.add(new Step("dive", 30, () -> place(0, SURFACE - h - 1.5, START, 0), t -> keys(1, 0, false, false, false, 45, 0), () -> {
             double down = (track.get(15).y - track.get(29).y) / 14, ahead = pace(15, 29), want = swim * Math.sin(Math.PI / 4);
             return verdict(down >= .6 * want && ahead >= .6 * want, "looking 45 degrees down it sinks %.3f and goes %.3f a tick (%.3f each along the view)", down, ahead, want);
@@ -237,6 +252,15 @@ public final class SeaMountScenario {
                     () -> { place(LANE, FLOOR + 1, -10, 0); prey(new Vec3(LANE + .5, FLOOR + 1, -10 + kind.body().dimensions().width() * .5 + 1.4)); },
                     t -> { look(); if (t == 10 && !mount.startRiderAttack(rider, s)) Constants.LOG.info("[sea] the press was refused"); },
                     () -> hit("on the pool floor, %.0f degrees down")));
+            // A whip is held back, gathering momentum, and let go at the prey swimming below and ahead.
+            if (spec.aim() == RiderAttack.Aim.WHIP) plan.add(new Step(spec.attack().getPath() + " whipped at depth", 70,
+                    () -> { place(LANE, FLOOR + 3, -10, 0); prey(new Vec3(LANE + .5, FLOOR + 1, -10 + kind.body().dimensions().width() * .5 + 1.6)); },
+                    t -> {
+                        look();
+                        if (t == 10 && !mount.startRiderAttack(rider, s)) Constants.LOG.info("[sea] the press was refused");
+                        if (t == 24) mount.stopRiderAttack(rider);
+                    },
+                    () -> hit("wound up afloat and lashed down at the prey, %.0f degrees down")));
         }
         return plan;
     }

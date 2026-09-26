@@ -10,7 +10,7 @@ mounts, charges and drawn shots, and flying mounts. Check with `rider_checks` an
 Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
 (`sweep`/`line`/`shot`/`stream`/`grab`/`charge`/`whip`), `input` (`tap`/`hold`), soft-target `cone`/`reach`
 and `move` (`RiderAttack`; Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon,
-Gesomon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
+Gesomon, DarkTyrannomon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
 or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray in third person too), and commits
 every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing. Check with
 `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps their hands and casts
@@ -18,6 +18,13 @@ the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E insi
 (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a ridden mob's server AI step, so
 `tick()` drives a rider's attack through `tickAttackTimeline`; never put attack timing back into
 `customServerAiStep` alone.
+
+A rider's `BOX_BURST` that strikes several times, such as Fire Blast, keeps following the crosshair while it
+burns, from its `hit_tick` to the motion's `activeUntil`. It turns at `RIDER_BREATH_TURN` (4.5 degrees a tick)
+and pitches at `RIDER_BREATH_PITCH` (3), and the soft target is picked again from the view every tick. The
+hits read the caster's current yaw and aim pitch, so the fire sweeps across what the rider looks at.
+`rider_checks` casts such a burst on a left dummy and then either sweeps the view onto a right one (both must
+burn) or holds it (only the left one burns).
 
 ## Attack tiles
 
@@ -51,7 +58,14 @@ was already down when the rider took the reins or closed a screen.
 
 The rider's leg pose is catalog data (`ground_models.json` `rider.pose` = leg pitch, splay, roll; Golemon
 sits, no pose = straight legs); only `MixinHumanoidModel` reads it, so the first-person camera is untouched.
-`rider.pose` may carry a fourth number, hips: px each leg is set further out.
+`rider.pose` may carry a fourth number, hips: px each leg is set further out. `rider.hide` names parts drawn
+only unridden, such as a feather standing where the seat is.
+
+The rider turns with the seat. `NativeGroundModel.riderYaw` measures how far the animated seat part has
+turned from the mount's heading, `MixinEntityRenderer` carries it (`RiderVisuals.YAW`), and
+`MixinLivingEntityRenderer` adds it to the rider's body rotation. The head keeps looking where the rider looks,
+within vanilla's 85 degrees. So a strike that spins the body, such as DarkTyrannomon's Iron Tail, carries its
+rider round instead of leaving the rider facing the old heading with their legs through the neck.
 
 ## Water
 

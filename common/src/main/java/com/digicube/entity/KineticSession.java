@@ -192,7 +192,7 @@ public final class KineticSession {
     }
 
     private boolean opportunity() {
-        if (target == null || !target.isAlive() || !owner.canAttack(target) || owner.isAllyOf(target)) return false;
+        if (target == null || !target.isAlive() || !owner.canStrike(target) || owner.isAllyOf(target)) return false;
         for (double time = definition.attack().motion().activeFrom(); time <= definition.attack().motion().activeUntil(); time += .25) {
             var frame = definition.kickMotion().sample(time);
             Vec3 feet = AttackGeometry.world(start, frame.offset(), startYaw);

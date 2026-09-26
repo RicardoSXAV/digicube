@@ -12,7 +12,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.*;
 import java.util.*;
 
-/** Opt-in live entity checks: native contact, moving victims and ink status lifecycle. */
+/**
+ * Opt-in live entity checks: the AI's whip (Devil Bashing) and Deadly Shade against still and moving victims from every
+ * heading, the ink status lifecycle, and the boundaries (allies, invulnerable, interrupted, walled off, lost prey).
+ */
 final class GesomonScenario {
     record Fixture(String move,int yaw,String target,double sideways,String boundary) {}
     static final List<Fixture> CASES=new ArrayList<>();
@@ -22,8 +25,6 @@ final class GesomonScenario {
                 CASES.add(new Fixture(move,yaw,target,speed,""));
         for(String move:new String[]{"devil_bashing","deadly_shade"})for(String boundary:new String[]{"ally","invulnerable","interrupt","cover","lost"})
             CASES.add(new Fixture(move,0,"golemon",0,boundary));
-        CASES.add(new Fixture("devil_bashing",0,"golemon",0,"four_beats"));
-        CASES.add(new Fixture("devil_bashing",0,"golemon",0,"retry"));
         CASES.add(new Fixture("deadly_shade",0,"golemon",0,"late_interrupt"));
     }
     static final Vec3 ORIGIN=new Vec3(.5,300,.5);
@@ -56,9 +57,6 @@ final class GesomonScenario {
                 :DigimonEntity.spawnWild(level,DigimonSpeciesRegistry.getOrThrow(Constants.id(c.target)),20,ORIGIN.add(0,0,5));
         if(c.target.equals("cow"))level.addFreshEntity(target);
         target.setNoAi(true);target.setNoGravity(true);caster.setNoGravity(true);
-        if(c.boundary.equals("four_beats") || c.boundary.equals("retry")) {
-            target.getAttribute(Attributes.SCALE).setBaseValue(2);target.refreshDimensions();
-        }
         for(var mob:new Mob[]{caster,target}){mob.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1024);mob.setHealth(mob.getMaxHealth());}
         attack=caster.getSpecies().orElseThrow().attacks().stream().filter(a->a.id().getPath().equals(c.move)).findFirst().orElseThrow();
         start=null;
@@ -67,9 +65,6 @@ final class GesomonScenario {
             if(caster.canAttackFrom(attack,target,ORIGIN)){start=candidate;break;}
         }
         if(start==null)throw new AssertionError("No reachable fixture "+c);
-        if(c.boundary.equals("four_beats") || c.boundary.equals("retry")) {
-            start=ORIGIN.add(0,0,2.5);target.setPos(start);
-        }
         caster.setYRot(c.yaw);caster.yBodyRot=caster.yHeadRot=c.yaw;
         health=target.getHealth();
         if(c.boundary.equals("ally")) {
@@ -98,15 +93,13 @@ final class GesomonScenario {
             if(c.boundary.equals("cover"))for(int x=-6;x<=6;x++)for(int y=300;y<=308;y++)
                 level.setBlock(new BlockPos(x,y,2),Blocks.STONE.defaultBlockState(),3);
         }
-        if(ticks==16 && c.boundary.equals("retry"))target.setInvulnerable(true);
-        if(ticks==18 && c.boundary.equals("retry"))target.setInvulnerable(false);
         if(ticks==18 && c.boundary.equals("late_interrupt"))caster.interruptAttack();
         if(ticks>=90) {
-            boolean expectsHit=c.boundary.isEmpty() || Set.of("four_beats","retry","late_interrupt").contains(c.boundary);
+            boolean expectsHit=c.boundary.isEmpty() || c.boundary.equals("late_interrupt");
             boolean pass=expectsHit?hits>0:hits==0;
-            if(c.boundary.equals("four_beats"))pass=hits==4;
             if(c.boundary.isEmpty() && c.move.equals("deadly_shade"))pass&=inkSeen&&!target.hasEffect(DCEffects.INKED);
-            if(c.move.equals("devil_bashing"))pass&=hits<=4;
+            // one lash strikes a body once
+            if(c.move.equals("devil_bashing"))pass&=hits<=1;
             if(pass)passed++;else failed++;
             Constants.LOG.info("[gesomon-case] {} {} hits={} inkSeen={}",pass?"PASS":"FAIL",c,hits,inkSeen);
             next(level);

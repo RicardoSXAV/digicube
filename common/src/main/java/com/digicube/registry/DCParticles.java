@@ -6,13 +6,14 @@ import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 /**
- * DigiCube's own particles, all flat pixel planes that tumble in the air (drawn by the loader's client,
- * {@code PixelPlaneParticle}): the Hunting Cannon's burst shards, the flash at the heart of a burst or at the muzzle,
- * and the sparks a bolt strews behind it.
+ * DigiCube's own particles, all flat pixel planes (drawn by the loader's client): the Hunting Cannon's burst shards,
+ * the flash at the heart of a burst or at the muzzle, and the sparks a bolt strews behind it ({@code PixelPlaneParticle});
+ * and ink ({@code InkParticle}): the blobs Deadly Shade throws off its victim, and the drops an inked body sheds, both
+ * lying on the ground as stains once they land.
  */
 public final class DCParticles {
     public static final SimpleParticleType CANNON_SHARD = register("cannon_shard"), CANNON_FLASH = register("cannon_flash"),
-            CANNON_SPARK = register("cannon_spark");
+            CANNON_SPARK = register("cannon_spark"), INK_SPLASH = register("ink_splash"), INK_DRIP = register("ink_drip");
     private DCParticles() {}
     // The type's constructor is protected: an anonymous subclass is the plain way to make one without a loader helper.
     private static SimpleParticleType register(String name) {

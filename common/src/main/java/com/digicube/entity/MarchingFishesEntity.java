@@ -76,7 +76,7 @@ public final class MarchingFishesEntity extends ThrowableProjectile {
     private boolean opponent(Entity entity) {
         return entity instanceof LivingEntity living && living.isAlive() && entity != getOwner()
                 && (!(getOwner() instanceof DigimonEntity shooter)
-                || !shooter.isAllyOf(entity) && shooter.canAttack(living));
+                || !shooter.isAllyOf(entity) && shooter.canStrike(living));
     }
 
     @Override

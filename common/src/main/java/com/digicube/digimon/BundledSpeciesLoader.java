@@ -153,7 +153,20 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false)) : null,
-                json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0);
+                json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0,
+                json.has("jet") ? jet(json.getAsJsonObject("jet")) : null,
+                json.has("travel_facing") ? travelFacing(json.getAsJsonObject("travel_facing")) : null);
+    }
+
+    private static TravelFacing travelFacing(JsonObject json) {
+        return new TravelFacing(GsonHelper.getAsDouble(json, "side_on_from"), GsonHelper.getAsDouble(json, "face_target_within", 0),
+                GsonHelper.getAsFloat(json, "turn_rate", 15));
+    }
+
+    private static JetSwim jet(JsonObject json) {
+        float pulse = GsonHelper.getAsFloat(json, "pulse_ticks");
+        return new JetSwim(pulse, GsonHelper.getAsFloat(json, "surge_pulse_ticks", pulse), GsonHelper.getAsFloat(json, "squeeze"),
+                GsonHelper.getAsFloat(json, "glide", 0), GsonHelper.getAsFloat(json, "hover_rate", .35F), GsonHelper.getAsFloat(json, "clip_ticks", pulse));
     }
 
     private static DigimonFlight flight(JsonObject json) {

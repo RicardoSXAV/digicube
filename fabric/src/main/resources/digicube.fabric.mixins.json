@@ -12,6 +12,7 @@
     "MixinSubmitNodeCollection",
     "MixinEntityRenderer",
     "MixinHumanoidModel",
+    "MixinLivingEntityRenderer",
     "MixinItemInHandRenderer",
     "MixinItemInHandLayer",
     "MixinGuiGraphicsExtractor",

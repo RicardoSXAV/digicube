@@ -284,6 +284,12 @@
   "attack.digicube.boomerang_bone": "Boomerang Bone",
   "attack.digicube.icicle_rod": "Icicle Rod",
   "digimon.digicube.mojyamon.profile": "A Beast Digimon of the snowfields with a shaggy white coat. It throws a bone that curves back to its hand and hurls spears of ice it forms from the cold air; the longer it holds one, the bigger it grows.",
+  "digimon.digicube.meramon": "Meramon",
+  "digimon.digicube.meramon.profile": "A Flame Digimon whose whole body is fire. Hot-tempered and quick to pick a fight, it walks tall with its fists clenched, and whatever it grabs catches alight.",
   "entity.digicube.boomerang": "Boomerang Bone",
-  "entity.digicube.icicle": "Icicle Rod"
+  "entity.digicube.icicle": "Icicle Rod",
+  "digimon.digicube.ganimon": "Crabmon",
+  "digimon.digicube.ganimon.profile": "A Crustacean Digimon armoured in a hard shell. It scuttles sideways far faster than it looks, snips at anything that comes close with the great pincer on its left arm, and spits a hard slug of water at whatever keeps its distance.",
+  "attack.digicube.scissors_execution": "Scissors Execution",
+  "attack.digicube.water_shot": "Water Shot"
 }

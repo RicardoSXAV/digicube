@@ -210,7 +210,7 @@ public final class AuthoredVolumeAttack {
                 var box=aimed(local,attack,time,caster.getAttackAimPitch(1)).world(feet,caster.getYRot(),0);
                 for(var entity:level.getEntities(caster,box.bounds(),e->DigimonPart.livingOf(e) instanceof LivingEntity)) {
                     LivingEntity victim=DigimonPart.livingOf(entity);UUID id=victim.getUUID();
-                    if(victim==caster || !victim.isAlive() || !caster.canAttack(victim) || caster.isAllyOf(victim)
+                    if(victim==caster || !victim.isAlive() || !caster.canStrike(victim) || caster.isAllyOf(victim)
                             || counts.getOrDefault(id,0)>=d.maxHits() || tick-lastHit.getOrDefault(id,-10000)<d.hitInterval()
                             || beat>=0 && beats.getOrDefault(id,Set.of()).contains(beat)
                             || !box.intersects(entity.getBoundingBox()) || !visible(level,caster,attack,time,feet,caster.getYRot(),box)

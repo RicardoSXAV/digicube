@@ -97,7 +97,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 
 **Species.** Work on one species starts at its guide under `agents/species/`, named by the species id:
 [agumon](agents/species/agumon.md), [centalmon](agents/species/centalmon.md) (Centarumon),
-[digmon](agents/species/digmon.md), [dinohyumon](agents/species/dinohyumon.md),
+[darktyrannomon](agents/species/darktyrannomon.md), [digmon](agents/species/digmon.md), [dinohyumon](agents/species/dinohyumon.md),
 [ganimon](agents/species/ganimon.md) (Crabmon), [gesomon](agents/species/gesomon.md) (and the whip),
 [golemon](agents/species/golemon.md), [gotsumon](agents/species/gotsumon.md), [meramon](agents/species/meramon.md),
 [mojyamon](agents/species/mojyamon.md) (and thrown weapons), [pukamon](agents/species/pukamon.md) (Bukamon),

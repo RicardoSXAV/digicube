@@ -72,7 +72,7 @@ public final class TectonicWaveEntity extends Entity {
     }
     private void damageInside(ServerLevel server,AABB box,Vec3 from,java.util.function.Predicate<LivingEntity> contact) {
         for(LivingEntity victim:server.getEntitiesOfClass(LivingEntity.class,box,
-                e->e.isAlive() && e!=owner && !hit.contains(e.getUUID()) && owner.canAttack(e) && !owner.isAllyOf(e) && contact.test(e))) {
+                e->e.isAlive() && e!=owner && !hit.contains(e.getUUID()) && owner.canStrike(e) && !owner.isAllyOf(e) && contact.test(e))) {
             if(server.clip(new ClipContext(from,victim.getBoundingBox().getCenter(),ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,this)).getType()!=HitResult.Type.MISS)continue;
             if(owner.hitWithAttack(server,attack,victim))hit.add(victim.getUUID());
         }

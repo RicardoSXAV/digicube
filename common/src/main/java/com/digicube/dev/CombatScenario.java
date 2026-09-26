@@ -56,6 +56,10 @@ public final class CombatScenario {
     private static boolean escapeScenario;
     private static final java.util.Set<com.digicube.entity.ai.FlightPhase> flightPhases = java.util.EnumSet.noneOf(com.digicube.entity.ai.FlightPhase.class);
     private static DigimonEntity caster, prey;
+    /** How a caster with a directional gait moved on the ground between its casts, in its own frame (Crabmon walks
+     *  forward, back and aside at its enemy): moving ticks ahead, back and aside. */
+    private static int stepsAhead, stepsBack, stepsAside;
+    private static Vec3 casterLast;
 
     private CombatScenario() {}
 
@@ -74,6 +78,7 @@ public final class CombatScenario {
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
         if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
         if (NAME.equals("agumon_checks")) { AgumonScenario.tick(level); return; }
+        if (NAME.startsWith("gait_checks")) { GaitScenario.tick(level, NAME.startsWith("gait_checks:") ? NAME.substring(12) : ""); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
         if (NAME.startsWith("balance:")) { BalanceScenario.tick(level, NAME.substring(8)); return; }
         try {
@@ -247,6 +252,7 @@ public final class CombatScenario {
             return;
         }
         if (elapsed % 40 == 0) purge(level, caster, prey);
+        countSteps();
         if (elapsed % 20 == 0 && Boolean.parseBoolean(System.getenv("DIGICUBE_SCENARIO_TRACE"))) {
             Constants.LOG.info("[scenario-trace] t={} caster={} prey={} velocity={} water={}/{} active={} ready={}",
                     elapsed,caster.position(),prey.position(),prey.getDeltaMovement(),caster.isInWater(),prey.isInWater(),
@@ -339,8 +345,26 @@ public final class CombatScenario {
         return fireballs == 0 ? "" : " fireballs=" + fireballsLanded + "/" + fireballs;
     }
 
+    private static void countSteps() {
+        Vec3 now = caster.position();
+        if (casterLast != null && caster.onGround() && !caster.isAttacking()) {
+            Vec3 moved = now.subtract(casterLast);
+            if (moved.horizontalDistanceSqr() > 4.0E-4) {
+                double yaw = Math.toRadians(caster.getYRot());
+                double ahead = -moved.x * Math.sin(yaw) + moved.z * Math.cos(yaw), aside = moved.x * Math.cos(yaw) + moved.z * Math.sin(yaw);
+                if (Math.abs(aside) > Math.abs(ahead)) stepsAside++;
+                else if (ahead > 0) stepsAhead++;
+                else stepsBack++;
+            }
+        }
+        casterLast = now;
+    }
+
     private static void finish(ServerLevel level, String verdict) {
         done = true;
+        var gait = caster == null ? null : caster.getLocomotion().groundGait();
+        if (gait != null && gait.directional() && stepsAhead + stepsBack + stepsAside > 0)
+            verdict += " casterSteps=ahead " + stepsAhead + "/back " + stepsBack + "/aside " + stepsAside;
         if(duel) {
             if(!blockedScenario && Boolean.parseBoolean(System.getenv("DIGICUBE_SCENARIO_REQUIRE_DUEL")) && preyCasts==0 && verdict.startsWith("PASS"))
                 verdict="FAIL opponent never attacked: "+verdict;

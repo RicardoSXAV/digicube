@@ -30,6 +30,14 @@ six degrees, and a head turned alone buried the face in the fur; `body.head_turn
 effect model in the caster's frame while the attack animation of the same name plays (Agumon's mouth ember and
 claw streaks).
 
+- `stomps` (`NativeGroundModel.Stomps`, played by the client's `Stomps`) gives a heavy walker's footfalls:
+  `down` is where each foot lands in the gait's phase (0 to 1), and `feet` is where it then stands, x and
+  forward in blocks at yaw 0. Each landing plays a low ravager step over the ground's own step sound, raises a
+  puff of that block, and dips the rider's view (`RiderControls.cameraKick`, deeper at a run). A ridden body
+  that breaks into its run roars, at most every 12 s. Pair it with `ground_gait.footfalls` on the sheet so
+  vanilla's step per block stays silent.
+- `bank` lets a model that does not gallop lean into its turns under a rider at a run, as a galloper does.
+
 ## Cloth
 
 Hanging cloth is client data: `cloth` in `ground_models.json` names a hinged chain of parts (never keyed by

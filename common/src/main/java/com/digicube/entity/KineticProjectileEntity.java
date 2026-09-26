@@ -81,14 +81,23 @@ public final class KineticProjectileEntity extends Projectile {
                 if (boxes.stream().anyMatch(b -> KineticGeometry.blocked(level, this, b))) { d.shotStyle().impact(level, point); impact(point); return; }
                 for (var box : boxes) for (var entity : level.getEntities(this, box.bounds())) {
                     var victim = DigimonPart.livingOf(entity);
-                    if (victim == null || victim == owner || !owner.canAttack(victim) || owner.isAllyOf(victim)
+                    if (victim == null || victim == owner || !owner.canStrike(victim) || owner.isAllyOf(victim)
                             || HitParts.of(victim).stream().noneMatch(box::intersects)) continue;
                     if (owner.hitWithAttack(level, d.attack(), victim, owner.position(), power)) {
                         if(d.impairmentTicks()>0) {
                             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.BLINDNESS,d.impairmentTicks()));
                             victim.addEffect(new net.minecraft.world.effect.MobEffectInstance(com.digicube.registry.DCEffects.INKED,d.impairmentTicks()));
+                            // Ink bursts over the victim: blobs thrown off it every way, landing around it as stains.
+                            var chest = victim.getBoundingBox().getCenter();
+                            level.sendParticles(com.digicube.registry.DCParticles.INK_SPLASH, chest.x, chest.y + victim.getBbHeight() * .15, chest.z,
+                                    18 + (int) Math.min(22, victim.getBbWidth() * victim.getBbHeight() * 4), victim.getBbWidth() * .3, victim.getBbHeight() * .25, victim.getBbWidth() * .3, 0);
+                            level.sendParticles(net.minecraft.core.particles.ParticleTypes.SQUID_INK, chest.x, chest.y, chest.z, 10, victim.getBbWidth() * .3, victim.getBbHeight() * .3, victim.getBbWidth() * .3, .06);
+                            level.playSound(null, chest.x, chest.y, chest.z, net.minecraft.sounds.SoundEvents.SLIME_SQUISH,
+                                    net.minecraft.sounds.SoundSource.HOSTILE, .9F, .7F + level.getRandom().nextFloat() * .15F);
                         }
                         com.digicube.digimon.ExposedMark.expose(victim, d.exposeTicks());
+                        // A shot of water puts out a burning victim, and so its Burn.
+                        if (d.shotStyle().douses() && victim.isOnFire()) victim.extinguishFire();
                         Constants.LOG.info("[kinetic] {} projectile hit {} age={}", d.attack().id(), victim.getType().toShortString(), age);
                         d.shotStyle().impact(level, point);
                         impact(point);return;

@@ -5,5 +5,12 @@
     "death": "minecraft:entity.armadillo.death",
     "pitch": 0.8,
     "ambient_interval": 320
+  },
+  "darktyrannomon": {
+    "ambient": "minecraft:entity.ravager.ambient",
+    "hurt": "minecraft:entity.ravager.hurt",
+    "death": "minecraft:entity.ravager.death",
+    "pitch": 0.72,
+    "ambient_interval": 360
   }
 }

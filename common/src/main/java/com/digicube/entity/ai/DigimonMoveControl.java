@@ -34,6 +34,44 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
         operation = Operation.WAIT;
     }
 
+    /** The heading of the path being walked, kept through a jump (vanilla's JUMPING has no wanted position). */
+    private float travelYaw;
+    /** This control set a sideways input last tick, which vanilla never clears. */
+    private boolean sideInput;
+
+    /**
+     * A body with {@code locomotion.travel_facing} (Crabmon) keeps walking its path but looks elsewhere: at its enemy
+     * close by, side-on when it hurries, otherwise along its travel, turning there at the facing's rate. Vanilla has
+     * already put the whole input forward along the path; it is split here in the body's own frame, so the pace is the
+     * same and the directional gait plays forward, backward or sideways steps.
+     */
+    private void faceWhileTravelling(Operation operation, float before) {
+        var rule = mob.getLocomotion().travelFacing();
+        if (rule == null || mob.zza == 0 && mob.xxa == 0) return;
+        if (operation == Operation.MOVE_TO) {
+            double dx = wantedX - mob.getX(), dz = wantedZ - mob.getZ();
+            if (dx * dx + dz * dz > 1.0E-6) travelYaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90;
+            else return;
+        }
+        float want = travelYaw;
+        net.minecraft.world.entity.LivingEntity enemy = mob.getTarget();
+        if (enemy != null && enemy.isAlive() && mob.distanceToSqr(enemy) < rule.faceTargetWithin() * rule.faceTargetWithin()) {
+            want = (float) (Mth.atan2(enemy.getZ() - mob.getZ(), enemy.getX() - mob.getX()) * Mth.RAD_TO_DEG) - 90;
+        } else if (speedModifier >= rule.sideOnFrom()) {
+            // Whichever flank is nearer leads, so a bend in the path never swings the body round.
+            float a = travelYaw + 90, b = travelYaw - 90;
+            want = Math.abs(Mth.wrapDegrees(a - before)) <= Math.abs(Mth.wrapDegrees(b - before)) ? a : b;
+        }
+        float yaw = rotlerp(before, want, rule.turnRate());
+        mob.setYRot(yaw);
+        mob.yBodyRot = yaw;
+        float input = mob.zza;
+        double off = (travelYaw - yaw) * Mth.DEG_TO_RAD;
+        mob.setZza((float) (Math.cos(off) * input));
+        mob.setXxa((float) (-Math.sin(off) * input));
+        sideInput = true;
+    }
+
     @Override
     public void tick() {
         if (facing && !mob.combatControlsLocked() && (!mob.canSwim() || !mob.isInWater())) {
@@ -62,6 +100,9 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
         }
         if (!mob.canSwim() || !mob.isInWater()) {
             Operation groundOperation = operation;
+            float facingBefore = mob.getYRot();
+            // Vanilla's moves set only the forward input: a sideways share left from the last tick would drift on.
+            if (sideInput) { mob.setXxa(0); sideInput = false; }
             super.tick();
             if (mob.canSwim()) {
                 // Mob.setSpeed also sets forward input to that speed. Ground
@@ -75,6 +116,7 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
                 mob.setYya(0);
                 mob.setXRot(Mth.approachDegrees(mob.getXRot(), 0, 4));
             }
+            if (groundOperation == Operation.MOVE_TO || groundOperation == Operation.JUMPING) faceWhileTravelling(groundOperation, facingBefore);
             return;
         }
         mob.setXxa(0);

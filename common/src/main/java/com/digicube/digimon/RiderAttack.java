@@ -35,7 +35,12 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
          * A jet-driven burst along the view that tramples whatever it runs through; with an enemy within {@code reach}
          * and {@code cone} at the press, it homes on it and ends in the attack's own strike on it.
          */
-        CHARGE
+        CHARGE,
+        /**
+         * A long arm as a whip ({@link WhipAttacks}): held, it swings back and gathers momentum; let go, it lashes at the
+         * crosshair and follows the view while it lashes, striking whatever the swept arm meets.
+         */
+        WHIP
     }
 
     public enum Input {

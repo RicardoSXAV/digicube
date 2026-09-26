@@ -108,6 +108,29 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         return new com.digicube.fabric.client.model.NativeGroundModel(context.bakeLayer(definition.layer()), definition);
     }
 
+    /** A whip, from the arm this client runs (WhipArm): the model turns the whipping arm onto it. */
+    static void whip(DigimonEntity entity, DigimonRenderState state, float partial) {
+        state.whipWeight = 0;
+        state.whipArm = null;
+        var whip = entity.whip();
+        if (whip == null || whip.weight(partial) <= 0) return;
+        pose(whip, state, partial);
+    }
+
+    /** The whip's pose into the render state: its weight, arm and side, and every section's yaw and pitch. */
+    public static void pose(com.digicube.entity.WhipArm whip, DigimonRenderState state, float partial) {
+        state.whipWeight = whip.weight(partial);
+        state.whipArm = whip.spec().arm(whip.side());
+        state.whipSide = whip.side();
+        int n = state.whipArm.parts().size();
+        if (state.whipAngles.length != 2 * n) state.whipAngles = new float[2 * n];
+        for (int i = 0; i < n; i++) {
+            float[] a = whip.angles(i, partial);
+            state.whipAngles[2 * i] = a[0];
+            state.whipAngles[2 * i + 1] = a[1];
+        }
+    }
+
     @Override
     public void submit(DigimonRenderState state, PoseStack poseStack,
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
@@ -186,6 +209,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
         state.swimAnimationAmount = entity.getSwimAnimationAmount(partialTick);
         state.swimAnimationPhase = entity.getSwimAnimationPhase(partialTick);
+        whip(entity, state, partialTick);
         state.swimMotionAmount = entity.getSwimMotionAmount(partialTick);
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
@@ -353,8 +377,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
      * Rider presentation for the current frame.
      * @param offset animated local seat displacement
      * @param pose seated leg angles
+     * @param yaw how far the animated seat has turned from the mount's heading, degrees
      */
-    public record RiderVisual(net.minecraft.world.phys.Vec3 offset, AnimatedRiderModel.RiderPose pose) {}
+    public record RiderVisual(net.minecraft.world.phys.Vec3 offset, AnimatedRiderModel.RiderPose pose, float yaw) {}
 
     /**
      * Evaluate the actual mount model at the same clock as its rendered body.
@@ -367,6 +392,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         if (!(models.get(entity.getSpeciesId()) instanceof AnimatedRiderModel mount)) return null;
         var state = createRenderState();
         extractRenderState(entity, state, partialTick);
-        return new RiderVisual(mount.riderOffset(state), mount.riderPose());
+        var offset = mount.riderOffset(state);
+        return new RiderVisual(offset, mount.riderPose(), mount.riderYaw(state));
     }
 }

@@ -42,17 +42,35 @@ public final class RiderScenario {
      *             home to the fist, then tapped again and left to fall, and walking over it must pick it up; an icicle
      *             is tapped (pressed and let go at once) and the snap dart must land
      * With {@code air}, a thrown weapon is tapped from the top of a leap: it must land, and leave the hand harder.
+     * @param whip a whip's steering case: two dummies stand either side of the mount; the arm is wound up looking ahead and
+     *             let go on the left one. {@code STEERED}: the view then sweeps over to the right one while it lashes,
+     *             and both must be struck. {@code HELD}: the view stays on the left one, which alone is struck.
+     * @param breath a breath's steering case (a burst that strikes several times, Fire Blast): two dummies ahead, left and
+     *             right; cast on the left one. {@code STEERED}: once it burns the view sweeps to the right one, and both must
+     *             be burnt. {@code HELD}: the view stays on the left one, which alone is burnt.
      */
-    private record Case(DigimonSpecies species, int slot, boolean deep, boolean air, boolean stacks, boolean far, boolean home) {
+    private record Case(DigimonSpecies species, int slot, boolean deep, boolean air, boolean stacks, boolean far, boolean home, int whip, int breath) {
+        Case(DigimonSpecies species, int slot, boolean deep, boolean air, boolean stacks, boolean far, boolean home, int whip) { this(species, slot, deep, air, stacks, far, home, whip, 0); }
+        Case(DigimonSpecies species, int slot, boolean deep, boolean air, boolean stacks, boolean far, boolean home) { this(species, slot, deep, air, stacks, far, home, 0); }
         Case(DigimonSpecies species, int slot, boolean deep, boolean air, boolean stacks, boolean far) { this(species, slot, deep, air, stacks, far, false); }
     }
+    private static final int STEERED = 1, HELD = 2;
+    /** Ticks a whip is held back before it is let go, and how far its steering dummies stand, degrees off ahead and blocks out. */
+    private static final int WHIP_HOLD = 12;
+    private static final double WHIP_SIDE = 70, WHIP_OUT = 3.1;
+    /** Degrees a tick the view sweeps across while a steered whip lashes. */
+    private static final float WHIP_SWEEP = 22;
+    /** A breath's steering dummies, degrees either side of ahead and blocks out from the mount's middle; the view's sweep a tick. */
+    private static final double BREATH_SIDE = 25, BREATH_OUT = 6.5;
+    private static final float BREATH_SWEEP = 3;
+    private static int breathBurnt = -1;
     private static final double AIR_HEIGHT = 3, AIR_CARRY = 6;
     /** A far throw's dummy, blocks off; and how high a thrown weapon's leap holds the mount. */
     private static final double FAR_THROW = 20, LEAP_HOLD = 1.4;
     private static Vec3 airStart;
     private static final double DEEP = 1.5;
     /** Gaps between the two bodies to try, nearest first: a strike's reach without its lunge is not written anywhere. */
-    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0}, GRAB = {5}, CHARGE = {5, 3};
+    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0}, GRAB = {5}, CHARGE = {5, 3}, WHIP = {1.4, 2.4, .6};
     private static int attempt;
 
     private static List<Case> cases;
@@ -80,6 +98,17 @@ public final class RiderScenario {
                         var aim = species.body().mount().orElseThrow().riderAttacks().get(slot).aim();
                         if (aim == RiderAttack.Aim.GRAB) cases.add(new Case(species, slot, true, false, false, false));
                         if (aim == RiderAttack.Aim.CHARGE) cases.add(new Case(species, slot, false, true, false, false));
+                        var cast = species.body().mount().orElseThrow().riderAttacks().get(slot).attack();
+                        if (aim == RiderAttack.Aim.SHOT && species.attacks().stream().anyMatch(a -> a.id().equals(cast)
+                                && a.kind() == DigimonAttack.Kind.BOX_BURST && com.digicube.digimon.AuthoredAttacks.handles(a)
+                                && com.digicube.digimon.AuthoredAttacks.get(a).maxHits() > 1)) {
+                            cases.add(new Case(species, slot, false, false, false, false, false, 0, STEERED));
+                            cases.add(new Case(species, slot, false, false, false, false, false, 0, HELD));
+                        }
+                        if (aim == RiderAttack.Aim.WHIP) {
+                            cases.add(new Case(species, slot, false, false, false, false, false, STEERED));
+                            cases.add(new Case(species, slot, false, false, false, false, false, HELD));
+                        }
                         var id = species.body().mount().orElseThrow().riderAttacks().get(slot).attack();
                         if (species.attacks().stream().anyMatch(a -> a.id().equals(id) && com.digicube.digimon.AttackCharges.of(a) > 1))
                             cases.add(new Case(species, slot, false, false, true, false));
@@ -112,7 +141,7 @@ public final class RiderScenario {
     }
 
     private static double[] gaps(RiderAttack spec) {
-        return spec.aim() == RiderAttack.Aim.SWEEP ? NEAR : spec.aim() == RiderAttack.Aim.LINE ? LINE : spec.aim() == RiderAttack.Aim.GRAB ? GRAB
+        return spec.aim() == RiderAttack.Aim.SWEEP ? NEAR : spec.aim() == RiderAttack.Aim.WHIP ? WHIP : spec.aim() == RiderAttack.Aim.LINE ? LINE : spec.aim() == RiderAttack.Aim.GRAB ? GRAB
                 : spec.aim() == RiderAttack.Aim.CHARGE ? CHARGE : FAR;
     }
 
@@ -194,6 +223,26 @@ public final class RiderScenario {
         dummy.setHealth(dummy.getMaxHealth());
         healthBefore = dummy.getHealth();
         if (test.air() && !throwing) mount.setPos(.5, y + AIR_HEIGHT, -3.5);
+        if (test.whip() != 0) {
+            // Two dummies either side, a little ahead: the one on the left is "dummy", the one on the right "bystander".
+            dummy.setPos(whipSpot(-WHIP_SIDE, y));
+            bystander = DigimonEntity.spawnWild(level, DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon")), 20, whipSpot(WHIP_SIDE, y));
+            bystander.setNoAi(true);
+            var bystanderHealth = bystander.getAttribute(Attributes.MAX_HEALTH);
+            if (bystanderHealth != null) bystanderHealth.setBaseValue(10_000);
+            bystander.setHealth(bystander.getMaxHealth());
+            bystanderBefore = bystander.getHealth();
+        }
+        if (test.breath() != 0) {
+            // Two dummies ahead, the left one "dummy", the right one "bystander".
+            dummy.setPos(breathSpot(-BREATH_SIDE, y));
+            bystander = DigimonEntity.spawnWild(level, DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon")), 20, breathSpot(BREATH_SIDE, y));
+            bystander.setNoAi(true);
+            var bystanderHealth = bystander.getAttribute(Attributes.MAX_HEALTH);
+            if (bystanderHealth != null) bystanderHealth.setBaseValue(10_000);
+            bystander.setHealth(bystander.getMaxHealth());
+            bystanderBefore = bystander.getHealth();
+        }
         if (spec.aim() == RiderAttack.Aim.CHARGE && !test.air()) {
             // A second dummy off to one side of the run, nearer than the prey but outside what the charge homes on: it is
             // shoved aside unhurt (only the buck strikes).
@@ -255,6 +304,8 @@ public final class RiderScenario {
         rider.setYRot((float) Math.toDegrees(Math.atan2(-to.x, to.z)));
         rider.setXRot((float) -Math.toDegrees(Math.atan2(to.y, to.horizontalDistance())));
         if (test.stacks()) { observeStacks(level, test, attack); return; }
+        if (test.whip() != 0) { observeWhip(level, test, attack); return; }
+        if (test.breath() != 0) { observeBreath(level, test, attack); return; }
         if (test.home()) { observeHome(level, test, attack); return; }
         if (throwing && (test.air() || test.far())) { observeThrown(level, test, attack); return; }
         if (caseTick == 25) {
@@ -266,6 +317,8 @@ public final class RiderScenario {
         RiderAttack held = mount.riderSpec(attack);
         boolean drawn = held.aim() == RiderAttack.Aim.SHOT && held.input() == RiderAttack.Input.HOLD;
         if (started && !released && (attack.fuel() != null || drawn) && caseTick == 25 + STREAM_HOLD) { mount.stopRiderAttack(rider); released = true; }
+        // A whip is held back a moment and let go at what the crosshair is on.
+        if (started && !released && held.aim() == RiderAttack.Aim.WHIP && caseTick == 25 + WHIP_HOLD) { mount.stopRiderAttack(rider); released = true; }
         if (test.air()) {
             if (caseTick == 25) airStart = mount.position();
             if (started && !mount.riderCharging() && caseTick > 27 || caseTick > TIMEOUT) {
@@ -280,7 +333,7 @@ public final class RiderScenario {
         }
         float dealt = healthBefore - dummy.getHealth();
         if (dealt > 0 && thrown == null) thrown = dummy.getDeltaMovement();
-        boolean over = started && !mount.isAttacking() && caseTick > 27;
+        boolean over = started && !mount.isAttacking() && !mount.whipping() && caseTick > 27;
         if (dealt > 0 && over || caseTick > TIMEOUT) {
             if (dealt <= 0 && attempt + 1 < gaps(mount.riderSpec(attack)).length) { attempt++; stage(level); return; }
             if (dealt <= 0) fail(test, attack, "no damage at any distance tried");
@@ -434,6 +487,74 @@ public final class RiderScenario {
         Vec3 step = to.length() <= HOME_PACE ? to : to.normalize().scale(HOME_PACE);
         mount.setPos(mount.getX() + step.x, mount.getY(), mount.getZ() + step.z);
         return false;
+    }
+
+    /** Where a whip's steering dummy stands: {@code degrees} off the mount's facing (positive to its right), WHIP_OUT out. */
+    private static Vec3 whipSpot(double degrees, double y) {
+        Vec3 out = Vec3.directionFromRotation(0, (float) degrees).scale(WHIP_OUT);
+        return new Vec3(.5 + out.x, y, -3.5 + out.z);
+    }
+
+    /** The view from the rider's eye to the ground at a dummy's feet, a little short of it: where a whip is aimed at it. */
+    private static float[] viewAt(Vec3 at) {
+        Vec3 to = at.subtract(rider.getEyePosition());
+        return new float[]{(float) Math.toDegrees(Math.atan2(-to.x, to.z)), (float) -Math.toDegrees(Math.atan2(to.y, to.horizontalDistance()))};
+    }
+
+    /**
+     * A whip's steering case (Case.whip): wound up looking ahead, let go on the left dummy; steered, the view then
+     * sweeps to the right one while the arm lashes. What the arm strikes is read from both dummies' health.
+     */
+    private static void observeWhip(ServerLevel level, Case test, DigimonAttack attack) {
+        mount.positionRider(rider);
+        float[] left = viewAt(dummy.position().add(0, .4, 0)), right = viewAt(bystander.position().add(0, .4, 0));
+        int lash = caseTick - (25 + WHIP_HOLD);
+        float yaw = lash < 0 ? 0 : test.whip() == STEERED ? Math.min(right[0], left[0] + WHIP_SWEEP * lash) : left[0];
+        rider.setYRot(yaw);
+        rider.setXRot(left[1]);
+        if (caseTick == 25 && !(started = mount.startRiderAttack(rider, test.slot()))) { fail(test, attack, "the press was refused"); next(level); return; }
+        if (caseTick == 25 + WHIP_HOLD) { mount.stopRiderAttack(rider); released = true; }
+        if (caseTick < 25 + WHIP_HOLD + 4 || mount.whipping() && caseTick < TIMEOUT) return;
+        float onLeft = healthBefore - dummy.getHealth(), onRight = bystanderBefore - bystander.getHealth();
+        String what = String.format("%s whip, %s: %.1f damage to the left dummy, %.1f to the right one", test.species().id().getPath(),
+                test.whip() == STEERED ? "let go on the left and swept right" : "let go on the left, the view held there", onLeft, onRight);
+        if (onLeft <= 0) fail(test, attack, what + " (the lash missed what the crosshair was on)");
+        else if (test.whip() == STEERED && onRight <= 0) fail(test, attack, what + " (the lash did not follow the view)");
+        else if (test.whip() == HELD && onRight > 0) fail(test, attack, what + " (the lash went where the view did not)");
+        else Constants.LOG.info("[rider] PASS {}", what);
+        next(level);
+    }
+
+    /** Where a breath's steering dummy stands: {@code degrees} off the mount's facing (positive to its right), BREATH_OUT out. */
+    private static Vec3 breathSpot(double degrees, double y) {
+        Vec3 out = Vec3.directionFromRotation(0, (float) degrees).scale(BREATH_OUT);
+        return new Vec3(.5 + out.x, y, -3.5 + out.z);
+    }
+
+    /**
+     * A breath's steering case (Case.breath): cast with the crosshair on the left dummy; steered, the view sweeps over to
+     * the right one once the fire comes, and the breath must follow it. Read from both dummies' health.
+     */
+    private static void observeBreath(ServerLevel level, Case test, DigimonAttack attack) {
+        mount.positionRider(rider);
+        float[] left = viewAt(dummy.getBoundingBox().getCenter()), right = viewAt(bystander.getBoundingBox().getCenter());
+        // The view leaves the left dummy once the fire has reached it (the flame takes a while to reach out after the cast).
+        if (breathBurnt < 0 && healthBefore - dummy.getHealth() > 0) breathBurnt = caseTick;
+        int burn = breathBurnt < 0 ? -1 : caseTick - breathBurnt;
+        float yaw = burn < 0 || test.breath() == HELD ? left[0] : Math.min(right[0], left[0] + BREATH_SWEEP * burn);
+        rider.setYRot(yaw);
+        rider.setXRot(burn < 0 || test.breath() == HELD ? left[1] : right[1]);
+        if (caseTick == 25) breathBurnt = -1;
+        if (caseTick == 25 && !(started = mount.startRiderAttack(rider, test.slot()))) { fail(test, attack, "the press was refused"); next(level); return; }
+        if (caseTick < 27 || mount.isAttacking() && caseTick < TIMEOUT) return;
+        float onLeft = healthBefore - dummy.getHealth(), onRight = bystanderBefore - bystander.getHealth();
+        String what = String.format("%s %s, %s: %.1f damage to the left dummy, %.1f to the right one", test.species().id().getPath(), attack.id().getPath(),
+                test.breath() == STEERED ? "cast on the left and swept right" : "cast on the left, the view held there", onLeft, onRight);
+        if (onLeft <= 0) fail(test, attack, what + " (the breath missed what the crosshair was on)");
+        else if (test.breath() == STEERED && onRight <= 0) fail(test, attack, what + " (the breath did not follow the view)");
+        else if (test.breath() == HELD && onRight > 0) fail(test, attack, what + " (the breath went where the view did not)");
+        else Constants.LOG.info("[rider] PASS {}", what);
+        next(level);
     }
 
     private static void fail(Case test, DigimonAttack attack, String why) {

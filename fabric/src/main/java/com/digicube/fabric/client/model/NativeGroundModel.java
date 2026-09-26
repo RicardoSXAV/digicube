@@ -17,8 +17,18 @@ import java.util.Map;
 
 /** Native idle and solved ground-walk assets, registered through the client catalog. */
 public final class NativeGroundModel extends EntityModel<DigimonRenderState> implements AnimatedRiderModel {
-    /** Where the rider is attached, and how its legs are posed there ({@code pose} in the catalog; straight legs without one). */
-    public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose) {}
+    /**
+     * Where the rider is attached, and how its legs are posed there ({@code pose} in the catalog; straight legs without one).
+     * {@code hide} names parts the rider takes the place of (a feather standing where the seat is), drawn only unridden.
+     */
+    public record Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose, java.util.List<String> hide) {
+        public Rider(java.util.List<String> path, net.minecraft.world.phys.Vec3 point, RiderPose pose) { this(path, point, pose, java.util.List.of()); }
+    }
+    /**
+     * A heavy walker's footfalls ({@code stomps} in the catalog): where each foot lands in the gait's phase, 0 to 1, and
+     * where it stands then, x and forward in blocks at yaw zero (dust is raised there). Played by the client's Stomps.
+     */
+    public record Stomps(float[] down, float[][] feet) {}
     /** Flames a rider's jet charge shows: the parts named {@code prefix}, posed as {@code clip} has them at {@code tick}. */
     public record Flames(String clip, float tick, String prefix) {}
     /**
@@ -53,7 +63,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
                              java.util.List<ClothChains.Chain> cloth, java.util.List<String> upperBody, Flames flames,
                              HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes,
-                             String carried, float swimPitch, boolean pitchAtRider) {
+                             String carried, float swimPitch, boolean pitchAtRider, Stomps stomps, boolean bank) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -82,6 +92,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     /** Everything the upper body does not carry (legs and hips), for a thrower's layered performances; and the carried weapon. */
     private final java.util.Set<ModelPart> lowerParts;
     private final ModelPart carriedPart;
+    private final ModelPart[] riderHidden;
 
     public NativeGroundModel(ModelPart root, Definition definition) {
         super(NativeModelGeometry.apply(root, definition.geometry()));
@@ -105,6 +116,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         if(upperParts==null)lowerParts=null;
         else{lowerParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());lowerParts.addAll(root.getAllParts());lowerParts.removeAll(upperParts);}
         carriedPart=definition.carried()==null?null:animations.part(definition.carried());
+        riderHidden=definition.rider()==null?new ModelPart[0]:definition.rider().hide().stream().map(animations::part).toArray(ModelPart[]::new);
     }
 
     public static Map<Identifier, Definition> definitions() { return DEFINITIONS; }
@@ -114,6 +126,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     public void setupAnim(DigimonRenderState state) {
         super.setupAnim(state);
         pose(state);
+        whip(state);
         ClothChains.apply(rootPart, state, definition.cloth(), state.cloth);
         RopeChains.apply(rootPart, state, definition.ropes(), state.ropes);
     }
@@ -122,6 +135,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private void pose(DigimonRenderState state) {
         animations.hideMembranes();
         if (carriedPart != null) carriedPart.visible = state.boneCarried;
+        for (ModelPart part : riderHidden) part.visible = !state.isBeingRidden;
         if (state.attackAnimationName != null && state.attackAnimation.isStarted() && upperParts != null
                 && com.digicube.digimon.ThrownAttacks.handles(state.attackDefinition)) {
             thrownPerformance(state);
@@ -209,6 +223,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
      * saddle is (and where the first-person camera is) and the body swings under them.
      */
     private void divePitch(DigimonRenderState state,float keep) {
+        // A rider's whip levels the body out as well, so the arm can reach down ahead (WhipArm.root turns the same way).
+        keep*=1-Math.clamp(state.whipWeight,0,1);
         if(definition.pitchPath()==null || keep<=0)return;
         float limit=state.isBeingRidden?definition.riddenPitch():definition.swimPitch();
         if(limit<=0)return;
@@ -316,9 +332,99 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         }
     }
 
-    /** A galloper under a rider leans into its turns, more the faster it runs. */
+    /**
+     * A whip (WhipArm, a rider's or the AI's): each section of the whipping arm is turned onto the direction its yaw and
+     * pitch give it, over whatever the clips made of the arm, by the whip's weight. A section keeps the roll it has at
+     * rest relative to its direction's own frame ({@link #whipFrame}: across is the way a turn in yaw moves it), so the arm
+     * never twists or spins however it swings; the pad lies along the last direction with its palm to the way the lash
+     * sweeps. The angles are the body's (yaw only), so a diving body keeps its whip where the aim is.
+     */
+    private void whip(DigimonRenderState state) {
+        var arm = state.whipArm;
+        int n = arm == null ? 0 : arm.parts().size();
+        if (state.whipWeight <= 0 || arm == null || state.whipAngles.length < 2 * n) return;
+        var rolls = whipRolls.computeIfAbsent(arm, this::restRolls);
+        if (rolls.length < n) return;
+        ModelPart part = rootPart;
+        var parent = rotation(part);
+        for (String name : arm.parentPath()) {
+            if (!part.hasChild(name)) return;
+            part = part.getChild(name);
+            parent.mul(rotation(part));
+        }
+        float weight = Math.clamp(state.whipWeight, 0, 1);
+        for (int i = 0; i < n; i++) {
+            if (!part.hasChild(arm.parts().get(i))) return;
+            part = part.getChild(arm.parts().get(i));
+            var frame = whipFrame(state.whipAngles[2 * i], state.whipAngles[2 * i + 1]);
+            org.joml.Matrix3f world;
+            if (i < n - 1) world = frame.mul(rolls[i]);
+            else {
+                // The pad along its arm (claws down its local -y), the palm (local -z) facing the way the lash sweeps.
+                var along = frame.getColumn(2, new org.joml.Vector3f());
+                var sweep = frame.getColumn(0, new org.joml.Vector3f()).mul(state.whipSide);
+                var y = along.negate();
+                var z = sweep.negate();
+                world = new org.joml.Matrix3f(new org.joml.Vector3f(y).cross(z), y, z);
+            }
+            var local = new org.joml.Matrix3f(parent).transpose().mul(world);
+            var turned = new org.joml.Quaternionf().rotationZYX(part.zRot, part.yRot, part.xRot)
+                    .slerp(new org.joml.Quaternionf().setFromNormalized(local), weight);
+            var angles = turned.getEulerAnglesZYX(new org.joml.Vector3f());
+            part.setRotation(angles.x, angles.y, angles.z);
+            parent = new org.joml.Matrix3f(parent).mul(rotation(part));
+        }
+    }
+
+    /** Each whip arm's sections' rest rolls relative to their directions' frames, measured once. */
+    private final java.util.Map<com.digicube.digimon.WhipAttacks.Arm, org.joml.Matrix3f[]> whipRolls = new java.util.IdentityHashMap<>();
+
+    private org.joml.Matrix3f[] restRolls(com.digicube.digimon.WhipAttacks.Arm arm) {
+        ModelPart part = rootPart;
+        var rest = restRotation(part);
+        for (String name : arm.parentPath()) {
+            if (!part.hasChild(name)) return new org.joml.Matrix3f[0];
+            part = part.getChild(name);
+            rest.mul(restRotation(part));
+        }
+        var rolls = new org.joml.Matrix3f[arm.parts().size()];
+        for (int i = 0; i < rolls.length; i++) {
+            if (!part.hasChild(arm.parts().get(i))) return new org.joml.Matrix3f[0];
+            part = part.getChild(arm.parts().get(i));
+            rest.mul(restRotation(part));
+            // the section's own rest direction, as the whip's yaw and pitch (body frame: x left, y up, z forward)
+            var a = rest.transform(new org.joml.Vector3f(0, -1, 0));
+            float yaw = (float) Math.toDegrees(Math.atan2(-a.x, -a.z)), pitch = (float) Math.toDegrees(Math.asin(Math.clamp(a.y, -1, 1)));
+            rolls[i] = whipFrame(yaw, pitch).transpose().mul(rest);
+        }
+        return rolls;
+    }
+
+    private static org.joml.Matrix3f restRotation(ModelPart part) {
+        var p = part.getInitialPose();
+        return new org.joml.Matrix3f().rotationZYX(p.zRot(), p.yRot(), p.xRot());
+    }
+
+    /**
+     * The frame of a whip direction, in model axes: columns across (the way a growing yaw moves it, always level),
+     * the third axis, and along it. Continuous in yaw and pitch, so nothing built on it can flip.
+     */
+    private static org.joml.Matrix3f whipFrame(float yawDegrees, float pitchDegrees) {
+        double yaw = Math.toRadians(yawDegrees), pitch = Math.toRadians(pitchDegrees);
+        // body frame (x left, y up, z forward), as Minecraft's directionFromRotation; model axes turn y and z over
+        var along = new org.joml.Vector3f((float) (-Math.sin(yaw) * Math.cos(pitch)), (float) Math.sin(pitch), (float) -(Math.cos(yaw) * Math.cos(pitch)));
+        var across = new org.joml.Vector3f((float) -Math.cos(yaw), 0, (float) Math.sin(yaw));
+        var third = new org.joml.Vector3f(along).cross(across);
+        return new org.joml.Matrix3f(across, third, along);
+    }
+
+    private static org.joml.Matrix3f rotation(ModelPart part) {
+        return new org.joml.Matrix3f().rotationZYX(part.zRot, part.yRot, part.xRot);
+    }
+
+    /** A galloper (or a body with {@code bank} in the catalog, a running dinosaur) under a rider leans into its turns, more the faster it runs. */
     private void bank(DigimonRenderState state) {
-        if (!definition.gallop() || !state.isBeingRidden) return;
+        if (!(definition.gallop() || definition.bank()) || !state.isBeingRidden) return;
         rootPart.zRot += Math.clamp(state.aerialBank * .45F * Math.clamp(state.groundRunAmount * 1.5F, 0, 1), -9, 9) * ((float) Math.PI / 180);
     }
 
@@ -331,6 +437,20 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         var v=definition.rider().point();
         var p=stack.last().pose().transformPosition((float)v.x,(float)-v.z,(float)v.y,new org.joml.Vector3f());
         return new net.minecraft.world.phys.Vec3(p.x,1.5-p.y,-p.z).scale(state.modelScale).subtract(state.mountAnchor);
+    }
+    /**
+     * The seat part's heading in the model, degrees (0 at rest): a strike that spins the body (DarkTyrannomon's Iron Tail,
+     * a half turn) turns its rider with it, where the rider would otherwise keep facing the mount's own heading while the
+     * body wheeled under them. Read right after {@link #riderOffset}, on the pose it set up.
+     */
+    @Override public float riderYaw(DigimonRenderState state) {
+        if(definition.rider()==null)return 0;
+        var stack=new com.mojang.blaze3d.vertex.PoseStack();
+        ModelPart part=rootPart;part.translateAndRotate(stack);
+        for(String name:definition.rider().path()){part=part.getChild(name);part.translateAndRotate(stack);}
+        var forward=stack.last().pose().transformDirection(0,0,-1,new org.joml.Vector3f());
+        if(forward.x*forward.x+forward.z*forward.z<1.0E-6F)return 0;
+        return (float)Math.toDegrees(Math.atan2(-forward.x,-forward.z));
     }
     @Override public RiderPose riderPose(){return definition.rider()==null?new RiderPose(0,0,0):definition.rider().pose();}
     @Override public double cullingMargin(){return definition.cullingMargin();}
@@ -356,6 +476,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private static final String[] DIRECTIONS={"walk","walk_back","strafe_left","strafe_right"};
     private void applyGround(DigimonRenderState state,float weight) {
         if(weight<=0)return;
+        if(definition.supportFloor()) { mixGround(state, weight); return; }
         float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
         float water=definition.amphibious()?Math.clamp(state.swimAnimationAmount,0,1):0;
         // A leap takes over from the gait: takeoff, flight and landing (DigimonEntity.tickLeapPose), and hands back.
@@ -398,6 +519,74 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         }
     }
 
+    /** Clips a tentacle body mixes on the ground and afloat, in {@link #mixGround}'s order. */
+    private static final String[] GROUND_LAYERS = {"idle", "walk", "swim_idle", "swim", "jump"};
+    private java.util.List<ModelPart> mixParts;
+    private float[] mixPosition, mixScale;
+    private org.joml.Quaternionf[] mixTurn;
+
+    /**
+     * A tentacle body (support_floor, Gesomon) mixes its ground and water clips by the shortest turn between whole poses
+     * ({@code weight} of the mix over the rest pose), never by adding up Euler angles scaled by the clips' weights. An arm
+     * section's angles in a clip may be any of the triples that make its turn (whole turns round, the other branch past a
+     * straight pitch); scaled by a partial weight while the body sets off, slows or stops, they make a turn nobody
+     * authored and the arms flicker in all directions.
+     */
+    private void mixGround(DigimonRenderState state, float weight) {
+        float amount = Math.clamp(state.groundAnimationAmount, 0, 1);
+        float water = definition.amphibious() ? Math.clamp(state.swimAnimationAmount, 0, 1) : 0;
+        float power = Math.clamp(state.swimMotionAmount, 0, 1);
+        float leap = leap(state), keep = 1 - leap;
+        float[] weights = {(1 - amount) * (1 - water) * keep, amount * (1 - water) * keep, water * (1 - power) * keep, water * power * keep, leap * (1 - water)};
+        float[] ticks = {state.ageInTicks, state.groundAnimationPhase, state.ageInTicks, state.swimAnimationPhase, state.leapTick};
+        if (mixParts == null) {
+            mixParts = rootPart.getAllParts();
+            mixPosition = new float[mixParts.size() * 3];
+            mixScale = new float[mixParts.size() * 3];
+            mixTurn = new org.joml.Quaternionf[mixParts.size()];
+            for (int i = 0; i < mixTurn.length; i++) mixTurn[i] = new org.joml.Quaternionf();
+        }
+        var turn = new org.joml.Quaternionf();
+        float total = 0;
+        for (int layer = 0; layer < GROUND_LAYERS.length; layer++) {
+            float w = weights[layer];
+            if (w <= 1.0E-4F || !animations.has(GROUND_LAYERS[layer])) continue;
+            mixParts.forEach(ModelPart::resetPose);
+            animations.apply(GROUND_LAYERS[layer], ticks[layer], 1);
+            total += w;
+            float f = w / total;
+            for (int i = 0; i < mixTurn.length; i++) {
+                var p = mixParts.get(i);
+                turn.rotationZYX(p.zRot, p.yRot, p.xRot);
+                if (f >= 1) mixTurn[i].set(turn); else mixTurn[i].slerp(turn, f);
+                blend(mixPosition, i, p.x, p.y, p.z, f);
+                blend(mixScale, i, p.xScale, p.yScale, p.zScale, f);
+            }
+        }
+        mixParts.forEach(ModelPart::resetPose);
+        if (total <= 0) return;
+        var angles = new org.joml.Vector3f();
+        for (int i = 0; i < mixTurn.length; i++) {
+            var p = mixParts.get(i);
+            var rest = p.getInitialPose();
+            turn.set(mixTurn[i]);
+            if (weight < 1) turn.set(new org.joml.Quaternionf().rotationZYX(rest.zRot(), rest.yRot(), rest.xRot()).slerp(mixTurn[i], weight));
+            turn.getEulerAnglesZYX(angles);
+            p.setRotation(angles.x, angles.y, angles.z);
+            p.x = rest.x() + (mixPosition[3 * i] - rest.x()) * weight;
+            p.y = rest.y() + (mixPosition[3 * i + 1] - rest.y()) * weight;
+            p.z = rest.z() + (mixPosition[3 * i + 2] - rest.z()) * weight;
+            p.xScale = rest.xScale() + (mixScale[3 * i] - rest.xScale()) * weight;
+            p.yScale = rest.yScale() + (mixScale[3 * i + 1] - rest.yScale()) * weight;
+            p.zScale = rest.zScale() + (mixScale[3 * i + 2] - rest.zScale()) * weight;
+        }
+    }
+
+    private static void blend(float[] into, int i, float x, float y, float z, float f) {
+        if (f >= 1) { into[3 * i] = x; into[3 * i + 1] = y; into[3 * i + 2] = z; return; }
+        into[3 * i] += (x - into[3 * i]) * f; into[3 * i + 1] += (y - into[3 * i + 1]) * f; into[3 * i + 2] += (z - into[3 * i + 2]) * f;
+    }
+
     private static float[][] table(com.google.gson.JsonObject data, String key, int width) {
         var rows=data.getAsJsonArray(key);var table=new float[rows.size()][];
         for(int i=0;i<table.length;i++){var row=rows.get(i).getAsJsonArray();table[i]=new float[width];
@@ -428,6 +617,20 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         return look;
     }
 
+    private static Stomps stomps(com.google.gson.JsonObject config) {
+        if(!config.has("stomps"))return null;
+        var s=config.getAsJsonObject("stomps");
+        var down=s.getAsJsonArray("down");var feet=s.getAsJsonArray("feet");
+        if(down.isEmpty()||down.size()!=feet.size())throw new IllegalArgumentException("Invalid stomps");
+        float[] phases=new float[down.size()];float[][] at=new float[feet.size()][];
+        for(int i=0;i<phases.length;i++){
+            phases[i]=down.get(i).getAsFloat();
+            var f=feet.get(i).getAsJsonArray();at[i]=new float[]{f.get(0).getAsFloat(),f.get(1).getAsFloat()};
+            if(!(phases[i]>=0&&phases[i]<1)||f.size()!=2)throw new IllegalArgumentException("Invalid stomp");
+        }
+        return new Stomps(phases,at);
+    }
+
     private static AttackEffects attackEffects(com.google.gson.JsonObject config) {
         if(!config.has("attack_effects"))return null;
         var e=config.getAsJsonObject("attack_effects");var clips=new LinkedHashMap<String,String>();
@@ -454,9 +657,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                     var r=config.getAsJsonObject("rider");var path=new java.util.ArrayList<String>();
                     r.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));var p=r.getAsJsonArray("point");
                     var legs=r.has("pose")?r.getAsJsonArray("pose"):null;
+                    var hide=new java.util.ArrayList<String>();
+                    if(r.has("hide"))r.getAsJsonArray("hide").forEach(n->hide.add(n.getAsString()));
                     rider=new Rider(java.util.List.copyOf(path),new net.minecraft.world.phys.Vec3(p.get(0).getAsDouble(),p.get(1).getAsDouble(),p.get(2).getAsDouble()),
                             legs==null?new RiderPose(0,0,0):new RiderPose(legs.get(0).getAsFloat(),legs.get(1).getAsFloat(),legs.get(2).getAsFloat(),
-                                    legs.size()>3?legs.get(3).getAsFloat():0));
+                                    legs.size()>3?legs.get(3).getAsFloat():0),java.util.List.copyOf(hide));
                 }
                 java.util.List<String> pitch=rider==null?null:rider.path();
                 if(config.has("pitch_path")) {
@@ -489,7 +694,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         // A thrower's returning weapon, drawn where it is carried while the Digimon holds it.
                         GsonHelper.getAsString(config,"carried",null),
                         // The dive pitch without a rider, and whether it turns the body about the rider's seat.
-                        GsonHelper.getAsFloat(config,"swim_pitch",65),GsonHelper.getAsBoolean(config,"pitch_at_rider",false)));
+                        GsonHelper.getAsFloat(config,"swim_pitch",65),GsonHelper.getAsBoolean(config,"pitch_at_rider",false),stomps(config),
+                        GsonHelper.getAsBoolean(config,"bank",false)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

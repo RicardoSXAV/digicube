@@ -76,7 +76,8 @@ down the flat arena with vanilla navigation at the walk, wild panic and run modi
 `[gait] PASS|FAIL` per pace: the measured pace, the amount and run share the client will play, and the cadence
 travel / stride asks for against `max_playback_rate` (above it the feet slide), and how far the body faces off
 its travel (0 walking ahead, about 90 for a side-on scuttle, see `travel_facing`). A gait without a run stride
-of its own passes the run pace on its walk clips. Run it after setting a new species' `base_speed` or strides;
+of its own passes the run pace on its walk clips. So does a species whose AI run modifier is its walk
+(`run_speed` <= `walk_speed`, DarkTyrannomon): its run clip belongs to a rider's sprint and a panic. Run it after setting a new species' `base_speed` or strides;
 vanilla's ground pace is about k x (base_speed x modifier)^2 blocks a tick with k near 2.1-2.2, so measure
 rather than trust k.
 

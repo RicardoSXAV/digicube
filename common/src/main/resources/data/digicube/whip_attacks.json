@@ -1,0 +1,154 @@
+{
+  "devil_bashing": {
+    "attack": {
+      "power": 0.36,
+      "cooldown": 36,
+      "duration": 30,
+      "hit_tick": 14,
+      "range": 5.0
+    },
+    "arms": {
+      "L": {
+        "parent_path": [
+          "root",
+          "collar",
+          "long_L"
+        ],
+        "parts": [
+          "long_L_section_0",
+          "long_L_section_1",
+          "long_L_section_2",
+          "long_L_section_3",
+          "long_L_section_4",
+          "long_L_section_5",
+          "long_L_section_6",
+          "long_L_section_7",
+          "long_L_section_8",
+          "pad_L"
+        ],
+        "sections": [
+          0.4951,
+          0.4739,
+          0.425,
+          0.5358,
+          0.5616,
+          0.4698,
+          0.4026,
+          0.3322,
+          0.2049
+        ],
+        "pad": 1.125,
+        "pad_radius": 0.4688,
+        "base": [
+          0.656,
+          -2.531,
+          -0.256
+        ],
+        "water_base": [
+          0.656,
+          -2.284,
+          -1.169
+        ]
+      },
+      "R": {
+        "parent_path": [
+          "root",
+          "collar",
+          "long_R"
+        ],
+        "parts": [
+          "long_R_section_0",
+          "long_R_section_1",
+          "long_R_section_2",
+          "long_R_section_3",
+          "long_R_section_4",
+          "long_R_section_5",
+          "long_R_section_6",
+          "long_R_section_7",
+          "long_R_section_8",
+          "pad_R"
+        ],
+        "sections": [
+          0.502,
+          0.4688,
+          0.4739,
+          0.4698,
+          0.5211,
+          0.5322,
+          0.4364,
+          0.3351,
+          0.2232
+        ],
+        "pad": 1.125,
+        "pad_radius": 0.4688,
+        "base": [
+          -0.656,
+          -2.531,
+          -0.256
+        ],
+        "water_base": [
+          -0.656,
+          -2.284,
+          -1.169
+        ]
+      }
+    },
+    "wind": [
+      140,
+      -48
+    ],
+    "wind_charged": [
+      152,
+      -62
+    ],
+    "curl": [
+      34,
+      48
+    ],
+    "rest": [
+      55,
+      30
+    ],
+    "min_wind_ticks": 4,
+    "charge_ticks": 20,
+    "lash_ticks": 11,
+    "recover_ticks": 9,
+    "wind_spring": [
+      0.09,
+      0.38
+    ],
+    "lash_spring": [
+      0.34,
+      0.42
+    ],
+    "recover_spring": [
+      0.1,
+      0.42
+    ],
+    "max_turn": 46,
+    "lag": 0.55,
+    "power": [
+      0.55,
+      1.15
+    ],
+    "reference_speed": 1.6,
+    "speed_scale": [
+      0.55,
+      1.3
+    ],
+    "knockback": 0.9,
+    "radius": 0.32,
+    "water_pitch": 45,
+    "ai": {
+      "reach": 0.88,
+      "winds": [
+        5,
+        11,
+        20
+      ],
+      "lash_lead": 3,
+      "sweep": 24,
+      "patience": 30
+    }
+  }
+}

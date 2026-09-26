@@ -11,10 +11,20 @@ package com.digicube.digimon;
  * @param groundGait optional authored stride and cycle measurements
  * @param hoverFallSpeed a body that hovers on fins instead of feet (Bukamon) glides down at most this many blocks per
  *                       tick, takes no fall damage and makes no footsteps; zero means it walks
+ * @param jet optional: it swims in pulses (a squid), null for a steady swimmer
+ * @param travelFacing optional: where the body looks while it walks a path (a crab), null to face its travel
  */
 public record DigimonLocomotion(float followStartDistance, float followStopDistance,
                                double walkSpeed, double runSpeed, double swimSpeed, DigimonFlight flight,
-                               DigimonGait groundGait, double hoverFallSpeed) {
+                               DigimonGait groundGait, double hoverFallSpeed, JetSwim jet, TravelFacing travelFacing) {
+    public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
+                             DigimonGait groundGait, double hoverFallSpeed, JetSwim jet) {
+        this(start, stop, walk, run, swim, flight, groundGait, hoverFallSpeed, jet, null);
+    }
+    public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
+                             DigimonGait groundGait, double hoverFallSpeed) {
+        this(start, stop, walk, run, swim, flight, groundGait, hoverFallSpeed, null);
+    }
     public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
                              DigimonGait groundGait) {
         this(start, stop, walk, run, swim, flight, groundGait, 0);
@@ -37,7 +47,7 @@ public record DigimonLocomotion(float followStartDistance, float followStopDista
                 || !Double.isFinite(walkSpeed) || !Double.isFinite(runSpeed)
                 || walkSpeed <= 0 || runSpeed < walkSpeed
                 || !Double.isFinite(swimSpeed) || swimSpeed < 0 || swimSpeed > 1
-                || !Double.isFinite(hoverFallSpeed) || hoverFallSpeed < 0 || hoverFallSpeed > 1) {
+                || !Double.isFinite(hoverFallSpeed) || hoverFallSpeed < 0 || hoverFallSpeed > 1 || jet != null && swimSpeed <= 0) {
             throw new IllegalArgumentException("Invalid species locomotion settings");
         }
     }

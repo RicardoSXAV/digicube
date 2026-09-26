@@ -35,7 +35,7 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
         var definition = entity.definition();
         state.projectile = definition == null ? null : definition.projectile();
         if (definition == null) return;
-        state.scale = definition.modelScale();
+        state.scale = definition.modelScale() * definition.projectileScale();
         state.clip=entity.impacting()?"impact":"effect";
         state.tick=definition.projectileMotion()==null?0:entity.impacting()?entity.effectTick(partial):definition.projectileMotion().flightTick(entity.effectTick(partial));
         state.emissive=definition.emissive();

@@ -34,3 +34,6 @@ Thumbs.db
 
 # Local MCP configuration
 /.mcp.json
+
+# Claude
+/.claude

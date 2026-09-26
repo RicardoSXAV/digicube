@@ -158,7 +158,7 @@ final class ConstrictionSession {
         var currentFit=motion.fit(target.getBoundingBox(),scale);
         if(tick<ConstrictionMotion.RELEASE_TICK && (currentFit==null || Math.abs(currentFit.radius()-fit.radius())>.1))return interrupt("prey size changed");
         if (tick<ConstrictionMotion.RELEASE_TICK && (!target.isAlive() || target.isRemoved()
-                || target.level()!=owner.level() || !owner.canAttack(target) || owner.isAllyOf(target)
+                || target.level()!=owner.level() || !owner.canStrike(target) || owner.isAllyOf(target)
                 || target.position().distanceToSqr(center.add(approachOffset))>ConstrictionMotion.ESCAPE_DISTANCE*ConstrictionMotion.ESCAPE_DISTANCE
                 || target.isPassenger() || target.isVehicle())) return interrupt(String.format("prey escaped, %.2f from the coil", target.position().distanceTo(center.add(approachOffset))));
         owner.setYRot(yaw);owner.yBodyRot=yaw;owner.yHeadRot=yaw;

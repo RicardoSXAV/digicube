@@ -46,6 +46,7 @@
     "range": 9,
     "model_scale": 0.5,
     "projectile": "deadly_shade_ink",
+    "projectile_scale": 0.62,
     "projectile_speed": 0.5,
     "projectile_life": 20,
     "max_lead": 2,
@@ -82,5 +83,25 @@
     "emissive": false,
     "blend_aim": true,
     "aim_at_top": false
+  },
+  "water_shot": {
+    "kind": "KINETIC_SHOT",
+    "power": 1.0,
+    "cooldown": 70,
+    "duration": 22,
+    "hit_tick": 10,
+    "range": 9,
+    "knockback": 0.35,
+    "model_scale": 0.2,
+    "projectile": "water_shot_projectile",
+    "projectile_scale": 1.75,
+    "projectile_speed": 0.85,
+    "projectile_life": 14,
+    "max_lead": 2,
+    "max_pitch": 45,
+    "impact_ticks": 12,
+    "emissive": false,
+    "aim_at_top": false,
+    "shot_style": "water"
   }
 }

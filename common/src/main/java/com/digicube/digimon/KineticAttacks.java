@@ -53,7 +53,7 @@ public final class KineticAttacks {
                              float modelScale, double maxLead, float maxPitch, List<AttackBox> projectileBoxes,
                              List<String> aimPath, ProjectileMotion projectileMotion, int impairmentTicks, boolean emissive,
                              boolean blendAim, boolean aimAtTop, int riderDrawTick, RiderKick riderKick,
-                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks) {
+                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks, float projectileScale) {
         public Motion motion(boolean kick) { return kick && kickMotion != null ? kickMotion : motion; }
         public String animation(boolean kick) { return kick && kickAnimation != null ? kickAnimation : attack.id().getPath(); }
         public int duration(boolean kick) { return Math.round(motion(kick).duration()); }
@@ -122,12 +122,15 @@ public final class KineticAttacks {
         return new Vec3(x, y, z);
     }
 
-    private static List<AttackBox> boxes(JsonArray rows) {
+    private static List<AttackBox> boxes(JsonArray rows) { return boxes(rows, 1); }
+
+    /** Cuboids scaled by {@code scale} about the shot's own origin (the muzzle), as the drawn shot is. */
+    private static List<AttackBox> boxes(JsonArray rows, double scale) {
         var boxes = new ArrayList<AttackBox>();
         for (var row : rows) {
             var r = row.getAsJsonArray();
             if (r.size() != 12) throw new IllegalArgumentException("Invalid kinetic cuboid");
-            boxes.add(new AttackBox(vector(r, 0), vector(r, 3), vector(r, 6), vector(r, 9)));
+            boxes.add(new AttackBox(vector(r, 0).scale(scale), vector(r, 3).scale(scale), vector(r, 6).scale(scale), vector(r, 9).scale(scale)));
         }
         return List.copyOf(boxes);
     }
@@ -190,17 +193,20 @@ public final class KineticAttacks {
                     || GsonHelper.getAsInt(c,"rider_draw_tick",0) < 0 || GsonHelper.getAsInt(c,"rider_draw_tick",0) >= attack.hitTick()) {
                 throw new IllegalArgumentException("Invalid kinetic definition " + id);
             }
+            // A shot drawn smaller than it was exported: the model and every cuboid it hits with shrink together.
+            float shrink = GsonHelper.getAsFloat(c, "projectile_scale", 1);
+            if (!(shrink > 0 && shrink <= 4)) throw new IllegalArgumentException("Invalid projectile scale " + id);
             ProjectileMotion flight=null;
             if(geometry.has("projectile_motion") && geometry.getAsJsonObject("projectile_motion").has(name)) {
                 var data=geometry.getAsJsonObject("projectile_motion").getAsJsonObject(name);
-                var frames=new ArrayList<List<AttackBox>>();data.getAsJsonArray("frames").forEach(row->frames.add(boxes(row.getAsJsonArray())));
+                var frames=new ArrayList<List<AttackBox>>();data.getAsJsonArray("frames").forEach(row->frames.add(boxes(row.getAsJsonArray(), shrink)));
                 flight=new ProjectileMotion(data.get("samples_per_tick").getAsInt(),data.get("hold_tick").getAsFloat(),
                         GsonHelper.getAsInt(c,"impact_ticks",7),List.copyOf(frames));
                 if(flight.samplesPerTick()<1 || flight.holdTick()<0 || flight.holdTick()*flight.samplesPerTick()>=frames.size()
                         || frames.stream().anyMatch(row->row.size()!=frames.getFirst().size()))throw new IllegalArgumentException("Invalid projectile animation "+id);
             }
             result.put(id, new Definition(attack, base, alternate, kick, decision, projectile, speed, life, scale, lead, pitch,
-                    projectile == null ? List.of() : boxes(geometry.getAsJsonObject("projectile_boxes").getAsJsonArray(name)), List.copyOf(aim),
+                    projectile == null ? List.of() : boxes(geometry.getAsJsonObject("projectile_boxes").getAsJsonArray(name), shrink), List.copyOf(aim),
                     flight,GsonHelper.getAsInt(c,"impairment_ticks",0),GsonHelper.getAsBoolean(c,"emissive",true),
                     GsonHelper.getAsBoolean(c,"blend_aim",false),GsonHelper.getAsBoolean(c,"aim_at_top",flight!=null),
                     // A rider's shot is drawn: the clip holds on this tick (the weapon raised) for as long as the button is held.
@@ -208,7 +214,7 @@ public final class KineticAttacks {
                     riderKick(c, alternate, id),
                     com.digicube.entity.ShotStyle.byId(GsonHelper.getAsString(c, "shot_style", null)),
                     // A shot that lands leaves its victim Exposed (ExposedMark) for this long.
-                    GsonHelper.getAsInt(c, "expose_ticks", 0)));
+                    GsonHelper.getAsInt(c, "expose_ticks", 0), shrink));
         }
         return Collections.unmodifiableMap(result);
     }

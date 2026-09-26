@@ -1,0 +1,32 @@
+{
+  "stage": "adult",
+  "attribute": "data",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 9,
+  "base_speed": 0.1917,
+  "attacks": [],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.26,
+    "width": 1.0,
+    "height": 2.35,
+    "eye_height": 2.1
+  },
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.0,
+    "run_speed": 1.604,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 18,
+      "stride": 5.6,
+      "side_stride": 2.0,
+      "back_stride": 4.4,
+      "run_cycle_ticks": 13.0,
+      "run_stride": 10.4,
+      "max_playback_rate": 2.5
+    }
+  }
+}
