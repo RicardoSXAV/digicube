@@ -1,25 +1,15 @@
 # AGENTS.md — DigiCube
 
-Rules and conventions for anyone (human or AI) writing code in this repository.
-Read this before touching anything. If a rule here conflicts with a habit from
-another Minecraft project, **this file wins**.
+Rules and conventions for anyone (human or AI) writing code in this repository. Read this before touching
+anything. If a rule here conflicts with a habit from another Minecraft project, **this file wins**.
 
-For Blender/model/animation work, first read
-[the shared Blender session instructions](C:/Users/Administrador/Desktop/Coding/harness/BLENDER_SESSIONS.md).
-Claim a task-owned session with the canonical harness `tools/blender_slots.py`;
-it atomically assigns one of five sessions (`blender_a` through `blender_e`,
-ports 9877 through 9881 respectively) using the current
-Codex task ID. Use only that connection and its ownership guards, then save and
-release it before handing work back. Never use the old shared `blender:9876`
-connection or another task's slot. Use the canonical harness paths even from a
-Git worktree so all chats coordinate through the same reservation registry.
-
----
+This file holds only what every task needs. The rest lives in topic guides under [`agents/`](agents/): find your
+task in the [map](#3-map-read-only-what-the-task-needs) and open those guides, not all of them.
 
 ## 1. What this project is
 
-DigiCube is a Digimon mod for **Minecraft Java Edition**. Players find, tame, raise,
-train and digivolve partner Digimon.
+DigiCube is a Digimon mod for **Minecraft Java Edition**. Players find, tame, raise, train and digivolve partner
+Digimon.
 
 | Thing | Value | Why it matters |
 |---|---|---|
@@ -27,24 +17,33 @@ train and digivolve partner Digimon.
 | Java | **25** | Set by `java_version` in `gradle.properties`. Records, sealed types, pattern matching and `switch` expressions are all fair game. |
 | Mappings | **Mojang official (mojmap)** | Class names are `Identifier`, `Item`, `Level`, `Player`, `ItemStack`. Note `Identifier` — Mojang **renamed `ResourceLocation` to `Identifier`** in the 26.x mappings, so pre-26 tutorials and muscle memory are wrong here. `World` and `PlayerEntity` are Yarn names and do not exist. |
 | Loader today | **Fabric** | The `fabric/` module. |
-| Loader later | **NeoForge** | The `neoforge/` module does not exist yet. Section 13 covers adding it. |
+| Loader later | **NeoForge** | The `neoforge/` module does not exist yet. [agents/porting.md](agents/porting.md) covers adding it. |
 | Build | Gradle 9.5 + MultiLoader layout | No Architectury — its API has no `26.x` release. |
 
-Authoritative version numbers live in `gradle.properties`. Never hardcode a version
-in a build script or in Java; read it from there.
-
----
+Authoritative version numbers live in `gradle.properties`. Never hardcode a version in a build script or in Java;
+read it from there.
 
 ## 2. Golden rules
 
-1. **Never invent an API.** If you are not certain a Minecraft or Fabric method exists in
-   `26.2`, do not guess a plausible name. A wrong guess costs a full Gradle build to
-   discover. This is not hypothetical: the first version of this scaffold used
-   `ResourceLocation` because that is the name everywhere pre-26, and every file using it
+1. **Write impersonally.** This repository is public: anyone may clone it and work in it. Code, comments, data,
+   docs and commit messages name no individual (not the maintainer, a contributor or a tester) and say nothing
+   about who asked for something: state the rule or the reason itself ("the design wants a straight shot a player
+   can dodge"), or say "the user" when a person must be meant. Leave `LICENSE` and `mod_author` in
+   `gradle.properties` as they are; authorship there is the maintainer's call.
+2. **Reply in the user's language; think and write everything else in English.** Portuguese is the default; when
+   the user writes in another language, reply in that one. The reply is the only text an agent produces in that
+   language. Thinking, plans, code, identifiers, comments, log lines, lang and data files, commit messages, docs
+   (this file, `agents/`, `README.md`, `../design/`), memory notes, file and branch names, published pages,
+   prompts to other agents and their reports are all English, and a decision taken from a message in another
+   language is recorded in English. Inside a reply, keep code, paths, commands, quoted log lines and in-game names
+   exactly as written. The one exception is a translation the user asks for (a `pt_br.json`, say).
+3. **Never invent an API.** If you are not certain a Minecraft or Fabric method exists in `26.2`, do not guess a
+   plausible name. A wrong guess costs a full Gradle build to discover. This is not hypothetical: the first version
+   of this scaffold used `ResourceLocation` because that is the name everywhere pre-26, and every file using it
    failed to compile.
 
-   Ctrl-click the symbol in IntelliJ, or check the real jar directly — it is the ground
-   truth and it answers in a second:
+   Ctrl-click the symbol in IntelliJ, or check the real jar directly — it is the ground truth and it answers in a
+   second:
 
    ```bash
    jar tf ~/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft/minecraft-merged-deobf/26.2/minecraft-merged-deobf-26.2.jar | grep -i identifier
@@ -54,918 +53,84 @@ in a build script or in Java; read it from there.
    javap -cp ~/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft/minecraft-merged-deobf/26.2/minecraft-merged-deobf-26.2.jar net.minecraft.world.item.Item
    ```
 
-   Use `jar tf | grep` to find where a class lives, and `javap` to read its exact method
-   signatures before calling one.
-2. **`common/` must never import a loader.** No `net.fabricmc.*`, no `net.neoforged.*`.
-   See section 4.
-3. **Client code must never run on a dedicated server.** See section 8. This is the
-   single most common way to crash a modded server.
-4. **The build must pass before you say you are done.** `./gradlew build`. Not
-   "it should compile".
-5. **Content is data, code is mechanics.** Adding a new Digimon should not require new
-   Java. If it does, the system is wrong — fix the system.
-6. **One concern per commit**, with a one-line `type: description` message. "Add Greymon"
-   and "refactor the evolution engine" are two commits. See section 12.
-7. **Never edit anything under `build/`, `runs/`, or `.gradle/`.** Those are generated.
+   Use `jar tf | grep` to find where a class lives, and `javap` to read its exact method signatures before calling
+   one. When the docs and reality disagree, **the decompiled Minecraft source in the IDE is the truth.**
+4. **`common/` must never import a loader.** No `net.fabricmc.*`, no `net.neoforged.*`. See
+   [agents/architecture.md](agents/architecture.md).
+5. **Client code must never run on a dedicated server.** See
+   [agents/architecture.md](agents/architecture.md#client--server-side-safety). This is the single most common way
+   to crash a modded server.
+6. **The build must pass before you say you are done.** `./gradlew build`. Not "it should compile". On Windows use
+   `gradlew.bat`; the rest of the commands are in [agents/build-and-run.md](agents/build-and-run.md).
+7. **Content is data, code is mechanics.** Adding a new Digimon should not require new Java. If it does, the system
+   is wrong — fix the system.
+8. **One concern per commit**, with a one-line `type: description` message. "Add Greymon" and "refactor the
+   evolution engine" are two commits. See [section 5](#5-commits).
+9. **Never edit anything under `build/`, `runs/`, or `.gradle/`.** Those are generated.
+10. **Keep knowledge where it belongs.** A change that alters a rule or a mechanic updates the guide that covers it
+    in the same change; see [section 7](#7-keeping-these-docs-useful).
 
----
+## 3. Map: read only what the task needs
 
-## 3. Repository layout
+Markdown links are relative to the file they sit in; paths in backticks are relative to the repository root.
+`../design/` and `../harness/` are private sibling folders (design documents, and the art and animation harness)
+that a clone may not have; skip what depends on them when they are missing.
 
-```
-digicube/
-├── AGENTS.md               <- you are here
-├── README.md               <- human setup guide
-├── gradle.properties       <- ALL version numbers and mod identity
-├── settings.gradle         <- which modules exist
-├── build.gradle            <- Gradle plugin versions only
-├── buildSrc/               <- shared build logic ("convention plugins")
-│   └── src/main/groovy/
-│       ├── multiloader-common.gradle   <- applied to every module
-│       └── multiloader-loader.gradle   <- applied to loader modules only
-│
-├── common/                 <- 90%+ of the mod lives here. No loader imports.
-│   └── src/main/
-│       ├── java/com/digicube/
-│       │   ├── Constants.java          <- MOD_ID, LOG, id() helper
-│       │   ├── DigiCube.java           <- shared entry point
-│       │   ├── digimon/                <- the domain model (species, stages, evolution, progression)
-│       │   ├── entity/                 <- DigimonEntity, projectiles, AI goals
-│       │   ├── party/                  <- Digivice collection, party slots, sync payloads
-│       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
-│       │   ├── starter/                <- first-partner prompt: starter set, saved data, flow, payloads
-│       │   ├── dev/                    <- developer panel: server actions, battle testing, payloads, gate
-│       │   ├── command/                <- /digicube commands
-│       │   ├── registry/               <- DCItems, DCBlocks, DCEntityTypes, ...
-│       │   ├── platform/               <- ServiceLoader bridge to loader features
-│       │   └── mixin/                  <- cross-loader mixins (last resort)
-│       └── resources/
-│           ├── digicube.mixins.json
-│           ├── pack.mcmeta
-│           ├── digicube.png            <- mod icon
-│           ├── assets/digicube/        <- client-side: textures, models, lang, sounds
-│           └── data/digicube/          <- server-side: recipes, loot, tags, species
-│
-└── fabric/                 <- thin Fabric adapter. Keep it small.
-    └── src/main/
-        ├── java/com/digicube/fabric/
-        │   ├── DigiCubeFabric.java              <- main entry point
-        │   ├── client/DigiCubeFabricClient.java <- client-only entry point
-        │   ├── client/gui/                      <- the DigiCube GUI language: DigiTheme, DigiPanels, DigimonPreview
-        │   ├── client/starter/                  <- the Partner Link screen and its client gate
-        │   ├── client/digivice/                 <- the Digivice screen: shell, Analyzer and Digispace tabs
-        │   ├── client/dev/                      <- the developer panel, opened from the wheel gear (dev only)
-        │   ├── dev/FabricDevNetworking.java     <- developer panel transport
-        │   ├── platform/FabricPlatformHelper.java
-        │   └── mixin/                           <- Fabric-only mixins
-        └── resources/
-            ├── fabric.mod.json
-            ├── digicube.fabric.mixins.json
-            └── META-INF/services/...            <- wires up the platform helper
-```
-
-**How the modules combine:** `fabric/` does not depend on a compiled `common` jar.
-`buildSrc/src/main/groovy/multiloader-loader.gradle` feeds `common`'s *source files*
-into the Fabric compile task, so `fabric/build/libs/digicube-fabric-26.2.jar` is a
-single standalone jar. That is why there is no "common jar" to ship.
-
-**Design documents live outside the repository.** Mechanics designs (balance tables,
-spawn rules, research) sit in `../design/`, a sibling of `digicube/` like `../harness`,
-and are never committed. Read the relevant one before implementing a feature and update
-it when a decision changes.
-
----
-
-## 4. The module boundary — the most important rule
-
-`common/` compiles against **plain, un-modded Minecraft**. It physically cannot see
-Fabric classes; if you import one, compilation fails.
-
-When common code needs something only a loader can do — registering an event, checking
-whether a mod is installed, opening a config screen:
-
-1. Add a method to `common/src/main/java/com/digicube/platform/services/IPlatformHelper.java`.
-2. Implement it in `fabric/src/main/java/com/digicube/fabric/platform/FabricPlatformHelper.java`.
-3. Call it from common as `Services.PLATFORM.yourMethod()`.
-
-The wiring is plain Java `ServiceLoader`. The file
-`fabric/src/main/resources/META-INF/services/com.digicube.platform.services.IPlatformHelper`
-contains the implementation's fully-qualified class name. **If you add a new service
-interface you must add a matching file there**, or the mod crashes on startup with
-"No implementation found for service".
-
-Do not create a service for a one-off. Services are for capabilities that genuinely
-differ per loader.
-
-### What goes where
-
-| Put it in `common/` | Put it in `fabric/` |
+| Guide | Read it when the task touches |
 |---|---|
-| Digimon domain model, stats, evolution logic | `ModInitializer` / `ClientModInitializer` |
-| Item / block / entity classes and registration | Fabric API event subscriptions |
-| Recipes, loot tables, tags, lang, models, textures | Renderer and model-layer registration |
-| Anything using only `net.minecraft.*` | Networking channel setup |
+| [agents/architecture.md](agents/architecture.md) | a new class, loader hook, mixin, platform service (`IPlatformHelper`) or resource file; the layout; client vs server; `assets/` vs `data/` |
+| [agents/conventions.md](agents/conventions.md) | a new identifier (`Constants.id`), registry entry (`DC*`), item (checklist), translation key or Creative tab entry; formatting |
+| [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
+| [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, model reviews, the index of every check |
+| [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), healing, creative play, spawning |
+| [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`), attacks as data (`DigimonAttack`, `IceCombo`), tactics (`DigimonTactics`) and matchup balance, wraps, ink, projectiles |
+| [agents/authored-attacks.md](agents/authored-attacks.md) | a move in `authored_attacks.json` (`AuthoredVolumeAttack`): bursts at the target, travelling sweeps, leaps, particle styles, stacked uses, volleys |
+| [agents/animation.md](agents/animation.md) | any Blender session; models and clips as native JSON; `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `cloth`, `ropes`) |
+| [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips, stepping down, hovering, `travel_facing`, wide bodies and pathing |
+| [agents/mounts.md](agents/mounts.md) | anything a rider does (`RiderAttack`, `RiderControls`, attack tiles): getting on, pose, water and sea mounts, pace, leaps, charges, flying mounts |
+| [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), particles (`DCParticles`), shot styles (`ShotStyle`), voices (`voices.json`) |
+| [agents/digivice-item.md](agents/digivice-item.md) | the Digivice item (`Digivices`, `DroppedDigivice`): handing out, binding, storage, drops, the locator, the recall chip (`RecallChip`) |
+| [agents/screens.md](agents/screens.md) | a screen: the GUI language (`DigiTheme`, `DigiPanels`), the Digivice screen (`DigiviceScreen`: Analyzer, Digispace) |
+| [agents/dev-panel.md](agents/dev-panel.md) | the developer panel (`DevCatalog`, `DevActions`), battle testing (`BattleTest`) |
+| [agents/porting.md](agents/porting.md) | adding NeoForge or moving to a new Minecraft version |
 
----
+**Species.** Work on one species starts at its guide under `agents/species/`, named by the species id:
+[agumon](agents/species/agumon.md), [centalmon](agents/species/centalmon.md) (Centarumon),
+[digmon](agents/species/digmon.md), [dinohyumon](agents/species/dinohyumon.md),
+[ganimon](agents/species/ganimon.md) (Crabmon), [gesomon](agents/species/gesomon.md) (and the whip),
+[golemon](agents/species/golemon.md), [gotsumon](agents/species/gotsumon.md), [meramon](agents/species/meramon.md),
+[mojyamon](agents/species/mojyamon.md) (and thrown weapons), [pukamon](agents/species/pukamon.md) (Bukamon),
+[seadramon](agents/species/seadramon.md). A species without a guide has nothing beyond its sheet and the topic
+guides.
 
-## 5. Naming conventions
-
-| Kind | Convention | Example |
-|---|---|---|
-| Mod id | lowercase, no separators | `digicube` |
-| Registry holder class | `DC` + plural noun | `DCItems`, `DCBlocks`, `DCEntityTypes`, `DCSounds` |
-| Registry field | `SCREAMING_SNAKE_CASE`, matches its id | `DIGIVICE` for `digicube:digivice` |
-| `Identifier` path | `snake_case`, English | `training_dummy` |
-| Java package | `com.digicube.<feature>` | `com.digicube.digimon` |
-| Fabric package | `com.digicube.fabric.<feature>` | `com.digicube.fabric.client` |
-| Mixin class | `Mixin` + target class name | `MixinMinecraft` |
-| Mixin injected member | prefixed `digicube$` | `digicube$onClientInit` |
-| Translation key | `<type>.digicube.<path>` | `item.digicube.digivice` |
-| Species translation key | `digimon.digicube.<name>` | `digimon.digicube.agumon` |
-
-**Always build identifiers with `Constants.id("thing")`.** Never write
-`Identifier.fromNamespaceAndPath("digicube", ...)` inline, and never a bare string
-literal `"digicube:thing"`.
-
-Digimon names use their **Japanese romanisation** as the id (`agumon`, `greymon`,
-`wargreymon`). English dub names, where they differ, belong in `en_us.json` only.
-
----
-
-## 6. Registration
-
-Registration happens in the `DC*` classes under
-`common/src/main/java/com/digicube/registry/`. Fields are `static final` and register
-themselves in the static initialiser; each class exposes an `init()` that the loader
-entry point calls to force class loading.
-
-Since Minecraft 1.21.2 an `Item` must know its own id **before** construction, hence the
-factory / `setId` pattern:
-
-```java
-private static ResourceKey<Item> key(String path) {
-    return ResourceKey.create(Registries.ITEM, Constants.id(path));
-}
-
-private static Item register(ResourceKey<Item> key, Function<Item.Properties, Item> factory, Item.Properties properties) {
-    Item item = factory.apply(properties.setId(key));
-    return Registry.register(BuiltInRegistries.ITEM, key, item);
-}
-```
-
-Copy this shape for blocks (`Registries.BLOCK` / `BuiltInRegistries.BLOCK`), entity types,
-sounds and so on. Do **not** reach for Fabric's registry helpers — they would drag a loader
-import into `common/`.
-
-### Checklist: adding an item
-
-Miss a step and it shows up in game as a black-and-purple cube named `item.digicube.foo`.
-
-- [ ] `ResourceKey` + `Item` field in `DCItems`
-- [ ] `common/src/main/resources/assets/digicube/items/foo.json` — client item definition
-- [ ] `common/src/main/resources/assets/digicube/models/item/foo.json` — the model
-- [ ] `common/src/main/resources/assets/digicube/textures/item/foo.png` — 16x16 PNG
-- [ ] `item.digicube.foo` in `assets/digicube/lang/en_us.json`
-- [ ] Add player-facing items to the DigiCube Creative tab's ordered `displayItems`
-      list and an appropriate vanilla category in `fabric/.../registry/DCCreativeTabs.java`
-
-Verify in game with `/give @s digicube:foo`.
-
-The dedicated **DigiCube** tab is the home for all player-facing mod items, with the
-Digivice as its icon and first item. The Digivice also appears in **Tools & Utilities**,
-after the compass, and in Creative search. Retain appropriate vanilla-category
-entries as the collection grows. The Fabric builder and events live in
-`fabric/.../registry/DCCreativeTabs.java`; initialize it after `DCItems` on both sides.
-Fabric tab APIs belong in `fabric/`, not `common/`.
-
----
-
-## 7. Assets vs data
-
-| `assets/digicube/` — client | `data/digicube/` — server |
-|---|---|
-| `textures/`, `models/`, `items/` | `recipe/`, `loot_table/`, `advancement/` |
-| `lang/en_us.json` | `tags/` |
-| `sounds/`, `sounds.json` | `species/` (DigiCube's own species files) |
-
-A dedicated server never reads `assets/`. A resource pack never reads `data/`.
-Putting a file in the wrong tree means it is silently ignored — with no error message.
-
-JSON files use **2-space** indentation; Java uses **4 spaces**.
-
----
-
-## 8. Client / server side safety
-
-Minecraft runs as two logical sides. A dedicated server jar does not contain
-`net.minecraft.client.*` at all — touching it there is an instant `NoClassDefFoundError`.
-
-Rules:
-
-- **Never** reference `net.minecraft.client.*` from `common/`, except inside a mixin that
-  is listed under `"client"` in the mixin config.
-- Client-only registration — renderers, screens, key binds, model layers — goes in
-  `fabric/src/main/java/com/digicube/fabric/client/DigiCubeFabricClient.java`.
-- Game logic — damage, evolution, inventory changes, world edits — runs on the **server**
-  side and is synced to clients. Never decide gameplay outcomes on the client.
-- Check `level.isClientSide()` before spawning particles or sounds locally, and before
-  running server-authoritative logic. Get this backwards and things de-sync.
-- Test every feature with **`./gradlew :fabric:runServer`**, not just the client. For
-  anything a Digimon does in a fight, that means the headless scenarios in section 11.
-
----
-
-## 9. Digimon domain conventions
-
-The domain lives in `common/src/main/java/com/digicube/digimon/`.
-
-- `DigimonSpecies` is the **immutable shared sheet** for a Digimon: base stats, stage,
-  attribute, evolution branches. Exactly one instance exists per species.
-- Anything that differs between two individuals — level, bond, nickname, current HP,
-  training points, weight — belongs on the **entity**, never on the species.
-- `DigimonStage` and `DigimonAttribute` carry stable string ids (`"child"`, `"vaccine"`).
-  These get written to JSON and to save data, so **changing one is a breaking data
-  migration**, not a rename.
-- `Evolution` lists are evaluated **in order, first match wins**. Put the rarest and most
-  specific branch first, the plain level-gated fallback last.
-- The attribute triangle is a **critical-hit chance**, not a damage multiplier:
-  `CriticalHits` (base 10 %, favoured 25 %, countered 5 %, ×1.5) rolls on every Digimon hit
-  through `DigimonEntity.damageAgainst` and the projectile impacts. Defence is the vanilla
-  `ARMOR` attribute at half `base_defence` (`Progression.armor`). Keep those numbers there.
-- Combat marks live on every `LivingEntity` (`CombatMarkState`, `MixinLivingEntity`): two packed,
-  tracked ints drive the emblems in `CombatMarkBadges`. **Crack** (`CrackMark`): fists and ground
-  waves fill a 3-charge gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every
-  source (a `@ModifyVariable` on `hurtServer`). Which attacks crack is by `DigimonAttack.Kind`.
-  **Exposed** (`ExposedMark`): a kinetic shot with `expose_ticks` (Hunting Cannon, 80) leaves its
-  victim `digicube:exposed`: +30 points of crit chance on every Digimon hit against it (on top of the
-  triangle, in `CriticalHits.chance`) and no dodging (`DigimonAttackGoal.dodgeChance`); a crit on it
-  blinks the emblem (`mark_exposed_flash`). **Burn**: fire a Digimon's attack lights (Pepper Breath, Mega Flame; call
-  `digicube$burn(ticks)` after igniting) is a Burn for as long as the body keeps burning; vanilla fire does the damage and
-  water puts it out, the emblem's rim drains with the fire (`mark_burn`). The first readout is full (one bit left); new marks go in
-  the second (`digicube$marks2`: Exposed bits 0-7, Burn 8-14, bits 15-31 free). Read `../design/combat-marks.md` before adding a mark.
-- A ground gait only looks planted when the clip's stride matches the ground covered: the phase advances by
-  travel / stride (`DigimonGait`), so a stride far shorter than the species' real pace hits `max_playback_rate`
-  and the feet slide (Golemon walked at the player's .216 blocks/tick on a .043 stride). Golemon's gait is
-  generated, not keyed: `../harness/v2/tools/make_gait.py golemon` solves leg IK so the stance foot is fixed
-  to the ground (drift < .05 model px, verified on the written keys) and writes four lattices on one phase:
-  `walk`, `walk_back`, `strafe_left`, `strafe_right`. Forwards the foot rolls (heel edge, flat, front edge with
-  the toes still flat; the edge on the ground is the fixed point) and the stance shortens into a bound above half
-  amplitude, because his legs (45 px, ankle resting 13 px ahead of the hip) only sweep about 44 px under a
-  pelvis at rest height: a flat foot and a dropped pelvis bent the supporting knee 105 degrees. Thigh yaw holds
-  the knee's width. The clip is 27 ticks (`cycle_ticks`), keys every half tick. A gait with `side_stride` / `back_stride` is
-  directional: the entity splits its movement in the body's frame into shares (`DigimonGait.directions`) and
-  `NativeGroundModel` mixes the lattices by them. Change strides in the script and the species sheet together.
-- Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
-  (`sweep`/`line`/`shot`/`stream`/`grab`/`charge`), `input` (`tap`/`hold`), soft-target `cone`/`reach` and `move` (`RiderAttack`;
-  Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon, Gesomon). A rider has no target: `startRiderAttack` shares `beginAttack`
-  with the AI, aims at the soft target or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray
-  in third person too), and commits every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing.
-  Check with `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps
-  their hands and casts the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E
-  inside the command wheel (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a
-  ridden mob's server AI step, so `tick()` drives a rider's attack through `tickAttackTimeline`; never
-  put attack timing back into `customServerAiStep` alone. `RiderAttacks` replaces vanilla's mount
-  hearts with the attack tiles (`textures/gui/attack/<attack>[_off].png`, made by
-  `harness/v2/art/pixel_sprites/_attacks/make_attacks.py`), each in its own 20-unit frame one unit above the
-  experience bar, the 7x9 mouse glyphs together on their left in tile order (layout approved 20 September 2026).
-  `RiderControls` is the direct input: with a
-  free hand the mouse casts (attack hook + `MixinMinecraft.startUseItem`), R/G always, aimed attacks are
-  held and released. The rider's client owns a ridden mount's position and facing, so turn rate, the
-  swing's lunge and the strike's facing are played in `tickRidden`; the server owns targets, hits and
-  the input buffer. The middle mouse button is the wheel's: `PartyClient.movePickBlock` makes B the default of
-  vanilla's pick block (`KeyMappingAccessor`) and rebinds it once while it still shares the wheel's key. Getting on is an order, not a click: `mobInteract` no longer rides (the use button is the
-  special attack, so the click that mounted also cast). `PartyClient.aim` picks the own party Digimon under the
-  crosshair (24 blocks, hit parts included), it is outlined in blue (`AIM_OUTLINE`, set in `MixinEntityRenderer`),
-  the wheel opens on it, and Ride (`PartyActionPayload.RIDE` -> `PartyManager.ride` -> `DigimonEntity.giveRide`,
-  within `RIDE_REACH` = 6) takes Cancel target's place while it is not fighting. `RiderControls` ignores a button
-  that was already down when the rider took the reins or closed a screen. The rider's leg pose is catalog data
-  (`ground_models.json` `rider.pose` = leg pitch, splay, roll; Golemon sits, no pose = straight legs); only
-  `MixinHumanoidModel` reads it, so the first-person camera is untouched. Water: a land Digimon floats at 55 % of
-  its height (`getFluidJumpThreshold`), keeps every attack that does not need the ground (`wadingAttack`; the
-  spike wave does), paddles over prey it has no path to (`DigimonAttackGoal`), and under a rider floats by itself
-  and rises with the jump key (`tickRidden`). A sea mount (`body.mount.water_turn_rate` > 0, Seadramon, Gesomon) gets the
-  full water controls (`seaMount()`): forward follows the view to 70 degrees, jump rises and the dive key (C,
-  `DigimonEntity.localRiderDives`, client only) sinks, the surface holds the body unless it surges (`water_sprint`),
-  a surge through the surface is a breach, the rider's air refills. The surface is a float line (90 % of the height
-  under water, `floatLine`): above it the body settles back and its climb is damped (`surfaceAndHaul`; before, a swimmer,
-  which has no gravity, coasted up on its momentum and stood on the water). Pushing into a bank or a quay no higher than
-  `HAUL_ABOVE` (1.6) over the water, or a ledge under it, it hauls itself up at `HAUL_PACE` until its feet clear the top
-  and walks on (`haulsOut`; a floating body is never on the ground, so vanilla's step never helped it out). A surge
-  streams bubbles and sets off with a squirt on every client (`seaWake`, read from the body's travel). A swimmer shares
-  its sight: under water the rider's eyes adjust at a spectator's rate (`RiderControls.seaSight`, `LocalPlayerAccessor`).
-  A rider's shot under water leaves along the line to the aim, not held to `max_pitch` (`KineticSession.waterLine`).
-  Check with `DIGICUBE_SCENARIO=sea_mount_checks` (`[sea] RESULT n of n`, `DIGICUBE_SEA_TRACE=true` traces every check):
-  the server drives each sea mount with a fake rider's keys and view through the real ridden code
-  (`DigimonEntity.driveScenarioRider` makes the server simulate the ride, which vanilla leaves to the rider's client)
-  in a pool with a quay: cruise, surge, dive, the surface, the rise and dive keys, a breach, the haul-out, walking on
-  land and back in, and the rider's attacks afloat. A wrap is a rider move (`RiderAttack.Aim.GRAB`):
-  the server picks the prey near the crosshair (`grabPick`, synced as `DATA_GRAB_PREY`), the client outlines it
-  in magenta and lights the tile (dull = a press does nothing), one press lunges at it (`tickGrabLunge`) and wraps;
-  through lunge and wrap `getControllingPassenger` is null (`wrapOwnsBody`) so the server owns the body as it does unridden. Use
-  `rider()` for "who is in the saddle". Rule for mounts: the same pace ridden as alone, so new sheets leave
-  `body.mount.speed` out (`ridePace`); a species that must travel slowly but fight at pace gets `tactics.fight_speed`
-  (Seadramon: `base_speed` 0.07, fight 3.09; slowing its fights cost 30 points against Golemon). The sprint key gathers
-  its multiplier over most of a second (`gallopMomentum`); `body.mount.jump` leaps on a tap. Centarumon (design §7): a
-  `charge` is a server-owned burst (`DATA_RIDER_CHARGE`, `tickJetCharge`) that homes on the soft target picked at the
-  press, shoves the rest aside unhurt (only the buck strikes) and ends in the attack's kinetic kick committed at the prey (`KineticSession` buck
-  constructor); a `shot` with `input: hold` is drawn like a bow (`rider_draw_tick` in `kinetic_attacks.json` holds the
-  clip, `DATA_RIDER_DRAW` the charge) and with `move` loosed on the run: `upper_body` in `ground_models.json` names the
-  part whose subtree alone plays the attack over the gait, turned to the rider's aim up to `KineticSession.MAX_TWIST`,
-  and `twistShift` moves the muzzle to match. `charge_flames` names the clip and parts a charge burns. A four-legged
-  body sets `body.mount.turn_to_travel`: the strafe keys turn it into the way it goes and S reins it back, so it
-  always walks along its own length (a horse has no sidestep clip; sliding sideways is what that looks like), and
-  `camera_distance` brings the camera in. Its sound: `ground_gait.footfalls` silences vanilla's step per block, and
-  `HoofBeats` plays one clop where a hoof lands in the clips (`hoof_beats` in `ground_models.json`, touchdown and
-  lift-off phases per lattice column, measured from the clips offline), a pair landing within two ticks as one beat;
-  from half the run on, one vanilla gallop sample a stride, started on the first hoof after the flight and pitched
-  so its four hits (4.6 ticks) span the stride's own. The leap (`body.mount.jump`) is thrown forward and a little
-  higher by the pace (`LEAP_PUSH`, `LEAP_LIFT`), a leaper lands 3 blocks of fall free (`causeFallDamage`), and its
-  pose is the `jump` clip (authored by `harness/v2/out/centalmon/jump_01/author_jump.py`), driven on every client by
-  `DigimonEntity.tickLeapPose` from the body's own motion: takeoff and landing on time, the flight by vertical speed.
-  `body.mount.sprint_build` is how many ticks the sprint key takes to reach its full multiplier (Centarumon 45 to 2.8x;
-  the high jump, `LEAP_TOP`, comes in the last stretch of it). The charge fires in the air too (no gather, a small
-  thrust, its fall held while it burns), goes where the movement keys point (`riderKeysTurn`, the server reads
-  `ServerPlayer.getLastClientInput`), picks up an enemy crossing its path, and bucks from `BUCK_REACH` out: the buck is
-  the kick on a faster clock (`rider_kick` in `kinetic_attacks.json`, clip `jet_dash_buck` made from `jet_dash_kick` by
-  `harness/v2/out/centalmon/buck_01/make_buck.py`, rerun it after changing the clock) that skids and turns onto its prey
-  until the hooves swing (`KineticSession.homing`). Use `standing()`, not `onGround()`, inside a server-owned move: a
-  level `move` clears `onGround`. `rider.pose` may carry a fourth number, hips: px each leg is set further out.
-  Centarumon's gallop is `harness/v2/out/centalmon/gallop_02/make_gallop.py`: the approved gallop with each hoof's
-  stance played 1.5 times faster about its middle (same sweep, longer flight, stride 8 -> 12) and the legs re-solved so
-  every hoof stays planted, then the whole lattice rebuilt from walk and that gallop; it prints the `hoof_beats` table.
-  Rerun it (it keeps the approved clip as `backup_animation.json`) and change `run_stride` with it. The full gallop is the
-  ridden sprint's (`run_cycle_ticks` 10); the AI's run plays the lattice between walk and gallop.
-  A kinetic shot may have a `shot_style` (`ShotStyle`, `cannon` for the Hunting Cannon): the report and the burst are
-  server-sent sounds and particles, the trail is strewn by each client along the stretch the bolt flew. The particles
-  are `DCParticles`, flat pixel planes that tumble in 3D, drawn by `fabric/.../render/PixelPlaneParticle` (two quads,
-  since particles cull back faces); sounds are synthesised by `harness/v2/out/centalmon/cannon_fx_01/make_cannon_audio.py`.
-  A kinetic shot reloads from the moment it leaves (`cooldownUntil` is set again at the hit tick, the tile's clock in
-  `noticeShot`), so a rider may hold a drawn shot on the aim as long as they like, its tile lit until the shot; the
-  Hunting Cannon's is 6 s. Centarumon's mesh JSON is edited past its blend: the hind thighs' top-back edge sits 1 px
-  forward (`harness/v2/out/centalmon/haunch_fix_01/fix_haunch.py`, `measure.py` checks every clip), or the thigh tops
-  show through the rump's back face; redo it after any re-export.
-  A hanging chain is `ropes` in `ground_models.json` (`RopeChains`): links that are siblings under one frame part, each
-  placed on a verlet rope in the world, pinned at the first link's rest place, kept their rest distance apart, damped
-  in their swing about the anchor (world damping is drag and blows a galloping chain out level) and by friction between
-  links (each link's speed eased toward its neighbours', so a bend never runs down the chain and cracks the end like a
-  whip), bent at most 30 degrees a joint, pushed out of collider boxes through the face they came in by without being
-  flung (contact keeps the link's speed); a collider's own `radius` overrides the rope's, and one right beside the anchor
-  (the palm) needs a thin one or its margin snaps the top links round its corner on every stride. Links are posed
-  with their side axis carried down the chain, never taken from a fixed axis (that flipped links half a turn a tick);
-  clip keys on the links are overwritten. Centarumon's wrist chain is
-  one, pinned by `NativeCentalmonRegressionTest` (not yet registered as a task: run it with an init script).
-  A gait with no back clip plays its walk backwards when the body backs up (planted too). A walker steps down as it
-  steps up (`DigimonEntity.stepDown`): off a ledge no higher than `maxUpStep` with nothing lifting it, it is set on the
-  ground below in the same tick, so a hillside never freezes the gait mid-drop or plays a landing per block;
-  `rider_checks` ends with a Centarumon driven down six one-block steps at a canter, which must spend no tick in the air
-  (24 without the step down). A charge that reaches its prey in the air drops and bucks once down. Scaling a species changes
-  exported geometry baked at the old scale (`kinetic_motion.json`, `attack_motion`, `model_scale` in the attack data,
-  the seat): Centarumon went .325 -> .36 on 22 September 2026. Design: `../design/mounted-combat.md`.
-  Digmon (24 September 2026) rides on `NativeFlyingMountModel`, whose `<species>.presentation.json` holds the seat:
-  `rider_point` (model units in the frame of `rider_path`'s last part; Digmon sits on the shell's flat top), and the rider's
-  legs in radians as `MixinHumanoidModel` sets them (`rider_leg_pitch`, `rider_leg_splay`, optional `rider_leg_roll`,
-  `rider_leg_hips`); keep `body.mount.seat` at the rest pose's visual seat or the first-person eye sits apart from the body.
-  The model plays a rider's casts (the seat follows the brace). An approach draws its landing clip on
-  `DigimonEntity.landingProgress` (rendered height against the height the approach began at, so it starts from the flight
-  pose and meets the ground with the feet), and `AerialRiding` settles in at `.035 + .07 x height` a tick on the exact
-  `groundDistance`. Digmon's walk is generated, not keyed: `../harness/v2/out/digmon/mount_01/gen_walk.py` solves both
-  legs (thigh pitch and roll, shin, foot pitch/yaw/roll) so the stance ankle slides straight back at the body's pace with
-  the sole flat on the ground (drift 0.000 px on the written keys), 16 ticks, stride 4 units = .125 blocks a tick, which is
-  his walk, ridden and fighting pace (`run_speed` 2.21 and `tactics.fight_speed` 2.21, no `body.mount.speed`; measured
-  .124-.130 a tick chasing in a balance trace, where the attack goal's own 1.25 had left him crawling at .04); `install.py` beside it writes it and the flight feet
-  (the approved takeoff spun each foot -182 degrees; they now trail at 40) into `digmon.animation.json`, always from its
-  `backup_animation.json`. An authored attack may stack uses (`charges` in `authored_attacks.json`, Gold Rush 3,
-  `AttackCharges`): each cast starts its own refill of the cooldown and the body's cooldown clock says "ready now" while a
-  use is left, so the AI's choice, the wrap's looming check and saves need nothing else; the client mirrors the refills
-  from the starts it sees (`readyUses`) and `RiderAttacks` draws the count on a plate in the tile's corner, the next
-  refill only shading a tile that still has a use. `RiderAttacks` owns the mount-hearts slot for every Digimon mount,
-  flying ones included (`AerialMountClient` draws only the flight reserve, on the experience bar's row). Gold Rush is a
-  volley (`volley` in `authored_attacks.json`, `AttackVolley`): its volumes never strike; at `launch_tick` each drill leaves
-  as a `VolleyMissileEntity` from where the clip holds it (`attack_motion/gold_rush_volley.json`, written from the body's
-  own FK by `../harness/v2/out/digmon/gold_rush_02/make_volley.py`), coasts out, lights after its delay, homes on the
-  target or the rider's aim at up to `turn` degrees a tick until it passes it, and deals `power` of the attack per hit
-  (volley damage type, so all five land); `VolleyMissileRenderer` draws that drill's own quads from the species mesh,
-  spinning. The clip hides the drills at the release and grows them back (`mount_01/install.py` removed its shrink);
-  the effect keeps only the socket flashes (`gold_rush_02/trim_fx.py`). `rider_checks` casts it from 3 blocks inside its
-  16-block range too. Both moves use `"particles": "drill"` (`StrikeParticles.DRILL`): drill whine and an armadillo call
-  instead of the growl, a grind where a grounded burst bites the floor (`bite`), one rupture per volume as each opens
-  (`erupt`, Big Crack's seven sections), and the missiles' ignition, entity-bound whistle, trail and burst. The sounds are
-  synthesised by `../harness/v2/out/digmon/sound_01/make_digmon_audio.py`. A species' own voice (ambient, hurt, death,
-  pitch) is `data/digicube/voices.json` (`DigimonVoices`); without an entry a Digimon keeps vanilla's.
-- How a species fights *between* attacks is data too: the optional `tactics` block on the
-  species sheet (`DigimonTactics`: `hold_range`, `dodge_chance`, `reaction_ticks`, `strafe`,
-  `lead_ticks`, `press_impaired`, `prefer_close`, `charge_distance`, `charge_speed`, `fight_speed`, and the
-  skirmisher's `gallop`, `shoot_moving`, `dash_dodge`, `dash_engage`, `dash_escape`), read by
-  `DigimonAttackGoal` and `BlindGuardGoal`. A species without one closes in, never dodges and
-  keeps list order. The skirmisher knobs are Centarumon's (design: `../design/combat-balance.md` §7): `gallop` circles
-  and closes at the fight pace, `shoot_moving` looses a shot that has `move` in its rider data on the run (the goal keeps
-  the legs, `KineticSession.twists`, the client twists the upper body to `DATA_ATTACK_YAW`), and the jet of the species'
-  `aim: charge` move is the AI's too (`DigimonEntity.startJetBurst`): a charge that bucks an Exposed or impaired target
-  within `dash_engage`, a short burst aside from a wind-up or a shot, a burst out of a stream's reach (a sidestep never
-  escapes a stream, so only a jet answers one), and a getaway from a brawler inside `hold_min` or while blinded. The charge is a fight-only pace; a species' travel gait stays on its
-  `locomotion` sheet (Golemon's walk is pinned by `LocomotionRegressionTest`).
-  Dodging reads the opponent's wind-up (`activeAttack`/`attackTick`/`hitTick`; an aimed ground
-  wave is sidestepped late, just before its aim locks) and inbound projectiles server-side; a
-  wrap against a Digimon that fights us is timed (`DigimonEntity.wrapPunished`): a range-holding caster never walks
-  into a brawler for it but wraps one that has caught it (within wrap range + 1), and it waits out a heavy move
-  (power >= 1.0) that is under way or ready within `LOOMING_TICKS` = 10 (a wider window makes wraps rare and only
-  open when the fight is already won: rounds with a catch must stay under 80 % wins). The move itself: the coil follows prey up to .6 blocks a tick, ordinary
-  knockback does not shake the caster off (only a push of `ConstrictionMotion.BREAKING_PUSH` = 1.0 breaks the wrap
-  and frees the prey), squeezes are `digicube:crush_attack` (bypasses armour; each of the four deals power .08 plus
-  `ConstrictionMotion.CRUSH_SHARE` = 6 % of the prey's full health, so a hold costs about a third of any
-  champion, never most of it), and release leaves Digimon prey winded (no attack for 20 ticks); an inked mob cannot take or keep a target beyond three blocks
-  (`DCEffects.blindTo`) and acts on `lastSeenThreat` instead. `DIGICUBE_TACTICS=<species>:
-  key=value,...;<species>:...` overrides knobs per process for sweeps. Design and numbers:
-  `../design/combat-ai.md`.
-- Attacks are data on the species too: `DigimonSpecies.attacks` is a list of
-  `DigimonAttack` in **fallback priority order** (first ready + in range wins for ordinary
-  move sets). Frost bite/stream pairs use `IceCombo` to choose from target mark,
-  resistance, fuel and range; they reposition to clear the muzzle before emission.
-  A frost stream with no bite beside it (Seadramon) never freezes: a second of landed
-  contact charges **Cold** on the victim (`CombatMarkState`, slowed movement for
-  `IceCombo.COLD_TICKS`, topped up by further contact, melted by fire), and its wrap may
-  take any prey, Cold or not. Combat marks are tracked for every living entity in one
-  packed int (`MixinLivingEntity`) and drawn as emblems above the head by
-  `fabric/.../client/render/CombatMarkBadges`; add a mark there, not as a new synced field.
-  Readiness also requires a viable attack path: `AttackGeometry` checks authored
-  contact and launch clearance; `DigimonCombatPosition` finds reachable attack spots
-  when elevation or cover makes the current position unusable. Preserve these checks
-  when adding moves, and keep client/server mouth geometry identical.
-  Timing, power and
-  cooldown live there; `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks
-  the move. The client animation is looked up by the attack id path, so an attack named
-  `digicube:claw` needs a harness animation called `claw` (plus `claw_mirrored` when it
-  alternates sides). Author animations in `../harness` (README §3c), never by hand in Java.
-  Animations ship as data: `assets/digicube/models/entity/<name>.animation.json`, read by
-  `NativeAnimationSet` (linear keys, or `"interpolation":"catmullrom"` for Minecraft's own
-  spline). A harness export that still produces a `*Animations.java` keyframe class is
-  converted with `../harness/tools/native_animation.py java-to-native` and the class is
-  never committed. Every export goes through that tool's `simplify` (bounded-error key
-  reduction) and motion tables through `round-motion`; the `assetTest` build check fails on
-  dense or unrounded tables, because they multiply the jar size for no visible gain.
-  `assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no
-  same-facing faces on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they
-  flicker in game). All nine species are clean since 2026-09-18 and
-  `AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty. Find with
-  `../harness/v2/tools/coplanar_poses.py <mesh> <animation>`, repair an export with
-  `fix_coplanar.py` next to it (rule and Blender-side check: `../harness/v2/docs/surfaces.md`);
-  `install_assets.py` refuses such a mesh too.
-- An authored burst can be **summoned at the target** instead of drawn from its caster: `anchor_lock_tick` in
-  `authored_attacks.json` (Gotsumon's Comet Hammer). Its effect and volumes are exported relative to the landing
-  point. `DigimonEntity.strikeAnchor()` (synced block + fraction) follows the floor under the target, led by its
-  pace up to 1.5 blocks, until the lock tick and then stays: walking out from under the warning is the dodge.
-  `AuthoredVolumeAttack` holds the rules (`landing`: floor within 3 blocks below the target, a swimmer is struck
-  where it floats; `canReach`: sight of the target and the last three blocks of the way in open, along
-  `anchorApproach`, the place the leading volume first hangs; `visible`: nothing falls through a roof; damage needs a clear line from the stone to the victim) and the renderer offsets the effect by the
-  same point, so keep `culling_margin` at the attack's range. `contact_parts` lists effect cells a miss never shows
-  (`DigimonAnimationEvents.CONTACT`), and a mirrored cast plays the effect's `effect_mirrored` clip when it has one.
-  Victims are thrown away from the landing point with a small pop upward. `"particles"` (`StrikeParticles`, `stone`)
-  adds server-sent trail, release, contact and landing particles and sounds to any authored volume; the first volume
-  of the move is the one that trails. A style also voices the start of its move in place of the shared growl
-  (`windUp`), so a small friendly Digimon does not sound like Golemon. A fist may carry margins around the drawn hand (Gotsumon: 0.35 ahead over its
-  smear); `:fabric:nativeGotsumonTest` pins those, the drawn stone and the fists against the server's cuboids.
-
-- A sweep may **travel** and a burst may **jump** (Dinohyumon). `root_travel: true` on a `BOX_SWEEP` makes the server
-  drive the caster along the motion's `travel` curve like a horn charge (the exporter strips that translation from the
-  root track and exports effects and volumes relative to the moving root), the facing keeps turning after the victim
-  until the last hit window, and the client chases at the lunge rate through the travel. `leap: {launch, land, lead,
-  apex}` on a `BOX_BURST`: at `launch` the server plans a parabola (`AuthoredVolumeAttack.arc`) from the feet to the
-  floor `lead` blocks short of where the target will be (a victim already inside that reach is struck from a short hop
-  back) and flies it as a closed loop each tick (`tickLeap`, blocks still stop the body, gravity is cancelled by
-  leaving exactly one tick of it on the velocity); the facing is settled at launch; `canReach` needs the landing floor
-  within five blocks of the caster's own and the whole arc free of blocks. Hit windows must start after the landing.
-  `"particles": "steel"` is the blade style. A species with a `run` clip blends it over `walk` by `groundRunAmount`,
-  both on the shared gait phase (`run_cycle_ticks` / `run_stride` on the sheet). Hanging cloth is client data:
-  `cloth` in `ground_models.json` names a hinged chain of parts (never keyed by any clip) and collider points
-  (model px in a part's own frame); `ClothChains` simulates pitch and roll pendulums under gravity, the hinge's
-  acceleration and air drag, then holds every segment in front of the colliders within its reach. State is per
-  entity in `DigimonRenderer`. `:fabric:nativeDinohyumonTest` pins the blades, the buried sword, the cloth's hinges
-  and that a forward thigh pushes the cloth forward.
-- Agumon is a native model (harness `out/agumon/motion_02` clips, installed by `integration_01`; the body is
-  `mouth_quality_01` since `integration_02`, whose `retarget.py` recomposes the hand keys onto a changed hand rest:
-  rerun it after any rest change); the Java `AgumonModel` and
-  the billboard `PepperBreathModel` are gone, and Agumon's native body at Agumon's scale is the fallback for a species
-  without a model. Two catalog keys in `ground_models.json` are generic: `look` turns one part by vanilla's head yaw
-  and pitch within limits (faded out as an attack blends in; `carry` hands shares of it to parts further down the chain,
-  each within its own limits: Mojyamon's face sits on its chest, so its waist takes three quarters and the head six
-  degrees, and a head turned alone buried the face in the fur; `body.head_turn` on the sheet, `getMaxHeadYRot`, then
-  brings the whole body round past 24 degrees), and `attack_effects` draws clips of one effect model in
-  the caster's frame while the attack animation of the same name plays (Agumon's mouth ember and claw streaks). A
-  FIREBALL move charges and fires from `attack_motion/<attack>_muzzle.json` (`FireballMuzzles`: mouth and head per
-  sub-tick), kept apart from `motion()` so the fireball keeps its own positioning rules; the ball's box centre, where
-  its core is drawn, leaves the snout. A hit holds the ball still for `PepperBreathEntity.IMPACT_TICKS` to play
-  `fireball_impact`, with no further collision. `:fabric:nativeAgumonTest` pins the drawn snout to the server's table.
-  Pepper Breath flies dead straight (no homing, 25 September 2026): hitting a moving body is the shooter's skill.
-  `TargetMotion` reads the target's last second (pace and rate of turn, falls under gravity, walls) and measures how well
-  that reading has foretold the last few ticks; through the wind-up the body turns onto the meeting point by
-  `FIREBALL_TURN` degrees a tick and commits it through `DATA_ATTACK_YAW` (the renderer draws that facing), and a shot
-  is only started while the reading can be trusted over the flight (`fireballWorthIt`: a juker is shot from closer).
-  The claw is a leaping burst (`authored_attacks.json` `claw`, clips by `../harness/v2/out/agumon/claw_leap_01/author_claw.py`,
-  which also writes the claw volume, the motion markers and the streaks): crouch, pounce, a diagonal chop outside the
-  cheek and across the front as it lands, either hand in turn. A leap's `edge: true` measures its lead from the target's
-  side, so a short reach lands as close to Golemon as to a player; every leap now aims at where `TargetMotion` puts the
-  victim at the landing and settles the facing there. Check with `DIGICUBE_SCENARIO=agumon_checks`
-  (`[agumon-checks] RESULT PASS`: balls landed per movement kind, facing error, leaps landed from 1.2 to 3.6 blocks,
-  no blow before the landing, the Burn a ball leaves and water putting it out).
-- Glows over water: 26.2 draws translucent entity models and custom geometry *before* translucent terrain, so a glow
-  that writes no depth (vanilla `entityTranslucentEmissive`, any additive pipeline) gets water and ice painted over it
-  and looks sunk below the surface. Use `AfterWaterEffects.glow(texture)` instead of `entityTranslucentEmissive`, and
-  give a custom glow pipeline's `RenderSetup` `AfterWaterEffects.TARGET` (`EvolutionRenderType` does for its additive
-  types): `MixinSubmitNodeCollection` moves those into vanilla's after-terrain phase (where translucent particles go),
-  and with improved transparency they draw into the water layer. Like vanilla particles, a glow under a water surface
-  is then hidden from above it. Depth-writing `entityTranslucent` effects are left before the water on purpose, so
-  submerged fish and bubbles still show through it.
-- A body can **hover** on fins instead of walking (Bukamon, `pukamon`): `locomotion.hover.fall_speed` (`DigimonLocomotion.hovers`).
-  It is still a ground mob with ground navigation and the whole combat planner; the model is exported lifted above
-  the entity's feet (root `24 - lift` px, `harness/v2/out/pukamon/integration_01/source/export_native.py`, lift 1.5
-  native units = 0.3 blocks) and the hitbox covers the gap. Off a ledge it glides down at `fall_speed` (`glide`), it
-  takes no fall damage and makes no footsteps, and its travel clip (`fly`, shipped as `walk` on the ground gait) keeps
-  playing off the ground. This is not burst flight (`locomotion.flight`, Tentomon): it never climbs.
-- Thrown weapons (Mojyamon, `data/digicube/thrown_attacks.json`, hand anchors in `thrown_motion/<species>.json`;
-  design `../design/mojyamon-integration.md`). `RETURNING_THROW`: a bone carried on the back (`carried` part in
-  `ground_models.json`, synced `DATA_BONE_CARRIED`) flies a `BoomerangPath` fixed at the release (out to the range, back
-  to a catch point `catch_side` blocks aside; in height it dips from the hand to `cruise_height` and comes home at the
-  catching fist's height), striking each enemy once each way; caught on the last `catch_window` of the return, otherwise
-  it drops and is picked up or regrows after `drop_ticks`. The catch clip starts when the bone will be within
-  `catch_radius` of the fist on the clip's contact tick (the hands set and reach while it flies on; only its last two
-  ticks blend into the fist), so the brain must have the fist in place that contact lead early. It is drawn spinning
-  about an axis that leans from nearly upright off the hand, into its turn, to flat coming home
-  (`BoomerangEntity.spinAxis`). The throw and catch follow `../harness/v2/out/mojyamon/motion_01/review/throw_research.md`
-  (overhand, stride, hips before trunk before arm, two-handed catch beside the body). Keep a big body's width off
-  exactly 2.0: vanilla steers to path node + `(int)(width + 1) / 2`, which jumps half a block there, and the facing
-  walk then circles a spot it never reaches (Mojyamon is 1.95).
-  `CHARGED_THROW`: formed, held (charge over `charge_ticks`) and thrown on a solved ballistic arc (`Ballistics`); every
-  number is a [tap, full] pair; ground travel is capped at the walk while forming or holding
-  (`DigimonEntity.capChargingPace`) and a blow breaks a charge past `ThrowerState.BREAKS_ABOVE`. `ThrowerState` runs
-  the stages (it owns `activeAttack` for them: `tickAttackTimeline` skips them) and plays the clips on the sustained
-  channel; a clip whose name is a blend (`icicle_hold`, `icicle_throw`) mixes by the synced `DATA_THROW_CHARGE`.
-  Thrower clips play on the upper body over the gait (`NativeGroundModel.thrownPerformance`), so `upper_body` must not
-  carry the legs: Mojyamon's hierarchy is re-rooted (mojyamon > pelvis > waist > body). The AI is `ThrowerBrain`
-  (throw planning over headings/sides/ranges against predicted enemies and a reachable catch, catch interception,
-  fetch, charge by expected damage per tick, openings), walking facing its enemy through `FacingWalk` and
-  `DigimonMoveControl.walkFacing`; `ThrowerFetchGoal` catches and fetches out of a fight. The generic chooser never
-  starts thrown attacks (`canAttackFrom` refuses them). Check with `DIGICUBE_SCENARIO=thrower_checks`
-  (`[thrower-checks] RESULT n of n`) and `:fabric:nativeMojyamonTest` (drawn fist vs server anchors). Animations are
-  generated by `../harness/v2/out/mojyamon/motion_01/source/author.py` (planted IK gait, props, clips) and shipped by
-  `rebuild.sh` there (bake, export, `fix_coplanar.py`, install); never edit the installed JSON by hand. The bone's arms
-  (throw, catch, pickup; revision 3, 2026-09-25) are then re-keyed without Blender by
-  `../harness/v2/out/mojyamon/motion_02/author_arms.py`: two-bone IK in the body's frame from wrist arcs about the
-  shoulder, bone and finger directions and an elbow pole, eased by monotone cubic; it also rolls the in-hand bone 60
-  degrees about its own axis in the mesh (as exported the fist met the bone on the back inside the shoulder mantle)
-  and rewrites the three bone anchors in `thrown_motion`. `check.py` there measures how deep each arm segment sinks
-  into the torso and head and draws contact sheets with the offenders in red. Its arms are 39 px on a 44 px torso: a
-  hand cannot cross the body, so the throw releases beside the head and the catch is two-handed across the chest's
-  front with the elbows out. The Icicle Rod's five clips are rebuilt the same way by `author_ice.py` beside it (which
-  `author_arms.py` runs last): a javelin throw, the spear held high over the right shoulder clear of the head and aimed
-  at the target, the glove arm pointing, the charge winding the trunk further back (light and heavy share key times and
-  euler branches so the game's linear charge mix stays between them; form end = hold start = release start, since the
-  game switches those clips without blending); `ice_check.py` measures and draws them per charge. After a Blender
-  re-export delete `backup_*.json` there and rerun `author_arms.py`.
-  Ridden (2026-09-25), thrown weapons go through `ThrowerState` too, never `beginAttack`: `startRiderThrow` throws the bone
-  at the crosshair (`ThrowerBrain.riderThrow` finds the heading and turn that pass through the soft target or the
-  crosshair's spot, both ways if it can, re-aimed every tick of the wind-up), curving home on the side of the strafe key
-  held (left without one); a press beside a lost bone picks it up; the icicle forms and grows while the button is held
-  (`ThrowerState.riderHold`: no auto-release) and goes on release at the crosshair, led. The ridden tick runs
-  `thrower.tick` (no AI step under a rider). The rider's client caps its own pace while the ice is in hand
-  (`chargingPaceCap`; the server's `capChargingPace` would fight the client), stands for the pickup (`riderAttackLocked`),
-  and squares the body to the crosshair during the wind-up (`THROW_TURN`). `RiderControls.catchRing` draws the bone's home
-  as a frost ring for the rider; the bone's tile fills as it flies home and shows the regrow when lost
-  (`BoomerangEntity.regrowIn`, synced `LOST_AT`). The rider sits on the crown (`rider` path ends at `head`, found by
-  `../harness/v2/out/mojyamon/mount_01/search.py` against every clip: the arms, bone and spear never touch the rider),
-  and a look part that carries its rider does not look around (`NativeGroundModel.ridesLook`).
-  Harder throws (2026-09-25), rider and AI alike. The bone is `input: hold`: tapped it goes as before; held, the throw
-  stops cocked at `hold_at` (`BONE_HOLD`, clip blend `bone_hold`, the charge on `DATA_THROW_CHARGE`) and goes on release
-  (`BONE_RELEASE`, blend `bone_release`, the bone leaves at 3); the charge (`charge_ticks`) stretches the reach from
-  `max_range` to `far_range` (`Returning.reach`), the pace and the power (`charge_speed`, `charge_power`) and moves the
-  release fist to `bone_release_heavy` in `thrown_motion`. Either weapon leaves the hand harder for the body's own
-  motion (`ThrownAttacks.impulse`: `air_boost` more from a leap, plus the pace along the throw as a share of its speed, 40 %
-  at most): pace, reach, power and knockback go with it; `ThrowerState` measures the body's travel and air time itself
-  (a ridden body's position comes from its rider's client). A bone thrown from a leap cruises over the floor it left
-  (`BoomerangPath.floor`), and its far turn climbs or sinks toward the aim (`lift`); `pace`, `floor` and `lift` are synced
-  on the entity. Thrown weapons fire in the air (`startRiderAttack`). Mojyamon leaps (`body.mount.jump` 0.52): the jump
-  clip layers over any ground gait (`NativeGroundModel.applyGround`; before only gallopers had one) and keeps the legs
-  under a thrower's performance. A ridden body walking onto its lost bone picks it up with no press (`pickUpUnderRider`),
-  and every pickup stands only until the bone is in the fist (`ThrowerState.PICKUP_STANDS`). While the wind-up is held
-  `RiderControls.turnMark` draws where the bone will turn. The AI (`ThrowerBrain`) weighs every bone throw at charge
-  0, .5 and 1, standing or from a leap, the icicle standing or from a leap, and takes off `LEAP_LEAD` ticks before the
-  weapon leaves the hand (`DigimonEntity.leapForThrow`), at most every `LEAP_EVERY`; `thrower_checks` has `far` (a
-  charged throw past a tap's reach) and `leap` (a throw from a leap past a full charge's), `rider_checks` a held far
-  throw, both weapons from a leap and the walk-over pickup. The clips are generated without Blender by
-  `../harness/v2/out/mojyamon/mount_02/author_bone_charge.py` (a heavy throw built like the tap one, both cut at the
-  hold) and `author_jump.py` (key poses, the feet planted by leg IK through the landing); `author_arms.py` runs both.
-  Gesomon (25 September 2026) is a sea mount: the rider sits astride the mantle's peak behind its top tier, which is the
-  pommel (`rider` on `mantle_tier_5`, legs straight down the stepped flanks rolled out 0.9 with hips 2.5; sheet seat
-  `[0, 4.16, 0.16]`, `water_seat_offset` `[0, -0.22, 0.91]` because a ridden swimmer keeps its swim pose, which carries
-  the peak forward). Found offline by `../harness/v2/out/gesomon/mount_01` (`fk.py` poses the installed mesh as
-  `NativeGroundModel` does, `search.py` scores seats and leg poses, `review.py` checks every clip; the long arms never
-  come within 32 model px of the rider). In water the body pitches with the view about the rider's seat
-  (`ground_models.json` `pitch_path` `["root"]`, `pitch_at_rider`, `ridden_pitch` 45; `swim_pitch` 0 keeps the wild one
-  upright as before): the rider and the first-person eye stay put and the body swings under them, and an attack takes
-  the body level as it blends in (`divePitch`). Devil Bashing is the quick button (`sweep`), Deadly Shade the special
-  (`shot`, down or up at any angle under water). `:fabric:nativeGesomonTest` pins the drawn seat to the sheet's, on land
-  and afloat, and that the pitch leaves the rider in the saddle. Open: his walk clip is planted to 0.03 blocks a tick and
-  he crawls at 0.26 (alone and ridden), so the short arms slide on land.
-- Ownership: `DigimonEntity` implements `OwnableEntity`; `/digicube give <species> [player]`
-  spawns a partner (a Champion at no less than `Progression.CHAMPION_LEVEL`: below it the party stores it for evolution
-  on its first tick, so it used to vanish on arrival). Owned Digimon follow their tamer and join their fights.
-- Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as a thin
-  ray (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a
-  big fireball drawn one block wide would miss like a needle. `PepperBreathEntity` is the
-  pattern: the shooter aims at where the target will be (`TargetMotion.intercept`) and
-  faces it, and the projectile sweeps its own box for hits before `super.tick()`. It does
-  not steer: Ricardo wants a straight shot a player can dodge, and an AI that is good at
-  leading. Tune those before touching speed or hitbox size.
-
-- Progression: every balance number of levels, XP and rest (the curve, stage yields, the
-  level-gap multiplier, stat scaling, the damage-proportional split and the Digivice
-  regeneration pulse) lives in
-  `Progression`, next to the attribute triangle, and `:common:progressionTest` asserts
-  the tables in `../design/wild-spawns-and-progression.md`. Never put a balance
-  constant anywhere else. `DigimonEntity` holds `level` and `xp`; a wild Digimon's
-  `DamageLedger` records the health it lost to each partner, and `ExperienceAward`
-  splits the yield at the end of `hurtServer` on the killing blow (vanilla calls `die`
-  from inside `hurtServer`, before the last hit could be recorded).
-- Healing in survival: a partner stored in the Digivice regenerates slowly
-  (`PartyManager.regenerateReserve`, one pulse per `Progression.RESERVE_REGEN_INTERVAL_TICKS`
-  while the tamer is online, full in `RESERVE_FULL_HEAL_TICKS`); a defeated partner first
-  rests `DEFEAT_REST_TICKS` (`PartyMember.restTicks`, saved, shown as a countdown in the
-  Digivice) and then heals from zero; deployed partners heal only through play and
-  `/digicube heal` skips the rest.
-- Creative is test play (`PartyManager.creative`, the owner's game mode kept on the party session): a Champion needs
-  no Rookie return form to be given, deployed or selected, and every partner's DigiSoul stays full with no evolution
-  cooldown (`EvolutionController.tick`, `PartyEvolution.tick`), so an evolved form lasts as long as testing does.
-  A Champion with no Rookie behind it offers no Revert. Survival keeps every rule.
-- Wild spawning is data too: `data/digicube/spawn_tables.json` lists one
-  `data/digicube/spawn_table/<dimension>.json` per dimension, loaded and validated at
-  startup by `BundledSpawnTableLoader` and covered by `:common:spawnTableTest`.
-  `WildSpawner.tick` is loader-neutral and runs from the loader's end-of-level-tick
-  hook; its settings are the `digicube:wild` saved data edited with `/digicube wild`.
-  Wild Digimon are neutral: they only retaliate, and only attack-less species flee.
-- The Digivice is handed out, never crafted: `StarterFlow.handDigivice` (common) runs first
-  on every join and gives one to any non-spectator the `digicube:starters` data has not
-  marked yet, so it is one per player per world and legacy tamers get theirs too. `Digivices`
-  binds that item to an owner and rotating credential in the world's `DigiviceSavedData`;
-  extras and stale copies are rejected, foreign devices cannot authorize the UI or be picked up. A player is never left
-  without one: an unbound Digivice (creative tab, command) reaching an inventory whose device is not with its owner
-  becomes the device (`Digivices.reconcile`, the old credential revoked by `Digivices.revoke`). A device neither held
-  nor dropped is found by `DigiviceStorage` around where it was last seen (`DigiviceSavedData.seen`, updated from hands
-  and open menus): containers in the 5x5 chunks there (the 3x3 loaded for it), item-holding entities within 40 blocks
-  (minecarts, frames, mob hands, pack animals), shulker boxes and bundles inside them, then the owner's ender chest.
-  The chip takes it from there and it flies out (the lid opens, `DigiviceStorage.open`; a device inside a block leaves
-  through its open face, `RecallPath.surface`). Nowhere found, it is summoned from the ledger's stack snapshot, straight
-  down out of the sky. The old copy is dead: any container a player opens drops revoked copies at once. Partners live
-  in the Digivice: the tick it leaves its tamer, `PartyManager.checkDevice` sends every deployed partner to the
-  Digispace (a mount carrying its rider waits until they are down) and nobody is deployed or given out meanwhile. The
-  creative inventory's cursor is client-only, so the client reports a Digivice held there (`DigiviceCursorPayload`,
-  believed only in creative) and creative alone waits `CREATIVE_GRACE_TICKS` (3) for that report.
-  `DroppedDigivice` replaces ordinary item drops, settles face-up, sinks in liquids, survives
-  damage/despawn and floats at minimum Y + 1 above the void. Saved drop addresses feed the
-  client golden locator up to 512 blocks without chunk tickets. The beam waits eight ticks after
-  settling, then fades in over eight; pickup explicitly withdraws its signal. The owner's drop
-  gets a distinct Digivice icon in the vanilla locator bar, even beyond beam range in the same
-  dimension. `/give <player> digicube:digivice` replaces that owner's existing credential/device
-  via `MixinGiveCommand`, never creates an additional device. Headless checks:
-  `digivice_checks` and `digivice_checks_reload`; design: `../design/digivice-item-lifecycle.md`.
-  `RecallChip` recalls the owner's dropped device into the used hand with no distance/dimension limit or chunk tickets.
-  The packet goes to the owner and, without the credential (`withoutToken`), to every player near enough to see them;
-  `RecallVisuals` keeps one recall per recipient entity id. The owner's first-person view plays it as below; any other
-  camera (their own third person, other players) flies it as a plain world motion (`RecallFlight.View.body`, no
-  squeeze) into the hand the player model draws, read each frame by `MixinItemInHandLayer` (`thirdPersonDisplay` on the
-  hand anchor), which also hides that hand's item until the landing; `thirdPersonHeld` is the resting hand until it is
-  drawn. The chip breaks and the catch flashes there, billboarded; watchers hear the cues from that hand.
-  The ledger snapshots stack components and revokes the old token before delivery; chip remainders require a free slot.
-  `RecallMotion` breaks the chip's exact pixels apart; `RecallFlight`/`RecallVisuals` keep the dropped model's world pose,
-  spin it up to a hover and fly it from where it lies (within the receiver's view distance, `RecallChip.flyRange`, sent in the packet so the cooldown matches: a device the player can see never vanishes; a long flight holds about 45 blocks a second), or bring it in from the remote source's bearing after a distance-based wait
-  capped at 4 seconds. `RecallPath.Planner` plans the route on the client: open arcs first, then (over 24 blocks) a skyline arc over the upper hull of the terrain under the line, else an open-air-only cell
-  A* over a wide area (run in 1.5 ms slices per frame, finished on demand), then a digging A*, smoothed with centripetal
-  Catmull-Rom; only a buried device (straight up) or a sealed room crosses blocks. A distant device enters 24 blocks
-  out along a line of open air nearest its bearing (steeply from the sky in a ravine). `RecallFx` draws the shooting
-  star (per-vertex-coloured streak, glinting head, stateless stardust) with the beacon shader; the four cues are
-  `DCSounds.RECALL_*`, synthesised by `harness/v2/out/digivice_item/recall_audio_02/MakeRecallAudio.java`
-  (plain Java, Ogg through the harness's libsndfile via FFM), and the flight rush follows the device. The flight ends exactly
-  on the held pose (no separate catch lerp); near the eye it moves to the hand pass. Note the 26.2 hand pass's pose stack
-  starts with the *inverse view rotation* (`GameRenderer.renderItemInHand`), so a view-space matrix must be premultiplied
-  by the camera orientation, and `RecallFlight.handMatrix`'s view-space squeeze makes both passes project identically.
-  `RecallJourney.arriveAt` is when the device lands: the server cooldown ends there, and until then the device is hidden
-  from every slot drawing and the item-name banner (`MixinGuiGraphicsExtractor`, `MixinHud`). Custody is already safe in
-  inventory; source chunks are never loaded for visuals.
-  Verify `recall_checks` (lost and stored devices, creative-tab replacement, partners without the device), `recall_checks_reload`,
-  and `fabric:recallReview` (flight/packet/projection checks, the view from outside; `outside_*` frames with evidence).
-- The first partner is a prompt, not a command: `StarterFlow` (common) decides
-  eligibility (not a spectator, no `digicube:starters` record, no owned Digimon), writes
-  the record first and then grants through `PartyManager.give`; the candidates and their
-  level are `data/digicube/starters.json`, loaded by `StarterSet`. Common code sends
-  payloads through `Services.PLATFORM.sendToPlayer`, so a command can open the prompt
-  without a loader import. The Fabric adapter only registers payloads and join/leave
-  hooks. `:common:starterTest` covers the rules; the `/digicube` root has no permission
-  requirement, each operator subcommand carries its own.
-- Screens follow the DigiCube GUI language in `fabric/.../client/gui/`: `DigiTheme`
-  holds every colour and knob, `DigiPanels` draws chamfered frames, brackets, the data
-  grid, data squares, platforms and buttons with `fill` only, and `DigimonPreview` draws
-  a client-side `DigimonEntity` (never added to the level, never ticked; the screen bumps
-  its `tickCount`, `markGuiPreview()` hides nameplate and shadow) through
-  `GuiGraphicsExtractor.entity`. Widgets extend `AbstractButton` for focus and narration;
-  screens do not pause; layouts are integer GUI units validated at 320 × 240.
-- The Digivice (`fabric/.../client/digivice/`) is the device itself: `DigiviceScreen` draws the pale blue shell, its
-  three blue keys (Q previous tab, E next tab, Esc power) and the display, on a fixed 480 × 270 plate that is centred,
-  doubled on a large screen and shrunk to fit a small one. Controls are immediate: while drawing, a tab declares what
-  can be clicked (`hit`) and scrolled (`wheel`) and the topmost declaration under the pointer wins. `DigiviceKit` holds
-  the components (the primary action wears the device's blue key, the rest stay navy), `DigiviceArt` the palette and
-  the pixel art, painted in code into `DynamicTexture`s on first use. **Analyzer** (`AnalyzerTab`, `AnalyzerIndex`)
-  lists every species with search and attribute filter, shows the selected one on an LCD (icon, or the turning model
-  through `DigimonPreview` on VIEW 3D) with stats, attacks and evolution line; profiles are the lang keys
-  `digimon.digicube.<id>.profile`. A species is known when the tamer owns it, came from it or has reached it
-  (`PartyManager.knownSpecies`, sent in the snapshot while the Digivice is open); unknown ones are silhouettes, and a
-  development environment knows them all. **Digispace** (`DigispaceTab`) is where the party is managed: the reserve
-  wanders a painted island (`DigispaceWorld` decides ground and props and paints the terrain, `DigispaceArt` the
-  props, `DigispaceHerd` who stands where, `DigispaceCamera` zoom and pan), the cursor is a glove, a click selects a
-  Digimon and slides its card up (Analyzer entry, and the Rookie origin of a Champion that has none), dragging one
-  slides the party dock up and dropping it on a bay sends `SELECT`; with the dock pinned by the PARTY key a partner
-  can be carried back to the island (`SELECT` -1, never the last one) or to another bay, where two partners trade
-  places (`PartyRoster.select`). Where a Digimon stands is cosmetic and client-side; the server only knows the
-  reserve. The snapshot page (`PartySnapshotPayload.PAGE_SIZE`) is large enough to show an ordinary reserve at once.
-  `:fabric:digiviceTest` pins the island, the camera and the herd, and with `-PdigiviceEvidence=<dir>` writes the
-  painted island and props as PNG.
-- The developer panel is tooling, not a player feature, and not a command front-end: its one
-  job is calibrating mechanics in play. It has no key. In a development environment the
-  command wheel shows a gear in the bottom right corner (`DevGear`); resting the cursor on
-  it opens `DevPanelScreen`, centred and translucent, and Esc closes it. The panel draws
-  what `DevTabs` declares: tabs, each tab a scrolling column of section cards with an index
-  on the left, each card ending in its own action bar, and a search in the title bar over
-  every tab, section and config (`DevSearch`). `DevCatalog` is the single place that
-  declares content. A plain tuning section is one chain (`tab(..).section(..).number(..)
-  .toggle(..).choice(..).tuning(..)`) over `DevValue`s and needs no interface code; a special
-  body implements `DevBody` and registers its controls on the `DevCanvas`
-  (`BattleTestingBody`). Sections marked `example()` are placeholders whose values live only
-  in the panel; wire one by giving its rows a `DevValue` that reads and writes the real
-  number. `DevLayout` holds the arithmetic; `:fabric:devPanelTest` pins declarations, search,
-  cards, the tab row and number rows. Server side: `DevPanel.handle` (common) admits, in a
-  development environment only, an operator or the singleplayer world owner (a survival
-  world made without cheats gives its host no permission level, and survival is where the
-  balance testing happens); `DevActions` is the registry of server actions, each a
-  `(server, player, args) -> reply` lambda. The two payloads (`DevActionPayload`: action id
-  + argument tag, `DevStatePayload`: state tag + reply) never change when an action is
-  added. Battle Testing (`BattleTest`) stages two sides of wild Digimon in front of the player
-  (`BattleRoster`: up to four kinds a side, each a species, level and count, at most 40 bodies,
-  in ranks), keeps every fighter on the nearest enemy and lets them fight until a side is down
-  with their real stats; the readout travels in the state tag every five ticks and
-  `BattleReadout` draws it as a HUD bar. A staged fighter carries its side
-  (`DigimonEntity.battleSide`, synced): team-mates spare each other, and one that can carry a
-  rider takes any player on a right click (`mobInteract`) and hands them the reins; this is the
-  only place a right click mounts, never outside a developer fight. Check with
-  `DIGICUBE_SCENARIO=battle_checks` (`[battle-checks] RESULT n of n checks passed`).
-
-Species are loaded from the bundled `data/digicube/species.json` catalog and
-`data/digicube/species/*.json` sheets by `BundledSpeciesLoader`, on both sides at
-startup. Add species as data; do not add species constructors to
-`DigimonSpeciesBootstrap`. Attack ids reference shared moves in the bootstrap, in
-priority order. The next architectural step is datapack reload support plus server
-catalog synchronization; the current classpath loaders do not process `/reload`.
-
----
-
-## 10. Commands
-
-Run from the repository root. On Windows use `gradlew.bat`; the examples below use the
-POSIX form.
-
-```bash
-./gradlew build
-```
-
-```bash
-./gradlew :fabric:runClient
-```
-
-```bash
-./gradlew :fabric:runServer
-```
-
-```bash
-./gradlew clean
-```
-
-```bash
-./gradlew --refresh-dependencies
-```
-
-`build` compiles and assembles the jars and is the gate before calling anything done.
-`runClient` and `runServer` launch Minecraft with the mod already loaded.
-`--refresh-dependencies` is needed after changing versions in `gradle.properties`.
-
-The first `build` downloads and decompiles Minecraft and takes **10–30 minutes**.
-Later builds take seconds. Shipped jars land in `fabric/build/libs/`; ignore the
-`-sources` and `-javadoc` ones.
-
-Dev-run game files (worlds, logs, configs) live in `fabric/runs/client/` and
-`fabric/runs/server/` and are git-ignored. Crash logs are at `runs/*/logs/latest.log` —
-**read the actual stack trace before theorising about a cause.**
-
----
-
-## 11. Definition of done
+## 4. Definition of done
 
 Before reporting a change as complete:
 
 1. `./gradlew build` passes.
-2. **Test headless whenever the outcome can be read without eyes.** If the change runs
-   on the server and its result shows up in world state, entity state or the log, stage
-   it with a scenario (below) and quote the verdict lines in the report. Combat, attack
-   selection, navigation, effects, spawns, levelling, timers and server-side rules all
-   qualify. Extend the runner when the situation you need does not exist yet; that is
-   part of the change, not optional. A change that makes a scenario slower or fail is not
-   done. Only what needs a screen or a real player's hands is left to manual testing.
+2. **Test headless whenever the outcome can be read without eyes.** If the change runs on the server and its result
+   shows up in world state, entity state or the log, stage it with a scenario ([agents/testing.md](agents/testing.md))
+   and quote the verdict lines in the report. Combat, attack selection, navigation, effects, spawns, levelling,
+   timers and server-side rules all qualify. Extend the runner when the situation you need does not exist yet; that
+   is part of the change, not optional. A change that makes a scenario slower or fail is not done. Only what needs
+   a screen or a real player's hands is left to manual testing.
 3. Launch the updated build with `./gradlew :fabric:runClient` so it is ready to try
    (`--args="--quickPlaySingleplayer \"New World\""` opens the dev world directly).
-4. Tell the user exactly what to try in game — the command, the item, the recipe — and
-   leave the feel judgments (animation, pacing, balance) to them.
+4. Tell the user exactly what to try in game — the command, the item, the recipe — and leave the feel judgments
+   (animation, pacing, balance) to them.
 5. No new warnings in `latest.log` that this change introduced.
 
-### Headless scenarios: the AI tests gameplay in the real game
+What an agent still must **not** do is drive the Minecraft window: no keystrokes or chat commands typed into the
+client, no screenshots of it. Scenario runs are logs, not screens. Launching the client with the fresh build so the
+user's own test is one click away remains welcome.
 
-Gameplay logic is verified in the actual game, without a player, on the dedicated dev
-server. The principle is general: a scenario is a name, a setup step that builds the
-situation, and a verdict rule that reads the outcome from the world or the log. Today
-the runner stages fights; add setup steps and verdict rules for spawns, levelling,
-timers or anything else server-side as bugs arrive, the same way regression tests
-accumulate. Player-driven features (taming, the Digivice, riding, GUIs) need a
-server-side stand-in for the player before they can be staged; build that when the
-first such bug needs it rather than testing them by hand forever.
+If something could not be built, launched or run through a scenario, **say so explicitly** rather than implying it
+was tested.
 
-`common/.../dev/CombatScenario` (hooked from `DigiCubeFabric`) reads the
-`DIGICUBE_SCENARIO` environment variable, builds a platform at y=300, spawns the two
-Digimon eight blocks apart, heals both every tick (the caster is invulnerable), sets
-mutual targets after two seconds, logs each phase as `[scenario] ...`, and halts the
-server with a `[scenario] PASS ...` or `[scenario] FAIL ...` verdict (90-second timeout).
-One run takes about 40 seconds:
+## 5. Commits
 
-```powershell
-$env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runServer --console=plain
-```
-
-- Name: `<caster>_vs_<prey>[@flat|@steps|@ledge|@water][+duel][+behind]`, species by id
-  path. `flat` is a bare stone platform, `steps` adds a one-block ledge, a step down and
-  scattered single blocks, `ledge` raises the prey's whole half by one block so the
-  caster must climb, `water` is a five-deep pool with both Digimon swimming. The prey
-  is passive by default so the caster is measured alone; `+duel` lets it fight back,
-  `+behind` turns its back (and any long body) toward the caster. The arena is walled,
-  evicted of leftovers from earlier runs on start, and purged of natural spawns every
-  two seconds, so a run only ever contains the two fighters.
-- Verdict: a caster with a wrap move passes when its prey is captured and released,
-  reporting when the prey turned Cold or frozen (its opening) and the ticks from that
-  opening to the capture; any other caster passes after
-  three landed hits, reporting the tick of the first one. Compare the numbers before
-  and after a change, not just PASS.
-- Read `fabric/runs/server/logs/latest.log`. Chill-loop casters also log a
-  `[wrap-trace]` line every second (distance, level, status flags, fuel, planner state
-  with its last failure, and the exact gate refusing a cast from the current position).
-  The trace turns "it hesitates sometimes" into the name of a gate; fix the gate, rerun.
-- Add a terrain to `CombatScenario.build` when a bug needs new geometry, and add a
-  verdict rule when a new kind of move needs its own success criterion. Keep scenarios
-  deterministic: fixed positions, healed combatants, no wild spawns nearby.
-- The server EULA under `fabric/runs/server/eula.txt` is accepted; it is a run
-  directory and stays git-ignored.
-
-**Balance runs** (`common/.../dev/BalanceScenario`) answer a different question: not
-"does the move work" but "who wins, and how fast". `DIGICUBE_SCENARIO=balance:<a>_vs_<b>`
-fights real rounds to the death, no healing, both at `DIGICUBE_BALANCE_LEVEL` (20),
-`DIGICUBE_BALANCE_ROUNDS` (20) of them in one server start with the game sprinting
-(100 rounds in about 20 seconds). Sides alternate and each round opens from a random
-distance (6–10 blocks), lateral offset and facing, because a duel that always starts
-from the same spots is decided by whole hit counts and its "win chance" flips between
-0 and 1 on a rounding. `DIGICUBE_NEUTRAL=true` drops the attribute triangle;
-`DIGICUBE_TRIANGLE_UP` / `DIGICUBE_TRIANGLE_DOWN` override its multipliers for a sweep.
-Read the `[balance] RESULT` line (win shares, duration mean/median/min/max, retargets)
-and the two per-side lines (casts by move, crits and dodges per round, damage taken per
-round, health kept when winning, the tactics in force). A side whose tactics call for a skill (`dash_*`,
-`shoot_moving`) also gets a `[balance] SKILLS PASS|FAIL` line: uses per round from `DigimonEntity.countSkill`, and FAIL
-when one it should use never happened. Ricardo's target for a same-level
-neutral pair: about 50 % each (55–59 % is fine) and a 15-second mean. Tune from the
-per-side lines: damage taken per round shows who is short of a kill, casts show which move
-carries the fight. Use **300 rounds** (about 30 s) for a decision: 100-round runs of one
-build have ranged 38–50 % for the same side. `DIGICUBE_BALANCE_TRACE=true` logs both
-fighters every five ticks (distance, attack and tick, moving/still, target, effects); read
-one traced round before touching a number, it is where "waits beside a Cold prey for a
-wrap that is 160 ticks away" was found.
-
-What an agent still must **not** do is drive the Minecraft window: no keystrokes or
-chat commands typed into the client, no screenshots of it. Scenario runs are logs, not
-screens. Launching the client with the fresh build so the user's own test is one click
-away remains welcome.
-
-Model verification **outside** the game is different and encouraged: rendering a
-Blender model (the harness in `../harness` produces idle, front, side and action
-renders) and looking at the images before handing the model over is expected.
-
-If something could not be built, launched or run through a scenario, **say so
-explicitly** rather than implying it was tested.
-
----
-
-## 12. Commits
-
-Commit messages are a **single line**, in the form `type: description`. No body, no
-bullet list, no explanatory paragraph underneath.
+Commit messages are a **single line**, in the form `type: description`. No body, no bullet list, no explanatory
+paragraph underneath.
 
 ```
 feat: add digivice item
@@ -982,70 +147,40 @@ Rules:
 
 - Lowercase after the colon. No trailing full stop.
 - Imperative mood: "add x", not "added x" or "adds x".
-- Keep it under ~70 characters. If it does not fit, the commit is doing too much —
-  split it (see golden rule 6).
-- **No trailers of any kind.** No `Co-Authored-By`, no "generated with" or other
-  tool-attribution footer. The message is the one line and nothing else.
+- Keep it under ~70 characters. If it does not fit, the commit is doing too much — split it (see golden rule 8).
+- **No trailers of any kind.** No `Co-Authored-By`, no "generated with" or other tool-attribution footer. The
+  message is the one line and nothing else.
 
----
+## 6. Things not to do
 
-## 13. Adding NeoForge later
-
-The layout already anticipates this, so no rewrite is required:
-
-1. Create `neoforge/` mirroring `fabric/`.
-2. `neoforge/build.gradle` applies `multiloader-loader` plus `net.neoforged.moddev`, with
-   `neoForge { version = neoforge_version }`.
-3. Uncomment `include('neoforge')` in `settings.gradle`.
-4. Add `neoforge/src/main/resources/META-INF/neoforge.mods.toml`.
-5. Implement `NeoForgePlatformHelper` and add the matching `META-INF/services/` file.
-6. Port only the entry point and the event subscriptions. **If you find yourself copying
-   business logic into `neoforge/`, that logic was in the wrong module — move it to
-   `common/`.**
-
-`neoforge_version` is already pinned in `gradle.properties`.
-
----
-
-## 14. Porting to a new Minecraft version
-
-Minecraft now ships a drop every few months (`26.1`, `26.2`, `26.3`, ...). To port:
-
-1. Update `minecraft_version`, `minecraft_version_range`, `neo_form_version`,
-   `fabric_version` and `fabric_loader_version` in `gradle.properties`.
-2. Update the Loom and ModDevGradle versions in `build.gradle` if needed.
-3. Read the Fabric porting notes at <https://docs.fabricmc.net/develop/porting/> and
-   NeoForge's migration primer for that version.
-4. Expect mixins to break first — they bind to exact vanilla method signatures.
-
-Do this on a branch, never on `main`.
-
----
-
-## 15. Things not to do
-
-- Don't add a dependency without a concrete reason. Every one is a compatibility risk and
-  another thing players must install.
-- Don't write a mixin when an event or an API method exists. Mixins break on every update
-  and conflict with other mods.
+- Don't add a dependency without a concrete reason. Every one is a compatibility risk and another thing players
+  must install.
+- Don't write a mixin when an event or an API method exists. Mixins break on every update and conflict with other
+  mods.
 - Don't use `System.out.println`. Use `Constants.LOG`.
 - Don't catch `Exception` to silence a crash. Fix the cause or let it fail loudly.
-- Don't store mutable global state outside a registry. Minecraft runs multiple worlds, and
-  both a client and an integrated server, in a single JVM.
+- Don't store mutable global state outside a registry. Minecraft runs multiple worlds, and both a client and an
+  integrated server, in a single JVM.
 - Don't commit `runs/`, `build/`, or personal IDE files.
-- Don't ship copyrighted Digimon assets you did not make. Sprites, models and audio must be
-  original or properly licensed. Digimon is a Bandai trademark and this is unofficial fan
-  work.
+- Don't ship copyrighted Digimon assets you did not make. Sprites, models and audio must be original or properly
+  licensed. Digimon is a Bandai trademark and this is unofficial fan work.
 
----
+## 7. Keeping these docs useful
 
-## 16. Where to look things up
+- This file holds only what every task needs. Knowledge that only some tasks need goes to the guide for its area;
+  a new area gets a new guide and a row in the map. Each fact lives in one guide; others link to it.
+- A species' own notes go to `agents/species/<id>.md`. When a second species uses a mechanic, move the generic part
+  into the topic guide and leave the species examples.
+- Every guide opens with a title and a line saying what it covers and when to read it; its map row says the same
+  in short, naming the classes and files a task would mention.
+- Write how things work now: the rule, the class or file, and the check that pins it. History and rationale belong
+  in `../design/` or the git history; keep a "because" only when it prevents a known regression.
+- This file and `agents/` are the only instructions both Codex and Claude Code read. A `CLAUDE.md` would switch
+  Claude Code off this file unless its first line imports it (an `@` import of `AGENTS.md`); never name a guide
+  `AGENTS.md` or `CLAUDE.md`.
+- `:common:agentDocsTest`, part of `./gradlew build`, enforces the budgets, the map, the links and anchors, and
+  the two rules above; its failure message says what to fix.
 
-- Fabric docs, with the selector set to **26.2**: <https://docs.fabricmc.net/develop/>
-- Fabric API source: <https://github.com/FabricMC/fabric>
-- NeoForge docs: <https://docs.neoforged.net/>
-- The MultiLoader template this layout follows: <https://github.com/jaredlll08/MultiLoader-Template>
-- Cobblemon, the reference for a large data-driven creature mod: <https://gitlab.com/cable-mc/cobblemon>
-- Blockbench, for models and animations: <https://www.blockbench.net/>
-
-When the docs and reality disagree, **the decompiled Minecraft source in the IDE is the truth.**
+**Design documents live outside the repository.** Mechanics designs (balance tables, spawn rules, research) sit in
+`../design/`, a sibling of `digicube/` like `../harness`, and are never committed. Read the relevant one before
+implementing a feature and update it when a decision changes.

@@ -130,8 +130,8 @@ back instead of standing passive and `+behind` to face it away from the caster.
 A caster with a wrap move passes when it freezes, captures and releases
 its prey and reports the freeze-to-capture ticks; any other caster passes after three
 landed hits. Seadramon also logs a `[wrap-trace]` line every second naming the exact
-gate that is holding its wrap back. One run takes about 40 seconds. Section 11 of
-`AGENTS.md` has the rules for when a change must go through these.
+gate that is holding its wrap back. One run takes about 40 seconds.
+[agents/testing.md](agents/testing.md) has the rules for when a change must go through these.
 
 ### Testing what you built
 
@@ -147,7 +147,7 @@ Or obtain it with a command:
 ```
 
 If you get a black-and-purple cube called `item.digicube.digivice`, a texture, model or
-lang file is missing — see the item checklist in `AGENTS.md` section 6.
+lang file is missing — see the item checklist in [agents/conventions.md](agents/conventions.md#checklist-adding-an-item).
 
 The **DigiCube** tab is the consistent home for the mod's growing item collection.
 Add future player-facing items to its ordered `displayItems` list in
@@ -842,9 +842,9 @@ Nearly everything you write goes in `common/`. The `fabric/` module only holds t
 point and the few things Fabric does differently. That split is what makes adding NeoForge
 later a new folder rather than a rewrite.
 
-Full conventions, naming rules and architectural constraints are in
-**[AGENTS.md](AGENTS.md)** — that file is also the instruction set for AI coding agents
-working in this repo.
+AI coding agents start at **[AGENTS.md](AGENTS.md)**: the rules every task follows and a map
+of the topic guides in [`agents/`](agents/), which hold the full conventions, naming rules and
+architectural constraints. People can read them the same way.
 
 ---
 

@@ -161,3 +161,15 @@ tasks.register('assetTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('assetTest') }
+
+// Keeps AGENTS.md a small map with every guide under agents/ listed and every link resolving; see AGENTS.md section 7.
+tasks.register('agentDocsTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.AgentDocsRegressionTest'
+    args rootProject.projectDir.absolutePath
+    workingDir = layout.buildDirectory.dir('agent-docs-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('agentDocsTest') }
