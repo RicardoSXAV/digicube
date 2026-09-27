@@ -1,8 +1,8 @@
 # Animation and model assets
 
 Read this before adding or changing a model, a clip, `ground_models.json` or any other model asset: how models
-and clips ship as native JSON, the `assetTest` gates, clip naming for attacks, the generic catalog keys, cloth
-and rope chains, and rescaling. How gaits follow the body's travel is in [locomotion.md](locomotion.md).
+and clips ship as native JSON, the `assetTest` gates, clip naming for attacks, the generic catalog keys, cloth,
+sleeve bends and rope chains, and rescaling. How gaits follow the body's travel is in [locomotion.md](locomotion.md).
 
 ## Attack clips
 
@@ -42,8 +42,25 @@ claw streaks).
 
 Hanging cloth is client data: `cloth` in `ground_models.json` names a hinged chain of parts (never keyed by
 any clip) and collider points (model px in a part's own frame); `ClothChains` simulates pitch and roll
-pendulums under gravity, the hinge's acceleration and air drag, then holds every segment in front of the
-colliders within its reach. State is per entity in `DigimonRenderer`.
+pendulums under gravity, the hinge's smoothed acceleration and air drag, then holds every segment in front of the
+colliders within its reach. The pendulums are damped close to critically, as heavy fabric in air is: lightly damped,
+the footfalls pumped the swing and the cloth rocked for seconds after a stop. A segment folds at most 15 degrees
+forward of the one above it; a knee pushing harder lifts the chain above, so the cloth drapes over it instead of the
+lower segment flipping level. State is per entity in `DigimonRenderer`.
+
+## Sleeve bends
+
+A garment that must read as one piece over a joint (trousers over hip and knee) is `bends` in `ground_models.json`
+(`SleeveBends`): each entry names the `joint` (path to the lower bone), an `upper` sleeve on its parent and a `lower`
+sleeve on the joint, open tubes of one rectangular section cut square at the pivot (the upper along its bone's y
+axis, the lower from the joint's origin). After the pose and the cloth, each frame, the corners of the cut go where
+the upper sleeve's edges meet the plane halving the two bones, a mitre shared by both sleeves, and every other vertex
+on the cut goes on the straight edges between them: no gap, no step, no patch buried under the seam at any angle.
+Inside a deep bend a corner slides back along the shorter sleeve's edge, keeping 1 px of it, so no face turns inside
+out; a twist of the lower bone is taken up by the lower sleeve. Split both sleeves' faces at the same columns (no
+vertex of one ring in the middle of the other's edge), close each chain's free ends, keep the skin inside clear of the
+sleeves, and never key a sleeve. Rigid boxes cannot do this: a thigh box and a shin box open a wedge at the knee, and
+a patch filling it shows as a step.
 
 ## Rope chains
 

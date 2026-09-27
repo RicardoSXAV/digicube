@@ -262,6 +262,9 @@ public final class DigimonAttackGoal extends Goal {
             // moves the aim. Wait, then be in motion across the line when the aim locks.
             boolean aimedLine = other.getActiveAttack().kind() == DigimonAttack.Kind.GROUND_WAVE;
             if (aimedLine && windUp > LATE_DODGE_TICKS) return false;
+            // A leap is aimed at its launch: a sidestep before that only moves the landing, one after it escapes a long flight.
+            var leap = leap(other.getActiveAttack());
+            if (leap != null && other.currentAttackTick() < leap.launch()) return false;
             answeredWindUp = started;
             if (mob.getRandom().nextFloat() >= dodgeChance(mob, tactics)) return false;
             return startDodge(target, windUp + (aimedLine ? LINE_DODGE_EXTRA_TICKS : DODGE_EXTRA_TICKS), "wind-up of " + other.getActiveAttack().id().getPath());
@@ -300,18 +303,24 @@ public final class DigimonAttackGoal extends Goal {
 
     /**
      * Ticks until the target's current attack lands, when that attack could reach us and has not landed
-     * yet; -1 otherwise. Melee, sweeps, lunges and wraps are dodged on the wind-up; shots in flight.
+     * yet; -1 otherwise. Melee, sweeps, lunges, leaps and wraps are dodged on the wind-up; shots in flight.
      */
     private int threateningWindUp(LivingEntity target) {
         if (!(target instanceof DigimonEntity other) || !other.isAttacking()) return -1;
         DigimonAttack attack = other.getActiveAttack();
-        if (attack == null || attack.isRanged() && attack.kind() != DigimonAttack.Kind.GROUND_WAVE) return -1;
+        if (attack == null || attack.isRanged() && attack.kind() != DigimonAttack.Kind.GROUND_WAVE && leap(attack) == null) return -1;
         // A wrap's hit tick is its capture, two seconds in: the one wind-up worth running from. A whip lands on its
         // wielder's own plan (DigimonEntity.attackLandsIn).
         int remaining = other.attackLandsIn();
         if (remaining <= 0) return -1;
         double reach = attack.range() + (mob.getBbWidth() + other.getBbWidth()) * .5 + 1;
         return mob.distanceToSqr(other) <= reach * reach ? remaining : -1;
+    }
+
+    /** A jumping strike's flight, or null: its landing is where the blow falls. */
+    private static com.digicube.digimon.AuthoredAttacks.Leap leap(DigimonAttack attack) {
+        var authored = attack == null ? null : com.digicube.digimon.AuthoredAttacks.get(attack);
+        return authored == null ? null : authored.leap();
     }
 
     /** The target's projectile closing on us, if any. */

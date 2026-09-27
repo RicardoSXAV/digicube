@@ -24,6 +24,14 @@ final class DigimonAnimationRegressionTest {
                 check(events.add(event), "every attack and side has its own event id");
                 check(DigimonAnimationEvents.attackIndex(event) == index, "attack index round-trip");
                 check(DigimonAnimationEvents.mirrored(event) == mirrored, "normal and mirrored attacks remain distinct");
+                check(DigimonAnimationEvents.form(event) == 0, "an ordinary start plays a move's first form");
+            }
+            // A move's later forms (AuthoredAttacks.Forms) start with ids of their own.
+            for (int form = 1; form < DigimonAnimationEvents.MAX_FORMS; form++) {
+                byte event = DigimonAnimationEvents.start(index, false, form);
+                check(events.add(event), "every form of every attack has its own event id");
+                check(DigimonAnimationEvents.attackIndex(event) == index && DigimonAnimationEvents.form(event) == form
+                        && !DigimonAnimationEvents.mirrored(event), "form round-trip");
             }
         }
         check(DigimonAnimationEvents.CANCEL != EntityEvent.SNIFFER_DIGGING_SOUND,
@@ -69,7 +77,7 @@ final class DigimonAnimationRegressionTest {
         } finally {
             buffer.release();
         }
-        Constants.LOG.info("Combat animation checks passed: 33 distinct events, no vanilla collisions, both sides and real packet codec.");
+        Constants.LOG.info("Combat animation checks passed: {} distinct events, no vanilla collisions, both sides, forms and real packet codec.", events.size());
     }
 
     private static void check(boolean condition, String message) {

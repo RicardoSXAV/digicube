@@ -77,8 +77,11 @@ public class DigiCubeFabricClient implements ClientModInitializer {
             ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }
-        for(var definition:com.digicube.digimon.AuthoredAttacks.all()) if(definition.effect()!=null) {
-            String effect=definition.effect();
+        // A move's forms share one effect model: one layer each.
+        var authoredEffects = new java.util.LinkedHashSet<String>();
+        for(var definition:com.digicube.digimon.AuthoredAttacks.all()) if(definition.effect()!=null) authoredEffects.add(definition.effect());
+        authoredEffects.removeAll(casterEffects);
+        for (String effect : authoredEffects) {
             ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }

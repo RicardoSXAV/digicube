@@ -2677,10 +2677,22 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         }
         LivingEntity soft = softTarget(rider, attack);
         riderReleased = false;
+        // A move with forms casts the one whose key the rider holds (AttackForms.rider).
+        DigimonAttack cast = riderForm(rider, attack);
         // The turn itself is played out by the rider's client (it owns the mount's facing), a wind-up's worth of degrees a tick.
-        this.entityData.set(DATA_ATTACK_YAW, soft == null ? riderCastYaw(rider, attack) : AttackGeometry.contactYaw(attack, position(), soft.getBoundingBox().getCenter()));
-        beginAttack(attack, index, soft, rider);
+        this.entityData.set(DATA_ATTACK_YAW, soft == null ? riderCastYaw(rider, cast) : AttackGeometry.contactYaw(cast, position(), soft.getBoundingBox().getCenter()));
+        beginAttack(cast, index, soft, rider);
         return true;
+    }
+
+    /** Server: the form of {@code move} for the movement keys the rider holds; the move itself when it has no forms. */
+    private static DigimonAttack riderForm(Player rider, DigimonAttack move) {
+        if (com.digicube.digimon.AuthoredAttacks.forms(move) == null) return move;
+        if (rider instanceof net.minecraft.server.level.ServerPlayer server) {
+            var input = server.getLastClientInput();
+            return AttackForms.rider(move, input.forward(), input.left(), input.right());
+        }
+        return AttackForms.rider(move, rider.zza > 0, rider.xxa > 0, rider.xxa < 0);
     }
 
     /**
@@ -3251,12 +3263,45 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if(evolutionLocked()||tickCount<evolutionAttackUntil)return false;
         if (attack.kind() == DigimonAttack.Kind.CONSTRICTION && tickCount < constrictionRetryTick) return false;
         return attack.fuel() != null ? fuelFor(attack).isReady()
-                : tickCount >= cooldownUntil.getOrDefault(attack.id(), 0);
+                : tickCount >= cooldownUntil.getOrDefault(com.digicube.digimon.AuthoredAttacks.move(attack).id(), 0);
     }
 
     /** Server: how the current target has been moving, for shots that fly straight; made on first use. */
     private TargetMotion targetMotion;
     private TargetMotion targetMotion() { return targetMotion != null ? targetMotion : (targetMotion = new TargetMotion()); }
+
+    /** Server: the last form of a move with forms this body cast, and the tick its performance ends (AttackForms' combos). */
+    private DigimonAttack lastForm;
+    private int lastFormEnd = Integer.MIN_VALUE / 2;
+    DigimonAttack lastForm() { return lastForm; }
+    int lastFormEnd() { return lastFormEnd; }
+
+    /**
+     * Server: the chance a leaping form lands on {@code target}: its landing point is fixed at the launch, so a target
+     * whose moves the aim cannot foretell over the flight ({@link TargetMotion#miss}) is likely gone when it comes down.
+     * An impaired or Exposed target, and any strike that does not leap, count as certain.
+     */
+    double strikeChance(DigimonAttack form, LivingEntity target) {
+        var authored = com.digicube.digimon.AuthoredAttacks.get(form);
+        if (authored == null || authored.leap() == null || impaired(target) || com.digicube.digimon.ExposedMark.exposed(target)) return 1;
+        var leap = authored.leap();
+        double reach = strikeReach(authored) + target.getBbWidth() / 2;
+        if (!targetMotion().follows(target)) return 1;
+        double miss = targetMotion().miss(leap.land() - leap.launch()).across();
+        return Math.clamp(1 - miss / reach, .05, 1);
+    }
+
+    /** How far around its aim point an authored strike still catches a body: its widest volume in its first hit window, blocks. */
+    private static double strikeReach(com.digicube.digimon.AuthoredAttacks.Definition authored) {
+        double reach = .5;
+        if (authored.hitWindows().isEmpty()) return reach;
+        var window = authored.hitWindows().getFirst();
+        for (var box : authored.sample((window[0] + window[1]) * .5)) if (box != null) {
+            var b = box.bounds();
+            reach = Math.max(reach, Math.max(b.getXsize(), b.getZsize()) * .5);
+        }
+        return reach;
+    }
     /** Server: where the ball goes when it leaves, re-aimed every tick of the wind-up and fixed at the release. */
     private Vec3 fireballAim;
     /** Degrees a tick the body turns onto the aim while it draws breath; the release settles it exactly. */
@@ -3463,7 +3508,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (brawler && tactics().holdsRange() && position().distanceToSqr(other.position()) > reach * reach) return true;
         for (DigimonAttack move : other.attacks()) {
             if (move.power() < HEAVY_POWER || move.kind() == DigimonAttack.Kind.CONSTRICTION) continue;
-            if (other.activeAttack == move && other.attackTick <= move.hitTick()) return true;
+            if (other.activeAttack != null && com.digicube.digimon.AuthoredAttacks.move(other.activeAttack) == move && other.attackTick <= other.activeAttack.hitTick()) return true;
             if (other.cooldownUntil.getOrDefault(move.id(), 0) - other.tickCount <= LOOMING_TICKS) return true;
         }
         return false;
@@ -3531,8 +3576,17 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
     private static final double FLOAT_DEPTH = .55;
 
-    /** Rehearse the move at a prospective foot position, including its real launch/contact geometry. */
+    /**
+     * Rehearse the move at a prospective foot position, including its real launch/contact geometry. A move with forms
+     * can when the form the AI would cast from there can ({@link AttackForms#choose}).
+     */
     public boolean canAttackFrom(DigimonAttack attack, LivingEntity target, Vec3 feet) {
+        if (com.digicube.digimon.AuthoredAttacks.forms(attack) != null) return AttackForms.choose(this, attack, target, feet) != null;
+        return canStrikeFrom(attack, target, feet);
+    }
+
+    /** As {@link #canAttackFrom}, for exactly this attack (one form of a move, never its choice among them). */
+    public boolean canStrikeFrom(DigimonAttack attack, LivingEntity target, Vec3 feet) {
         // Thrown weapons are planned by the thrower's own AI (ThrowerBrain), never picked by the generic chooser.
         if (com.digicube.digimon.ThrownAttacks.handles(attack)) return false;
         if (com.digicube.digimon.WhipAttacks.handles(attack)) {
@@ -3657,7 +3711,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             entityData.set(DATA_WRAP_YAW,constriction.yaw());
             resetConstrictionApproach();
         }
-        beginAttack(attack, index, target, null);
+        // A move with forms casts the one that suits the target from here (AttackForms), on the move's uses.
+        DigimonAttack cast = attack;
+        if (com.digicube.digimon.AuthoredAttacks.forms(attack) != null && (cast = AttackForms.choose(this, attack, target, position())) == null) return;
+        beginAttack(cast, index, target, null);
     }
 
     /**
@@ -3695,8 +3752,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (attack.alternateSides()) {
             nextAttackMirrored = !nextAttackMirrored;
         }
+        // A form spends its move's uses; the move's cooldown clock is the one everything reads.
+        var move = com.digicube.digimon.AuthoredAttacks.move(attack);
+        var forms = com.digicube.digimon.AuthoredAttacks.forms(move);
+        int form = forms == null ? 0 : forms.index(attack);
+        if (forms != null) { lastForm = attack; lastFormEnd = tickCount + attack.durationTicks(); }
         if (attack.fuel() != null) { fuelFor(attack).begin(); closeInTargetId = -1; }
-        else cooldownUntil.put(attack.id(), com.digicube.digimon.AttackCharges.spend(chargeRefills, attack, tickCount));
+        else cooldownUntil.put(move.id(), com.digicube.digimon.AttackCharges.spend(chargeRefills, move, tickCount));
         if (rider == null) lookAt(target, 60.0F, 60.0F);
         if (kinetic != null) {
             kinetic.tick((ServerLevel) level(), 0);
@@ -3722,7 +3784,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (kinetic != null || attack.fuel() != null || attack.kind() == DigimonAttack.Kind.CONSTRICTION) {
             this.entityData.set(DATA_SUSTAINED_TICK, 0);
             this.entityData.set(DATA_SUSTAINED_ATTACK, attack.id().getPath());
-        } else level().broadcastEntityEvent(this, DigimonAnimationEvents.start(index, attackMirrored));
+        } else level().broadcastEntityEvent(this, DigimonAnimationEvents.start(index, attackMirrored, form));
     }
 
     @Override
@@ -4141,7 +4203,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (attackTick == leap.launch()) {
             LivingEntity aimed = attackTarget != null && attackTarget.isAlive() ? attackTarget : null;
             // Where the victim will stand when the jumper comes down: read from how it has been moving (players too).
-            int flight = Math.min(leap.land() - leap.launch(), 12);
+            int flight = leap.land() - leap.launch();
             Vec3 target = aimed == null ? authoredAimPoint : targetMotion().follows(aimed)
                     ? targetMotion().predict(aimed, flight).subtract(0, aimed.getBbHeight() / 2, 0)
                     : aimed.position().add(aimed.getDeltaMovement().multiply(1, 0, 1).scale(flight));
@@ -4202,6 +4264,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 chargeBlocked = true;
             }
         }
+        // An authored sweep strikes with its own volumes and sounds with its own style (AuthoredVolumeAttack): the
+        // drive only carries the body.
+        if (com.digicube.digimon.AuthoredAttacks.handles(activeAttack)) return;
         if (attackTick == motion.activeFrom()) {
             level.playSound(null, getX(), getY(), getZ(), SoundEvents.RAVAGER_ATTACK,
                     SoundSource.NEUTRAL, 1.0F, 0.8F);
@@ -4712,10 +4777,13 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             boolean mirrored = DigimonAnimationEvents.mirrored(id);
             List<DigimonAttack> attacks = attacks();
             if (index < attacks.size()) {
-                DigimonAttack attack = attacks.get(index);
+                DigimonAttack move = attacks.get(index), attack = move;
+                var forms = com.digicube.digimon.AuthoredAttacks.forms(move);
+                int form = DigimonAnimationEvents.form(id);
+                if (forms != null && form < forms.all().size()) attack = forms.all().get(form);
                 attackAnimationName = attack.animationName(mirrored);
                 attackAnimationEndTick = tickCount + attack.durationTicks();
-                seenCooldownUntil.put(attack.id(), com.digicube.digimon.AttackCharges.spend(seenChargeRefills, attack, tickCount));
+                seenCooldownUntil.put(move.id(), com.digicube.digimon.AttackCharges.spend(seenChargeRefills, move, tickCount));
                 attackAnimationStartTick = tickCount;
                 riderStaleYaw = this.entityData.get(DATA_ATTACK_YAW);
                 hitStopTicks = 0;
@@ -4907,6 +4975,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public DigimonAttack getAnimatingAttack() {
         var thrown = com.digicube.digimon.ThrownAttacks.owner(attackAnimationName);
         if (thrown != null && attacks().contains(thrown)) return thrown;
+        // A move's later forms play clips of their own names.
+        for (DigimonAttack move : attacks()) {
+            var forms = com.digicube.digimon.AuthoredAttacks.forms(move);
+            if (forms != null) for (DigimonAttack form : forms.all()) if (form.animationName(false).equals(attackAnimationName)) return form;
+        }
         return attacks().stream().filter(a -> a.animationName(false).equals(attackAnimationName)
                 || a.animationName(true).equals(attackAnimationName)
                 || com.digicube.digimon.KineticAttacks.get(a) != null && com.digicube.digimon.KineticAttacks.get(a).matches(attackAnimationName)).findFirst().orElse(null);

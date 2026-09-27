@@ -12,7 +12,8 @@ Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attac
 and `move` (`RiderAttack`; Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon,
 Gesomon, DarkTyrannomon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
 or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray in third person too), and commits
-every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing. Check with
+every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing. A move with forms casts the form
+whose `key` is the movement key held ([authored-attacks.md](authored-attacks.md#forms)). Check with
 `DIGICUBE_SCENARIO=rider_checks` (`[rider] RESULT n of n casts landed`). The rider keeps their hands and casts
 the mount's target-free attacks (`riderAttacks()`, quickest first) with Q/E inside the command wheel
 (`PartyActionPayload.RIDER_ATTACK` -> `startRiderAttack`). Vanilla skips a ridden mob's server AI step, so

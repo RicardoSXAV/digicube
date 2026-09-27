@@ -143,12 +143,17 @@ public final class AuthoredVolumeAttack {
         }
         boolean mirrored=caster.contactMirrored(attack);
         float facing=yaw(attack,feet,targetPoint,mirrored), pitch=pitch(attack,feet,targetPoint,facing);
+        // A travelling sweep strikes from where its dash has carried the body, which stops short of the target's body.
+        double clearance=d.rootTravel()?AttackGeometry.thrustClearance(feet,target.getBoundingBox(),caster.getBbWidth()):0;
+        Vec3 ahead=new Vec3(0,0,1).yRot(-facing*net.minecraft.util.Mth.DEG_TO_RAD);
         for(double t=attack.motion().activeFrom();t<=attack.motion().activeUntil();t+=.5) {
+            Vec3 at=d.rootTravel()?feet.add(ahead.scale(Math.min(attack.motion().sample(t).travel(),clearance))):feet;
+            if(at!=feet && !clear(caster.level(),caster,feet.add(0,.6,0),at.add(0,.6,0)))continue;
             for(var local:d.sample(t,caster.isInWater(),mirrored)) if(local!=null && Math.abs(local.x().dot(local.y().cross(local.z())))>1e-8) {
-                var box=aimed(local,attack,t,pitch).world(feet,facing,0);
-                for(var volume:HitParts.of(target))if(box.intersects(volume) && visible(caster.level(),caster,attack,t,feet,facing,box)
+                var box=aimed(local,attack,t,pitch).world(at,facing,0);
+                for(var volume:HitParts.of(target))if(box.intersects(volume) && visible(caster.level(),caster,attack,t,at,facing,box)
                         && (!d.grounded() || supported(caster.level(),caster,box))
-                        && clear(caster.level(),caster,AttackGeometry.world(feet,d.motion(caster.isInWater()).sample(t).head(),facing),volume.getCenter()))return true;
+                        && clear(caster.level(),caster,AttackGeometry.world(at,d.motion(caster.isInWater()).sample(t).head(),facing),volume.getCenter()))return true;
             }
         }
         return false;

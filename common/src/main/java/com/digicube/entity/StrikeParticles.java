@@ -27,8 +27,9 @@ public enum StrikeParticles {
      */
     STONE,
     /**
-     * Blades: steel sparks along a swing and a slice on contact; the jump of a sword strike whooshes on launch and
-     * buries the blade in the floor with a heavy ring, shards and the floor's own dust.
+     * Blades (Dinohyumon): the moves draw their own cuts, stars and impact sheets, so the style stays quiet on screen: a
+     * steel clink as a blade is readied, a whoosh through the swing, a few sparks and a ring on contact, a kick of the
+     * floor on a jump and a heavy ring with a little of the floor's own dust where the greatsword is buried.
      */
     STEEL,
     /**
@@ -53,7 +54,6 @@ public enum StrikeParticles {
     }
 
     private static final BlockParticleOption CHIPS = new BlockParticleOption(ParticleTypes.BLOCK, Blocks.COBBLESTONE.defaultBlockState());
-    private static final BlockParticleOption SHARDS = new BlockParticleOption(ParticleTypes.BLOCK, Blocks.IRON_BLOCK.defaultBlockState());
 
     /**
      * The caster's voice as the move starts, in place of the growl every other authored attack opens with.
@@ -72,6 +72,11 @@ public enum StrikeParticles {
         if (this == DRILL) {
             play(level, at, DCSounds.DIGMON_DRILL_SPIN, 1F, 1F);
             play(level, at, SoundEvents.ARMADILLO_AMBIENT, 1F, .8F);
+            return true;
+        }
+        if (this == STEEL) {
+            // Every use of a stacked blade combo starts one: a clink, never a monster's growl.
+            play(level, at, SoundEvents.ARMOR_EQUIP_IRON.value(), .7F, 1.25F);
             return true;
         }
         if (this != STONE) return false;
@@ -108,10 +113,6 @@ public enum StrikeParticles {
                     level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 1, .06, .06, .06, .05);
                 }
             }
-            case STEEL -> {
-                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 2, .12, .12, .12, .08);
-                level.sendParticles(ParticleTypes.ENCHANTED_HIT, true, true, at.x, at.y, at.z, 1, .1, .1, .1, .02);
-            }
             case PINCER -> level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 1, .06, .06, .06, .04);
             default -> {}
         }
@@ -125,10 +126,9 @@ public enum StrikeParticles {
                 level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y, at.z, 10, .3, .3, .3, .06);
             }
             case STEEL -> {
-                play(level, at, SoundEvents.BREEZE_JUMP, 1.2F, .7F);
-                play(level, at, SoundEvents.RAVAGER_ROAR, .5F, 1.1F);
-                level.sendParticles(ParticleTypes.CLOUD, true, true, at.x, at.y + .1, at.z, 14, .45, .05, .45, .08);
-                level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .1, at.z, 8, .3, .1, .3, .04);
+                play(level, at, SoundEvents.BREEZE_JUMP, 1.1F, .75F);
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 10, .35, .02, .35, .12);
+                level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 4, .3, .02, .3, .03);
             }
             case PINCER -> {
                 // A cricket's kick off the big hind legs: a springy snap, the shell's clack and the floor kicked back.
@@ -163,11 +163,9 @@ public enum StrikeParticles {
                 play(level, at, SoundEvents.MACE_SMASH_GROUND, .8F, 1.2F);
             }
             case STEEL -> {
-                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 14, .2, .2, .2, .3);
-                level.sendParticles(ParticleTypes.ENCHANTED_HIT, true, true, at.x, at.y, at.z, 6, .15, .15, .15, .1);
-                level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);
-                play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, 1.1F, 1.15F);
-                play(level, at, SoundEvents.TRIDENT_HIT, .9F, 1.3F);
+                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 5, .15, .15, .15, .25);
+                play(level, at, SoundEvents.PLAYER_ATTACK_STRONG, 1F, 1.15F);
+                play(level, at, SoundEvents.TRIDENT_HIT, .8F, 1.3F);
             }
             case PINCER -> {
                 level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 12, .15, .15, .15, .3);
@@ -185,7 +183,7 @@ public enum StrikeParticles {
         }
     }
 
-    /** A summoned strike or a jumping blade meets the floor: the floor itself goes up, out to the reach of the burst. */
+    /** A summoned strike or a jumping blade meets the floor: the floor itself goes up (a stone), or just the sound and its dust. */
     public void landing(ServerLevel level, Vec3 at, double reach) {
         if (this == CLAW) {
             // A light body: a patter of the floor and a small puff, never the big strike's crater.
@@ -204,7 +202,16 @@ public enum StrikeParticles {
             play(level, at, SoundEvents.PLAYER_SMALL_FALL, .8F, .9F);
             return;
         }
-        if (this != STONE && this != STEEL) return;
+        if (this == STEEL) {
+            // The greatsword's ring, crack and chunks are the move's own sheets: here only the sound and a little of the floor.
+            BlockParticleOption dust = new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at));
+            level.sendParticles(dust, true, true, at.x, at.y + .1, at.z, 16, reach * .3, .05, reach * .3, .18);
+            level.sendParticles(new BlockParticleOption(ParticleTypes.DUST_PILLAR, floor(level, at)), true, true, at.x, at.y + .05, at.z, 8, reach * .35, .02, reach * .35, .1);
+            play(level, at, SoundEvents.MACE_SMASH_GROUND_HEAVY, 1.3F, .8F);
+            play(level, at, SoundEvents.TRIDENT_HIT_GROUND, 1.1F, .65F);
+            return;
+        }
+        if (this != STONE) return;
         BlockState floor = level.getBlockState(BlockPos.containing(at.x, at.y - .2, at.z));
         if (floor.isAir() || !floor.getFluidState().isEmpty()) floor = Blocks.STONE.defaultBlockState();
         double spread = reach * .55;
@@ -212,22 +219,12 @@ public enum StrikeParticles {
         level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor), true, true, at.x, at.y + .2, at.z, 60, spread, .15, spread, .35);
         level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, true, at.x, at.y + .2, at.z, 8, spread, .1, spread, .015);
         level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .15, at.z, 24, spread, .05, spread, .12);
-        if (this == STONE) {
-            level.sendParticles(ParticleTypes.EXPLOSION, true, true, at.x, at.y + .4, at.z, 2, .3, .1, .3, 0);
-            level.sendParticles(CHIPS, true, true, at.x, at.y + .3, at.z, 30, spread * .6, .2, spread * .6, .3);
-            level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y + .2, at.z, 8, spread * .5, .1, spread * .5, 0);
-            play(level, at, SoundEvents.MACE_SMASH_GROUND, 1.1F, 1.15F);
-            play(level, at, SoundEvents.DECORATED_POT_SHATTER, 1.3F, .75F);
-            play(level, at, SoundEvents.STONE_BREAK, 1.2F, .9F);
-        } else {
-            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, true, true, at.x, at.y + .3, at.z, 1, 0, 0, 0, 0);
-            level.sendParticles(SHARDS, true, true, at.x, at.y + .4, at.z, 24, spread * .5, .3, spread * .5, .4);
-            level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y + .5, at.z, 30, spread * .6, .4, spread * .6, .5);
-            play(level, at, SoundEvents.MACE_SMASH_GROUND_HEAVY, 1.5F, .75F);
-            play(level, at, SoundEvents.TRIDENT_HIT_GROUND, 1.2F, .6F);
-            play(level, at, SoundEvents.DEEPSLATE_BREAK, 1.3F, .7F);
-            level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.NEUTRAL, .6F, 1.2F);
-        }
+        level.sendParticles(ParticleTypes.EXPLOSION, true, true, at.x, at.y + .4, at.z, 2, .3, .1, .3, 0);
+        level.sendParticles(CHIPS, true, true, at.x, at.y + .3, at.z, 30, spread * .6, .2, spread * .6, .3);
+        level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y + .2, at.z, 8, spread * .5, .1, spread * .5, 0);
+        play(level, at, SoundEvents.MACE_SMASH_GROUND, 1.1F, 1.15F);
+        play(level, at, SoundEvents.DECORATED_POT_SHATTER, 1.3F, .75F);
+        play(level, at, SoundEvents.STONE_BREAK, 1.2F, .9F);
     }
 
     /** A grounded burst's contact with the floor (its motion's first active tick): the drills bite in. */

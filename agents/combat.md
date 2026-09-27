@@ -37,7 +37,8 @@ melted by fire), and its wrap may take any prey, Cold or not.
 ## Attacks as data
 
 Attacks are data on the species too: `DigimonSpecies.attacks` is a list of `DigimonAttack` in **fallback
-priority order** (first ready + in range wins for ordinary move sets). Timing, power and cooldown live there;
+priority order** (first ready + in range wins for ordinary move sets; a move with forms casts the form that suits
+the target, see [authored-attacks.md](authored-attacks.md#forms)). Timing, power and cooldown live there;
 `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks the move. Each attack plays the clip named
 after its id; see [animation.md](animation.md#attack-clips).
 

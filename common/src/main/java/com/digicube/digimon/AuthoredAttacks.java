@@ -10,12 +10,17 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/** Finite native performances: the visual cells and damage volumes share one clock. */
+/**
+ * Finite native performances: the visual cells and damage volumes share one clock. A definition's {@code effectClip}
+ * is the clip of its effect model it plays (forms share one model), {@code key} the movement key a rider holds to pick
+ * that form ({@code forward}, {@code left}, {@code right}; none for the first form's default).
+ */
 public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
                              List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows,
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
-                             com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley) {
+                             com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley,
+                             List<String> formNames, FormChoice formChoice, String effectClip, String key) {
         public boolean hasWaterVariant() { return waterMotion != null; }
         /**
          * A summoned strike: effect and volumes are authored around a landing point instead of the caster's feet.
@@ -63,11 +68,54 @@ public final class AuthoredAttacks {
         /** Blocks between the landing feet and the target's centre. */
         public double lead(net.minecraft.world.entity.LivingEntity target) { return edge && target != null ? lead + target.getBbWidth() / 2 : lead; }
     }
+    /**
+     * How the AI picks one of a move's forms. {@code COMBO}: the forms are a combo in list order, and the next one
+     * follows while the last ended no more than {@link #COMBO_TICKS} ago; otherwise the lightest form that reaches wins
+     * (one that does not travel before one that does). {@code REACH}: the forms are one strike at different distances;
+     * the one worth most (power times the chance it lands) wins.
+     */
+    public enum FormChoice { COMBO, REACH }
+    /** Ticks after one form of a combo ends in which the next form continues it. */
+    public static final int COMBO_TICKS = 24;
+    /**
+     * A move with forms ({@code forms} in {@code authored_attacks.json}): the species sheet names the first, which is
+     * form 0; every cast plays one of them and spends the first's stacked uses. Each form is a complete authored attack
+     * (clip, motion, volumes, effect clip); only the first carries the cooldown and the {@code charges}.
+     * @param all the forms, the first one first
+     */
+    public record Forms(List<DigimonAttack> all, FormChoice choice) {
+        public int index(DigimonAttack form) { return all.indexOf(form); }
+    }
     private static final Map<Identifier,Definition> DEFINITIONS=load();
+    private static final Map<Identifier,Forms> FORMS=new HashMap<>();
+    private static final Map<Identifier,DigimonAttack> FIRST_FORMS=new HashMap<>();
+    static { linkForms(); }
     private AuthoredAttacks() {}
     public static Collection<Definition> all() { return DEFINITIONS.values(); }
     public static Definition get(DigimonAttack attack) { return DEFINITIONS.get(attack.id()); }
     public static Definition get(Identifier id) { return DEFINITIONS.get(id); }
+    /** The forms of a move named on a species sheet, or null when it has only itself. */
+    public static Forms forms(DigimonAttack move) { return move == null ? null : FORMS.get(move.id()); }
+    /** The move on the sheet a form belongs to (the form itself for anything else): its uses and cooldown are the move's. */
+    public static DigimonAttack move(DigimonAttack attack) { return attack == null ? null : FIRST_FORMS.getOrDefault(attack.id(), attack); }
+    private static void linkForms() {
+        for (var d : DEFINITIONS.values()) {
+            if (d.formNames().isEmpty()) continue;
+            var list = new ArrayList<DigimonAttack>();
+            list.add(d.attack());
+            for (String name : d.formNames()) {
+                var form = DEFINITIONS.get(Constants.id(name));
+                if (form == null || !form.formNames().isEmpty() || form.charges() != 1 || form.attack().alternateSides() || form.attack() == d.attack()
+                        || FIRST_FORMS.containsKey(form.attack().id()) || list.size() >= com.digicube.entity.DigimonAnimationEvents.MAX_FORMS)
+                    throw new IllegalArgumentException("A form is a plain authored attack of one move " + d.attack().id() + ": " + name);
+                list.add(form.attack());
+                FIRST_FORMS.put(form.attack().id(), d.attack());
+            }
+            if (d.attack().alternateSides()) throw new IllegalArgumentException("A move with forms does not alternate " + d.attack().id());
+            FORMS.put(d.attack().id(), new Forms(List.copyOf(list), d.formChoice()));
+        }
+    }
+
     public static boolean handles(DigimonAttack attack) {
         return attack.kind()==DigimonAttack.Kind.BOX_SWEEP || attack.kind()==DigimonAttack.Kind.BOX_BURST;
     }
@@ -146,9 +194,17 @@ public final class AuthoredAttacks {
             result.put(id,new Definition(attack,GsonHelper.getAsString(c,"effect",null),GsonHelper.getAsBoolean(c,"emissive",false),
                     GsonHelper.getAsBoolean(c,"grounded",false),interval,max,
                     List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion,List.copyOf(mirroredFrames),anchorLock,approach,List.copyOf(contactParts),
-                    com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null)),rootTravel,leap,charges,volley));
+                    com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null)),rootTravel,leap,charges,volley,
+                    forms(c),FormChoice.valueOf(GsonHelper.getAsString(c,"form_choice","combo").toUpperCase(Locale.ROOT)),
+                    GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null)));
         }
         return Collections.unmodifiableMap(result);
+    }
+    private static List<String> forms(JsonObject c) {
+        if (!c.has("forms")) return List.of();
+        var names = new ArrayList<String>();
+        c.getAsJsonArray("forms").forEach(n -> names.add(n.getAsString()));
+        return List.copyOf(names);
     }
     private static List<AttackBox[]> readFrames(com.google.gson.JsonArray rows,int width,Identifier id) {
         List<AttackBox[]> frames=new ArrayList<>();

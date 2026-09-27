@@ -62,10 +62,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     public DigimonRenderer(EntityRendererProvider.Context context) {
         super(context, fallbackModel(context), 0.4F);
         fallbackScale = com.digicube.digimon.DigimonSpeciesRegistry.getOrThrow(DigimonEntity.DEFAULT_SPECIES).body().modelScale();
-        for(var d:com.digicube.digimon.AuthoredAttacks.all()) if(d.effect()!=null) {
-            String effect=d.effect();authoredEffects.put(effect,new com.digicube.fabric.client.model.NativeEffectModel(
-                    context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
-        }
+        // A move's forms share one effect model, each playing its own clip.
+        for(var d:com.digicube.digimon.AuthoredAttacks.all()) if(d.effect()!=null) authoredEffects.computeIfAbsent(d.effect(),
+                effect->new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
         howlingBlaster = new HowlingBlasterModel(context.bakeLayer(HowlingBlasterModel.LAYER));
@@ -253,7 +252,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             var fx=state.authoredEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
             fx.yaw=entity.getAttackYaw(partialTick);fx.scale=state.modelScale;
             fx.clip=state.attackInWater && authored.hasWaterVariant()?"effect_water"
-                    :state.attackAnimationName!=null && state.attackAnimationName.endsWith("_mirrored") && authoredEffects.get(authored.effect()).has("effect_mirrored")?"effect_mirrored":"effect";
+                    :state.attackAnimationName!=null && state.attackAnimationName.endsWith("_mirrored") && authoredEffects.get(authored.effect()).has("effect_mirrored")?"effect_mirrored":authored.effectClip();
             // A summoned strike is drawn where it lands, not where its caster stands.
             var anchor=authored.anchored()?entity.strikeAnchor():null;
             var feet=anchor!=null?anchor:entity.position();

@@ -6,6 +6,11 @@ refreshing dependencies, dev-run folders and crash logs.
 Run from the repository root. On Windows use `gradlew.bat`; the examples below use the
 POSIX form.
 
+On macOS and Linux, run Gradle as the current user, without `sudo`. If `./gradlew`
+cannot be executed, restore its executable permission with `chmod +x gradlew`.
+The project compiles with Java 25. Gradle downloads that toolchain automatically
+through the resolver in `settings.gradle` if it is not installed.
+
 ```bash
 ./gradlew build
 ```

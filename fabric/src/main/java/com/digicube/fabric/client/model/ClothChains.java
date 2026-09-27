@@ -31,10 +31,17 @@ public final class ClothChains {
         private boolean settled;
     }
 
-    /** Model gravity in blocks a tick squared, and how the cloth answers it. */
-    private static final float GRAVITY = 0.08F, DAMPING = 0.12F, BENDING = 0.35F, DRAG = 0.012F, STEP = 0.25F;
-    private static final float MAX_PITCH = (float) Math.toRadians(105), MAX_ROLL = (float) Math.toRadians(35), FOLD = (float) Math.toRadians(28);
-    private static final float MAX_SPEED = 0.9F;
+    /**
+     * Model gravity in blocks a tick squared, and how the cloth answers it. Heavy fabric in air is damped close to
+     * critically: it follows the legs and settles instead of swinging on (lightly damped, every footfall pumped it and
+     * it rocked for seconds after a stop). Only the smoothed hinge acceleration throws it, so the pelvis's bob per step
+     * does not.
+     */
+    private static final float GRAVITY = 0.08F, DAMPING = 0.9F, BENDING = 1.0F, DRAG = 0.012F, STEP = 0.25F;
+    private static final float MAX_PITCH = (float) Math.toRadians(80), MAX_ROLL = (float) Math.toRadians(20), FOLD = (float) Math.toRadians(28);
+    /** How far a segment may fold forward of the one above it; a knee pushing harder lifts the chain above instead. */
+    private static final float DRAPE = (float) Math.toRadians(15);
+    private static final float MAX_SPEED = 0.9F, MAX_ACCELERATION = 0.4F, ACCELERATION_SMOOTHING = 0.3F;
 
     private ClothChains() {}
 
@@ -65,8 +72,8 @@ public final class ClothChains {
                 Vector3f velocity = Float.isNaN(s.lastAge) || dt <= 0 ? new Vector3f() : new Vector3f(world).sub(s.lastHinge).div(dt);
                 if (!Float.isNaN(s.lastAge) && dt > 0) {
                     var a = new Vector3f(velocity).sub(s.lastVelocity).div(dt);
-                    if (a.length() > 1.5F) a.normalize(1.5F);
-                    s.acceleration.lerp(a, 0.5F);
+                    if (a.length() > MAX_ACCELERATION) a.normalize(MAX_ACCELERATION);
+                    s.acceleration.lerp(a, ACCELERATION_SMOOTHING);
                 }
                 s.lastHinge.set(world); s.lastVelocity.set(velocity);
                 // Effective gravity in the chain's frame: gravity less the hinge's acceleration, plus the air the cloth moves through.
@@ -138,6 +145,14 @@ public final class ClothChains {
                     if (angle > bounds[i]) bounds[i] = (float) angle;
                 }
             }
+        }
+        // A knee just in front of a hinge would flip the segment below it level; cloth drapes over it instead: the
+        // segment folds at most DRAPE past the one above, and the rest of the push lifts the chain above it.
+        for (int i = n - 1; i > 0; i--) {
+            double cap = pitch[i - 1] + DRAPE;
+            if (bounds[i] <= cap) continue;
+            bounds[i - 1] = (float) Math.max(bounds[i - 1], pitch[i - 1] + bounds[i] - cap);
+            bounds[i] = (float) cap;
         }
         return bounds;
     }

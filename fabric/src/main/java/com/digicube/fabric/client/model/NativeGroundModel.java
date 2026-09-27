@@ -63,7 +63,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
                              java.util.List<ClothChains.Chain> cloth, java.util.List<String> upperBody, Flames flames,
                              HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes,
-                             String carried, float swimPitch, boolean pitchAtRider, Stomps stomps, boolean bank) {
+                             String carried, float swimPitch, boolean pitchAtRider, Stomps stomps, boolean bank,
+                             java.util.List<SleeveBends.Bend> bends) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -93,6 +94,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private final java.util.Set<ModelPart> lowerParts;
     private final ModelPart carriedPart;
     private final ModelPart[] riderHidden;
+    /** Sleeves mitred over their joints each frame, after the pose and the cloth. */
+    private final SleeveBends.Rig bends;
 
     public NativeGroundModel(ModelPart root, Definition definition) {
         super(NativeModelGeometry.apply(root, definition.geometry()));
@@ -117,6 +120,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         else{lowerParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());lowerParts.addAll(root.getAllParts());lowerParts.removeAll(upperParts);}
         carriedPart=definition.carried()==null?null:animations.part(definition.carried());
         riderHidden=definition.rider()==null?new ModelPart[0]:definition.rider().hide().stream().map(animations::part).toArray(ModelPart[]::new);
+        bends=SleeveBends.rig(root,definition.bends());
     }
 
     public static Map<Identifier, Definition> definitions() { return DEFINITIONS; }
@@ -129,6 +133,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         whip(state);
         ClothChains.apply(rootPart, state, definition.cloth(), state.cloth);
         RopeChains.apply(rootPart, state, definition.ropes(), state.ropes);
+        SleeveBends.apply(bends);
     }
 
     /** The authored pose for this frame: idle, gait, swim and the attack in progress. Cloth hangs from it afterwards. */
@@ -695,7 +700,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         GsonHelper.getAsString(config,"carried",null),
                         // The dive pitch without a rider, and whether it turns the body about the rider's seat.
                         GsonHelper.getAsFloat(config,"swim_pitch",65),GsonHelper.getAsBoolean(config,"pitch_at_rider",false),stomps(config),
-                        GsonHelper.getAsBoolean(config,"bank",false)));
+                        GsonHelper.getAsBoolean(config,"bank",false),SleeveBends.read(config)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {
