@@ -62,7 +62,8 @@ public final class DigimonCombatPosition {
                         var body = mob.getBoundingBox().move(feet.subtract(mob.position())).deflate(.01);
                         if (!mob.level().noCollision(mob, body) || !mob.canAttackFrom(attack, target, feet)) continue;
                         // Prefer converting an existing mark; otherwise the least expensive useful move wins.
-                        double combo = target.hasEffect(DCEffects.ICE_MARK) && attack.fuel() != null ? -2 : 0;
+                        double combo = attack.fuel() != null && com.digicube.digimon.BreathAttacks.handles(attack)
+                                && !com.digicube.digimon.FreezeMark.resists(target) ? -2 : 0;
                         // A stance outside the follow-up's reach costs a walk after the freeze; rank it behind every closer one.
                         double preferred = mob.preferredStanceRange(attack);
                         double walk = feet.distanceToSqr(target.position()) > preferred * preferred ? 1000 : 0;

@@ -27,7 +27,11 @@ public final class CombatMarkBadges {
     public record Marks(int packed, int packed2, float coldRemainingTicks) {}
     public static final RenderStateDataKey<Marks> MARKS = RenderStateDataKey.create();
     private static final RenderStateDataKey<List<Row>> ROWS = RenderStateDataKey.create();
-    private static final Identifier ICE_MARK = Constants.id("textures/entity/status/ice_mark_badge.png");
+    private static final Identifier FREEZE = Constants.id("textures/entity/status/mark_freeze.png");
+    private static final Identifier FREEZE_SPENT = Constants.id("textures/entity/status/mark_freeze_spent.png");
+    private static final Identifier FREEZE_OFF = Constants.id("textures/entity/status/mark_freeze_off.png");
+    private static final Identifier FREEZE_FLASH = Constants.id("textures/entity/status/mark_freeze_flash.png");
+    private static final Identifier FREEZE_RESIST = Constants.id("textures/entity/status/mark_freeze_resist.png");
     private static final Identifier COLD = Constants.id("textures/entity/status/mark_cold.png");
     private static final Identifier COLD_SPENT = Constants.id("textures/entity/status/mark_cold_spent.png");
     private static final Identifier COLD_OFF = Constants.id("textures/entity/status/mark_cold_off.png");
@@ -99,7 +103,9 @@ public final class CombatMarkBadges {
                 boolean cold = row.marks().coldRemainingTicks() > 0;
                 // Build-ups first: they are the marks a tamer can still act on.
                 var emblems = new ArrayList<Emblem>();
-                if (CombatMarkState.has(packed, CombatMarkState.ICE_MARK)) emblems.add(Emblem.ICE_MARK);
+                float freeze = CombatMarkState.freezeGauge(packed2), frozen = CombatMarkState.frozenRemaining(packed2);
+                boolean freezeFlash = CombatMarkState.has(packed2, CombatMarkState.FREEZE_FLASH);
+                if (freeze > 0 || frozen > 0 || freezeFlash) emblems.add(Emblem.FREEZE);
                 if (cold || charge > 0) emblems.add(Emblem.COLD);
                 float cracked = CombatMarkState.crackedRemaining(packed), crackCharge = CombatMarkState.crackCharge(packed);
                 if (cracked > 0 || crackCharge > 0) emblems.add(Emblem.CRACK);
@@ -110,15 +116,29 @@ public final class CombatMarkBadges {
                 float burn = CombatMarkState.burnRemaining(packed2);
                 if (burn > 0) emblems.add(Emblem.BURN);
                 int count = Math.min(MAX_EMBLEMS, emblems.size());
+                // A resistance is drawn small beside the row and never counts toward it.
+                boolean resisting = CombatMarkState.has(packed2, CombatMarkState.FROST_RESIST) && freeze <= 0 && frozen <= 0 && !freezeFlash;
                 float step = 2 * HALF + GAP;
                 pose.pushPose();
                 pose.translate(row.x - camera.pos.x, row.y - camera.pos.y, row.z - camera.pos.z);
                 pose.mulPose(camera.orientation);
+                if (resisting) small(context.submitNodeCollector(), pose, FREEZE_RESIST, count == 0 ? 0 : ((count - 1) / 2F) * step + HALF + GAP + HALF / 2);
                 for (int i = 0; i < count; i++) {
                     float centre = (i - (count - 1) / 2F) * step;
                     var collector = context.submitNodeCollector();
                     switch (emblems.get(i)) {
-                        case ICE_MARK -> full(collector, pose, ICE_MARK, centre, WHITE);
+                        case FREEZE -> {
+                            // A gauge: the snowflake fills from the bottom; full, the ice closes (a white blink) and the
+                            // lit rim drains as it thaws.
+                            if (freezeFlash) full(collector, pose, FREEZE_FLASH, centre, WHITE);
+                            else if (frozen > 0) {
+                                full(collector, pose, FREEZE_SPENT, centre, WHITE);
+                                wedge(collector, pose, FREEZE, centre, frozen);
+                            } else {
+                                full(collector, pose, FREEZE_OFF, centre, WHITE);
+                                risen(collector, pose, FREEZE_SPENT, centre, freeze);
+                            }
+                        }
                         case HELD -> full(collector, pose, HELD, centre, row.hurt() ? HURT_TINT : WHITE);
                         case INKED -> {
                             full(collector, pose, INKED_SPENT, centre, WHITE);
@@ -164,7 +184,23 @@ public final class CombatMarkBadges {
         });
     }
 
-    private enum Emblem { ICE_MARK, COLD, CRACK, HELD, INKED, EXPOSED, BURN }
+    private enum Emblem { FREEZE, COLD, CRACK, HELD, INKED, EXPOSED, BURN }
+
+    /** A half-size emblem (a resistance) centred at {@code centre}, a little lower than the row. */
+    private static void small(SubmitNodeCollector collector, PoseStack pose, Identifier texture, float centre) {
+        float h = HALF / 2, drop = -HALF / 2;
+        collector.submitCustomGeometry(pose, RenderTypes.entityCutout(texture), (matrix, vertices) -> {
+            smallVertex(matrix, vertices, centre - h, drop - h, 0, 0, 1);
+            smallVertex(matrix, vertices, centre + h, drop - h, 0, 1, 1);
+            smallVertex(matrix, vertices, centre + h, drop + h, 0, 1, 0);
+            smallVertex(matrix, vertices, centre - h, drop + h, 0, 0, 0);
+        });
+    }
+
+    private static void smallVertex(PoseStack.Pose pose, VertexConsumer vertices, float x, float y, float z, float u, float v) {
+        vertices.addVertex(pose, x, y, z).setColor(WHITE).setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightCoordsUtil.FULL_BRIGHT).setNormal(pose, 0, 0, 1);
+    }
 
     /** A small fixed world size; depth-tested so an emblem never reveals mobs through walls. */
     private static void full(SubmitNodeCollector collector, PoseStack pose, Identifier texture, float centre, int color) {

@@ -52,6 +52,8 @@ public final class PepperBreathEntity extends ThrowableProjectile {
     public static final double HIT_MARGIN = 0.2;
     private static final int MAX_AGE_TICKS = 60;
     private static final float BURN_SECONDS = 3.0F;
+    /** How long a body the ball set alight burns, and is Burned. */
+    public static final int BURN_TICKS = Math.round(BURN_SECONDS * 20);
     private static final String DAMAGE_TAG = "Damage";
     /** The rendered tail reaches about 0.7 blocks behind the hitbox centre. */
     private static final double TAIL_LENGTH = 0.7;
@@ -215,7 +217,7 @@ public final class PepperBreathEntity extends ThrowableProjectile {
             // A struck hit part sets its whole body alight; the fire it lights is a Burn in the fight's terms.
             Entity body = DigimonPart.livingOf(hitEntity) != null ? DigimonPart.livingOf(hitEntity) : hitEntity;
             body.igniteForSeconds(BURN_SECONDS);
-            if (body instanceof CombatMarkState marked) marked.digicube$burn(Math.round(BURN_SECONDS * 20));
+            if (body instanceof CombatMarkState marked) marked.digicube$burn(BURN_TICKS);
             if (shooter != null) {
                 shooter.setLastHurtMob(hitEntity);
             }

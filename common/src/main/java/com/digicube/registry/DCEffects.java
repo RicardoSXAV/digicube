@@ -15,7 +15,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
-/** Synced, saveable frost statuses on any living target, including non-Digimon mobs. */
+/** Synced, saveable combat statuses on any living target, including non-Digimon mobs. */
 public final class DCEffects {
     /** Ink briefly obscures distant targets, without pinning movement or cancelling close defence. */
     public static final Holder<MobEffect> INKED = register("inked",new MobEffect(MobEffectCategory.HARMFUL,0x311B42) {
@@ -33,7 +33,7 @@ public final class DCEffects {
             return true;
         }
     });
-    public static final Holder<MobEffect> ICE_MARK = register("ice_mark", new FrostEffect(false, 0x65CFFF));
+    /** Held in ice by a full Freeze gauge (FreezeMark): no movement, no jump, no attack. */
     public static final Holder<MobEffect> FROZEN = register("frozen", new FrostEffect(true, 0xB8EEFF)
             .addAttributeModifier(Attributes.MOVEMENT_SPEED, Constants.id("frozen_movement"), -1,
                     AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)

@@ -34,6 +34,8 @@ public final class MegaFlameEntity extends ThrowableProjectile {
     public static final double MAX_AIM_LEAD = 4.0;
     private static final int MAX_AGE_TICKS = 45;
     private static final int BURST_TICKS = 10;
+    /** How long a body caught in the blast burns, and is Burned. */
+    public static final int BURN_TICKS = 120;
     private static final double BLAST_RADIUS = 1.8;
     private static final double MAX_TURN = Math.toRadians(2.5);
     private static final double HOMING_CONE_COS = Math.cos(Math.toRadians(70.0));
@@ -203,8 +205,8 @@ public final class MegaFlameEntity extends ThrowableProjectile {
             float power = damage * (float) (1.0 - 0.45 * distance / BLAST_RADIUS);
             if (shooter instanceof DigimonEntity digimon && entity instanceof LivingEntity victim) power = com.digicube.digimon.CriticalHits.roll(level, digimon, victim, power);
             if (entity.hurtServer(level, damageSources().mobProjectile(this, shooter), power)) {
-                entity.setRemainingFireTicks(Math.max(entity.getRemainingFireTicks(), 120));
-                if (entity instanceof CombatMarkState marked) marked.digicube$burn(120);
+                entity.setRemainingFireTicks(Math.max(entity.getRemainingFireTicks(), BURN_TICKS));
+                if (entity instanceof CombatMarkState marked) marked.digicube$burn(BURN_TICKS);
                 if (shooter != null) shooter.setLastHurtMob(entity);
             }
         }

@@ -38,8 +38,8 @@ public final class ConstrictionRegressionTest {
         check(DigimonPart.idFor(1234,3)<0&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1234,4)&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1235,3),"part ids are negative and unique per parent and index");
         check(species.locomotion().canSwim()&&species.locomotion().swimSpeed()>.6,"fast aquatic navigation");
         var ice=DigimonSpeciesBootstrap.ICE_BLAST;var wrap=DigimonSpeciesBootstrap.CONSTRICTION;
-        check(ice.fuel().equals(new AttackFuel(40,80,10))&&ice.fuel().damageIntervalTicks()==DigimonSpeciesBootstrap.HOWLING_BLASTER.fuel().damageIntervalTicks(),
-                "short two-second tank with Howling Blaster's pulse cadence");
+        check(ice.fuel().equals(new AttackFuel(40,80,10))&&ice.fuel().damageIntervalTicks()==10,
+                "short two-second tank pulsing its damage every half second");
         check(ice.motion().activeUntil()-ice.motion().activeFrom()+1>ice.fuel().capacityTicks(),"the tank ends emission early inside the authored window");
         var tank=new FuelReserve(ice.fuel());tank.begin();for(int i=0;i<40;i++)check(tank.consume(),"full tank emits 40 ticks");
         check(!tank.consume(),"the forty-first tick is dry");
@@ -312,7 +312,6 @@ public final class ConstrictionRegressionTest {
         f.defineSynchedData(builder);
         field(f,Entity.class,"entityData",builder.build());
         field(f,Entity.class,"random",net.minecraft.util.RandomSource.create(0));
-        field(f,DigimonEntity.class,"iceExposure",new IceExposure());
         field(f,Mob.class,"lookControl",new com.digicube.entity.ai.DigimonLookControl(f));
         field(f,Mob.class,"moveControl",new com.digicube.entity.ai.DigimonMoveControl(f));
         field(f,Mob.class,"jumpControl",new com.digicube.entity.ai.DigimonJumpControl(f));

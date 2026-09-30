@@ -2,6 +2,7 @@ package com.digicube.mixin;
 
 import com.digicube.digimon.CrackMark;
 import com.digicube.digimon.ExposedMark;
+import com.digicube.digimon.FreezeMark;
 import com.digicube.digimon.IceCombo;
 import com.digicube.registry.DCEffects;
 import com.digicube.entity.CombatMarkState;
@@ -43,6 +44,14 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     /** The longest the fire a Digimon lit on this body has been, in ticks; 0 while it is not Burned. */
     @Unique
     private int digicube$burnLength;
+    /** Server-side only, like the Cold charge: frost paid into the Freeze gauge (0 to FreezeMark.FULL), and when last. */
+    @Unique
+    private float digicube$freezeGauge;
+    @Unique
+    private int digicube$freezeTouchTick;
+    /** The longest the current ice has been, so its emblem drains from full; until when the emblem blinks. */
+    @Unique
+    private int digicube$frozenLength, digicube$freezeFlashUntil;
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void digicube$defineMarks(SynchedEntityData.Builder builder, CallbackInfo ci) {
@@ -67,7 +76,7 @@ public abstract class MixinLivingEntity implements CombatMarkState {
             digicube$crackTouchTick = living.tickCount;
         }
         living.getEntityData().set(digicube$MARKS, !living.isAlive() ? 0 : CombatMarkState.pack(
-                living.hasEffect(DCEffects.ICE_MARK), living.hasEffect(DCEffects.CONSTRICTED),
+                living.hasEffect(DCEffects.CONSTRICTED),
                 digicube$coldCharge, cold == null ? 0 : cold.getDuration(),
                 ink == null ? 0 : ink.isInfiniteDuration() ? 1 : ink.getDuration() / (float) Math.max(1, digicube$inkLength),
                 digicube$crackCharges,
@@ -76,10 +85,22 @@ public abstract class MixinLivingEntity implements CombatMarkState {
         digicube$exposedLength = exposed == null ? 0 : Math.max(digicube$exposedLength, exposed.getDuration());
         // Burned while the fire lasts: water, rain or the fire running out ends it, whatever lit it again since.
         if (!living.isOnFire()) digicube$burnLength = 0;
+        // Frozen: the ice holds the body still (DCEffects.FROZEN) and vanilla's freezing shows on it; an unfed gauge
+        // holds a while and then drains, and none builds while the body is Frozen or resisting after its ice.
+        MobEffectInstance ice = living.getEffect(DCEffects.FROZEN);
+        boolean resisting = living.hasEffect(DCEffects.FROST_RESISTANCE);
+        if (ice != null || resisting || !living.isAlive()) digicube$freezeGauge = 0;
+        else if (digicube$freezeGauge > 0 && living.tickCount - digicube$freezeTouchTick > FreezeMark.HOLD_TICKS)
+            digicube$freezeGauge = Math.max(0, digicube$freezeGauge - FreezeMark.DRAIN);
+        digicube$frozenLength = ice == null ? 0 : Math.max(digicube$frozenLength, ice.getDuration());
+        if (ice != null) living.setTicksFrozen(Math.max(living.getTicksFrozen(), living.getTicksRequiredToFreeze()));
         living.getEntityData().set(digicube$MARKS2, !living.isAlive() ? 0 : CombatMarkState.pack2(
                 exposed == null ? 0 : exposed.isInfiniteDuration() ? 1 : exposed.getDuration() / (float) Math.max(1, digicube$exposedLength),
                 living.tickCount < digicube$exposedFlashUntil,
-                digicube$burnLength == 0 ? 0 : Math.min(1F, living.getRemainingFireTicks() / (float) digicube$burnLength)));
+                digicube$burnLength == 0 ? 0 : Math.min(1F, living.getRemainingFireTicks() / (float) digicube$burnLength),
+                digicube$freezeGauge / FreezeMark.FULL,
+                ice == null ? 0 : ice.isInfiniteDuration() ? 1 : ice.getDuration() / (float) Math.max(1, digicube$frozenLength),
+                living.tickCount < digicube$freezeFlashUntil, resisting));
     }
 
     @Override
@@ -112,10 +133,26 @@ public abstract class MixinLivingEntity implements CombatMarkState {
     }
 
     @Override
+    public boolean digicube$freezeGauge(float amount) {
+        LivingEntity living = (LivingEntity) (Object) this;
+        digicube$freezeTouchTick = living.tickCount;
+        digicube$freezeGauge = Math.min(FreezeMark.FULL, digicube$freezeGauge + amount);
+        if (digicube$freezeGauge < FreezeMark.FULL) return false;
+        digicube$freezeGauge = 0;
+        return true;
+    }
+
+    @Override
+    public void digicube$freezeFlash() {
+        digicube$freezeFlashUntil = ((LivingEntity) (Object) this).tickCount + FreezeMark.FLASH_TICKS;
+    }
+
+    @Override
     public void digicube$thaw() {
         LivingEntity living = (LivingEntity) (Object) this;
         digicube$coldCharge = 0;
-        living.removeEffect(DCEffects.ICE_MARK);
+        digicube$freezeGauge = 0;
+        living.removeEffect(DCEffects.FROZEN);
         living.removeEffect(DCEffects.COLD);
     }
 
