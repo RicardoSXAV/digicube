@@ -152,10 +152,17 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "back_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride")),
-                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false)) : null,
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "footfalls", false),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_from", 0),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "run_until", 0),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "pivot_reach", 0),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "pivot_stride",
+                                GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))),
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "pivot_cadence", DigimonGait.PIVOT_CADENCE)) : null,
                 json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0,
                 json.has("jet") ? jet(json.getAsJsonObject("jet")) : null,
-                json.has("travel_facing") ? travelFacing(json.getAsJsonObject("travel_facing")) : null);
+                json.has("travel_facing") ? travelFacing(json.getAsJsonObject("travel_facing")) : null,
+                GsonHelper.getAsDouble(json, "ice_grip", 0));
     }
 
     private static TravelFacing travelFacing(JsonObject json) {
@@ -203,7 +210,10 @@ public final class BundledSpeciesLoader {
                     GsonHelper.getAsFloat(m, "water_turn_rate", 0), GsonHelper.getAsFloat(m, "water_sprint", 1),
                     GsonHelper.getAsFloat(m, "jump", 0), GsonHelper.getAsBoolean(m, "turn_to_travel", false),
                     GsonHelper.getAsFloat(m, "camera_distance", 0),
-                    GsonHelper.getAsFloat(m, "sprint_build", DigimonBody.Mount.SPRINT_BUILD)));
+                    GsonHelper.getAsFloat(m, "sprint_build", DigimonBody.Mount.SPRINT_BUILD),
+                    new DigimonBody.Sea(GsonHelper.getAsFloat(m, "float_line", DigimonBody.Sea.DEFAULT.floatLine()),
+                            GsonHelper.getAsFloat(m, "surface_dive", 0), GsonHelper.getAsFloat(m, "water_roll", 0)),
+                    GsonHelper.getAsFloat(m, "leap_carry", 0)));
         }
         var hitParts = new java.util.ArrayList<DigimonBody.HitPart>();
         if (json.has("hit_parts")) {
@@ -215,9 +225,18 @@ public final class BundledSpeciesLoader {
                         part.get(2).getAsDouble()), part.get(3).getAsFloat(), part.get(4).getAsFloat()));
             }
         }
+        DigimonBody.Serpent serpent = null;
+        if (json.has("serpent")) {
+            JsonObject s = GsonHelper.getAsJsonObject(json, "serpent");
+            serpent = new DigimonBody.Serpent(GsonHelper.getAsFloat(s, "swim_height"), GsonHelper.getAsFloat(s, "turn_radius"),
+                    GsonHelper.getAsFloat(s, "swim_turn_radius"), GsonHelper.getAsFloat(s, "standing_turn"),
+                    GsonHelper.getAsFloat(s, "swim_head_drop", 0), GsonHelper.getAsFloat(s, "neck_turn", 180),
+                    GsonHelper.getAsFloat(s, "climb_share", 0));
+            if (hitParts.isEmpty()) throw new IllegalArgumentException("A serpent's body needs hit parts along it");
+        }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
                 EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts,
-                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN));
+                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN), serpent);
     }
 
     private static AerialMount aerialMount(JsonObject j) {
