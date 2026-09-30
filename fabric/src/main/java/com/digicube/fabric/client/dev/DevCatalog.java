@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Everything the developer panel shows, declared in one place. Battle Testing is real. Every
+ * Everything the developer panel shows, declared in one place. Battle Testing and the Analyzer record are real. Every
  * section marked {@code example()} is a placeholder from the design pitch: its values live
  * only in the panel and change nothing in the game. Wire one by giving its rows a
  * {@link DevValue} that reads and writes the real number, and dropping the mark.
@@ -76,6 +76,12 @@ final class DevCatalog {
                 .number("CAP PER PLAYER", 0, 64, 1, "", DevValue.local(12))
                 .number("SPAWN RADIUS", 16, 128, 4, "b", DevValue.local(48))
                 .tuning(NOT_WIRED);
+
+        client.analyzerSection = tabs.tab("PARTY").section("ANALYZER RECORD")
+                .keywords("reveal all", "forget all", "witness", "discovery", "silhouette", "marks guide")
+                .note(() -> "SURVIVAL SHOWS WHAT WAS WITNESSED · CREATIVE SHOWS ALL")
+                .action("FORGET ALL", () -> true, () -> { client.send(DevActions.ANALYZER_FORGET, new CompoundTag(), client.analyzerSection); return ""; })
+                .primary("REVEAL ALL", () -> true, () -> { client.send(DevActions.ANALYZER_REVEAL, new CompoundTag(), client.analyzerSection); return ""; });
 
         tabs.tab("PARTY")
                 .section("RECOVERY").example()

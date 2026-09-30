@@ -37,9 +37,47 @@ public final class DigiviceArt {
         public void draw(GuiGraphicsExtractor g, int x, int y, int drawWidth, int drawHeight) {
             g.blit(RenderPipelines.GUI_TEXTURED, id, x, y, 0, 0, drawWidth, drawHeight, width, height, width, height);
         }
+        public void draw(GuiGraphicsExtractor g, int x, int y, int drawWidth, int drawHeight, int color) {
+            g.blit(RenderPipelines.GUI_TEXTURED, id, x, y, 0, 0, drawWidth, drawHeight, width, height, width, height, color);
+        }
     }
 
+    /** A resource texture read back as ARGB, row by row. */
+    public record Pixels(int width, int height, int[] argb) {}
+
     private static final Map<String, Texture> TEXTURES = new HashMap<>();
+    private static final Map<Identifier, java.util.Optional<Pixels>> PIXELS = new HashMap<>();
+
+    /** The pixels of the resource texture {@code source}, read once; null when there is no such texture. */
+    public static Pixels pixels(Identifier source) {
+        return PIXELS.computeIfAbsent(source, id -> {
+            try (var input = Minecraft.getInstance().getResourceManager().open(id); NativeImage image = NativeImage.read(input)) {
+                int[] argb = new int[image.getWidth() * image.getHeight()];
+                for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) argb[y * image.getWidth() + x] = image.getPixel(x, y);
+                return java.util.Optional.of(new Pixels(image.getWidth(), image.getHeight(), argb));
+            } catch (java.io.IOException missing) {
+                return java.util.Optional.empty();
+            }
+        }).orElse(null);
+    }
+
+    /** Everything of {@code source} that is not see-through, in white, to be drawn in any colour; null without the texture. */
+    public static Texture shape(Identifier source) {
+        Pixels pixels = pixels(source);
+        if (pixels == null) return null;
+        return texture("shape/" + source.getNamespace() + "/" + source.getPath(), pixels.width(), pixels.height(), () -> {
+            int[] px = new int[pixels.argb().length];
+            for (int i = 0; i < px.length; i++) if (pixels.argb()[i] >>> 24 >= 0x60) px[i] = 0xFFFFFFFF;
+            return px;
+        });
+    }
+
+    /** The shape of a species' icon in {@code color}, for one the tamer has not seen yet; false when it has no icon. */
+    public static boolean silhouette(GuiGraphicsExtractor g, Identifier species, int x, int y, int size, int color) {
+        Texture shape = shape(species.withPath(path -> "textures/gui/digimon/" + path + ".png"));
+        if (shape != null) shape.draw(g, x, y, size, size, color);
+        return shape != null;
+    }
 
     /** The texture called {@code name}, painted by {@code pixels} (ARGB, row by row) the first time it is asked for. */
     static Texture texture(String name, int width, int height, Supplier<int[]> pixels) {
@@ -175,7 +213,14 @@ public final class DigiviceArt {
     public static void analyzerIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tab_analyzer", ANALYZER_ICON).draw(g, x, y, color); }
     public static void digispaceIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tab_digispace", DIGISPACE_ICON).draw(g, x, y, color); }
 
-    private static final String[] LENS = {".###...", "#...#..", "#...#..", "#...#..", ".###...", "....#..", ".....##", ".....##"};
+    // --- the Analyzer's pages: a paw print for the Digimon, a badge for the marks ---
+    private static final String[] PAW_ICON = {"..##.##..", "..##.##..", "##.....##", "##.....##", "...###...", "..#####..", ".#######.", ".#######.", "..#####.."};
+    private static final String[] BADGE_ICON = {".#######.", "#.......#", "#...#...#", "#..###..#", "#.#####.#", "#..###..#", "#...#...#", "#.......#", ".#######."};
+    public static final int PAGE_ICON = 9;
+    public static void pawIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("page_digimon", PAW_ICON).draw(g, x, y, color); }
+    public static void badgeIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("page_marks", BADGE_ICON).draw(g, x, y, color); }
+
+    private static final String[] LENS ={".###...", "#...#..", "#...#..", "#...#..", ".###...", "....#..", ".....##", ".....##"};
     public static void lens(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("lens", LENS).draw(g, x, y, color); }
 
     private static final String[] RUNES = {"#####.#|#...#.#|#.#.#.#|#.#...#|#.#####|#......|#######", "###.###|#.#.#.#|#.###.#|#.....#|#.###.#|#.#.#.#|###.###", "#######|......#|.####.#|.#..#.#|.#.##.#|.#....#|.######",

@@ -1,5 +1,15 @@
 package com.digicube.fabric.client.digivice;
 
+import com.digicube.Constants;
+import com.digicube.digimon.CombatMark;
+import com.digicube.digimon.CrackMark;
+import com.digicube.digimon.DigimonSpeciesBootstrap;
+import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.FreezeMark;
+import com.digicube.digimon.IceCombo;
+import net.minecraft.SharedConstants;
+import net.minecraft.util.Util;
+
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -10,8 +20,9 @@ import java.util.UUID;
 /**
  * Pins the Digivice's rules without a window: the Digispace island is the same every time and only lets Digimon stand
  * on open ground, the camera keeps the ground under the hand and never leaves the island, and the herd follows the
- * reserve while keeping everyone where they were. Given a directory, it also writes the painted island and props there
- * as PNG, so the art can be looked at without the game.
+ * reserve while keeping everyone where they were. The marks guide names the right Digimon behind each mark, quotes
+ * the game's numbers and plays each emblem through a run that ends. Given a directory, it also writes the painted
+ * island and props there as PNG, so the art can be looked at without the game.
  */
 public final class DigiviceRegressionTest {
     private static int checks;
@@ -114,7 +125,50 @@ public final class DigiviceRegressionTest {
                 if (art != null) write(new File(out, type.name().toLowerCase(java.util.Locale.ROOT) + ".png"), art.width(), art.height(), art.pixels());
             }
         }
+        try {
+            marks();
+        } finally {
+            Util.shutdownExecutors();
+        }
         System.out.println("Digivice regression test passed (" + checks + " checks)");
+    }
+
+    /** The marks guide, read from the bundled species. */
+    private static void marks() {
+        SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        DigimonSpeciesBootstrap.registerBuiltIn();
+        MarkGuide guide = new MarkGuide(DigimonSpeciesRegistry.all());
+        check(guide.entries().size() == CombatMark.values().length && guide.entries().get(0).mark() == CombatMark.FREEZE, "every mark has an entry, in the guide's order");
+        MarkGuide.Entry freeze = guide.get(CombatMark.FREEZE), burn = guide.get(CombatMark.BURN), crack = guide.get(CombatMark.CRACK);
+        check(freeze.appliers().size() == 1 && freeze.appliers().getFirst().species().id().equals(Constants.id("garurumon")) && freeze.appliers().getFirst().attacks().size() == 2,
+                "Freeze is Garurumon's, with two moves");
+        check(burn.appliers().size() == 2 && burn.appliers().get(0).species().id().equals(Constants.id("agumon")) && burn.appliers().get(1).species().id().equals(Constants.id("greymon")),
+                "Burn is Agumon's and Greymon's, Rookie first");
+        check(burn.shortest() == 60 && burn.longest() == 120 && freeze.shortest() == FreezeMark.FROZEN_TICKS && crack.longest() == CrackMark.CRACKED_TICKS, "a mark lasts what its moves say");
+        java.util.function.BinaryOperator<String> span = (a, b) -> a + " to " + b;
+        check(Arrays.equals(MarkGuide.numbers(burn, span), new Object[]{"3 to 6"}) && Arrays.equals(MarkGuide.numbers(freeze, span), new Object[]{"2.5", "4"}),
+                "the sentence quotes seconds, as a span when moves differ");
+        check(Arrays.equals(MarkGuide.numbers(guide.get(CombatMark.COLD), span), new Object[]{"40", "6"}) && Arrays.equals(MarkGuide.numbers(crack, span), new Object[]{"3", "25", "6"})
+                && Arrays.equals(MarkGuide.numbers(guide.get(CombatMark.EXPOSED), span), new Object[]{"4", "30"}) && Arrays.equals(MarkGuide.numbers(guide.get(CombatMark.INKED), span), new Object[]{"3", "2"})
+                && MarkGuide.numbers(guide.get(CombatMark.HELD), span).length == 0, "percentages and blocks come from the mechanics' own constants");
+
+        for (MarkGuide.Entry entry : guide.entries()) {
+            int length = MarkLife.length(entry);
+            check(length > MarkLife.REST + MarkLife.PAUSE && MarkLife.at(entry, 0).draw() == MarkLife.Draw.NONE && MarkLife.at(entry, length - 1).draw() == MarkLife.Draw.NONE
+                    && MarkLife.at(entry, length).draw() == MarkLife.at(entry, 0).draw(), entry.mark() + " runs between two rests and repeats");
+            boolean anyEmblem = false, bounded = true;
+            for (int tick = 0; tick < length; tick++) {
+                MarkLife.Frame frame = MarkLife.at(entry, tick);
+                anyEmblem |= frame.draw() != MarkLife.Draw.NONE;
+                bounded &= frame.amount() >= 0 && frame.amount() <= 1 && frame.bar() >= 0 && frame.bar() <= 1 && frame.caption() != null;
+            }
+            check(anyEmblem && bounded, entry.mark() + " shows its emblem with amounts in range");
+        }
+        check(MarkLife.at(freeze, MarkLife.REST).draw() == MarkLife.Draw.BUILD && MarkLife.at(freeze, MarkLife.REST).amount() > .4F, "a bite fills nearly half the Freeze gauge at once");
+        MarkLife.Frame cold = MarkLife.at(guide.get(CombatMark.COLD), MarkLife.REST + IceCombo.COLD_CHARGE_TICKS);
+        check(cold.draw() == MarkLife.Draw.TIMER && cold.amount() == 1 && cold.caption().equals("slowed"), "Cold charges, then its timer starts full");
+        check(MarkLife.at(crack, MarkLife.REST).caption().equals("hit") && (int) MarkLife.at(crack, MarkLife.REST).args()[0] == 1, "Crack counts its charges");
     }
 
     private static void write(File file, int width, int height, int[] argb) throws Exception {

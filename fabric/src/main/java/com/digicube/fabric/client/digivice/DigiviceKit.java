@@ -113,6 +113,60 @@ public final class DigiviceKit {
         return hover ? DigiTheme.WHITE : DigiTheme.MUTED;
     }
 
+    /** Anything drawn in one colour at a point: a tab's icon. */
+    @FunctionalInterface
+    public interface Icon { void draw(GuiGraphicsExtractor g, int x, int y, int color); }
+
+    public static final int PAGE_TAB_HEIGHT = 13;
+
+    public static int pageTabWidth(Font font, String label, String count) {
+        return 17 + font.width(label) + 6 + font.width(count) + 8;
+    }
+
+    /**
+     * A page of a view, in the strip under the tab row: a nine-unit icon, the page's name and a counter. The open page
+     * is raised over an amber rule.
+     * @param pending a small amber light in the corner: something on that page is new
+     */
+    public static void pageTab(GuiGraphicsExtractor g, Font font, int x, int y, Icon icon, String label, String count, boolean active, boolean hover, boolean pending) {
+        int w = pageTabWidth(font, label, count), h = PAGE_TAB_HEIGHT;
+        if (active) {
+            DigiPanels.frame(g, x, y, w, h, DigiTheme.PANEL_RAISED, 0, 2);
+            g.fill(x + 2, y, x + w - 2, y + 1, DigiTheme.EDGE_LIGHT);
+            g.fill(x, y + 2, x + 1, y + h - 1, DigiTheme.EDGE_LIGHT);
+            g.fill(x + w - 1, y + 2, x + w, y + h - 1, DigiTheme.SHADOW);
+            g.fill(x + 1, y + h - 2, x + w - 1, y + h, DigiTheme.AMBER);
+        } else {
+            DigiPanels.frame(g, x, y + 1, w, h - 2, withAlpha(DigiTheme.PANEL, hover ? 0xF0 : 0xA0), 0, 2);
+            g.fill(x + 2, y + 1, x + w - 2, y + 2, hover ? DigiTheme.EDGE_LIGHT : DigiTheme.EDGE_DIM);
+        }
+        icon.draw(g, x + 4, y + 2, active ? DigiTheme.CYAN : hover ? DigiTheme.WHITE : DigiTheme.MUTED);
+        g.text(font, label, x + 17, y + 3, active || hover ? DigiTheme.WHITE : DigiTheme.MUTED, false);
+        g.text(font, count, x + 17 + font.width(label) + 6, y + 3, active ? DigiTheme.AMBER : withAlpha(DigiTheme.MUTED, 0x90), false);
+        if (pending) g.fill(x + w - 4, y + 1, x + w - 1, y + 4, DigiTheme.AMBER);
+    }
+
+    public static int newTagWidth(Font font, String text) { return font.width(text) + 5; }
+
+    /** The amber tag an entry wears from the moment it is recorded until it is opened. */
+    public static void newTag(GuiGraphicsExtractor g, Font font, String text, int x, int y) {
+        DigiPanels.frame(g, x, y, newTagWidth(font, text), 10, withAlpha(DigiTheme.AMBER, 0x28), withAlpha(DigiTheme.AMBER, 0xC0), 1);
+        g.text(font, text, x + 3, y + 1, DigiTheme.AMBER, false);
+    }
+
+    /** The rule under an entry's name: dim, with {@code color} fading out from the left. */
+    public static void rule(GuiGraphicsExtractor g, int x, int y, int w, int color) {
+        g.fill(x, y, x + w, y + 1, DigiTheme.EDGE_DIM);
+        for (int i = 0; i < 40; i += 4) g.fill(x + i, y, x + i + 4, y + 1, withAlpha(color, (int) (0xE0 * (1 - i / 40F))));
+    }
+
+    /** The gridded slot a small sprite sits in; the sprite is drawn over it, one unit in. */
+    public static void slot(GuiGraphicsExtractor g, int x, int y, int w, int h, int edge) {
+        g.fill(x, y, x + w, y + h, withAlpha(DigiTheme.VOID, 0xE0));
+        DigiPanels.grid(g, x + 1, y + 1, w - 2, h - 2, 8, withAlpha(DigiTheme.GRID, 0x30));
+        DigiPanels.frame(g, x, y, w, h, 0, edge, 1);
+    }
+
     /** A fourteen-cell bar; the last lit cell fades with the fraction. */
     public static void statBar(GuiGraphicsExtractor g, Font font, int x, int y, int w, String label, float fraction, String value, int color) {
         int cells = 14, cell = (w - 44) / cells, bx = x + 24;

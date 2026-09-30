@@ -1,5 +1,7 @@
 package com.digicube.fabric.party;
 
+import com.digicube.analyzer.AnalyzerDiscoveryPayload;
+import com.digicube.analyzer.AnalyzerWitness;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyManager;
@@ -30,6 +32,7 @@ public final class FabricPartyNetworking {
     public static void init() {
         PayloadTypeRegistry.clientboundPlay().register(PartySnapshotPayload.TYPE, PartySnapshotPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(PartyHealthPayload.TYPE, PartyHealthPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(AnalyzerDiscoveryPayload.TYPE, AnalyzerDiscoveryPayload.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(PartyActionPayload.TYPE, PartyActionPayload.STREAM_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(PartyActionPayload.TYPE, (payload, context) ->
                 context.server().execute(() -> handle(context.player(), payload)));
@@ -40,9 +43,14 @@ public final class FabricPartyNetworking {
         ServerEntityEvents.ENTITY_LOAD.register(PartyManager::loaded);
         ServerEntityEvents.ENTITY_UNLOAD.register(PartyManager::unloaded);
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> send(handler.player, false, ""));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> PartyManager.disconnect(handler.player));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            PartyManager.disconnect(handler.player);
+            AnalyzerWitness.disconnect(handler.player);
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             PartyManager.tick(server);
+            // Before the snapshots, so an open Digivice shows what was just witnessed.
+            AnalyzerWitness.tick(server);
             PartySavedData data = PartySavedData.get(server);
             boolean periodic = server.getTickCount() % 20 == 0;
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -88,6 +96,10 @@ public final class FabricPartyNetworking {
         }
         if (payload.action() == PartyActionPayload.JET_PULSE) {
             if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.noteRiderJetPulse(player, payload.value());
+            return;
+        }
+        if (payload.action() == PartyActionPayload.SWIM_ROLL) {
+            if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.noteRiderSwimRoll(player, payload.value());
             return;
         }
         boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.OPEN || payload.action() == PartyActionPayload.RIDE;
@@ -141,7 +153,7 @@ public final class FabricPartyNetworking {
                 .map(member -> PartyMemberView.of(data, member)).toList() : List.of();
         PartySnapshotPayload snapshot = new PartySnapshotPayload(open, session.page, owned.size(),
                 data.roster().party(player.getUUID()).stream().map(member -> PartyMemberView.of(data, member)).toList(),
-                page, message, session.open ? PartyManager.knownSpecies(data, player.getUUID()) : List.of());
+                page, message, session.open ? AnalyzerWitness.species(player) : List.of(), session.open ? AnalyzerWitness.marks(player) : 0);
         if (session.sync.updateSnapshot(snapshot)) ServerPlayNetworking.send(player, snapshot);
     }
 }

@@ -1,6 +1,10 @@
 package com.digicube.fabric.client.party;
 
 import com.digicube.Constants;
+import com.digicube.analyzer.AnalyzerDiscoveryPayload;
+import com.digicube.digimon.CombatMark;
+import com.digicube.fabric.client.digivice.AnalyzerNews;
+import com.digicube.fabric.client.digivice.DiscoveryToast;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.DigimonPart;
 import com.digicube.fabric.client.digivice.DigiviceScreen;
@@ -42,6 +46,8 @@ public final class PartyClient {
     /** The party slot the arrow keys have selected; always a filled slot while the party is not empty. */
     private int selected;
     private final PartyHud hud = new PartyHud();
+    /** What the Analyzer recorded since connecting and the tamer has not opened yet. */
+    private final AnalyzerNews news = new AnalyzerNews();
     /** How far the crosshair picks a partner out, in blocks. Asking for a ride needs {@link DigimonEntity#RIDE_REACH}. */
     private static final double AIM_REACH = 24;
     /** The own deployed partner under the crosshair, or null. Static for the render mixins, like the rider's soft target. */
@@ -85,10 +91,13 @@ public final class PartyClient {
                         screen.receiveHealth(snapshot, payload);
                     }
                 }));
+        ClientPlayNetworking.registerGlobalReceiver(AnalyzerDiscoveryPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> discovered(context.client(), payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             snapshot = empty();
             selected = 0;
             aimed = null;
+            news.clear();
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             snapshotAge++;
@@ -141,6 +150,21 @@ public final class PartyClient {
             snapshot.party().stream().filter(m -> m.slot() == selected && m.phase().equals("RESTING")).findFirst()
                     .ifPresent(m -> send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), 0, m.generation(), m.sequence())));
         }
+    }
+
+    public AnalyzerNews news() { return news; }
+
+    /**
+     * The Analyzer recorded something: it is news until opened, and a toast says so. Not in creative, where the
+     * Analyzer shows every entry anyway; the tag waits for survival.
+     */
+    private void discovered(Minecraft client, AnalyzerDiscoveryPayload payload) {
+        CombatMark mark = payload.combatMark();
+        if (payload.mark() && mark == null) return;
+        DiscoveryToast toast = mark != null ? DiscoveryToast.of(mark) : DiscoveryToast.of(payload.id());
+        if (toast == null) return;
+        if (mark != null) news.add(mark); else news.add(payload.id());
+        if (client.player != null && !client.player.isCreative()) client.gui.toastManager().addToast(toast);
     }
 
     /** The party member that is {@code entity}, or null. */

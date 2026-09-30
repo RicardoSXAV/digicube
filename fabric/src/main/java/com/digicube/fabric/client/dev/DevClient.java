@@ -52,7 +52,9 @@ public final class DevClient {
 
     // Battle Testing sides; the species list is static, so they survive worlds too
     final List<Fighter> sideA = new ArrayList<>(), sideB = new ArrayList<>();
-    DevTabs.Section battleSection;
+    DevTabs.Section battleSection, analyzerSection;
+    /** The section whose action is out with the server; its reply lands there. */
+    private DevTabs.Section asked;
 
     /** One kind on a Battle Testing side: how many of which Digimon at which level; no species yet while being picked. */
     static final class Fighter {
@@ -81,7 +83,11 @@ public final class DevClient {
                 context.client().execute(() -> {
                     battle = payload.state().getCompound(BattleTest.BATTLE).orElse(null);
                     battleAge = 0;
-                    if (!payload.reply().isEmpty() && battleSection != null) battleSection.status(payload.reply().toUpperCase(Locale.ROOT));
+                    if (!payload.reply().isEmpty()) {
+                        DevTabs.Section to = asked != null ? asked : battleSection;
+                        asked = null;
+                        if (to != null) to.status(payload.reply().toUpperCase(Locale.ROOT));
+                    }
                 }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> battle = null);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -112,5 +118,11 @@ public final class DevClient {
 
     void send(String action, CompoundTag args) {
         if (ClientPlayNetworking.canSend(DevActionPayload.TYPE)) ClientPlayNetworking.send(new DevActionPayload(action, args));
+    }
+
+    /** {@link #send}, with the reply shown on {@code from}. */
+    void send(String action, CompoundTag args, DevTabs.Section from) {
+        asked = from;
+        send(action, args);
     }
 }

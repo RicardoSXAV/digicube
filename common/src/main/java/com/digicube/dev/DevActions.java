@@ -19,6 +19,11 @@ public final class DevActions {
     /** Remove the staged fighters. */
     public static final String BATTLE_CLEAR = "battle_clear";
 
+    /** Put every species and every combat mark on the player's Analyzer record. */
+    public static final String ANALYZER_REVEAL = "analyzer_reveal";
+    /** Start the player's Analyzer record over. */
+    public static final String ANALYZER_FORGET = "analyzer_forget";
+
     /** Each side of a fight: a list written by {@link BattleRoster#write}. */
     public static final String SIDE_A_ARG = "side_a";
     public static final String SIDE_B_ARG = "side_b";
@@ -29,6 +34,8 @@ public final class DevActions {
         register(REFRESH, (server, player, args) -> "");
         register(BATTLE_START, BattleTest::start);
         register(BATTLE_CLEAR, BattleTest::clear);
+        register(ANALYZER_REVEAL, com.digicube.analyzer.AnalyzerWitness::revealAll);
+        register(ANALYZER_FORGET, com.digicube.analyzer.AnalyzerWitness::forgetAll);
     }
 
     private DevActions() {}

@@ -14,7 +14,9 @@ chain (`tab(..).section(..).number(..) .toggle(..).choice(..).tuning(..)`) over 
 interface code; a special body implements `DevBody` and registers its controls on the `DevCanvas`
 (`BattleTestingBody`). Sections marked `example()` are placeholders whose values live only in the panel; wire
 one by giving its rows a `DevValue` that reads and writes the real number. `DevLayout` holds the arithmetic;
-`:fabric:devPanelTest` pins declarations, search, cards, the tab row and number rows.
+`:fabric:devPanelTest` pins declarations, search, cards, the tab row and number rows. Besides Battle Testing, the
+PARTY tab's ANALYZER RECORD section is real: REVEAL ALL and FORGET ALL act on the player's Analyzer record
+(`AnalyzerWitness`, [screens.md](screens.md#the-digivice-screen)).
 
 Server side: `DevPanel.handle` (common) admits, in a development environment only, an operator or the
 singleplayer world owner (a survival world made without cheats gives its host no permission level, and

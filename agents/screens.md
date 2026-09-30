@@ -21,11 +21,22 @@ tab declares what can be clicked (`hit`) and scrolled (`wheel`) and the topmost 
 wins. `DigiviceKit` holds the components (the primary action wears the device's blue key, the rest stay navy),
 `DigiviceArt` the palette and the pixel art, painted in code into `DynamicTexture`s on first use.
 
-**Analyzer** (`AnalyzerTab`, `AnalyzerIndex`) lists every species with search and attribute filter, shows the
-selected one on an LCD (icon, or the turning model through `DigimonPreview` on VIEW 3D) with stats, attacks
-and evolution line; profiles are the lang keys `digimon.digicube.<id>.profile`. A species is known when the
-tamer owns it, came from it or has reached it (`PartyManager.knownSpecies`, sent in the snapshot while the
-Digivice is open); unknown ones are silhouettes, and a development environment knows them all.
+**Analyzer** (`AnalyzerTab`) has two pages under a strip (`DigiviceKit.pageTab`, Tab switches): DIGIMON lists
+every species with search and attribute filter (`AnalyzerIndex`), shows the selected one on an LCD (icon, or the
+turning model through `DigimonPreview` on VIEW 3D) with stats, attacks (each with the emblem of the mark it leaves,
+a click opening it) and evolution line; profiles are the lang keys `digimon.digicube.<id>.profile`. MARKS
+(`MarksPage`) is the guide to the combat marks: the list, the selected emblem living through a run on a stage
+(`MarkLife` decides each moment, `MarkEmblems` draws it the way the world does), one sentence with the game's own
+numbers in it (`MarkGuide`, lang `mark.digicube.<id>`, `.effect`, `.guide`, `.ends`), how it ends and who leaves
+it. An entry is on the tamer's record (`analyzer/AnalyzerRecord`, saved per world) once witnessed
+(`AnalyzerWitness`: a species within 24 blocks, in front and in a clear line of sight for a second, the tamer's own
+Digimon at once; a mark the moment its emblem shows over such a body, the tamer's own included); the snapshot
+carries the record while the Digivice is open (`known`, `marks`). Until then an entry is a silhouette with one
+sentence, and search and the filter skip it. A new record sends `AnalyzerDiscoveryPayload`: a toast
+(`DiscoveryToast`) and a NEW tag until the entry is opened (`AnalyzerNews`), neither in creative, where every entry
+is open and nothing is recorded less for it. The developer panel's ANALYZER RECORD section reveals or forgets the
+record. Check with `DIGICUBE_SCENARIO=analyzer_checks` (`[analyzer-checks] RESULT n of n checks passed`);
+`:fabric:digiviceTest` pins the guide and the runs.
 
 **Digispace** (`DigispaceTab`) is where the party is managed: the reserve wanders a painted island
 (`DigispaceWorld` decides ground and props and paints the terrain, `DigispaceArt` the props, `DigispaceHerd`

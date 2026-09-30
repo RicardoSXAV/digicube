@@ -78,6 +78,19 @@ tasks.register('partyTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('partyTest') }
 
+// Exercise the Analyzer's record: which mark each move leaves, what a body shows, the save and the packets.
+tasks.register('analyzerTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.analyzer.AnalyzerRegressionTest'
+    workingDir = layout.buildDirectory.dir('analyzer-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('analyzerTest') }
+
 tasks.register('speciesTest', JavaExec) {
     dependsOn tasks.named('partyTestClasses')
     classpath = sourceSets.partyTest.runtimeClasspath

@@ -26,6 +26,7 @@ digicube/
 │       │   ├── digimon/                <- the domain model (species, stages, evolution, progression)
 │       │   ├── entity/                 <- DigimonEntity, projectiles, AI goals
 │       │   ├── party/                  <- Digivice collection, party slots, sync payloads
+│       │   ├── analyzer/               <- what each tamer has witnessed: the record, the witness, its payload
 │       │   ├── spawn/                  <- wild spawner, spawn tables, wild settings
 │       │   ├── starter/                <- first-partner prompt: starter set, saved data, flow, payloads
 │       │   ├── dev/                    <- developer panel: server actions, battle testing, payloads, gate

@@ -11,12 +11,13 @@ import java.util.List;
 
 /**
  * Bounded pages keep a large collection below the custom-payload packet limit. A page is large enough that the
- * Digispace shows a whole ordinary reserve at once. {@code known} lists the species the Analyzer may describe; like
- * the collection it is only filled while the Digivice is open.
+ * Digispace shows a whole ordinary reserve at once. {@code known} lists the species the Analyzer may describe and
+ * {@code marks} the combat marks ({@link com.digicube.digimon.CombatMark#mask}); like the collection they are only
+ * filled while the Digivice is open.
  */
 public record PartySnapshotPayload(boolean openScreen, int page, int total,
                                    List<PartyMemberView> party, List<PartyMemberView> collection,
-                                   String message, List<Identifier> known) implements CustomPacketPayload {
+                                   String message, List<Identifier> known, int marks) implements CustomPacketPayload {
     public static final int PAGE_SIZE = 64;
     private static final int MAX_KNOWN = 1024;
     public static final Type<PartySnapshotPayload> TYPE = new Type<>(Constants.id("party_snapshot"));
@@ -30,7 +31,11 @@ public record PartySnapshotPayload(boolean openScreen, int page, int total,
     }
 
     public PartySnapshotPayload(boolean openScreen, int page, int total, List<PartyMemberView> party, List<PartyMemberView> collection, String message) {
-        this(openScreen, page, total, party, collection, message, List.of());
+        this(openScreen, page, total, party, collection, message, List.of(), 0);
+    }
+
+    public PartySnapshotPayload(boolean openScreen, int page, int total, List<PartyMemberView> party, List<PartyMemberView> collection, String message, List<Identifier> known) {
+        this(openScreen, page, total, party, collection, message, known, 0);
     }
 
     private void write(RegistryFriendlyByteBuf buffer) {
@@ -42,11 +47,12 @@ public record PartySnapshotPayload(boolean openScreen, int page, int total,
         buffer.writeUtf(message, 128);
         buffer.writeVarInt(known.size());
         known.forEach(buffer::writeIdentifier);
+        buffer.writeVarInt(marks);
     }
 
     private static PartySnapshotPayload read(RegistryFriendlyByteBuf buffer) {
         return new PartySnapshotPayload(buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(),
-                readMembers(buffer, PartyRoster.PARTY_SIZE), readMembers(buffer, PAGE_SIZE), buffer.readUtf(128), readKnown(buffer));
+                readMembers(buffer, PartyRoster.PARTY_SIZE), readMembers(buffer, PAGE_SIZE), buffer.readUtf(128), readKnown(buffer), buffer.readVarInt());
     }
 
     private static void writeMembers(RegistryFriendlyByteBuf buffer, List<PartyMemberView> members) {
