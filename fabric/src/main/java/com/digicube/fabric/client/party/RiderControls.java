@@ -116,6 +116,10 @@ public final class RiderControls {
         int pulse = mount == null ? -1 : mount.takeJetReport();
         if (pulse >= 0 && ClientPlayNetworking.canSend(PartyActionPayload.TYPE))
             ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.JET_PULSE, PartyActionPayload.NO_MEMBER, pulse));
+        // So do a sea mount's barrel rolls.
+        int roll = mount == null ? -1 : mount.takeRollReport();
+        if (roll >= 0 && ClientPlayNetworking.canSend(PartyActionPayload.TYPE))
+            ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.SWIM_ROLL, PartyActionPayload.NO_MEMBER, roll));
         if (mount == null || minecraft.gui.screen() != null) {
             softTarget = null;
             java.util.Arrays.fill(wasDown, false);
@@ -164,6 +168,17 @@ public final class RiderControls {
                 wasDown[slot] = down;
                 continue;
             }
+            if (spec.aim() == RiderAttack.Aim.POUNCE) {
+                // A pounce is flown here from the press (the ridden body is this client's to move); the server bites along
+                // the path it takes. A held button pounces again as soon as a use is back.
+                boolean canSend = ClientPlayNetworking.canSend(PartyActionPayload.TYPE);
+                if (down && canSend && (!wasDown[slot] || mount.tickCount - lastSend[slot] > POUNCE_REPEAT_TICKS) && mount.predictRiderPounce(player, attack)) {
+                    ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_ATTACK, PartyActionPayload.NO_MEMBER, slot));
+                    lastSend[slot] = mount.tickCount;
+                }
+                wasDown[slot] = down;
+                continue;
+            }
             if (hold && spec.aim() == RiderAttack.Aim.SHOT && down) DigimonEntity.localRiderDraws = true;
             if (hold && (spec.aim() == RiderAttack.Aim.STREAM || spec.aim() == RiderAttack.Aim.SHOT)) {
                 // Breathes (or holds a drawn shot raised) for as long as the button is held; a press while it recovers is tried again.
@@ -186,6 +201,9 @@ public final class RiderControls {
             wasDown[slot] = down;
         }
     }
+
+    /** Ticks between the pounces of a held button: one has to finish its burst before the next leaves. */
+    private static final int POUNCE_REPEAT_TICKS = 12;
 
     /** The attack has something to aim right now: anything but a returning weapon that is away from its thrower. */
     private static boolean aims(DigimonEntity mount, DigimonAttack attack) {
@@ -340,6 +358,9 @@ public final class RiderControls {
         nod += com.digicube.fabric.client.render.Stomps.nod(mount, partialTick);
         float shot = mount.ticksSinceShot() + partialTick;
         if (shot >= 0 && shot < 6) { nod -= 1.8F * Mth.square(1 - shot / 6); fov += .025F * Mth.square(1 - shot / 6); }
+        // Falling back into the water off a leap dips the view and punches it out, harder the faster it came down.
+        float[] splash = com.digicube.fabric.client.render.SwimWake.splashKick(mount, partialTick);
+        if (splash != null) { nod += splash[0]; fov += splash[1]; }
         // A jet swimmer's pulse surges the view out and back as the body shoots forward, and noses it down a touch.
         float jet = mount.ticksSinceJetThrust() + partialTick;
         if (mount.isInWater() && jet >= 0 && jet < 9) {

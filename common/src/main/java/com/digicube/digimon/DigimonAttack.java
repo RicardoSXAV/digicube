@@ -52,7 +52,7 @@ public record DigimonAttack(
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
         if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
-                || kind == Kind.FROST_BITE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST || kind == Kind.BOX_SWEEP || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT || kind == Kind.RETREAT_KICK)
+                || kind == Kind.POUNCE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST || kind == Kind.BOX_SWEEP || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT || kind == Kind.RETREAT_KICK)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched attack motion");
         }
@@ -93,9 +93,9 @@ public record DigimonAttack(
         FLAME_STREAM,
         /** A broad homing wave carrying fish, with a single low-damage knockback impact. */
         WATER_WAVE,
-        /** Swept fang contact and a collision-safe lunge that applies an ice mark. */
-        FROST_BITE,
-        /** Fueled ice flames which convert a mark after sustained contact. */
+        /** A dash along its line that ends in a bite on the first body its jaws meet ({@link PounceAttacks}). */
+        POUNCE,
+        /** Fueled frost: a stream that charges Cold, or a breath of puffs that builds Freeze ({@link BreathAttacks}). */
         FROST_STREAM,
         /** A collision-checked finite-body wrap, a brief hold, and periodic damage. */
         CONSTRICTION,

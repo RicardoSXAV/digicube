@@ -1,0 +1,29 @@
+{
+  "howling_blaster": {
+    "power": 0.35,
+    "duration": 128,
+    "hit_tick": 12,
+    "range": 13,
+    "fuel": [100, 140, 10],
+    "speed": 1.55,
+    "drag": 0.9,
+    "life": 16,
+    "radius": [[0, 0.2], [2, 0.3], [3.4, 0.44], [5, 0.56], [7, 0.5], [9.6, 0.38], [16, 0.34]],
+    "per_tick": 2,
+    "spread": 0.06,
+    "rise": -0.004,
+    "bounce": 0.2,
+    "freeze": 3.5,
+    "water_ice": true,
+    "douse": true,
+    "turn": 22,
+    "pitch_turn": 16,
+    "twist": 60,
+    "effect": "howling_blaster_fx",
+    "sounds": {
+      "start": "digicube:howling_blaster_start",
+      "loop": "digicube:howling_blaster_loop",
+      "end": "digicube:howling_blaster_end"
+    }
+  }
+}

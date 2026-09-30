@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-/** Real selection/range checks with a closing bear; no running game or world required. */
+/** Real selection/range checks for a pouncer against a bear; no running game or world required. */
 final class CombatPressureRegressionTest {
     static void run() throws Exception {
         // Plain Minecraft bootstrap has already frozen registries. Reproduce the
@@ -45,28 +45,35 @@ final class CombatPressureRegressionTest {
         } finally {
             set(effects, net.minecraft.core.MappedRegistry.class, "frozen", true);
         }
-        var mob = fixture(0, 1.9F, 2.8F);
+        var mob = fixture(0, 1.8F, 2.1F);
         var bearSize = EntityTypes.POLAR_BEAR.getDimensions();
         var bear = fixture(3, bearSize.width(), bearSize.height());
         mob.target = bear;
-        var bite = DigimonSpeciesBootstrap.FREEZE_FANG;
-        var breath = DigimonSpeciesBootstrap.HOWLING_BLASTER;
-        check(mob.chooseAttack(bear) == bite, "opening bite against an unmarked bear");
-        bear.marked = true;
-        // The bear walks into melee range after the bite and throughout the inhale.
-        for (double distance : new double[]{2.69, 2.3, 1.9, 1.65}) {
+        var bite = DigimonSpeciesBootstrap.attacks().get(Constants.id("freeze_fang"));
+        var breath = DigimonSpeciesBootstrap.attacks().get(Constants.id("howling_blaster"));
+        check(mob.chooseAttack(bear) == bite, "a bear up close is pounced on");
+        // Further out, while its Freeze gauge can fill, the bear is breathed on.
+        for (double distance : new double[]{4.2, 6, 9}) {
             place(bear, distance, bearSize.width(), bearSize.height());
-            check(mob.canAttackFrom(breath, bear, mob.position()), "real range gate accepts close bear at " + distance);
-            check(mob.chooseAttack(bear) == breath, "convert the mark while the bear closes to " + distance);
+            check(mob.canAttackFrom(breath, bear, mob.position()), "the breath reaches a bear at " + distance);
+            check(mob.chooseAttack(bear) == breath, "breathe on a bear whose gauge can fill at " + distance);
         }
-        bear.marked = false;
+        place(bear, 6, bearSize.width(), bearSize.height());
+        check(mob.canAttackFrom(bite, bear, mob.position()), "the pounce reaches a bear six blocks out");
         bear.frozen = true;
-        check(mob.chooseAttack(bear) == bite, "bite the frozen bear at body contact");
+        check(mob.chooseAttack(bear) == bite, "a Frozen bear is pounced on to shatter it, never breathed on");
+        check(!mob.positioningAttacks(bear).contains(breath), "navigation positions for the shatter, not for more frost");
         bear.frozen = false;
-        bear.marked = true;
+        bear.resisting = true;
+        check(mob.chooseAttack(bear) == bite, "a bear that resists frost is pounced on");
+        bear.resisting = false;
         mob.blockBreath = true;
-        check(mob.chooseAttack(bear) == bite, "blocked flame still permits a physically valid defensive bite");
-        check(mob.positioningAttacks(bear).contains(bite), "navigation also permits the defensive bite stance");
+        check(mob.chooseAttack(bear) == bite, "a blocked breath still leaves the pounce");
+        check(mob.positioningAttacks(bear).contains(bite), "navigation also positions for the pounce");
+        mob.blockBreath = false;
+        place(bear, 11, bearSize.width(), bearSize.height());
+        check(!mob.canAttackFrom(bite, bear, mob.position()) && mob.chooseAttack(bear) == breath,
+                "a bear beyond the pounce is breathed on");
         // A path pinned by the bear must not remain cached forever just because isDone is false.
         mob.navigationOnly = true;
         var goal = new DigimonAttackGoal(mob, 1.25);
@@ -78,7 +85,7 @@ final class CombatPressureRegressionTest {
             goal.tick();
         }
         check(mob.nav.requests > 0, "reconsider a pinned, unfinished path within one second plus the repath interval");
-        Constants.LOG.info("Combat pressure checks passed: closing bear, close breath, frozen bite, defensive fallback and pinned path expiry.");
+        Constants.LOG.info("Combat pressure checks passed: pounce up close, breath further out, shatter on Frozen prey, pounce on a resisting or blocked one, and pinned path expiry.");
     }
 
     private static Fixture fixture(double z, float width, float height) throws Exception {
@@ -119,7 +126,7 @@ final class CombatPressureRegressionTest {
         LookControl look;
         RandomSource randomSource;
         LivingEntity target;
-        boolean marked, frozen, blockBreath, navigationOnly;
+        boolean resisting, frozen, blockBreath, navigationOnly;
         private Fixture() { super(null, null); }
         @Override public Level level() { return world; }
         @Override public PathNavigation getNavigation() { return nav; }
@@ -138,7 +145,7 @@ final class CombatPressureRegressionTest {
         @Override public boolean canAttack(LivingEntity target) { return true; }
         @Override public boolean canBeAffected(MobEffectInstance effect) { return true; }
         @Override public boolean hasEffect(Holder<MobEffect> effect) {
-            return effect == DCEffects.ICE_MARK && marked || effect == DCEffects.FROZEN && frozen;
+            return effect == DCEffects.FROST_RESISTANCE && resisting || effect == DCEffects.FROZEN && frozen;
         }
         @Override public boolean canAttackFrom(DigimonAttack move, LivingEntity target, Vec3 feet) {
             return !(blockBreath && move.fuel() != null) && super.canAttackFrom(move, target, feet);
@@ -147,7 +154,7 @@ final class CombatPressureRegressionTest {
             return navigationOnly ? null : super.chooseAttack(target);
         }
         @Override public List<DigimonAttack> positioningAttacks(LivingEntity target) {
-            return navigationOnly ? List.of(DigimonSpeciesBootstrap.FREEZE_FANG) : super.positioningAttacks(target);
+            return navigationOnly ? List.of(DigimonSpeciesBootstrap.attacks().get(Constants.id("freeze_fang"))) : super.positioningAttacks(target);
         }
         @Override public void setAggressive(boolean aggressive) {}
     }

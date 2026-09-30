@@ -2,13 +2,11 @@ package com.digicube.fabric.client.render;
 
 import com.digicube.Constants;
 import com.digicube.fabric.client.model.BlueBlasterModel;
-import com.digicube.fabric.client.model.HowlingBlasterModel;
 import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
 import com.digicube.fabric.client.model.TentomonModel;
-import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
@@ -38,7 +36,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
             Constants.id("ikkakumon"), Constants.id("textures/entity/digimon/ikkakumon.png"),
             Constants.id("tentomon"), Constants.id("textures/entity/digimon/tentomon.png"),
-            Constants.id("garurumon"), Constants.id("textures/entity/digimon/garurumon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
             Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
@@ -50,12 +47,24 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final Map<String,com.digicube.fabric.client.model.NativeEffectModel> authoredEffects=new java.util.HashMap<>();
     private final Map<DigimonEntity,com.digicube.fabric.client.model.ClothChains.State> cloth=new java.util.WeakHashMap<>();
     private final Map<DigimonEntity,com.digicube.fabric.client.model.RopeChains.State> ropes=new java.util.WeakHashMap<>();
+    private final Map<DigimonEntity,com.digicube.fabric.client.model.TailChains.State> tails=new java.util.WeakHashMap<>();
+    private final Map<DigimonEntity,com.digicube.fabric.client.model.SerpentSpine.State> serpents=new java.util.WeakHashMap<>();
     private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
-    private final HowlingBlasterModel howlingBlaster;
+    /** A breath of puffs is drawn with its own effect model's boxes; a pounce's bite bursts its impact model at the jaws. */
+    private final Map<String, FrostBreathRenderer> breaths = new java.util.HashMap<>();
+    private final Map<String, com.digicube.fabric.client.model.NativeEffectModel> impacts = new java.util.HashMap<>();
+    /** Where each entity's last bite burst, in the world, so the burst stays where the jaws met while the body moves on. */
+    private final Map<DigimonEntity, Bite> bites = new java.util.WeakHashMap<>();
+    /** An electric discharge's bolts (ArcDischarge), drawn from the strike the caster last let go. */
+    private final ArcRenderer arcs = new ArcRenderer();
+    private record Bite(int tick, net.minecraft.world.phys.Vec3 at, float yaw, String effect) {}
     private final com.digicube.fabric.client.model.IceBlastModel iceBlast;
     private final com.digicube.fabric.client.model.NativeEffectModel fistEffect;
     private final com.digicube.fabric.client.model.NativeEffectModel aimedWave;
+    /** Ticks a discharge's bolts may live at most, and how far out of the caster's box they may reach (blocks). */
+    private static final int ARC_LIFE = 12;
+    private static final double ARC_REACH = 14;
     /** The wave's clip with every spike risen and the impact debris gone. */
     private static final float AIMED_WAVE_TICK = 50;
 
@@ -67,7 +76,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 effect->new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
         mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
-        howlingBlaster = new HowlingBlasterModel(context.bakeLayer(HowlingBlasterModel.LAYER));
+        for (var attack : com.digicube.digimon.BreathAttacks.attacks()) {
+            String effect = com.digicube.digimon.BreathAttacks.get(attack).effect();
+            breaths.computeIfAbsent(effect, FrostBreathRenderer::new);
+        }
+        for (var attack : com.digicube.digimon.PounceAttacks.attacks()) {
+            String effect = com.digicube.digimon.PounceAttacks.get(attack).impact();
+            if (!effect.isEmpty()) impacts.computeIfAbsent(effect, e -> new com.digicube.fabric.client.model.NativeEffectModel(
+                    context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(e)), e));
+        }
         iceBlast = new com.digicube.fabric.client.model.IceBlastModel(context.bakeLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER));
         fistEffect = new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(
                 com.digicube.fabric.client.model.NativeEffectModel.layer("rock_punch_fx")), "rock_punch_fx");
@@ -78,7 +95,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
                 Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
-                Constants.id("garurumon"), new GarurumonModel(context.bakeLayer(GarurumonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
                 Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER))));
@@ -139,6 +155,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
         super.submit(state, poseStack, collector, cameraState);
+        for (var blob : state.serpentShadows) {
+            poseStack.pushPose();
+            poseStack.translate(blob.x(), blob.y(), blob.z());
+            collector.submitShadow(poseStack, blob.radius(), blob.pieces());
+            poseStack.popPose();
+        }
         if (!state.isInvisible && state.attackDefinition != null && state.attackDefinition.kind() == DigimonAttack.Kind.FIST
                 && state.attackAnimation.isStarted()) {
             var fx=state.fistEffect;fx.tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
@@ -160,12 +182,18 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         if (state.blueBlaster.length > 0.05F && state.attackDefinition != null) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
             var frame = state.attackDefinition.motion().sample(tick);
-            var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
+            var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.blueBlaster.yaw * Mth.DEG_TO_RAD).subtract(0, state.streamDrop, 0);
             poseStack.pushPose();
             poseStack.translate(mouth.x, mouth.y, mouth.z);
-            BlueBlasterRenderer.submit(state.blueBlaster.iceBlast ? iceBlast : state.blueBlaster.frost ? howlingBlaster : blueBlaster,
-                    state.blueBlaster, poseStack, collector);
+            BlueBlasterRenderer.submit(state.blueBlaster.iceBlast ? iceBlast : blueBlaster, state.blueBlaster, poseStack, collector);
             poseStack.popPose();
+        }
+        if (state.arc.count > 0) arcs.submit(state.arc, poseStack, collector);
+        if (!state.isInvisible && state.breath.count > 0 && state.breathEffect != null && breaths.containsKey(state.breathEffect)) {
+            breaths.get(state.breathEffect).submit(state.breath, poseStack, collector, state.ageInTicks);
+        }
+        if (!state.isInvisible && state.biteEffect != null && impacts.containsKey(state.biteEffect)) {
+            TectonicWaveRenderer.submitEffect(impacts.get(state.biteEffect), state.biteEffect, state.bite, poseStack, collector);
         }
         if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
                 && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_SHOT) {
@@ -204,6 +232,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.modelScale = models.containsKey(state.species) ? entity.getBody().modelScale() : fallbackScale;
         state.cloth = cloth.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.ClothChains.State());
         state.ropes = ropes.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.RopeChains.State());
+        state.tails = tails.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.TailChains.State());
         state.isBeingRidden = entity.isVehicle();
         state.runAnimationAmount = entity.getRunAnimationAmount(partialTick);
         state.swimAnimationAmount = entity.getSwimAnimationAmount(partialTick);
@@ -214,6 +243,9 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
         state.groundRunAmount = entity.getGroundRunAmount(partialTick);
         state.gaitShares = entity.getGaitShares(partialTick);
+        state.pivotTurn = entity.getPivotTurn(partialTick);
+        state.groundedMove = entity.groundedMove();
+        state.skid = entity.getSkid(partialTick);
         state.throwCharge = entity.throwCharge();
         state.boneCarried = entity.boneCarried();
         state.riderAim.heights = com.digicube.fabric.client.party.RiderControls.aimedWave(entity);
@@ -236,6 +268,11 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 ? (float)entity.aerialRiding().groundDistance(3) : 3;
         state.flightLandingProgress=entity.landingProgress(partialTick);
         state.swimBank = entity.getSwimBank(partialTick);
+        state.turnBank = entity.getTurnBank(partialTick);
+        state.swimDash = entity.getSwimDash(partialTick);
+        state.swimLeap = entity.getSwimLeap(partialTick);
+        state.swimSurface = entity.getSwimSurface(partialTick);
+        state.swimRoll = entity.getSwimRoll(partialTick);
         state.shadowRadius = entity.getBbWidth() * 0.5F;
         if (entity.isGuiPreview()) {
             // A screen preview: no nameplate, no shadow, and nothing of the level around it.
@@ -302,35 +339,170 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             state.bodyRot = entity.getKineticRenderYaw(partialTick);
         }
         state.kineticOffset = entity.getKineticRenderOffset(partialTick).yRot(state.bodyRot * Mth.DEG_TO_RAD);
-        // An attack on the run: the upper body plays it and twists toward where the rider looks, or the AI's aim.
+        // An attack on the run: the upper body plays it and twists toward where the rider looks, or the AI's aim (and so
+        // does the AI's breath from a body that steps round, its legs turning it after the aim).
         var rider = entity.rider();
-        state.attackUpperBody = state.attackAnimation.isStarted() && entity.movesDuring(state.attackDefinition);
+        state.attackUpperBody = state.attackAnimation.isStarted()
+                && (entity.movesDuring(state.attackDefinition) || entity.breathesOnItsLegs(state.attackDefinition));
         float aim = !state.attackUpperBody ? 0 : rider != null ? Mth.rotLerp(partialTick, rider.yRotO, rider.getYRot()) : entity.getAttackYaw(partialTick);
-        state.attackTwist = state.attackUpperBody ? Math.clamp(Mth.wrapDegrees(aim - state.bodyRot),
-                -com.digicube.entity.KineticSession.MAX_TWIST, com.digicube.entity.KineticSession.MAX_TWIST) : 0;
+        // A breath turns only the neck toward the aim (its own twist), a drawn shot the whole upper body.
+        var breathing = com.digicube.digimon.BreathAttacks.get(state.attackDefinition);
+        float twist = breathing != null ? breathing.twist() : state.attackDefinition != null && state.attackDefinition.fuel() != null
+                ? DigimonEntity.STREAM_TWIST : com.digicube.entity.KineticSession.MAX_TWIST;
+        state.attackTwist = state.attackUpperBody ? Math.clamp(Mth.wrapDegrees(aim - state.bodyRot), -twist, twist) : 0;
         state.riderCharge = entity.riderCharging() ? entity.riderChargeTicks() + partialTick : -1;
+        state.pouncePitch = entity.getPouncePitch(partialTick);
+        breathAndBite(entity, state, partialTick);
+        ArcRenderer.extract(entity, state.arc, state.x, state.y, state.z, partialTick);
         state.leapTick = entity.getLeapTick(partialTick);
         state.leapWeight = state.leapTick < 0 ? 0 : entity.getLeapWeight(partialTick);
-        state.blueBlaster.frost = false;
         state.blueBlaster.iceBlast = false;
         if (entity.isAlive() && state.attackAnimation.isStarted() && state.attackDefinition != null
-                && state.attackDefinition.fuel() != null) {
+                && state.attackDefinition.fuel() != null && !com.digicube.digimon.BreathAttacks.handles(state.attackDefinition)) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
             var motion = state.attackDefinition.motion();
             if (tick >= motion.activeFrom() && tick < motion.activeUntil() + 1) {
                 var frame = motion.sample(tick);
                 var flame = state.blueBlaster;
-                flame.frost = state.attackDefinition.kind() == DigimonAttack.Kind.FROST_STREAM;
                 flame.iceBlast = state.attackDefinition.id().equals(com.digicube.digimon.DigimonSpeciesBootstrap.ICE_BLAST.id());
                 flame.ageInTicks = tick - motion.activeFrom();
-                flame.yaw = state.bodyRot;
+                // a stream breathed on the move leaves the turned head toward the aim; a serpent's swimming head is lower
+                flame.yaw = entity.riderMovesDuring(state.attackDefinition) ? entity.getAttackYaw(partialTick) : state.bodyRot;
+                var serpent = entity.serpent();
+                state.streamDrop = serpent != null && entity.isSwimmingMovement() ? serpent.swimHeadDrop() : 0;
                 flame.pitch = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
                 flame.length = (float) entity.flameStream(state.attackDefinition, tick,
-                        state.attackAimPitch, state.bodyRot).length();
+                        state.attackAimPitch, flame.yaw).length();
                 flame.outlineColor = state.outlineColor;
             }
         }
+        serpent(entity, state);
         state.evolution = evolution.extract(entity,state,partialTick);
+    }
+
+    /** Ticks at either end of a wrap over which a serpent's body lets go of its trail and takes it back. */
+    private static final float WRAP_BLEND = 12;
+
+    /**
+     * A serpent's body (a model with a spine, a sheet with a serpent): its drawn feet lay its trail, and it gets its sway (on
+     * land, swimming, dashing, at rest in the water), its dive and how much of it lies along the trail (a wrap coils it
+     * round its prey instead, letting go of the trail as the coil begins and taking it back as it ends).
+     */
+    private void serpent(DigimonEntity entity, DigimonRenderState state) {
+        state.serpentShadows.clear();
+        var spine = models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel ground ? ground.definition().spine() : null;
+        if (spine == null || entity.getBody().serpent() == null) { state.serpent = null; state.spineWeight = 0; return; }
+        var definition = ((com.digicube.fabric.client.model.NativeGroundModel) models.get(state.species)).definition();
+        float water = Mth.clamp(state.swimAnimationAmount, 0, 1), motion = Mth.clamp(state.swimMotionAmount, 0, 1);
+        com.digicube.fabric.client.model.SerpentSpine.State data;
+        if (entity.isGuiPreview()) {
+            // A screen preview has no path behind it: its body lies straight back, in the sway it has at rest.
+            data = new com.digicube.fabric.client.model.SerpentSpine.State(entity.getBody().length());
+            data.follow(new net.minecraft.world.phys.Vec3(state.x, state.y, state.z), state.bodyRot, 0, 0, state.ageInTicks, spine, null);
+        } else {
+            data = serpents.computeIfAbsent(entity, e -> new com.digicube.fabric.client.model.SerpentSpine.State(e.getBody().length()));
+            data.follow(new net.minecraft.world.phys.Vec3(state.x, state.y, state.z), state.bodyRot, water, motion, state.ageInTicks, spine, entity.level());
+        }
+        state.serpent = data;
+        float swim = Mth.lerp(motion, spine.restWave(), spine.swimWave()) + Mth.clamp(state.swimDash, 0, 1) * (spine.dashWave() - spine.swimWave());
+        state.spineWave = Mth.lerp(water, spine.landWave(), swim);
+        float limit = state.isBeingRidden ? definition.riddenPitch() : definition.swimPitch();
+        state.spinePitch = Mth.clamp(state.xRot, -limit, limit) * water;
+        state.spineWeight = 1;
+        if (state.attackDefinition != null && state.attackAnimation.isStarted() && state.attackDefinition.kind() == DigimonAttack.Kind.CONSTRICTION) {
+            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
+            state.spineWeight = 1 - (float) Mth.smoothstep(Mth.clamp(Math.min(tick, com.digicube.digimon.ConstrictionMotion.DURATION - tick) / WRAP_BLEND, 0, 1));
+        }
+        if (!entity.isGuiPreview()) serpentShadow(entity, state, data);
+    }
+
+    /** Blocks behind the head a serpent's shadow starts (its head is reared over nothing), and between its blobs. */
+    private static final double SHADOW_FROM = 1.8, SHADOW_STEP = 1.1;
+    /** A blob's radius under the thick of the body and at the tail, and the share of vanilla's darkness each keeps (they overlap). */
+    private static final float SHADOW_THICK = .62F, SHADOW_THIN = .28F, SHADOW_SHARE = .75F;
+
+    /**
+     * A serpent's shadow: soft blobs along its body where it lies (the trail), thick under the body and thin at the tail,
+     * each falling on the ground as vanilla's shadow does; vanilla's one under its feet would lie under the reared head.
+     */
+    private void serpentShadow(DigimonEntity entity, DigimonRenderState state, com.digicube.fabric.client.model.SerpentSpine.State data) {
+        var level = entity.level();
+        var trail = data.trail();
+        if (trail.head() == null || state.isInvisible || !net.minecraft.client.Minecraft.getInstance().options.entityShadows().get()) return;
+        float pow = (float) (1 - state.distanceToCameraSq / 256) * SHADOW_SHARE;
+        if (pow <= 0) return;
+        double length = entity.getBody().length() - 1;
+        int count = Math.max(1, (int) ((length - SHADOW_FROM) / SHADOW_STEP) + 1);
+        double[] distances = new double[count], at = new double[3 * count], tangent = new double[3 * count];
+        for (int k = 0; k < count; k++) distances[k] = SHADOW_FROM + k * SHADOW_STEP;
+        trail.sample(distances, at, tangent);
+        var pos = new net.minecraft.core.BlockPos.MutableBlockPos();
+        for (int k = 0; k < count; k++) {
+            float radius = Mth.lerp(count == 1 ? 0 : (float) k / (count - 1), SHADOW_THICK, SHADOW_THIN);
+            double cx = at[3 * k], cy = at[3 * k + 1], cz = at[3 * k + 2];
+            float depth = Math.min(pow / .5F - 1, radius);
+            var pieces = new java.util.ArrayList<net.minecraft.client.renderer.entity.state.EntityRenderState.ShadowPiece>();
+            for (int z = Mth.floor(cz - radius); z <= Mth.floor(cz + radius); z++)
+                for (int x = Mth.floor(cx - radius); x <= Mth.floor(cx + radius); x++)
+                    for (int y = Mth.floor(cy - depth); y <= Mth.floor(cy); y++) {
+                        pos.set(x, y, z);
+                        float power = pow - (float) (cy - y) * .5F;
+                        var below = pos.below();
+                        var belowState = level.getBlockState(below);
+                        if (belowState.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE) continue;
+                        int brightness = level.getMaxLocalRawBrightness(pos);
+                        if (brightness <= 3 || !belowState.isCollisionShapeFullBlock(level, below)) continue;
+                        var shape = belowState.getShape(level, below);
+                        if (shape.isEmpty()) continue;
+                        float alpha = Mth.clamp(power * .5F * net.minecraft.client.renderer.Lightmap.getBrightness(level.dimensionType(), brightness), 0, 1);
+                        pieces.add(new net.minecraft.client.renderer.entity.state.EntityRenderState.ShadowPiece(
+                                (float) (x - cx), (float) (y - cy), (float) (z - cz), shape, alpha));
+                    }
+            if (!pieces.isEmpty()) state.serpentShadows.add(new DigimonRenderState.SerpentShadow((float) (cx - state.x), (float) (cy - state.y),
+                    (float) (cz - state.z), radius, pieces));
+        }
+    }
+
+    /** A serpent casts its shadow along its body instead (serpentShadow). */
+    @Override
+    protected float getShadowRadius(DigimonRenderState state) {
+        return state.serpent != null ? 0 : super.getShadowRadius(state);
+    }
+
+    /**
+     * The breath's puffs as this client flies them, relative to the body; and a pounce's bite: the moment the jaws shut
+     * on something, its impact bursts where the jaws are (the clip's own jaws at its snap, turned with the body and its
+     * pounce), and plays out there while the body moves on.
+     */
+    private void breathAndBite(DigimonEntity entity, DigimonRenderState state, float partialTick) {
+        var breath = entity.clientBreath();
+        state.breathEffect = breath == null ? null : breath.spec().effect();
+        FrostBreathRenderer.extract(breath, state.breath, state.x, state.y, state.z, partialTick);
+        state.biteEffect = null;
+        int since = entity.ticksSincePounceBite();
+        var pounce = com.digicube.digimon.PounceAttacks.get(entity.getAnimatingAttack());
+        Bite bite = bites.get(entity);
+        if (pounce != null && !pounce.impact().isEmpty() && since <= 1 && (bite == null || bite.tick() != entity.tickCount - since)) {
+            var frame = pounce.attack().motion().sample(pounce.snap());
+            double pitch = Math.toRadians(entity.getPouncePitch(partialTick)), pivot = entity.getBbHeight() * .5;
+            double y = frame.mouth().y - pivot, z = frame.mouth().z;
+            var local = new net.minecraft.world.phys.Vec3(frame.mouth().x, y * Math.cos(pitch) + z * Math.sin(pitch) + pivot, -y * Math.sin(pitch) + z * Math.cos(pitch));
+            bite = new Bite(entity.tickCount - since, entity.getPosition(partialTick).add(local.yRot(-state.bodyRot * Mth.DEG_TO_RAD)),
+                    state.bodyRot, pounce.impact());
+            bites.put(entity, bite);
+        }
+        if (bite == null) return;
+        float age = entity.tickCount - bite.tick() + partialTick;
+        if (age > 11) return;
+        state.biteEffect = bite.effect();
+        var fx = state.bite;
+        fx.clip = "effect";
+        fx.tick = age;
+        fx.yaw = bite.yaw();
+        fx.scale = state.modelScale;
+        fx.offset = bite.at().subtract(state.x, state.y, state.z);
+        fx.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT;
+        fx.outlineColor = 0;
     }
 
     @Override
@@ -347,6 +519,8 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 && !(nativeModel instanceof com.digicube.fabric.client.model.NativeGroundModel)) {
             bounds = bounds.inflate(nativeModel.cullingMargin() * entity.getBody().modelScale());
         }
+        // a discharge's bolts reach far from the caster: keep it drawn while they live
+        if (entity.clientArc(ARC_LIFE) != null) bounds = bounds.inflate(ARC_REACH);
         var attack = entity.getAnimatingAttack();
         return attack != null && attack.fuel() != null
                 ? bounds.inflate(attack.range()) : bounds;
@@ -378,7 +552,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
      * @param pose seated leg angles
      * @param yaw how far the animated seat has turned from the mount's heading, degrees
      */
-    public record RiderVisual(net.minecraft.world.phys.Vec3 offset, AnimatedRiderModel.RiderPose pose, float yaw) {}
+    public record RiderVisual(net.minecraft.world.phys.Vec3 offset, AnimatedRiderModel.RiderPose pose, float yaw, float[] lean) {}
 
     /**
      * Evaluate the actual mount model at the same clock as its rendered body.
@@ -392,6 +566,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         var state = createRenderState();
         extractRenderState(entity, state, partialTick);
         var offset = mount.riderOffset(state);
-        return new RiderVisual(offset, mount.riderPose(), mount.riderYaw(state));
+        return new RiderVisual(offset, mount.riderPose(), mount.riderYaw(state), mount.riderLean(state));
     }
 }

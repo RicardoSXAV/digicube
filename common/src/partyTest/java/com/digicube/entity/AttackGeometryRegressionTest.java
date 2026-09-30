@@ -11,33 +11,10 @@ public final class AttackGeometryRegressionTest {
     private AttackGeometryRegressionTest() {}
 
     public static void run() {
-        var bite = DigimonSpeciesBootstrap.FREEZE_FANG;
         AABB cow = new AABB(-.45, 0, 2.55, .45, 1.4, 3.45);
-        check(AttackGeometry.canContact(bite, Vec3.ZERO, 1.9, 2.8, cow,
-                (a, b) -> true, box -> true, p -> true), "Bite reaches a stationary cow on level ground");
-        check(!AttackGeometry.canContact(bite, new Vec3(0, 1, 0), 1.9, 2.8, cow,
-                (a, b) -> true, box -> true, p -> true), "Do not bite the air over a cow one block below");
-        check(!AttackGeometry.canContact(bite, Vec3.ZERO, 1.9, 2.8, cow.move(0, 0, 1.5),
-                (a, b) -> true, box -> true, p -> true), "A target moving beyond the authored lunge can still dodge");
-        check(!AttackGeometry.canContact(bite, Vec3.ZERO, 1.9, 2.8, cow,
-                (a, b) -> false, box -> true, p -> true), "Contact cannot pass through cover");
-        check(!AttackGeometry.canContact(bite, Vec3.ZERO, 1.9, 2.8, cow,
-                (a, b) -> true, box -> false, p -> true), "A wall preventing the lunge invalidates the attack");
-        check(!AttackGeometry.canContact(bite, Vec3.ZERO, 1.9, 2.8, cow,
-                (a, b) -> true, box -> true, p -> false), "A lunge needs ground ahead");
         var floor = new AABB(-40, -2, -40, 40, 0, 40);
-        var howling = DigimonSpeciesBootstrap.HOWLING_BLASTER;
-        // An adult bear closes to body contact after the opening bite.
-        for (double distance : new double[]{1.65, 1.9, 2.3, 2.69}) {
-            AABB bear = new AABB(-.7, 0, distance - .7, .7, 1.4, distance + .7);
-            for (int tick = howling.hitTick(); tick <= howling.motion().activeUntil(); tick++) {
-                check(AttackGeometry.streamAim(howling, tick, Vec3.ZERO, bear, 0,
-                        (a, b) -> clip(a, b, List.of(floor))) != null,
-                        "Breath can hit a retaliating bear at distance " + distance + " tick " + tick);
-            }
-        }
         var ledge = new AABB(-2, 0, -4, 2, 1, 1.2);
-        for (var move : List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HOWLING_BLASTER)) {
+        for (var move : List.of(DigimonSpeciesBootstrap.BLUE_BLASTER)) {
             for (float yaw : new float[]{0, 90, 180, 270}) {
                 for (double elevation : new double[]{-1, 0, 1}) {
                     Vec3 feet = new Vec3(0, elevation, 0);

@@ -42,7 +42,7 @@ public final class AttackTravelSync {
     /** @return whether the server moves this attack's root along its travel curve */
     public static boolean drivesRoot(DigimonAttack attack) {
         if (attack == null || attack.motion() == null) return false;
-        if (attack.kind() == DigimonAttack.Kind.FIST || attack.kind() == DigimonAttack.Kind.HORN_RAM || attack.kind() == DigimonAttack.Kind.FROST_BITE) return true;
+        if (attack.kind() == DigimonAttack.Kind.FIST || attack.kind() == DigimonAttack.Kind.HORN_RAM) return true;
         var authored = com.digicube.digimon.AuthoredAttacks.get(attack);
         return authored != null && authored.rootTravel();
     }
@@ -77,6 +77,13 @@ public final class AttackTravelSync {
      * @return interpolation length for that packet
      */
     public static int steps(DigimonAttack attack, int arrivalTick) {
-        return drivesRoot(attack) && window(attack.motion()).contains(arrivalTick) || flight(attack).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
+        return drivesRoot(attack) && window(attack.motion()).contains(arrivalTick) || flight(attack).contains(arrivalTick)
+                || burst(attack).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
+    }
+
+    /** @return the burst of a pounce (its clip ticks, the same from the ground and from the air); empty for other attacks */
+    private static Window burst(DigimonAttack attack) {
+        var pounce = com.digicube.digimon.PounceAttacks.get(attack);
+        return pounce == null ? NONE : new Window(pounce.gather() + 1, pounce.gather() + pounce.burst() + 2);
     }
 }

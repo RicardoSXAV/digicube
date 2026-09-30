@@ -54,17 +54,6 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("claw_attack"), DigimonAttack.Kind.MELEE,
             0.65F, 22, 16, 6, 0.0, true);
 
-    /** Garurumon's quick icy bite sets up the subsequent sustained ice flame. */
-    public static final DigimonAttack FREEZE_FANG = new DigimonAttack(
-            Constants.id("freeze_fang"), DigimonAttack.Kind.FROST_BITE,
-            0.65F, 28, 28, 10, 3.3, false, AttackMotion.load(Constants.id("freeze_fang")), null, 0.0);
-
-    /** Champion ice jet: four-second tank, eight-second empty-to-full refill. */
-    public static final DigimonAttack HOWLING_BLASTER = new DigimonAttack(
-            Constants.id("howling_blaster"), DigimonAttack.Kind.FROST_STREAM,
-            0.30F, 0, 108, 12, 12.0, false, AttackMotion.load(Constants.id("howling_blaster")),
-            new AttackFuel(80, 160, 10), 0.0);
-
     /** The shared moves species sheets may reference, by id. */
     public static final DigimonAttack ROCK_PUNCH = new DigimonAttack(
             Constants.id("rock_punch"), DigimonAttack.Kind.FIST,
@@ -86,8 +75,11 @@ public final class DigimonSpeciesBootstrap {
     public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
 
     public static Map<Identifier, DigimonAttack> attacks() {
-        return java.util.stream.Stream.concat(java.util.stream.Stream.concat(java.util.stream.Stream.concat(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack), KineticAttacks.all().stream().map(KineticAttacks.Definition::attack)), java.util.stream.Stream.concat(ThrownAttacks.attacks().stream(), WhipAttacks.attacks().stream())), java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
-                BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, FREEZE_FANG, HOWLING_BLASTER, ROCK_PUNCH, TECTONIC_FIST,
+        var data = java.util.stream.Stream.of(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack),
+                KineticAttacks.all().stream().map(KineticAttacks.Definition::attack), ThrownAttacks.attacks().stream(),
+                WhipAttacks.attacks().stream(), PounceAttacks.attacks().stream(), BreathAttacks.attacks().stream()).flatMap(s -> s);
+        return java.util.stream.Stream.concat(data, java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
+                BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, ROCK_PUNCH, TECTONIC_FIST,
                 ICE_BLAST, CONSTRICTION))
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));
     }

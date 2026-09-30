@@ -40,7 +40,13 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
          * A long arm as a whip ({@link WhipAttacks}): held, it swings back and gathers momentum; let go, it lashes at the
          * crosshair and follows the view while it lashes, striking whatever the swept arm meets.
          */
-        WHIP
+        WHIP,
+        /**
+         * A pounce ({@link PounceAttacks}): the mount dashes along the crosshair, pitch included (bent a little toward an
+         * enemy within {@code cone} of it), from the ground or mid-leap, and bites the first body its jaws meet. The
+         * rider's client flies the dash at the press.
+         */
+        POUNCE
     }
 
     public enum Input {

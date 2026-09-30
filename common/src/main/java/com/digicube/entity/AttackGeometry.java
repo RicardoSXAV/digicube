@@ -80,6 +80,30 @@ public final class AttackGeometry {
         return Math.max(0, target.getCenter().subtract(feet).horizontalDistance() - (width + targetWidth) * .5 - .08);
     }
 
+    /**
+     * How far a body's box may move along the horizontal {@code direction} before it touches {@code target}'s box, less
+     * a hair: the boxes' own corners (a wide body met on the diagonal is touched sooner than its width suggests).
+     * Zero once they touch; a long way when the move passes it by.
+     */
+    public static double boxClearance(AABB body, AABB target, Vec3 direction) {
+        double hx = body.getXsize() * .5, hz = body.getZsize() * .5;
+        double cx = body.getCenter().x, cz = body.getCenter().z;
+        double minX = target.minX - hx, maxX = target.maxX + hx, minZ = target.minZ - hz, maxZ = target.maxZ + hz;
+        double enter = 0, leave = Double.MAX_VALUE;
+        double[][] slabs = {{cx, direction.x, minX, maxX}, {cz, direction.z, minZ, maxZ}};
+        for (double[] s : slabs) {
+            if (Math.abs(s[1]) < 1.0E-9) {
+                if (s[0] <= s[2] || s[0] >= s[3]) return Double.MAX_VALUE;
+                continue;
+            }
+            double a = (s[2] - s[0]) / s[1], b = (s[3] - s[0]) / s[1];
+            enter = Math.max(enter, Math.min(a, b));
+            leave = Math.min(leave, Math.max(a, b));
+        }
+        if (leave < enter || leave <= 0) return Double.MAX_VALUE;
+        return Math.max(0, enter - .05);
+    }
+
     /** An upper-chest point gives downward shots room above the ground while staying inside the victim. */
     public static Vec3 chest(AABB target) {
         return target.getCenter().add(0, target.getYsize() * .2, 0);

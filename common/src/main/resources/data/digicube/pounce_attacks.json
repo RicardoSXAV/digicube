@@ -1,0 +1,24 @@
+{
+  "freeze_fang": {
+    "power": 0.8,
+    "cooldown": 40,
+    "duration": 16,
+    "hit_tick": 3,
+    "range": 7,
+    "charges": 2,
+    "gather": 2,
+    "burst": 6,
+    "speed": [1.35, 0.6],
+    "exit": 0.45,
+    "home": 6,
+    "cone": 14,
+    "ground_pitch": [-35, 35],
+    "air_pitch": [-70, 60],
+    "contact_until": 9,
+    "snap": 8,
+    "freeze": 45,
+    "shatter": 2,
+    "knockback": 0.35,
+    "impact": "freeze_fang_impact_fx"
+  }
+}

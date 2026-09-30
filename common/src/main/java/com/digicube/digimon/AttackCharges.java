@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Stacked uses of an attack ({@code charges} in {@code authored_attacks.json}; Gold Rush holds three). Each use starts
+ * Stacked uses of an attack ({@code charges} in {@code authored_attacks.json} or {@code pounce_attacks.json}; Gold Rush
+ * holds three, Freeze Fang two). Each use starts
  * its own refill of the attack's cooldown, so a full stack can be fired back to back, a cast at a time. The body's
  * ordinary cooldown clock stays the one gate everything reads: while a stack is left it says "ready now", once none is
  * it says when the soonest comes back.
@@ -18,8 +19,11 @@ public final class AttackCharges {
 
     /** How many uses {@code attack} stacks; 1 for an ordinary cooldown. */
     public static int of(DigimonAttack attack) {
-        var authored = attack == null ? null : AuthoredAttacks.get(attack);
-        return authored == null ? 1 : authored.charges();
+        if (attack == null) return 1;
+        var authored = AuthoredAttacks.get(attack);
+        if (authored != null) return authored.charges();
+        var pounce = PounceAttacks.get(attack);
+        return pounce == null ? 1 : pounce.charges();
     }
 
     /**

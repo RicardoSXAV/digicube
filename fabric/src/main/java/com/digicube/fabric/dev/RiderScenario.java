@@ -22,7 +22,7 @@ import java.util.List;
  * Headless check of mounted combat: {@code DIGICUBE_SCENARIO=rider_checks} seats a fake player on every mount whose
  * sheet lists rider attacks and casts each slot at a dummy that stands still. No client turns or moves the mount
  * here, so this proves the server side only: a rider's cast starts without a target, aims by the soft target or the
- * view, and lands damage. Last, a mount walks down a hillside of one-block steps: it must keep its feet on every step
+ * view, and lands damage (a pounce, which the rider's client flies, is flown by the server here as that client would). Last, a mount walks down a hillside of one-block steps: it must keep its feet on every step
  * (no tick in the air), as it does going up. A stacked attack (Gold Rush) is also pressed again each time its cast ends:
  * every stack must go at once, and the press after the last must be refused. The verdict line starts with {@code [rider] RESULT}.
  */
@@ -70,7 +70,8 @@ public final class RiderScenario {
     private static Vec3 airStart;
     private static final double DEEP = 1.5;
     /** Gaps between the two bodies to try, nearest first: a strike's reach without its lunge is not written anywhere. */
-    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0}, GRAB = {5}, CHARGE = {5, 3}, WHIP = {1.4, 2.4, .6};
+    private static final double[] NEAR = {.6, 1.4, 2.4, 3.4}, FAR = {6}, LINE = {4.5, 3.0}, GRAB = {5}, CHARGE = {5, 3}, WHIP = {1.4, 2.4, .6},
+            POUNCE = {2.5, 4};
     private static int attempt;
 
     private static List<Case> cases;
@@ -142,7 +143,7 @@ public final class RiderScenario {
 
     private static double[] gaps(RiderAttack spec) {
         return spec.aim() == RiderAttack.Aim.SWEEP ? NEAR : spec.aim() == RiderAttack.Aim.WHIP ? WHIP : spec.aim() == RiderAttack.Aim.LINE ? LINE : spec.aim() == RiderAttack.Aim.GRAB ? GRAB
-                : spec.aim() == RiderAttack.Aim.CHARGE ? CHARGE : FAR;
+                : spec.aim() == RiderAttack.Aim.CHARGE ? CHARGE : spec.aim() == RiderAttack.Aim.POUNCE ? POUNCE : FAR;
     }
 
     private static void next(ServerLevel level) { attempt = 0; index++; stage(level); }
@@ -310,7 +311,11 @@ public final class RiderScenario {
         if (throwing && (test.air() || test.far())) { observeThrown(level, test, attack); return; }
         if (caseTick == 25) {
             if (mount.getControllingPassenger() != rider) { fail(test, attack, "the fake rider does not control the mount"); next(level); return; }
-            started = mount.startRiderAttack(rider, test.slot());
+            // A pounce is flown by the rider's client: the server flies it here, as that client would.
+            if (mount.riderSpec(attack).aim() == RiderAttack.Aim.POUNCE) {
+                mount.driveScenarioRider(true, false);
+                started = mount.scenarioRiderCast(rider, test.slot());
+            } else started = mount.startRiderAttack(rider, test.slot());
             if (!started) { fail(test, attack, "the cast was refused"); next(level); return; }
         }
         // A stream is breathed and a drawn shot held raised until the button comes up.

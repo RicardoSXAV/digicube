@@ -137,6 +137,11 @@ public final class DigimonAttackGoal extends Goal {
             mob.startAttack(attack, target);
             return;
         }
+        // A leap to pounce from the air flies on its own: no path steers it.
+        if (mob.leapingToPounce()) {
+            mob.getNavigation().stop();
+            return;
+        }
 
         var desiredMoves = mob.positioningAttacks(target);
         boolean opening = desiredMoves.stream().anyMatch(move -> move.kind() == DigimonAttack.Kind.CONSTRICTION);
