@@ -24,15 +24,32 @@ every Digimon hit against it (on top of the triangle, in `CriticalHits.chance`) 
 (`DigimonAttackGoal.dodgeChance`); a crit on it blinks the emblem (`mark_exposed_flash`). **Burn**: fire a
 Digimon's attack lights (Pepper Breath, Mega Flame; call `digicube$burn(ticks)` after igniting) is a Burn for
 as long as the body keeps burning; vanilla fire does the damage and water puts it out, the emblem's rim drains
-with the fire (`mark_burn`). The first readout is full (one bit left); new marks go in the second
-(`digicube$marks2`: Exposed bits 0-7, Burn 8-14, bits 15-31 free).
+with the fire (`mark_burn`). **Freeze** (`FreezeMark`): frost pays into a gauge of 100 (a pounce's bite and each
+tick of a breath's contact, amounts in their data); left unfed for `HOLD_TICKS` it drains; full, the body is
+`digicube:frozen` for `FROZEN_TICKS` (no moving, jumping or acting, vanilla's freezing shake; a Digimon's attack
+under way is cut) and then `digicube:frost_resistance` for `RESIST_TICKS`, when the gauge cannot fill. A pounce on a
+Frozen body shatters it: `shatter` times the damage, the ice breaks and the resistance starts. Fire thaws it. The
+emblem is a round medallion (`mark_freeze`, `_off`, `_spent`, `_flash`): a grey snowflake rising lit as the gauge
+fills, the rim draining with the ice, a white flash as the ice closes or breaks; the resistance is drawn small beside
+the row (`mark_freeze_resist`) and never counts toward it. The first readout is full (one bit left); new marks go in
+the second (`digicube$marks2`: Exposed bits 0-7, Burn 8-14, the Freeze gauge 15-21, the ice 22-28, its flash 29, frost
+resistance 30, bit 31 free).
 
 Combat marks are tracked for every living entity in one packed int (`MixinLivingEntity`) and drawn as emblems
-above the head by `fabric/.../client/render/CombatMarkBadges`; add a mark there, not as a new synced field.
+above the head by `fabric/.../client/render/CombatMarkBadges`; add a mark there, not as a new synced field, and as
+a constant of `CombatMark` (common), the list the Analyzer's guide and a tamer's record use: `CombatMark.of(attack)`
+tells which mark a move leaves from the move's own data and kind, `showing(marks, marks2)` which emblems a body
+shows, the same rule as the badges. `:common:analyzerTest` pins both.
 
-A frost stream with no bite beside it (Seadramon) never freezes: a second of landed contact charges **Cold**
-on the victim (`CombatMarkState`, slowed movement for `IceCombo.COLD_TICKS`, topped up by further contact,
-melted by fire), and its wrap may take any prey, Cold or not.
+A frost stream that is not a breath of puffs (Seadramon's Ice Blast) never freezes a creature: a second of landed contact
+charges **Cold** on the victim (`CombatMarkState`, slowed movement for `IceCombo.COLD_TICKS`, topped up by further contact,
+melted by fire), and its wrap may take any prey, Cold or not. It freezes the sea instead (`frostSurface`, with
+`mobGriefing`): still water at the surface where the stream ends (on its prey, or as far as it reaches skimming the sea),
+or where it first comes down into it from above, turns to frosted ice in a floe round the spot (at most four blocks a time,
+growing as the stream plays on it), which melts back as the frost walker's does; never within two blocks of the mouth,
+under the surface, or where a body is. A rider's stream breathed on the move (`move` on its rider attack) leaves along
+the attack yaw, which follows the crosshair within `STREAM_TWIST` (70 degrees) of the body at `STREAM_TURN` a tick
+(`streamYaw`) while the rider steers the body; a serpent swimming breathes it from its lower head (`swim_head_drop`).
 
 ## Attacks as data
 
@@ -42,8 +59,29 @@ the target, see [authored-attacks.md](authored-attacks.md#forms)). Timing, power
 `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks the move. Each attack plays the clip named
 after its id; see [animation.md](animation.md#attack-clips).
 
-Frost bite/stream pairs use `IceCombo` to choose from target mark, resistance, fuel and range; they reposition
-to clear the muzzle before emission.
+Two kinds carry their own data file (Garurumon's; see [species/garurumon.md](species/garurumon.md)):
+
+- A **pounce** (`pounce_attacks.json`, `PounceAttacks`, kind `POUNCE`): a gather, then a burst along a line that eases
+  from its opening speed to its closing one, the jaws open through it and the body stopping at the first one they
+  bite (`PounceSession`, server). The AI's line leads its prey and turns after it by `home` degrees a tick; a rider's
+  follows the crosshair (`PounceLines`), from the ground or mid-leap (the gather skipped, the fall held), flown by the
+  rider's client from the press while the server bites along the path the body takes. Uses stack (`charges`).
+- A **breath of puffs** (`breath_attacks.json`, `BreathAttacks`, a fueled `FROST_STREAM`): instead of a straight jet,
+  each tick the mouth sheds puffs with the aim's speed plus the body's motion, which slow, sink, slide along what they
+  strike (met head-on, part of their push splashes out over the surface) and die (`FrostBreath`, the same on the server,
+  which strikes with them, and on every client, which draws them); a swept aim bends the stream like a hose. A puff's
+  radius follows the breath's `radius` profile, `[age, radius]` points from age 0 (straight between them, held past the
+  last), and the drawn flame is as wide as it, so what the flame covers is what it strikes. Optional `sounds` names its
+  `start`, `loop` and `end` sound events, which every client plays itself. Contact pays into the Freeze gauge and pulses damage every
+  `fuel` interval per victim; still water it strikes turns to frosted ice and fire it crosses goes out (with
+  `mobGriefing`).
+
+A pouncer's AI (`choosePounce`) breathes on prey from `BREATH_FROM` blocks out while its gauge can fill and the tank
+holds a share, pounces up close, on Frozen prey (the shatter) and on prey that resists frost, and leaps at prey on a
+ledge above or just out of reach to pounce on it from the air (`leapToPounce`). The AI's breath from a body that steps
+round on its paws ([locomotion.md](locomotion.md#steady-turning)) never snaps it round: the body comes round after the
+aim at its hurried turning rate, the neck turns the rest of the way (the aim stays within the breath's `twist`), and the
+legs play the gait under it, the pivot as it turns (`breathesOnItsLegs`).
 
 Readiness also requires a viable attack path: `AttackGeometry` checks authored contact and launch clearance;
 `DigimonCombatPosition` finds reachable attack spots when elevation or cover makes the current position

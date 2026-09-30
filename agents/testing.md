@@ -96,10 +96,14 @@ verdict in `fabric/runs/server/logs/latest.log`. The dispatch in `CombatScenario
 | `thrower_checks` | the returning bone and the icicle | [species/mojyamon.md](species/mojyamon.md) |
 | `agumon_checks` | Pepper Breath and the leaping claw | [species/agumon.md](species/agumon.md) |
 | `gesomon_checks` | the AI's whip | [species/gesomon.md](species/gesomon.md#checks) |
+| `garurumon_checks` | Garurumon ridden (pace, ice, bends, turning, leaps, pounces, breath, frost on the world) and wild (turning, hunting) | [species/garurumon.md](species/garurumon.md#checks) |
+| `seadramon_checks` | Seadramon wild (swimming without spinning, a channel's corner, land and its neck, a ledge, a thin wall, out of the water) and ridden (carving, its land pace, looking back, climbing, a thin wall, a high wall, lowering itself, Ice Blast on the move, floes) | [species/seadramon.md](species/seadramon.md#checks) |
 | `battle_checks` | battle testing teams | [dev-panel.md](dev-panel.md#battle-testing) |
+| `analyzer_checks` | the Analyzer record: witnessing, marks, reveal and forget | [screens.md](screens.md#the-digivice-screen) |
 | `digivice_checks`, `digivice_checks_reload` | the Digivice item's custody | [digivice-item.md](digivice-item.md) |
 | `recall_checks`, `recall_checks_reload` | the recall chip | [digivice-item.md](digivice-item.md#the-recall-chip) |
-| `centalmon_checks`, `ikkakumon_checks`, `betamon_checks`, `mochimon_checks`, `evolution_checks` | not described yet | their classes: `KineticScenario`, `IkkakumonScenario`, `BetamonScenario`, `MochimonScenario`, `party.EvolutionScenario` |
+| `betamon_checks` | Betamon's dash and discharge, case by case | [species/betamon.md](species/betamon.md#checks) |
+| `centalmon_checks`, `ikkakumon_checks`, `mochimon_checks`, `evolution_checks` | not described yet | their classes: `KineticScenario`, `IkkakumonScenario`, `MochimonScenario`, `party.EvolutionScenario` |
 
 `./gradlew build` runs every regression task hooked into `check` (the `tasks.named('check')` lines in
 `common/build.gradle` and `fabric/build.gradle`); `./gradlew :<module>:<task>` runs one alone.

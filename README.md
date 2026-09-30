@@ -350,56 +350,56 @@ check; the dev server's EULA must be accepted before it can open a world.
 
 ### Garurumon and riding
 
-Garurumon uses a Minecraft-style wolf model, including its fitted eyes,
-tapered muzzle and paws, closed mouth and stepped pixel teeth. The native 16-tick
-run is the only moving gait; stopping restores the standing pose. Its cadence
-follows traveled distance, so it accelerates with movement instead of sliding
-through a fixed-speed loop.
+Garurumon is a native model at scale 0.35: about two blocks at the back, 1.8 × 2.1 blocks of body box, the nose well
+ahead of it. Every gait is planted: a four-beat walk that becomes a trot as it speeds up, a slow walk backwards and a
+side-step for its footwork in a fight, and a rotary gallop with two suspensions that quickens its cadence the faster it
+runs. It breaks from the trot into the gallop at once, as a wolf changes gait, and back under a slightly lower pace; it
+gallops along its own length through a bend instead of stepping aside, and turning on the spot it steps round one paw
+at a time, its spine bent into the turn and its head leading, each standing paw still on the ground. It turns as a big
+wolf does, gathering into the turn and braking out of it: a wild one looks round first and its body follows, and one
+sent behind itself steps round before it sets off rather than snapping about or walking sideways. On ice its paws keep part of their grip: it gathers pace more slowly and
+runs no faster than on stone, skids a few blocks braced on its legs when it stops, throwing up chips of ice, and drifts
+through a hard bend, galloping on along its own length. Its leap gathers, drives off the hind legs, tucks the forelegs
+and lands forefeet first. Its long tail swings on its own: it trails a start, swings out of a turn, lifts as the wolf
+falls from a leap and whips down on landing, rides the steps of a hillside, and settles into a slight droop when it
+stands. Each paw is heard as it lands, a soft swish through grass, moss or leaves and the ground's own step anywhere
+else (snow, ice, stone): a walk's four beats, a trot's pairs, a gallop's rhythm, and the leap's push-off and landing,
+each step softer the quicker they come, so a sprint is no louder than a trot.
 
-Use `/digicube give garurumon`, then right-click your partner to mount. **WASD**
-steers and **Shift** dismounts. It runs at the same fast follow pace whether the
-owner walks or sprints, and has ridden speed 0.5 with one-block stepping. Wild
-Garurumon can be created with `/digicube spawn garurumon`; only an owner can ride.
-He uses Freeze Fang and Howling Blaster while unmounted; existing partners gain them automatically.
-
-Model scale is 1.0: its back is about 2.1 blocks high, with a 1.9 × 2.8-block body
-box. The rider sits between the shoulder and hip plumes, 2.1875 blocks above the
-feet and 0.375 blocks behind the origin. A wider seated leg pose fits the wolf's
-back. The rider's visible position follows the animated seat while the physical
-attachment retains the existing server-authoritative mounting controls.
-
-In game, check walking away from Garurumon, mounting, steering,
-stopping, one-block rises and dismounting, including armor and another player's
-view. Dedicated-server mounting still needs a manual test; the dev server's EULA
-must be accepted before it can open a world.
+Use `/digicube give garurumon`, then right-click your partner to mount. **W** trots at about 0.32 blocks a tick;
+holding **sprint** builds into the gallop over a second and a half, up to about 0.84. **Space** leaps: about 2.4
+blocks up from a standstill, and at a full gallop about 4.6 up and 10 blocks long, keeping its momentum through the
+air; a leaper lands six blocks of fall unhurt. **A/D** turn it into the way it goes, **S** reins it back, **Shift**
+dismounts. Wild Garurumon can be created with `/digicube spawn garurumon`; only an owner can ride.
 
 #### Garurumon's attacks
 
-**Freeze Fang** crouches, lunges and snaps the real jaw. A successful hit applies
-an **8-second Ice Mark**. Its cooldown is 1.4 seconds, matching the full animation, with no knockback that
-would push the marked enemy away from the combo.
-Marked living mobs show a crisp snowflake medallion above their heads (above a name
-when present). It disappears when the mark expires or is consumed, respects terrain
-occlusion and F1, and is synchronized to observing players.
+**Freeze Fang** is a pounce: a short crouch, then a dash of about five blocks with the jaws open and the icy canines
+bared, the jaws snapping shut on the first body they meet, where the dash stops. It has two uses, each back two seconds
+after it is spent. Mounted, the quick button pounces where you aim, pitch included, bent a little toward an enemy near
+the crosshair; pressed mid-leap it skips the crouch and dives onto (or rises to) its prey, and the leap's pose takes
+over again after it. A bite fills 45 % of the victim's **Freeze** gauge.
 
-**Howling Blaster** uses Gabumon's fuel mechanics with a larger, brighter blue ice
-flame: a four-second tank and eight-second empty-to-full refill. Landing **one second**
-of flame contact on a marked target freezes it for up to **3 seconds** and consumes the mark.
-Garurumon stops emitting, finishes his exhale, then closes for another bite. That bite
-deals **50% bonus damage** and shatters the ice on a successful hit. A seven-second
-freeze-resistance timer starts with the freeze and remains after shattering, preventing
-repeated stun-locks. Misses and blocked flames spend
-fuel without advancing the freeze. Separate targets, casters and casts keep separate
-contact counts. Neither attack burns terrain or damages allies.
+**Howling Blaster** is a breath of frost puffs from a five-second tank that refills in seven: they leave the mouth
+with the aim's speed and the body's own, slow down, slide along whatever they hit (splashing over a wall met head-on)
+and fade out, so sweeping the aim bends the stream like a hose. The flame is a slender stream of glowing blue blocks,
+narrow at the jaws, about a block across partway out and ending in thin tips, and it strikes about as wide as it looks.
+Held steady it is one body; swept fast it opens into streaks that each fly their own way, and its blocks never stretch.
+It sounds like wind howling through ice, with ice chips cracking in it. Mounted, hold the special button to breathe
+while running or in the middle of a leap; the stream follows your mouse at once and the neck turns to it. Contact fills the Freeze gauge a little every tick and hurts every half second;
+still water it hits freezes into frosted ice and fire goes out. Snowflakes, ice and cold smoke ride and burst from it.
 
-The move pair follows **bite → mark → breath → freeze → shattering bite**.
-Garurumon approaches reachable prey to start the combo, backs up only when needed to
-clear his muzzle, and pursues frozen prey for the follow-up. A conversion needs at least
-28 fuel ticks available (20 contact plus a travel/miss allowance), so a clean freeze
-uses roughly a quarter tank. He keeps biting during freeze resistance and refills
-during exhale/bite animations. Unmarked ranged damage remains a fallback for enemies
-he cannot approach. Positioning changes with the combo phase, including an immediate
-replan when a mark is applied or a target freezes.
+**Freeze** is a round medallion over the victim: a grey snowflake that rises lit as the gauge fills. Full, the victim
+is Frozen for two and a half seconds (it cannot move or act; its rim drains as the ice thaws), then resists frost for
+four seconds (a small slashed snowflake beside its other emblems). A Freeze Fang on a Frozen victim shatters the ice
+for double damage. Fire thaws it.
+
+Wild, Garurumon circles at a gallop, breathes on its prey from a few blocks out until it freezes, pounces up close and
+on Frozen prey, and leaps at prey on a ledge above (or just out of reach) to pounce on it from the air.
+
+Try it in a flat field against a sturdy enemy: sprint and leap, pounce from the ground and from the top of a leap,
+breathe across two enemies, freeze one and shatter it, and breathe on a pond or a fire. `DIGICUBE_SCENARIO=garurumon_checks`
+runs all of that headless.
 
 All Digimon now check actual attack geometry before committing. Horns and bites
 rehearse their contact path, including body clearance and ground support;
@@ -408,16 +408,6 @@ body and includes the moving mouth and aim blend. When an attack cannot connect,
 navigation searches for a reachable firing/striking position, including stepping
 down to the target's level. Existing attack timing, hitboxes and turn limits remain
 in force, so quick targets can still dodge.
-
-Try `/digicube give garurumon`, deploy him, then hit a sturdy enemy. Watch the bite,
-the snowflake badge on its target, repositioning, sustained breath and brief freeze.
-Repeat against cows on level ground and one block below, then compare Gabumon,
-Greymon, Agumon and Gomamon. Watch for stepping down or choosing a clear ranged shot.
-Also try cover, a moving target, an enemy very close to his chest, and recalling
-or mounting during emission. Mounting always cancels combat. Existing partners gain
-both moves. Full dedicated-server combat remains a manual check after EULA acceptance.
-
-The Ice Mark badge is a native pixel PNG in `assets/digicube/textures/entity/status/`.
 
 ### Gomamon on land and in water
 
@@ -469,20 +459,58 @@ cooldown. Dedicated-server combat remains a manual check after accepting its EUL
 
 `build` checks wave steering and collision.
 
-### Ikkakumon: standing mount and fast swimming
+### Ikkakumon: a sea mount that walks
 
-Use `/digicube give ikkakumon`, then right-click your partner to mount. The rider
-stands on the broad back, slightly to one side so the horn leaves the crosshair
-clear. **WASD** steers; in water, look up/down while moving to ascend/dive.
-**Shift** dismounts. `/digicube spawn ikkakumon` creates a wild Ikkakumon.
+Use `/digicube give ikkakumon`, then aim at your partner and choose Ride on the command
+wheel. The rider sits astride the mane behind the head, centred, legs down into the fur, and
+leans with the body. **Shift** dismounts. `/digicube spawn ikkakumon` creates a wild Ikkakumon.
 
-Ikkakumon has a cuboid model with a painted atlas, a paired push/glide walk, a water
-idle, a swim and a 32×32 party sprite. The model reaches 2.75 blocks at its fur crown
-and 3.88 blocks at its horn tip. Attacks are deferred until authored.
-Walking responds to travel but is capped at one push/glide cycle per second, keeping
-the ground speed without frantic leg motion. A sampled amplitude table
-keeps the feet above the floor during slow movement. Swimming has an independent cruise speed, and
-the standing attachment rises gradually with the water posture.
+On land he is a slow, heavy walrus: a four-beat walk with every foot planted. **W** walks and
+**S** reins back. **A**/**D** turn him into the way he goes, since he never side-steps.
+Holding **sprint** breaks him into a galumph, rumbling as he sets off.
+
+In water:
+
+- At the surface he ferries you: head and mane out, paddling with his foreflippers, his rider
+  dry. Glancing down or up, he stays at the surface.
+- **W** swims ahead and **A**/**D** steer him, as on land.
+- **Sprint** paddles harder along the surface, or under water is the torpedo dash.
+- Looking down past 30 degrees, or **C**, dives; under water he swims where you look, and
+  **Space** rises.
+- A double tap of **Space** is a barrel roll toward the way you are turning.
+- Sprinting up through the surface, he breaches.
+- Under water, turning hard, he banks into the turn.
+- Coming up after a dive, he blows a spray.
+- A bow wave, a splash at every paddle, a wake, bubbles and splashes follow him.
+- His voice is his own: a quiet, low hum, higher when he is hit, deeper as he attacks.
+
+### Seadramon: a sea serpent
+
+Use `/digicube give seadramon`, then aim at your partner and choose Ride on the command wheel.
+`/digicube spawn seadramon` creates a wild one. Its long body lies along the path its head
+took: round a turn the whole body curves through it, it slithers without sliding sideways on
+land, and it never cuts through the ground or a wall beside the way it went. Its shadow lies
+under its body, not under its reared head.
+
+On land it slithers faster than you walk, and faster still sprinting. Its head turns only so
+far off its body: looking back standing turns its head, and going on it curls round after it.
+It climbs walls as high as half its body (four and a half blocks), its body draping over the
+edge after its head, out of the water too, and lowers itself down them; a higher wall stops
+it. On steps and broken ground its body lies over the edges instead of down every riser.
+
+In water:
+
+- At the surface it holds its neck and you out of the water, its back breaking the surface.
+- **W** swims ahead and **A**/**D** steer it; it carves wide turns at speed and tight ones slowly.
+- **Sprint** surges; sprinting up through the surface it leaps out and dives back in.
+- Looking down past 30 degrees, or **C**, dives; the body follows the head down.
+- A double tap of **Space** rolls it round its length.
+- Hold the quick attack to breathe Ice Blast while it keeps swimming: its head turns toward
+  the crosshair, and where the frost plays on the sea it freezes floes of ice that melt again.
+
+`DIGICUBE_SCENARIO=seadramon_checks` checks wild swimming (no spinning on the spot), a
+channel's corner, land, its land pace, its neck, climbing and lowering itself, a ridden turn,
+Ice Blast on the move and the floes.
 
 ### Tentomon: biped walking and short flights
 

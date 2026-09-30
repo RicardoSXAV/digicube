@@ -84,22 +84,23 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
 | [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, the index of every check |
 | [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), healing, creative play, spawning |
-| [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`), attacks as data (`DigimonAttack`, `IceCombo`), tactics (`DigimonTactics`) and matchup balance, wraps, ink, projectiles |
-| [agents/authored-attacks.md](agents/authored-attacks.md) | a move in `authored_attacks.json` (`AuthoredVolumeAttack`): bursts at the target, travelling sweeps, leaps, particle styles, stacked uses, volleys |
-| [agents/animation.md](agents/animation.md) | models and clips as native JSON (`NativeAnimationSet`); `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `cloth`, `ropes`); rescaling a species |
-| [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips, stepping down, hovering, `travel_facing`, wide bodies and pathing |
+| [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`, `FreezeMark`), attacks as data (`DigimonAttack`, `IceCombo`, `PounceAttacks`, `BreathAttacks`), tactics (`DigimonTactics`) and matchup balance, wraps, ink, projectiles |
+| [agents/authored-attacks.md](agents/authored-attacks.md) | a move in `authored_attacks.json` (`AuthoredVolumeAttack`): bursts at the target, travelling sweeps and dashes, leaps, discharges (`ArcDischarge`), particle styles, sound cues, stacked uses, volleys |
+| [agents/animation.md](agents/animation.md) | models and clips as native JSON (`NativeAnimationSet`); `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `paws`, `cloth`, `tails`, `ropes`, `spine`); serpent bodies (`SerpentSpine`); rescaling a species |
+| [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips, gait changes and pivots, steady turning (`SteadyBodyControl`), serpents (`SerpentTrail`, their necks and climbing), swimming on a path, ice grip and skids (`IceSlip`), stepping down, hovering, `travel_facing`, wide bodies and pathing |
 | [agents/mounts.md](agents/mounts.md) | anything a rider does (`RiderAttack`, `RiderControls`, attack tiles): getting on, pose, water and sea mounts, pace, leaps, charges, flying mounts |
-| [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), particles (`DCParticles`), shot styles (`ShotStyle`), voices (`voices.json`) |
+| [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), particles (`DCParticles`), shot styles (`ShotStyle`), breaths of puffs (`FrostBreathRenderer`), bolts (`ArcRenderer`), voices (`voices.json`) |
 | [agents/digivice-item.md](agents/digivice-item.md) | the Digivice item (`Digivices`, `DroppedDigivice`): handing out, binding, storage, drops, the locator, the recall chip (`RecallChip`) |
-| [agents/screens.md](agents/screens.md) | a screen: the GUI language (`DigiTheme`, `DigiPanels`), the Digivice screen (`DigiviceScreen`: Analyzer, Digispace) |
+| [agents/screens.md](agents/screens.md) | a screen: the GUI language (`DigiTheme`, `DigiPanels`), the Digivice screen (`DigiviceScreen`: Analyzer with its marks guide and record (`AnalyzerWitness`), Digispace) |
 | [agents/dev-panel.md](agents/dev-panel.md) | the developer panel (`DevCatalog`, `DevActions`), battle testing (`BattleTest`) |
 | [agents/porting.md](agents/porting.md) | adding NeoForge or moving to a new Minecraft version |
 
 **Species.** Work on one species starts at its guide under `agents/species/`, named by the species id:
-[agumon](agents/species/agumon.md), [centalmon](agents/species/centalmon.md) (Centarumon),
+[agumon](agents/species/agumon.md), [betamon](agents/species/betamon.md), [centalmon](agents/species/centalmon.md) (Centarumon),
 [darktyrannomon](agents/species/darktyrannomon.md), [digmon](agents/species/digmon.md), [dinohyumon](agents/species/dinohyumon.md),
-[ganimon](agents/species/ganimon.md) (Crabmon), [gesomon](agents/species/gesomon.md) (and the whip),
-[golemon](agents/species/golemon.md), [gotsumon](agents/species/gotsumon.md), [meramon](agents/species/meramon.md),
+[ganimon](agents/species/ganimon.md) (Crabmon), [garurumon](agents/species/garurumon.md), [gesomon](agents/species/gesomon.md) (and the whip),
+[golemon](agents/species/golemon.md), [gotsumon](agents/species/gotsumon.md), [ikkakumon](agents/species/ikkakumon.md),
+[meramon](agents/species/meramon.md),
 [mojyamon](agents/species/mojyamon.md) (and thrown weapons), [pukamon](agents/species/pukamon.md) (Bukamon),
 [seadramon](agents/species/seadramon.md). A species without a guide has nothing beyond its sheet and the topic
 guides.
