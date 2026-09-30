@@ -1,8 +1,8 @@
 # Authored attacks: volumes, bursts, leaps and volleys
 
 Read this before adding or changing an authored move (`authored_attacks.json` with its volumes, effects and
-motion): bursts summoned at the target, travelling sweeps, leaps, contact parts, strike particle styles,
-stacked uses, forms and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and the asset
+motion): bursts summoned at the target, travelling sweeps and dashes, leaps, discharges, contact parts, strike
+particle styles, sound cues, stacked uses, forms and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and the asset
 gates are in [animation.md](animation.md).
 
 ## Bursts summoned at the target
@@ -43,6 +43,25 @@ A leap's `edge: true` measures its lead from the target's side, so a short reach
 to a player; every leap now aims at where `TargetMotion` puts the victim at the landing and settles the facing
 there.
 
+A travelling sweep with an `impact_tick` is a **dash** (Betamon's Headbutt): whatever its knockback, the drive stops at
+the victim's box (`AttackGeometry.boxClearance`, the boxes' corners and all, so it never runs into a body met on the
+diagonal) and once its blow has landed (`AuthoredVolumeAttack.struck`), and a swimmer dashes through water as it does
+over ground. When the blow lands before the clip reaches its impact pose (a target close by), the client jumps the clip
+there on the contact event, as a pounce's bite does, so the squash and the burst meet the real contact. A struck volume
+reaching a little past the body's own box keeps a corner met on the diagonal in reach.
+
+## Discharges
+
+An `arc` on a burst makes it a **discharge** (`ArcDischarge`, Betamon's Electric Shock): no struck volumes; at the hit
+tick a bolt leaps from the motion's mouth marker to the target within `reach` blocks, `cone` degrees of the facing and in
+sight (else the foe nearest the aim, else it earths ahead), jumps on to `chain` foes within `chain_reach` of the last at
+`chain_power` a jump, runs through the water to every foe in it within `water_reach` of a caster (or a struck body)
+standing in it at `water_power`, and strikes foes within `burst` of the caster's middle. Each body once a cast; a foe is
+the target, a monster, a Digimon fighting the caster, its tamer or its side, never an ally or a passer-by. The strike is
+synced on the caster as text (`DATA_ARC`) and each client draws its bolts for `life` ticks
+([effects.md](effects.md#discharges)). `canAttackFrom` asks `ArcDischarge.canReach` (a block short of the reach, in
+sight of the emitter, or through shared water) instead of rehearsing volumes.
+
 ## Strike particle styles
 
 `"particles"` (`StrikeParticles`, `stone`) adds server-sent trail, release, contact and landing particles and
@@ -52,7 +71,14 @@ Golemon.
 
 `"particles": "steel"` is the blade style, quiet on screen because its moves draw their own cuts and impact: a clink
 as a blade is readied, a whoosh, a few sparks on contact, and only the floor's dust under the sword. The other styles belong to one species each: `drill` in
-[species/digmon.md](species/digmon.md) and `pincer` in [species/ganimon.md](species/ganimon.md).
+[species/digmon.md](species/digmon.md), `pincer` in [species/ganimon.md](species/ganimon.md), `ram` and `spark` in
+[species/betamon.md](species/betamon.md).
+
+## Sound cues
+
+`"sounds"` names a move's own sounds by cue, each a sound id or `{"sound", "volume", "pitch"}`: `wind_up` as it starts
+(in place of its style's voice and of the growl), `release` as a dash sets off or a discharge leaves, `contact` where a
+volume lands, `struck` on each body a discharge strikes (`AuthoredAttacks.Definition.cue`).
 
 ## Stacked uses
 

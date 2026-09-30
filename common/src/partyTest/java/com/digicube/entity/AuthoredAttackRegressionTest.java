@@ -19,6 +19,13 @@ public final class AuthoredAttackRegressionTest {
         check(AuthoredAttacks.get(fire).maxHits()==3 && AuthoredAttacks.get(tail).maxHits()==1,"bounded burst and once-per-sweep contract");
         for(var d:AuthoredAttacks.all()) {
             check(d.frames().size()==d.attack().durationTicks()*d.samplesPerTick()+1,"source clock covers closing key");
+            if(d.discharges()) {
+                // A discharge strikes by its bolt, from the emitter over the body at the hit tick, never by volumes.
+                var tip=d.attack().motion().sample(d.attack().hitTick()).mouth();
+                check(tip.y>.5 && d.arc().reach()>d.arc().burst(),"discharge emitter above the body and a reach beyond its burst "+d.attack().id());
+                for(var row:d.frames())for(var box:row)check(box==null,"a discharge has no struck volumes "+d.attack().id());
+                continue;
+            }
             for(float yaw:new float[]{0,45,90,135,180,225,270,315})for(int height:new int[]{-1,0,1}) {
                 var boxes=d.sample(d.attack().hitTick()+.375);
                 boolean found=false;
@@ -73,6 +80,21 @@ public final class AuthoredAttackRegressionTest {
                 check(hit, "Gold Rush small-target aim: yaw=" + yaw + " height=" + height + " range=" + distance);
             }
         }
+        // A discharge reaches the clients as text on the caster: every bolt, its kind and its ends survive the trip.
+        var strike = new ArcDischarge.Strike(1234, 99, java.util.List.of(
+                new ArcDischarge.Link(ArcDischarge.Kind.MAIN, 7, 8, new Vec3(1.25, 64.5, -3.125)),
+                new ArcDischarge.Link(ArcDischarge.Kind.CHAIN, 8, 9, new Vec3(-2, 65, 4)),
+                new ArcDischarge.Link(ArcDischarge.Kind.EARTH, 7, -1, new Vec3(.5, 63, 2.75))));
+        var back = ArcDischarge.decode(ArcDischarge.encode(strike));
+        check(back != null && back.tick() == 1234 && back.seed() == 99 && back.links().size() == 3
+                && back.links().get(2).kind() == ArcDischarge.Kind.EARTH && back.links().get(2).to() == -1
+                && back.links().getFirst().point().distanceTo(new Vec3(1.25, 64.5, -3.125)) < 1e-3, "discharge round trip");
+        check(ArcDischarge.decode("") == null && ArcDischarge.decode("nonsense") == null, "an empty or broken discharge is none");
+        // Headbutt: a dash that strikes with its brow, stops at its victim and meets it on its impact pose
+        var headbutt = AuthoredAttacks.get(Constants.id("headbutt"));
+        check(headbutt.rootTravel() && headbutt.hasImpact() && headbutt.impactTick() >= headbutt.hitWindows().getFirst()[0]
+                && headbutt.impactTick() <= headbutt.hitWindows().getLast()[1], "a dashing headbutt with its impact inside its hit window");
+        check(headbutt.attack().motion().sample(headbutt.attack().durationTicks()).travel() > 2, "the headbutt's dash carries the body");
         Constants.LOG.info("Authored attack regression checks passed: clocks, stat tier, oriented volume, finite pulse contract and cutoff.");
     }
     private static void check(boolean value,String message) { if(!value)throw new AssertionError(message); }

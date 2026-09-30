@@ -4,7 +4,7 @@
   "base_health": 20,
   "base_attack": 5,
   "base_defence": 5,
-  "base_speed": 0.08,
+  "base_speed": 0.024,
   "attacks": [
     "electric_shock",
     "headbutt"
@@ -24,13 +24,19 @@
   "locomotion": {
     "follow_start_distance": 3.5,
     "follow_stop_distance": 1.75,
-    "walk_speed": 1,
-    "run_speed": 1,
+    "walk_speed": 1.6,
+    "run_speed": 2.0,
     "swim_speed": 0.36,
     "ground_gait": {
-      "cycle_ticks": 24,
-      "stride": 0.5,
-      "max_playback_rate": 1.5
+      "cycle_ticks": 10,
+      "stride": 1.7857,
+      "max_playback_rate": 2.0
     }
+  },
+  "tactics": {
+    "prefer_close": true,
+    "fight_speed": 1.9,
+    "dodge_chance": 0.3,
+    "reaction_ticks": 5
   }
 }

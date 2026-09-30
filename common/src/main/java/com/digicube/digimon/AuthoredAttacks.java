@@ -20,7 +20,30 @@ public final class AuthoredAttacks {
                              List<String> parts, List<List<String>> visualParts, List<AttackBox[]> frames, int samplesPerTick, List<double[]> hitWindows,
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
                              com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley,
-                             List<String> formNames, FormChoice formChoice, String effectClip, String key) {
+                             List<String> formNames, FormChoice formChoice, String effectClip, String key,
+                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds) {
+        /**
+         * Plays the move's own sound for {@code cue} at {@code at}, if its sheet names one ({@code sounds} in
+         * {@code authored_attacks.json}: {@code wind_up} as it starts, {@code release} as a dash sets off or a discharge
+         * leaves, {@code contact} where a blow lands, {@code struck} on each body a discharge strikes).
+         * @return whether it had one
+         */
+        public boolean cue(net.minecraft.server.level.ServerLevel level, String cue, Vec3 at) {
+            Cue c = sounds.get(cue);
+            if (c == null) return false;
+            var sound = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getOptional(c.sound());
+            if (sound.isEmpty()) throw new IllegalStateException("Unknown sound " + c.sound() + " for " + attack.id());
+            level.playSound(null, at.x, at.y, at.z, sound.get(), net.minecraft.sounds.SoundSource.NEUTRAL, c.volume(),
+                    c.pitch() * (.95F + level.getRandom().nextFloat() * .1F));
+            return true;
+        }
+        /**
+         * A travelling blow whose clip has an impact pose at {@code impactTick} ({@code impact_tick}): when the blow lands
+         * sooner (a target close by), the client jumps the clip to it, so the squash and the burst meet the real contact.
+         */
+        public boolean hasImpact() { return impactTick >= 0; }
+        /** An electric discharge ({@code arc}, {@link com.digicube.entity.ArcDischarge}) strikes at the hit tick. */
+        public boolean discharges() { return arc != null; }
         public boolean hasWaterVariant() { return waterMotion != null; }
         /**
          * A summoned strike: effect and volumes are authored around a landing point instead of the caster's feet.
@@ -56,6 +79,8 @@ public final class AuthoredAttacks {
             return result;
         }
     }
+    /** One of a move's own sounds: a sound event (the mod's or the game's), its volume and pitch. */
+    public record Cue(Identifier sound, float volume, float pitch) {}
     /**
      * A jumping strike: the caster leaves the ground at {@code launch}, flies a planned arc and lands at {@code land},
      * its feet {@code lead} blocks short of where the target will be. Ticks between are the client's lunge window.
@@ -196,9 +221,32 @@ public final class AuthoredAttacks {
                     List.copyOf(parts),List.copyOf(visuals),List.copyOf(frames),rate,List.copyOf(windows),List.copyOf(waterFrames),waterMotion,List.copyOf(mirroredFrames),anchorLock,approach,List.copyOf(contactParts),
                     com.digicube.entity.StrikeParticles.byId(GsonHelper.getAsString(c,"particles",null)),rootTravel,leap,charges,volley,
                     forms(c),FormChoice.valueOf(GsonHelper.getAsString(c,"form_choice","combo").toUpperCase(Locale.ROOT)),
-                    GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null)));
+                    GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null),
+                    impact(c,attack,rootTravel),c.has("arc")?com.digicube.entity.ArcDischarge.Spec.load(c.getAsJsonObject("arc")):null,
+                    sounds(c)));
         }
         return Collections.unmodifiableMap(result);
+    }
+    private static final Set<String> CUES = Set.of("wind_up", "release", "contact", "struck");
+    /** A move's own sounds by cue ({@code sounds}: {"cue": "sound id"} or {"cue": {"sound": id, "volume": v, "pitch": p}}). */
+    private static Map<String, Cue> sounds(JsonObject c) {
+        if (!c.has("sounds")) return Map.of();
+        Map<String, Cue> out = new HashMap<>();
+        for (var e : c.getAsJsonObject("sounds").entrySet()) {
+            if (!CUES.contains(e.getKey())) throw new IllegalArgumentException("Unknown sound cue " + e.getKey() + ": one of " + CUES);
+            var v = e.getValue();
+            out.put(e.getKey(), v.isJsonPrimitive() ? new Cue(Identifier.parse(v.getAsString()), 1, 1)
+                    : new Cue(Identifier.parse(GsonHelper.getAsString(v.getAsJsonObject(), "sound")),
+                    GsonHelper.getAsFloat(v.getAsJsonObject(), "volume", 1), GsonHelper.getAsFloat(v.getAsJsonObject(), "pitch", 1)));
+        }
+        return Map.copyOf(out);
+    }
+    /** A travelling blow's impact pose, in its clip's ticks (-1: none); inside the performance, only on a blow that travels. */
+    private static double impact(JsonObject c, DigimonAttack attack, boolean rootTravel) {
+        double tick = GsonHelper.getAsDouble(c, "impact_tick", -1);
+        if (tick >= 0 && (!rootTravel || tick >= attack.durationTicks()))
+            throw new IllegalArgumentException("An impact pose belongs inside a travelling blow's performance " + attack.id());
+        return tick;
     }
     private static List<String> forms(JsonObject c) {
         if (!c.has("forms")) return List.of();

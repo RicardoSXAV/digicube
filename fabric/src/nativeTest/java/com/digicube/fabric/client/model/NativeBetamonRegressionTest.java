@@ -65,26 +65,54 @@ public final class NativeBetamonRegressionTest {
             }
         }
         var betamon=DigimonSpeciesRegistry.getOrThrow(Constants.id("betamon"));
+        int covered=0,emitted=0;
         for(var attack:betamon.attacks())for(boolean water:new boolean[]{false,true}) {
             var d=AuthoredAttacks.get(attack);var fxRoot=NativeEffectModel.createLayer(d.effect()).bakeRoot();
             var fxModel=new NativeEffectModel(fxRoot,d.effect());var fx=new NativeEffectState();fx.scale=.32F;
             fx.clip=water?"effect_water":"effect";
             state.attackDefinition=attack;state.attackAnimationName=attack.id().getPath();state.attackInWater=water;
             state.swimAnimationAmount=water?1:0;state.attackAnimation.start(0);
-            for(float t=attack.motion().activeFrom();t<=attack.motion().activeUntil();t+=.125F) {
+            float from=d.discharges()?attack.hitTick()-1:(float)d.hitWindows().getFirst()[0];
+            float until=d.discharges()?attack.hitTick()+1:(float)d.hitWindows().getLast()[1];
+            for(float t=from;t<=until;t+=.125F) {
                 state.ageInTicks=t;model.setupAnim(state);fx.tick=t;fxModel.setupAnim(fx);
                 for(int heading=0;heading<8;heading++)for(int height=-1;height<=1;height++) {
                     float yaw=heading*45;var origin=new Vec3(-17,79+height,29);
-                    var actual=points(attack.id().getPath().equals("headbutt")?root:fxRoot,stack(yaw,origin));
-                    var boxes=d.sample(t,water);
-                    for(int i=0;i<boxes.length;i++)if(boxes[i]!=null) {
-                        var b=boxes[i].world(origin,yaw,0);
-                        for(int x:new int[]{-1,1})for(int y:new int[]{-1,1})for(int z:new int[]{-1,1})
-                            near(b.center().add(b.x().scale(x)).add(b.y().scale(y)).add(b.z().scale(z)),actual.get(d.parts().get(i)),attack.id()+" water="+water+" tick="+t);
+                    var actual=points(root,stack(yaw,origin));
+                    if(d.discharges()) {
+                        // The bolt leaves where the fin is drawn: the server's emitter on the fin's front top edge.
+                        var marker=com.digicube.entity.AttackGeometry.world(origin,d.motion(water).sample(t).mouth(),yaw);
+                        var fin=new ArrayList<>(actual.get("dorsal_fin"));
+                        fin.sort(Comparator.comparingDouble(marker::distanceToSqr));
+                        Vec3 edge=null;
+                        for(var p:fin)if(fin.getFirst().distanceTo(p)>.03){edge=p;break;}
+                        var mid=fin.getFirst().add(edge).scale(.5);
+                        // The clip plays on whole milliseconds and the fin shivers fast through the charge: a few tenths of
+                        // a pixel between the drawn fin and the table sampled at the exact tick (a wrong frame is pixels off).
+                        double error=marker.distanceTo(mid);checks++;emitted++;
+                        if(error>.008)throw new AssertionError(attack.id()+" water="+water+" tick="+t+" emitter off the fin's edge by "+error);
+                        continue;
+                    }
+                    // The struck volume covers the drawn brow: the forehead's foremost corners lie inside the box.
+                    for(var box:d.sample(t,water))if(box!=null) {
+                        var b=box.world(origin,yaw,0);var axisZ=b.z().normalize();
+                        var ahead=b.center().subtract(origin).dot(axisZ)<0?axisZ.scale(-1):axisZ;
+                        var brow=new ArrayList<>(actual.get("forehead_frame"));
+                        brow.sort(Comparator.comparingDouble(p->-p.dot(ahead)));
+                        for(var p:brow.subList(0,8)) {
+                            var r=p.subtract(b.center());
+                            for(var axis:new Vec3[]{b.x(),b.y(),b.z()}) {
+                                double excess=Math.abs(r.dot(axis.normalize()))-axis.length();
+                                worst=Math.max(worst,Math.max(0,excess));checks++;
+                                if(excess>.0025)throw new AssertionError(attack.id()+" water="+water+" tick="+t+" brow outside the struck volume by "+excess);
+                            }
+                        }
+                        covered++;
                     }
                 }
             }
         }
+        if(covered==0||emitted==0)throw new AssertionError("No headbutt volume or discharge emitter was checked");
         // Exercise actual shared-model resets, fluid variants and partial gait amounts.
         for(float movement:new float[]{0,.25F,.5F,.75F,1})for(float water:new float[]{0,.25F,.5F,.75F,1}) {
             state.groundAnimationAmount=state.swimMotionAmount=movement;state.swimAnimationAmount=water;state.attackInWater=water>=.5;
@@ -106,7 +134,10 @@ public final class NativeBetamonRegressionTest {
             for(var entry:vertices.entrySet())if(entry.getKey().contains("foot"))
                 for(var point:entry.getValue())floorError=Math.max(floorError,-point.y);
         }
-        if(floorError>.0025)throw new AssertionError("Partial gait penetrates floor by "+floorError);
+        // A partial amount adds the idle's look round (the body turned on planted feet) to a planted walk column: the
+        // sum of two planted poses is not quite planted, so a foot may dip up to half a model pixel while the gait
+        // starts or stops. A wrong column or frame sinks it by pixels.
+        if(floorError>.01)throw new AssertionError("Partial gait penetrates floor by "+floorError);
         Constants.LOG.info("[betamon-gait] PASS partial gait floor penetration={} blocks",floorError);
         Constants.LOG.info("[betamon-parity] PASS checks={} maxError={} blocks; eight headings, three elevations, land/water attacks and transition playback",checks,worst);
     }

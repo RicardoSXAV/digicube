@@ -47,7 +47,17 @@ public enum StrikeParticles {
      * A crab's pincer (Crabmon's Scissors Execution): the blades clack as the claw rises, whistle through the swing
      * with a few glints, and snip shut on a body with a burst of white sparks. Small and bright, never a growl.
      */
-    PINCER;
+    PINCER,
+    /**
+     * A small amphibian's charging headbutt (Betamon): the floor kicked back as it sets off, puffs of air off its brow
+     * through the dash (bubbles in the water) and a bright knock where the brow lands. Its own sounds, never a growl.
+     */
+    RAM,
+    /**
+     * An electric discharge (Betamon's Electric Shock): the bolts, their sparks and their bursts are the discharge's own
+     * (ArcDischarge, drawn by each client), so the style only keeps the growl away.
+     */
+    SPARK;
 
     public static StrikeParticles byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -74,6 +84,7 @@ public enum StrikeParticles {
             play(level, at, SoundEvents.ARMADILLO_AMBIENT, 1F, .8F);
             return true;
         }
+        if (this == RAM || this == SPARK) return true;
         if (this == STEEL) {
             // Every use of a stacked blade combo starts one: a clink, never a monster's growl.
             play(level, at, SoundEvents.ARMOR_EQUIP_IRON.value(), .7F, 1.25F);
@@ -114,6 +125,11 @@ public enum StrikeParticles {
                 }
             }
             case PINCER -> level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 1, .06, .06, .06, .04);
+            case RAM -> {
+                if (!level.getFluidState(BlockPos.containing(at)).isEmpty())
+                    level.sendParticles(ParticleTypes.BUBBLE, true, true, at.x, at.y, at.z, 4, .15, .15, .15, .05);
+                else level.sendParticles(ParticleTypes.CLOUD, true, true, at.x, at.y, at.z, 1, .08, .08, .08, .01);
+            }
             default -> {}
         }
     }
@@ -136,6 +152,15 @@ public enum StrikeParticles {
                 play(level, at, SoundEvents.ARMADILLO_SCUTE_DROP, .8F, 1.2F);
                 level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 12, .3, .02, .3, .12);
                 level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 5, .25, .02, .25, .03);
+            }
+            case RAM -> {
+                // The dash sets off: the floor kicked back from under the hind feet (a burst of bubbles in the water).
+                if (!level.getFluidState(BlockPos.containing(at.add(0, .3, 0))).isEmpty()) {
+                    level.sendParticles(ParticleTypes.BUBBLE, true, true, at.x, at.y + .3, at.z, 16, .35, .15, .35, .12);
+                    return;
+                }
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 14, .35, .02, .35, .14);
+                level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 6, .3, .02, .3, .04);
             }
             case CLAW -> {
                 play(level, at, SoundEvents.GOAT_LONG_JUMP, .7F, 1.35F);
@@ -172,6 +197,12 @@ public enum StrikeParticles {
                 level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);
                 play(level, at, SoundEvents.SHEEP_SHEAR, 1.2F, 1.2F);
                 play(level, at, SoundEvents.PLAYER_ATTACK_CRIT, .8F, 1.3F);
+            }
+            case RAM -> {
+                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 14, .2, .2, .2, .35);
+                level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y, at.z, 6, .15, .15, .15, .05);
+                // A few small white sparks off the brow: the knock without lighting up the whole scene.
+                level.sendParticles(ParticleTypes.FIREWORK, true, true, at.x, at.y, at.z, 6, .08, .08, .08, .12);
             }
             case CLAW -> {
                 level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);
@@ -292,6 +323,7 @@ public enum StrikeParticles {
         level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y, at.z, 4, .08, .08, .08, .02);
     }
 
+    /** The pale gold flash of a headbutt's knock. */
     /** Gold flecks: the gold of Digmon's drill shields. */
     private static final DustParticleOptions GOLD_SPARKS = new DustParticleOptions(0xFFD34A, .8F);
 

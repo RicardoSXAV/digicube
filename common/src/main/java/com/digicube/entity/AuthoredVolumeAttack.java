@@ -21,6 +21,8 @@ public final class AuthoredVolumeAttack {
     /** Volumes that have opened this cast: a grounded burst's sections each erupt once. */
     private boolean[] opened;
     public void reset() { counts.clear();lastHit.clear();beats.clear();lastLead=null;released=landed=false;opened=null; }
+    /** Whether this cast has struck anything yet: a travelling blow stops its drive once it has. */
+    public boolean struck() { return !counts.isEmpty(); }
     public static AttackBox aimed(AttackBox box,DigimonAttack attack,double tick,float pitch) {
         if(attack.kind()!=DigimonAttack.Kind.BOX_BURST)return box;
         var f=attack.motion().sample(tick);
@@ -115,6 +117,8 @@ public final class AuthoredVolumeAttack {
     }
     public static boolean canReach(DigimonEntity caster,DigimonAttack attack,Vec3 feet,LivingEntity target) {
         var d=AuthoredAttacks.get(attack);Vec3 targetPoint=target.getBoundingBox().getCenter();
+        // A discharge strikes by its bolt, not by volumes: its reach, the target's sight of the fin, or the water between.
+        if(d.discharges())return ArcDischarge.canReach(caster,attack,d,feet,target);
         if(d.leap()!=null) {
             // Somewhere to land near the target, the whole arc open for the body, and the target in sight.
             Vec3 floor=leapLanding(caster,d.leap(),feet,target);
@@ -175,6 +179,11 @@ public final class AuthoredVolumeAttack {
             d.particles().trail(level,lead,d.anchored());
         }
         if(!d.anchored() && lead!=null && tick==attack.motion().activeFrom())d.particles().swing(level,lead);
+        // A dash sets off: the floor kicked back from under the feet.
+        if(d.rootTravel() && attack.motion().sample(tick).travel()<=0 && attack.motion().sample(tick+1).travel()>0) {
+            d.particles().release(level,feet);
+            d.cue(level,"release",feet);
+        }
         lastLead=lead;
         if(d.grounded() && tick==attack.motion().activeFrom()) {
             // The drills or fists meet the floor between the motion's two contact points.
@@ -205,6 +214,7 @@ public final class AuthoredVolumeAttack {
             return;
         }
         cues(level,caster,attack,d,feet,tick);
+        if(d.discharges() && tick==attack.hitTick())caster.discharge(level,attack,d);
         if(tick<attack.motion().activeFrom() || tick>attack.motion().activeUntil())return;
         for(int q=0;q<=8;q++) {
             double time=tick+q/8.0;
@@ -224,7 +234,11 @@ public final class AuthoredVolumeAttack {
                     // A summoned strike throws its victims away from where it lands, and a little off the floor.
                     if(caster.hitWithAttack(level,attack,victim,d.anchored()?feet:caster.position())) {
                         if(d.anchored()){victim.push(0,.3,0);victim.hurtMarked=true;}
-                        else d.particles().contact(level,nearest(box.center(),entity.getBoundingBox()));
+                        else {
+                            Vec3 at=nearest(box.center(),entity.getBoundingBox());
+                            d.particles().contact(level,at);
+                            d.cue(level,"contact",at);
+                        }
                         if(!d.contactParts().isEmpty())level.broadcastEntityEvent(caster,DigimonAnimationEvents.CONTACT);
                         counts.merge(id,1,Integer::sum);lastHit.put(id,tick);
                         if(beat>=0)beats.computeIfAbsent(id,k->new HashSet<>()).add(beat);
