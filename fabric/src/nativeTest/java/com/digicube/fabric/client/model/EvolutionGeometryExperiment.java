@@ -20,7 +20,6 @@ public final class EvolutionGeometryExperiment {
             case "gomamon"->new GomamonModel(GomamonModel.createBodyLayer().bakeRoot());
             case "tentomon"->new TentomonModel(TentomonModel.createBodyLayer().bakeRoot());
             case "greymon"->new GreymonModel(GreymonModel.createBodyLayer().bakeRoot());
-            case "garurumon"->new GarurumonModel(GarurumonModel.createBodyLayer().bakeRoot());
             default->throw new IllegalArgumentException(name);
         };
     }

@@ -308,6 +308,28 @@ public final class NativeAnimationSet {
         apply(b.clip,tick,mix*weight,only);
     }
 
+    /**
+     * The clips {@link #blend(String, float, float, float)} plays for {@code value}, each with its share of {@code weight}:
+     * what a pose would be made of, for readers that follow a blend without posing the model (a paw's height).
+     */
+    public void weights(String name, float value, float weight, java.util.function.BiConsumer<String, Float> into) {
+        if (weight <= 0) return;
+        var points = blends.get(name);
+        if (points == null) throw new IllegalArgumentException("Missing native blend " + name);
+        int lower=0;
+        while (lower+2<points.length && points[lower+1].value<=value) lower++;
+        var a=points[lower];var b=points[lower+1];
+        float mix=Math.clamp((value-a.value)/(b.value-a.value),0,1);
+        if (1 - mix > 0) into.accept(a.clip, (1 - mix) * weight);
+        if (mix > 0) into.accept(b.clip, mix * weight);
+    }
+
+    /** Whether a clip of this name loops. */
+    public boolean loops(String name) {
+        Clip clip = clips.get(name);
+        return clip != null && clip.loop;
+    }
+
     /** Length of a clip, or of a blend's first clip. */
     public float lengthOf(String name) {
         var points = blends.get(name);

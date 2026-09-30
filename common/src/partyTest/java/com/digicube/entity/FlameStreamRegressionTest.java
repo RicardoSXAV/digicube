@@ -10,10 +10,10 @@ public final class FlameStreamRegressionTest {
 
     /** Run after the bundled species have been registered. */
     public static void run() {
-        for (var move : java.util.List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HOWLING_BLASTER)) {
+        for (var move : java.util.List.of(DigimonSpeciesBootstrap.BLUE_BLASTER)) {
             var frame = move.motion().sample(30);
             for (float yaw : new float[]{0, 90, 180, 270}) {
-                for (double distance : new double[]{move == DigimonSpeciesBootstrap.HOWLING_BLASTER ? 2.9 : 2, 6, 10}) {
+                for (double distance : new double[]{2, 6, 10}) {
                     for (double height : new double[]{0.3, 1, 3}) {
                         Vec3 target = new Vec3(0, height, distance).yRot((float) Math.toRadians(-yaw));
                         float pitch = FlameStream.aimPitch(frame, Vec3.ZERO, target, yaw, 0);
@@ -25,7 +25,7 @@ public final class FlameStreamRegressionTest {
                 }
             }
         }
-        var authored = DigimonSpeciesBootstrap.HOWLING_BLASTER.motion().sample(30);
+        var authored = DigimonSpeciesBootstrap.BLUE_BLASTER.motion().sample(30);
         var blended = new com.digicube.digimon.AttackMotion.Frame(authored.travel(), authored.head(), authored.mouth(),
                 authored.hornBase(), authored.hornTip(), authored.headPitch(), .5F);
         Vec3 lowCow = new Vec3(0, .3, 6);

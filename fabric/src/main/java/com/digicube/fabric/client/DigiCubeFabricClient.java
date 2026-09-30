@@ -7,7 +7,6 @@ import com.digicube.fabric.client.starter.StarterClient;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
 import com.digicube.fabric.client.model.TentomonModel;
-import com.digicube.fabric.client.model.GarurumonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.GreymonModel;
@@ -16,7 +15,6 @@ import com.digicube.fabric.client.model.MegaFlameModel;
 import com.digicube.fabric.client.model.MarchingFishesModel;
 import com.digicube.fabric.client.render.MarchingFishesRenderer;
 import com.digicube.fabric.client.model.BlueBlasterModel;
-import com.digicube.fabric.client.model.HowlingBlasterModel;
 import com.digicube.fabric.client.render.MegaFlameRenderer;
 import com.digicube.fabric.client.render.BubbleBlowRenderer;
 import com.digicube.fabric.client.render.DigimonRenderer;
@@ -36,7 +34,9 @@ public class DigiCubeFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         com.digicube.fabric.client.evolution.EvolutionRenderType.GRID.pipeline();
+        com.digicube.fabric.client.render.SolidGlow.pipeline();
         new com.digicube.fabric.client.evolution.EvolutionAudio().init();
+        new com.digicube.fabric.client.render.BreathAudio().init();
         new PartyClient().init();
         new StarterClient().init();
         new com.digicube.fabric.client.digivice.DigiviceLocator().init();
@@ -60,10 +60,11 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         com.digicube.fabric.client.render.CombatMarkBadges.init();
         com.digicube.fabric.client.render.HoofBeats.init();
         com.digicube.fabric.client.render.Stomps.init();
+        com.digicube.fabric.client.render.PawFalls.init();
+        com.digicube.fabric.client.render.SwimWake.init();
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(GarurumonModel.LAYER, GarurumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TsunomonModel.LAYER, TsunomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GreymonModel.LAYER, GreymonModel::createBodyLayer);
@@ -80,13 +81,17 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         // A move's forms share one effect model: one layer each.
         var authoredEffects = new java.util.LinkedHashSet<String>();
         for(var definition:com.digicube.digimon.AuthoredAttacks.all()) if(definition.effect()!=null) authoredEffects.add(definition.effect());
+        // A pounce's impact is an effect model too (a breath's flame is laid from its mesh's boxes, no layer).
+        for (var attack : com.digicube.digimon.PounceAttacks.attacks()) {
+            String impact = com.digicube.digimon.PounceAttacks.get(attack).impact();
+            if (!impact.isEmpty()) authoredEffects.add(impact);
+        }
         authoredEffects.removeAll(casterEffects);
         for (String effect : authoredEffects) {
             ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect),
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(HowlingBlasterModel.LAYER, HowlingBlasterModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER,
                 com.digicube.fabric.client.model.IceBlastModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);

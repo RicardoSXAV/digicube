@@ -109,6 +109,21 @@
         "body_00"
       ],
       "ridden_pitch": 70,
+      "upper_body": ["root", "float", "body_00", "head"],
+      "spine": {
+        "path": ["root", "float"],
+        "chain": ["body_00", "body_01", "body_02", "body_03", "body_04", "body_05", "body_06", "body_07", "body_08", "body_09", "body_10", "body_11", "body_12", "body_13", "body_14", "body_15", "body_16", "body_17", "body_18", "body_19", "body_20", "body_21", "body_22", "body_23", "body_24", "body_25"],
+        "tip": "tail_leaf",
+        "neck": 3,
+        "wavelength": 4.5,
+        "land_wave": 0.55,
+        "swim_wave": 0.45,
+        "dash_wave": 0.62,
+        "rest_wave": 0.18,
+        "slip": 0.7,
+        "rest_pace": 0.05
+      },
+      "swim_wake": {"stroke": 28, "paddle": 28, "surge_paddle": 14},
       "rider": {
         "path": [
           "root",
@@ -196,15 +211,26 @@
         "head"
       ],
       "rider": {
-        "path": [
-          "ikkakumon",
-          "body"
-        ],
-        "point": [
-          1.04,
-          0.6,
-          1.25
-        ]
+        "path": ["ikkakumon", "body", "chest", "neck"],
+        "point": [0.0, 1.275, 1.641],
+        "pose": [0.15, 0.05, 0.35, 1.5],
+        "lean": [0.8, 1.0]
+      },
+      "pitch_path": ["ikkakumon", "body"],
+      "pitch_at_rider": true,
+      "ridden_pitch": 55,
+      "swim_pitch": 60,
+      "swim_bank": 35,
+      "swim_wake": {"stroke": 14, "paddle": 12, "surge_paddle": 9},
+      "stomps": {
+        "down": [0.2, 0.7],
+        "feet": [[1.31, 1.12], [-1.31, 1.12]],
+        "run_down": [0.0, 0.46],
+        "run_feet": [[1.31, 1.16], [1.19, -0.77]],
+        "sound": "digicube:ikkakumon_step",
+        "pitch": 1.0,
+        "roar": "digicube:ikkakumon_bellow",
+        "roar_pitch": 0.95
       }
     },
     "betamon": {
@@ -560,6 +586,180 @@
         "clips": {
           "water_shot": "water_shot"
         }
+      }
+    },
+    "garurumon": {
+      "culling_margin": 4,
+      "walk_blend": true,
+      "aim_path": [
+        "root",
+        "pelvis",
+        "torso",
+        "chest",
+        "neck"
+      ],
+      "attack_blend_in": 2,
+      "attack_blend_out": 5,
+      "upper_body": [
+        "root",
+        "pelvis",
+        "torso",
+        "chest",
+        "neck"
+      ],
+      "rider": {
+        "path": [
+          "root",
+          "pelvis",
+          "torso"
+        ],
+        "point": [
+          0.0,
+          0.759,
+          0.638
+        ],
+        "pose": [
+          -0.4,
+          0.12,
+          0.62,
+          1.5
+        ]
+      },
+      "bank": true,
+      "look": {
+        "path": [
+          "root",
+          "pelvis",
+          "torso",
+          "chest",
+          "neck",
+          "head"
+        ],
+        "yaw": 35,
+        "pitch": 25,
+        "carry": [
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "torso",
+              "chest",
+              "neck"
+            ],
+            "share": 0.4,
+            "yaw": 20,
+            "pitch": 12
+          }
+        ]
+      },
+      "tails": [
+        {
+          "path": [
+            "root",
+            "pelvis",
+            "tail"
+          ],
+          "links": [
+            "tail_segment_0",
+            "tail_segment_1",
+            "tail_segment_2",
+            "tail_tuft"
+          ],
+          "tip": [
+            0,
+            0,
+            121
+          ],
+          "carried": [
+            "fur_tail_side",
+            "fur_tail_top"
+          ],
+          "stiffness": 0.65,
+          "tip_stiffness": 0.35,
+          "damping": 0.75,
+          "drag": 0.08,
+          "sag": 0.015,
+          "bend": 25,
+          "root_bend": 40
+        }
+      ],
+      "paws": {
+        "feet": [
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "torso",
+              "chest",
+              "forelimb_l",
+              "fore_elbow_l",
+              "forepaw_l"
+            ],
+            "toe": [
+              0,
+              11,
+              -22
+            ]
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "torso",
+              "chest",
+              "forelimb_r",
+              "fore_elbow_r",
+              "forepaw_r"
+            ],
+            "toe": [
+              0,
+              11,
+              -22
+            ]
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "hindlimb_l",
+              "hind_knee_l",
+              "hind_hock_l",
+              "hindpaw_l"
+            ],
+            "toe": [
+              0,
+              11,
+              -22
+            ],
+            "hind": true
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "hindlimb_r",
+              "hind_knee_r",
+              "hind_hock_r",
+              "hindpaw_r"
+            ],
+            "toe": [
+              0,
+              11,
+              -22
+            ],
+            "hind": true
+          }
+        ],
+        "sound": "digicube:garurumon_step",
+        "replaces": [
+          "minecraft:block.grass.step",
+          "minecraft:block.moss.step",
+          "minecraft:block.moss_carpet.step",
+          "minecraft:block.leaf_litter.step",
+          "minecraft:block.pink_petals.step",
+          "minecraft:block.azalea_leaves.step",
+          "minecraft:block.cherry_leaves.step"
+        ]
       }
     }
   }

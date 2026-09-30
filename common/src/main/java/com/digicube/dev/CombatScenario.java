@@ -69,6 +69,9 @@ public final class CombatScenario {
         if (NAME.equals("rider_checks")) return; // staged by the Fabric module, which has a fake player to ride with
         if (NAME.equals("sea_mount_checks")) return; // so is the sea mounts' ride through a pool
         if (NAME.equals("battle_checks")) return; // Battle Testing, also staged by the Fabric module with its fake player
+        if (NAME.equals("analyzer_checks")) return; // the Analyzer record, staged by the Fabric module with its fake player
+        if (NAME.equals("garurumon_checks")) return; // Garurumon ridden and wild, staged by the Fabric module with its fake rider
+        if (NAME.equals("seadramon_checks")) return; // Seadramon wild and ridden, staged by the Fabric module
         if (NAME.startsWith("digivice_checks")) return;
         if (NAME.startsWith("recall_checks")) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }

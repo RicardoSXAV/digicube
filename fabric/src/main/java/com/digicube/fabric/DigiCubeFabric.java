@@ -37,6 +37,9 @@ public class DigiCubeFabric implements ModInitializer {
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.dev.CombatScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.RiderScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.SeaMountScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.GarurumonScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.SeadramonScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.BattleScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.AnalyzerScenario::tick);
     }
 }

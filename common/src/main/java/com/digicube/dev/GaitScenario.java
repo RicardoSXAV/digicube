@@ -81,7 +81,8 @@ final class GaitScenario {
         if (ticks < SETTLE + MEASURE && walker.getZ() < 10) return;
         var gait = species.locomotion().groundGait(); float scale = species.body().modelScale();
         double speed = walker.position().subtract(from).horizontalDistance() / (ticks - SETTLE);
-        float amount = (float) Math.min(1, speed / gait.fullSpeed(scale)), run = gait.runAmount(speed, scale);
+        // the run the client plays at this steady pace (a gait that changes all at once is all run or none)
+        float amount = (float) Math.min(1, speed / gait.fullSpeed(scale)), run = gait.drive(speed, 0, scale, false).run();
         float playback = gait.advance(speed, amount, scale, run);
         // Uncapped cadence the travel asks for: above the cap the feet would slide.
         double wanted = speed * gait.cycleTicks() / ((gait.stride() + (gait.runStride() - gait.stride()) * run) * scale * Math.max(.001F, amount));

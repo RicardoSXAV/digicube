@@ -4,28 +4,63 @@
   "base_health": 40,
   "base_attack": 14,
   "base_defence": 10,
-  "base_speed": 0.42,
-  "attacks": ["freeze_fang", "howling_blaster"],
+  "base_speed": 0.31,
+  "attacks": [
+    "freeze_fang",
+    "howling_blaster"
+  ],
   "evolutions": [],
+  "tactics": {
+    "hold_range": [4, 9],
+    "dodge_chance": 0.5,
+    "reaction_ticks": 3,
+    "strafe": true,
+    "lead_ticks": 6,
+    "press_impaired": true,
+    "fight_speed": 1.6,
+    "gallop": true
+  },
   "locomotion": {
     "follow_start_distance": 5.0,
     "follow_stop_distance": 2.5,
-    "walk_speed": 1.2,
-    "run_speed": 1.2
+    "walk_speed": 1,
+    "run_speed": 1.34,
+    "ice_grip": 0.4,
+    "ground_gait": {
+      "cycle_ticks": 14,
+      "stride": 9.6,
+      "run_cycle_ticks": 14,
+      "run_stride": 16,
+      "side_stride": 3.5,
+      "back_stride": 4,
+      "max_playback_rate": 3.0,
+      "run_from": 0.3,
+      "run_until": 0.26,
+      "pivot_reach": 1.27,
+      "pivot_stride": 2.8,
+      "pivot_cadence": 1.6,
+      "footfalls": true
+    }
   },
   "body": {
-    "model_scale": 1.0,
-    "width": 1.9,
-    "height": 2.8,
-    "eye_height": 2.5,
+    "model_scale": 0.35,
+    "width": 1.8,
+    "height": 2.1,
+    "eye_height": 1.85,
     "mount": {
+      "seat": [0.0, 1.82, -0.2],
+      "step_height": 1.0,
+      "turn_rate": 18.0,
+      "sprint": 2.2,
+      "sprint_build": 30,
+      "jump": 0.6,
+      "leap_carry": 0.96,
+      "turn_to_travel": true,
+      "camera_distance": 6,
       "rider_attacks": [
-        {"attack": "freeze_fang", "aim": "sweep", "input": "tap", "cone": 35},
+        {"attack": "freeze_fang", "aim": "pounce", "input": "tap", "cone": 14},
         {"attack": "howling_blaster", "aim": "stream", "input": "hold", "move": true}
-      ],
-      "seat": [0.0, 2.1875, -0.375],
-      "speed": 0.5,
-      "step_height": 1.0
+      ]
     }
   }
 }

@@ -141,14 +141,24 @@ public final class SpeciesRegressionTest {
             var garurumonMount = garurumon.body().mount().orElseThrow();
             check(garurumon.stage() == DigimonStage.ADULT && garurumon.attribute() == DigimonAttribute.VACCINE
                             && garurumon.baseSpeed() > gabumon.baseSpeed(), "Garurumon is a fast vaccine champion");
-            check(garurumon.body().modelScale() == 1 && garurumonMount.seat().y == 2.1875
-                            && garurumonMount.seat().z == -.375 && garurumonMount.speed() == .5F
-                            && garurumonMount.stepHeight() == 1, "Garurumon has the measured back seat and fast ridden pace");
-            check(garurumon.locomotion().followSpeed(false) == garurumon.locomotion().followSpeed(true)
-                            && garurumon.locomotion().followSpeed(false) * garurumon.baseSpeed() > .5,
-                    "Garurumon keeps its fast pace whether or not its owner sprints");
-            check(garurumon.attacks().equals(List.of(DigimonSpeciesBootstrap.FREEZE_FANG, DigimonSpeciesBootstrap.HOWLING_BLASTER)),
-                    "Garurumon uses the authored frost combo");
+            check(garurumon.body().modelScale() == .35F && garurumonMount.seat().y > 1.7 && garurumonMount.seat().y < 1.9
+                            && garurumonMount.ownPace() && garurumonMount.stepHeight() == 1,
+                    "Garurumon seats its rider on its back behind the withers and is ridden at its own pace");
+            check(garurumonMount.jump() > 0 && garurumonMount.leapCarry() > .91F && garurumonMount.leapCarry() < 1
+                            && garurumonMount.sprint() > 2 && garurumonMount.turnToTravel(),
+                    "Garurumon leaps on a tap and a leap at the gallop keeps more of its run than vanilla's air does");
+            var garurumonGait = garurumon.locomotion().groundGait();
+            check(garurumonGait.directional() && garurumonGait.runStride() > garurumonGait.stride()
+                            && garurumonGait.cycleTicks() == garurumonGait.runCycleTicks(),
+                    "Garurumon walks planted forwards, backwards and aside, and gallops on the walk's phase");
+            check(garurumon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("freeze_fang", "howling_blaster"))
+                            && PounceAttacks.handles(garurumon.attacks().get(0)) && BreathAttacks.handles(garurumon.attacks().get(1)),
+                    "Garurumon pounces with Freeze Fang and breathes Howling Blaster");
+            check(garurumonMount.riderAttacks().size() == 2 && garurumonMount.riderAttacks().get(0).aim() == RiderAttack.Aim.POUNCE
+                            && garurumonMount.riderAttacks().get(0).input() == RiderAttack.Input.TAP
+                            && garurumonMount.riderAttacks().get(1).aim() == RiderAttack.Aim.STREAM
+                            && garurumonMount.riderAttacks().get(1).input() == RiderAttack.Input.HOLD && garurumonMount.riderAttacks().get(1).move(),
+                    "a rider pounces along the crosshair with the quick button and breathes on the run with the special one");
             IceComboRegressionTest.run();
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
@@ -160,6 +170,7 @@ public final class SpeciesRegressionTest {
                     "Blue Blaster uses fuel and Horn Attack has no impulse");
             FuelRegressionTest.run();
             com.digicube.entity.FlameStreamRegressionTest.run();
+            com.digicube.entity.FrostBreathRegressionTest.run();
             com.digicube.entity.AttackGeometryRegressionTest.run();
             com.digicube.entity.AttackTravelSyncRegressionTest.run();
             check(gabumon.body().modelScale() == .6F && gabumon.body().dimensions().width() == .95F
