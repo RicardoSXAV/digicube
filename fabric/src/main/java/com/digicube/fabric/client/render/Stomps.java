@@ -7,7 +7,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -56,8 +55,8 @@ public final class Stomps {
                 if (digimon.onGround() && amount >= .15F && phase != before.phase() && Math.abs(phase - before.phase()) < gait.cycleTicks())
                     stomp(minecraft, digimon, definition.stomps(), gait.cycleTicks(), before.phase(), phase, amount, run, now);
                 if (digimon.isVehicle() && low && run >= ROAR_RUN && before.run() < ROAR_RUN && now - roared >= ROAR_EVERY) {
-                    minecraft.level.playLocalSound(digimon.getX(), digimon.getEyeY(), digimon.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.NEUTRAL,
-                            1.1F, .72F + digimon.getRandom().nextFloat() * .06F, false);
+                    minecraft.level.playLocalSound(digimon.getX(), digimon.getEyeY(), digimon.getZ(), definition.stomps().roar(), SoundSource.NEUTRAL,
+                            1.1F, definition.stomps().roarPitch() + digimon.getRandom().nextFloat() * .06F, false);
                     roared = now;
                     low = false;
                 }
@@ -72,17 +71,20 @@ public final class Stomps {
     private static void stomp(Minecraft minecraft, DigimonEntity digimon, NativeGroundModel.Stomps stomps, float cycle,
                               float from, float to, float amount, float run, long now) {
         float lo = Math.min(from, to), hi = Math.max(from, to);
-        for (int i = 0; i < stomps.down().length; i++) {
-            float at = stomps.down()[i] * cycle;
+        // a bound lands its feet on beats of its own
+        float[] down = run >= .5F ? stomps.runDown() : stomps.down();
+        float[][] feet = run >= .5F ? stomps.runFeet() : stomps.feet();
+        for (int i = 0; i < down.length; i++) {
+            float at = down[i] * cycle;
             if (Math.floor((hi - at) / cycle) <= Math.floor((lo - at) / cycle)) continue;
             float weight = Mth.clamp(amount, .4F, 1) * (.75F + .25F * run);
             // Where the foot stands, from the body's heading: x across, then forward.
-            float[] foot = stomps.feet()[i];
+            float[] foot = feet[i];
             Vec3 at3 = new Vec3(foot[0], 0, foot[1]).yRot(-digimon.getYRot() * Mth.DEG_TO_RAD).add(digimon.position());
             BlockPos below = BlockPos.containing(at3.x, digimon.getY() - .2, at3.z);
             var ground = minecraft.level.getBlockState(below);
-            minecraft.level.playLocalSound(at3.x, digimon.getY(), at3.z, SoundEvents.RAVAGER_STEP, SoundSource.NEUTRAL,
-                    .75F * weight, .5F + .08F * run + digimon.getRandom().nextFloat() * .05F, false);
+            minecraft.level.playLocalSound(at3.x, digimon.getY(), at3.z, stomps.sound(), SoundSource.NEUTRAL,
+                    .75F * weight, stomps.pitch() + .08F * run + digimon.getRandom().nextFloat() * .05F, false);
             if (!ground.isAir()) {
                 var sound = ground.getSoundType();
                 minecraft.level.playLocalSound(at3.x, digimon.getY(), at3.z, sound.getStepSound(), SoundSource.NEUTRAL,

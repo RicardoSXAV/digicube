@@ -4,22 +4,30 @@
   "base_health": 40,
   "base_attack": 14,
   "base_defence": 10,
-  "base_speed": 0.1,
+  "base_speed": 0.03492,
   "attacks": [
     "harpoon_vulcan",
     "heat_top"
   ],
   "evolutions": [],
+  "tactics": {
+    "fight_speed": 3.9
+  },
   "locomotion": {
     "follow_start_distance": 5.0,
     "follow_stop_distance": 2.5,
     "walk_speed": 1.3,
     "run_speed": 1.3,
-    "swim_speed": 0.6,
+    "swim_speed": 0.52,
     "ground_gait": {
-      "cycle_ticks": 32,
-      "stride": 0.8,
-      "max_playback_rate": 1
+      "cycle_ticks": 18,
+      "stride": 3.6,
+      "side_stride": 1.08,
+      "back_stride": 1.152,
+      "run_cycle_ticks": 16,
+      "run_stride": 6.0,
+      "max_playback_rate": 2.0,
+      "footfalls": true
     }
   },
   "body": {
@@ -29,22 +37,40 @@
     "eye_height": 2.55,
     "mount": {
       "rider_attacks": [
-        {"attack": "heat_top", "aim": "sweep", "input": "tap", "cone": 35},
-        {"attack": "harpoon_vulcan", "aim": "shot", "input": "tap", "cone": 8}
+        {
+          "attack": "heat_top",
+          "aim": "sweep",
+          "input": "tap",
+          "cone": 35
+        },
+        {
+          "attack": "harpoon_vulcan",
+          "aim": "shot",
+          "input": "tap",
+          "cone": 8
+        }
       ],
       "seat": [
-        0.52,
-        1.5,
-        -0.7375
+        -0.3,
+        2.758,
+        0.05
       ],
-      "standing": true,
       "water_seat_offset": [
-        0,
-        0,
-        0
+        0.0,
+        0.249,
+        0.861
       ],
-      "speed": 0.13,
-      "step_height": 1.0
+      "step_height": 1.0,
+      "turn_rate": 8.0,
+      "sprint": 1.875,
+      "sprint_build": 20,
+      "turn_to_travel": true,
+      "camera_distance": 6.5,
+      "water_turn_rate": 9.0,
+      "water_sprint": 1.6,
+      "float_line": 0.58,
+      "surface_dive": 30,
+      "water_roll": 0.28
     }
   }
 }

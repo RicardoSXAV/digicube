@@ -6,11 +6,27 @@
     "pitch": 0.8,
     "ambient_interval": 320
   },
+  "ikkakumon": {
+    "ambient": "digicube:ikkakumon_call",
+    "hurt": "digicube:ikkakumon_hurt",
+    "death": "digicube:ikkakumon_death",
+    "cry": "digicube:ikkakumon_bellow",
+    "pitch": 1.0,
+    "ambient_interval": 400
+  },
   "darktyrannomon": {
     "ambient": "minecraft:entity.ravager.ambient",
     "hurt": "minecraft:entity.ravager.hurt",
     "death": "minecraft:entity.ravager.death",
     "pitch": 0.72,
     "ambient_interval": 360
+  },
+  "garurumon": {
+    "ambient": "minecraft:entity.wolf_big.ambient",
+    "hurt": "minecraft:entity.wolf_big.hurt",
+    "death": "minecraft:entity.wolf_big.death",
+    "cry": "minecraft:entity.wolf_angry.growl",
+    "pitch": 0.8,
+    "ambient_interval": 400
   }
 }

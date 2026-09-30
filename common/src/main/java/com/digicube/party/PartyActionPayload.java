@@ -35,6 +35,11 @@ public record PartyActionPayload(int action, UUID member, int value, long genera
      * which the rider's client runs; the server passes it on to everyone else who sees the mount.
      */
     public static final int JET_PULSE = 14;
+    /**
+     * A sea mount's rider: its mount started a barrel roll ({@code value}: 1 to the left, 0 to the right), which the
+     * rider's client runs; the server passes it on to everyone else who sees the mount.
+     */
+    public static final int SWIM_ROLL = 15;
     public static final UUID NO_MEMBER = new UUID(0, 0);
     public static final Type<PartyActionPayload> TYPE = new Type<>(Constants.id("party_action"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartyActionPayload> STREAM_CODEC =

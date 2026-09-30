@@ -19,6 +19,12 @@ public interface AnimatedRiderModel {
     default float riderYaw(DigimonRenderState state) { return 0; }
 
     /**
+     * How the rider tips with the seat, degrees nose down and right side down, or null for a rider who sits upright.
+     * @param state mount pose, as {@link #riderOffset} just set it up
+     */
+    default float[] riderLean(DigimonRenderState state) { return null; }
+
+    /**
      * Fit the rider to the mount's width.
      * @return rider leg angles (zero for standing)
      */

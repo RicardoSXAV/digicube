@@ -164,6 +164,8 @@ public final class SeaMountScenario {
         DigimonBody.Mount m = kind.body().mount().orElseThrow();
         double swim = kind.locomotion().swimSpeed(), h = kind.body().dimensions().height();
         double afloat = SURFACE - .85 * h;
+        // where it floats at rest: its own float line (body.mount.float_line) under the surface
+        double floats = m.sea().floatLine();
         List<Step> plan = new ArrayList<>();
         // A jet swimmer's pace is measured over whole pulses (36 ticks: two of a cruise's, three of a surge's) once under way.
         boolean jet = kind.locomotion().jet() != null;
@@ -193,12 +195,14 @@ public final class SeaMountScenario {
             double down = (track.get(15).y - track.get(29).y) / 14, ahead = pace(15, 29), want = swim * Math.sin(Math.PI / 4);
             return verdict(down >= .6 * want && ahead >= .6 * want, "looking 45 degrees down it sinks %.3f and goes %.3f a tick (%.3f each along the view)", down, ahead, want);
         }));
-        plan.add(new Step("surface", 110, () -> place(0, FLOOR + 2, START, 0), t -> keys(1, 0, false, false, false, -60, 0), () -> {
+        // A body that holds the surface swims on level at its full pace once there: a shorter climb keeps it off the quay.
+        int climb = m.sea().surfaceDive() > 0 ? 70 : 110;
+        plan.add(new Step("surface", climb, () -> place(0, FLOOR + 2, START, 0), t -> keys(1, 0, false, false, false, -60, 0), () -> {
             double end = depth.get(depth.size() - 1) / h;
             double lo = 1e9, hi = -1e9;
             for (int i = depth.size() - 20; i < depth.size(); i++) { lo = Math.min(lo, track.get(i).y); hi = Math.max(hi, track.get(i).y); }
             boolean out = depth.stream().skip(40).anyMatch(d -> d <= 0);
-            return verdict(end > .7 && end < .95 && hi - lo < .3 && !out,
+            return verdict(end > floats - .2 && end < floats + .05 && hi - lo < .3 && !out,
                     "climbing at 60 degrees it stops at the surface with %.0f %% of its height in the water, %.2f blocks of bob%s", end * 100, hi - lo, out ? ", but left the water" : "");
         }));
         plan.add(new Step("rise key", 20, () -> place(0, FLOOR + 3, START, 0), t -> keys(0, 0, true, false, false, 0, 0), () -> {
@@ -219,6 +223,54 @@ public final class SeaMountScenario {
             return verdict(peak > SURFACE + .1 && back, "surging up at 35 degrees its feet leave the water by %.2f blocks%s",
                     peak - SURFACE, back ? " and it falls back in" : ", and it never came back down");
         }));
+        // A body that holds the surface (surface_dive) surges along it looking down as a rider does, and stays afloat:
+        // no dip under, no bob out. Looking down past surface_dive it dives.
+        if (m.sea().surfaceDive() > 0) {
+            float look = m.sea().surfaceDive() * .7F;
+            // (45 ticks: the surge crosses most of the pool in that)
+            plan.add(new Step("surface surge", 45, () -> place(0, SURFACE - floats * h, BACK + 2, 0),
+                    t -> keys(1, 0, false, true, false, look, 0), () -> {
+                double lo = 1e9, hi = -1e9;
+                for (int i = 10; i < depth.size(); i++) { lo = Math.min(lo, depth.get(i)); hi = Math.max(hi, depth.get(i)); }
+                double v = pace(15, 44), want = swim * m.waterSprint(), line = floats * h;
+                return verdict(lo > line - .25 && hi < line + .25 && v >= .8 * want,
+                        "surging along the surface looking %.0f degrees down it keeps %.2f to %.2f blocks of water over its feet (float line %.2f), %.3f blocks a tick",
+                        look, lo, hi, line, v);
+            }));
+            float steep = m.sea().surfaceDive() + 15;
+            plan.add(new Step("surface dive", 30, () -> place(0, SURFACE - floats * h, BACK + 2, 0),
+                    t -> keys(1, 0, false, false, false, steep, 0), () -> {
+                double down = depth.get(depth.size() - 1) - depth.get(0);
+                return verdict(down > 1.2, "looking %.0f degrees down at the surface it dives %.2f blocks in 1.5 seconds", steep, down);
+            }));
+        }
+        // A body that swims along its own length (turn_to_travel) turns into the strafe key and swims that way.
+        if (m.turnToTravel()) plan.add(new Step("steer", 40, () -> place(0, FLOOR + 5, START, 0), t -> keys(1, 1, false, false, false, 0, 0), () -> {
+            Vec3 moved = track.get(39).subtract(track.get(0));
+            float yaw = net.minecraft.util.Mth.wrapDegrees(mount.getYRot());
+            return verdict(moved.x > 2 && Math.abs(yaw + 45) < 8, "forward and left it turned to %.0f degrees and went %.2f blocks left, %.2f ahead",
+                    yaw, moved.x, moved.z);
+        }));
+        // A roller: a double tap of the jump key rolls it once round, thrown on along its way and toward the side it turns
+        // to: first steered right (the view swung right), then left.
+        if (m.sea().roll() > 0) {
+            int[] rollsAt = new int[1];
+            int[] sides = new int[2];
+            double[] speeds = new double[4];
+            plan.add(new Step("barrel roll", 50, () -> { place(0, FLOOR + 5, START, 0); rollsAt[0] = mount.rolls(); },
+                    t -> {
+                        keys(1, 0, t == 2 || t == 5 || t == 28 || t == 31, false, false, 0, t < 26 ? 60 : -60);
+                        if (t == 2) speeds[0] = mount.getDeltaMovement().horizontalDistance();
+                        if (t == 6) { speeds[1] = mount.getDeltaMovement().horizontalDistance(); sides[0] = mount.lastRollSide(); }
+                        if (t == 28) speeds[2] = mount.getDeltaMovement().horizontalDistance();
+                        if (t == 32) { speeds[3] = mount.getDeltaMovement().horizontalDistance(); sides[1] = mount.lastRollSide(); }
+                    }, () -> {
+                int rolled = mount.rolls() - rollsAt[0];
+                return verdict(rolled == 2 && sides[0] < 0 && sides[1] > 0 && speeds[1] > speeds[0] + .1 && speeds[3] > speeds[2] + .1,
+                        "two double taps, %d rolls, to its %s then its %s, thrown on from %.2f to %.2f and %.2f to %.2f blocks a tick", rolled,
+                        sides[0] < 0 ? "right" : "left", sides[1] > 0 ? "left" : "right", speeds[0], speeds[1], speeds[2], speeds[3]);
+            }));
+        }
         plan.add(new Step("haul out", 90, () -> place(0, afloat, QUAY - kind.body().dimensions().width() * .5 - 1.2, 0),
                 t -> keys(1, 0, false, false, false, 0, 0), () -> {
             Vec3 end = track.get(track.size() - 1);

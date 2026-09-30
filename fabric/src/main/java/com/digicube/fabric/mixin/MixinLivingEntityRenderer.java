@@ -35,6 +35,24 @@ public class MixinLivingEntityRenderer {
         state.yRot = net.minecraft.util.Mth.clamp(net.minecraft.util.Mth.wrapDegrees(state.yRot - yaw), -85, 85);
     }
 
+    /**
+     * A rider tips with the seat when the mount's catalog asks it ({@code RiderVisuals.LEAN}): about the seat, forward as
+     * the body dives, over as it banks, and once round with a barrel roll. After vanilla's turn to the body's heading the
+     * rider faces -z with +x to the right and +y up; the seat is at the vehicle attachment, 0.6 over the feet.
+     */
+    @Inject(method = "setupRotations(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;FF)V",
+            at = @At("TAIL"))
+    private void digicube$leanWithSeat(net.minecraft.client.renderer.entity.state.LivingEntityRenderState state, PoseStack pose, float bodyRot, float scale,
+                                       CallbackInfo ci) {
+        float[] lean = ((FabricRenderState) state).getData(com.digicube.fabric.client.render.RiderVisuals.LEAN);
+        if (lean == null) return;
+        float seat = .6F * scale;
+        pose.translate(0, seat, 0);
+        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-lean[0]));
+        pose.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(-lean[1]));
+        pose.translate(0, -seat, 0);
+    }
+
     @ModifyArg(method = "submit(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel(Lnet/minecraft/client/model/Model;Ljava/lang/Object;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;IIILnet/minecraft/client/renderer/texture/TextureAtlasSprite;ILnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"),
             index = 6)

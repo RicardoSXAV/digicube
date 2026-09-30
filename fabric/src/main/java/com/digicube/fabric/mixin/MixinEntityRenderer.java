@@ -33,6 +33,7 @@ public class MixinEntityRenderer {
         if (entity == com.digicube.fabric.client.party.RiderControls.grabPrey()) state.outlineColor = com.digicube.fabric.client.party.RiderControls.GRAB_OUTLINE;
         extra.setData(RiderVisuals.POSE, null);
         extra.setData(RiderVisuals.YAW, null);
+        extra.setData(RiderVisuals.LEAN, null);
         if (entity.getVehicle() instanceof DigimonEntity mount
                 && Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(mount) instanceof DigimonRenderer renderer) {
             var visual = renderer.riderVisual(mount, partialTick);
@@ -41,6 +42,7 @@ public class MixinEntityRenderer {
                 state.passengerOffset = state.passengerOffset == null ? offset : state.passengerOffset.add(offset);
                 extra.setData(RiderVisuals.POSE, visual.pose());
                 if (Math.abs(visual.yaw()) > .01F) extra.setData(RiderVisuals.YAW, visual.yaw());
+                if (visual.lean() != null) extra.setData(RiderVisuals.LEAN, visual.lean());
             }
         }
     }
