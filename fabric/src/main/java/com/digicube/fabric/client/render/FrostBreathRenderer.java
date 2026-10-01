@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * Draws a breath of puffs ({@link FrostBreath}) as a stream of solid glowing blocks: the boxes of its effect model
- * (Howling Blaster's approved flame), each whole and rigid at {@link #PIXEL} blocks a model pixel, so nothing is ever
+ * (Howling Blaster's approved flame, Heat Wave's), each whole and rigid at its pixel (blocks a model pixel), so nothing is ever
  * stretched however the stream bends (a piece stretched between puffs reads as a bar across the stream).
  *
  * <p>Every puff carries its own blocks: the flame's cross-section for how far out along the flame it is (the throat's
@@ -33,12 +33,16 @@ import java.util.Map;
  * tapers, and so does the tail of a flame that has left the mouth. Each face's shade by its direction goes into its vertex
  * colour, drawn full-bright ({@link SolidGlow}).
  *
- * <p>The effect model's parts: {@code hb_flow_NN} sections in order out from the mouth (each holding {@code hb_body_NN},
- * {@code hb_core_NN} and {@code hb_tongue_NN_k}), {@code hb_tip_k}, {@code hb_edge_k} sheets and {@code hb_ember_k}.
+ * <p>The effect model's parts, under one two-letter prefix ({@code hb_} for Howling Blaster, {@code hw_} for Heat Wave):
+ * {@code xx_flow_NN} sections in order out from the mouth (each holding {@code xx_body_NN}, {@code xx_core_NN} and
+ * {@code xx_tongue_NN_k}), {@code xx_tip_k}, {@code xx_edge_k} sheets and {@code xx_ember_k}. The breath's sheet sets the
+ * pixel the art is drawn at ({@code pixel}) and the colour a dying puff cools toward ({@code cooling}).
  */
-public final class FrostBreathRenderer {
-    /** Blocks per model pixel: about the character's own pixel, so the stream stays slender. */
+public final class FrostBreathRenderer implements BreathArt {
+    /** Blocks per model pixel by default (Howling Blaster's): about the character's own pixel, so the stream stays slender. */
     public static final float PIXEL = .025F;
+    /** The colour a dying puff cools toward by default: a little bluer (frost). */
+    private static final float[] COOLING = {.88F, .92F, 1};
     /** Model pixels between the blocks of a puff's trail. */
     static final float STEP = 8;
     /** The longest trail a puff draws behind it (blocks): a puff far ahead of the next is a torn stream. */
@@ -66,32 +70,43 @@ public final class FrostBreathRenderer {
     private final Section[] sections;
     private final Box[] tips, edges, embers;
     private final Identifier texture;
+    /** Blocks this art draws a model pixel at, and the colour its puffs cool toward. */
+    private final float pixel;
+    private final float[] cooling;
     /** Where the art's tips reach (px out from the mouth), and where puffs start carrying tips and stop carrying sections. */
     private final float end, tipsFrom, sectionsTo;
 
     public FrostBreathRenderer(String effect) {
+        this(effect, PIXEL, COOLING);
+    }
+
+    public FrostBreathRenderer(String effect, float pixel, float[] cooling) {
         this.texture = Constants.id("textures/entity/digimon/" + effect + ".png");
+        this.pixel = pixel;
+        this.cooling = cooling.clone();
         var mesh = NativeModelGeometry.mesh(Constants.id("models/entity/" + effect + ".mesh.json"));
         Map<String, NativeModelGeometry.Part> parts = new HashMap<>();
         for (var part : mesh.parts()) parts.put(part.name(), part);
+        String x = parts.keySet().stream().filter(n -> n.endsWith("_flow_00")).map(n -> n.substring(0, n.length() - "flow_00".length()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("No flame sections in " + effect));
         List<Section> found = new ArrayList<>();
-        for (int i = 0; parts.containsKey(String.format("hb_flow_%02d", i)); i++) {
+        for (int i = 0; parts.containsKey(String.format("%sflow_%02d", x, i)); i++) {
             String id = String.format("%02d", i);
-            float[] flow = parts.get("hb_flow_" + id).pose();
+            float[] flow = parts.get(x + "flow_" + id).pose();
             // a section's boxes about the flame's axis at the section: the flow's own small offsets kept, its place along dropped
-            Box body = box(parts.get("hb_body_" + id), flow[0], flow[1], false);
-            Box core = box(parts.get("hb_core_" + id), flow[0], flow[1], false);
+            Box body = box(parts.get(x + "body_" + id), flow[0], flow[1], false);
+            Box core = box(parts.get(x + "core_" + id), flow[0], flow[1], false);
             List<Box> tongues = new ArrayList<>();
-            for (int k = 0; k < 3; k++) if (parts.containsKey("hb_tongue_" + id + "_" + k)) tongues.add(box(parts.get("hb_tongue_" + id + "_" + k), flow[0], flow[1], false));
+            for (int k = 0; k < 3; k++) if (parts.containsKey(x + "tongue_" + id + "_" + k)) tongues.add(box(parts.get(x + "tongue_" + id + "_" + k), flow[0], flow[1], false));
             found.add(new Section(-flow[2], body, core, tongues.toArray(Box[]::new)));
         }
         this.sections = found.toArray(Section[]::new);
-        this.tips = list(parts, "hb_tip_", true);
-        this.edges = list(parts, "hb_edge_", true);
-        this.embers = list(parts, "hb_ember_", false);
+        this.tips = list(parts, x + "tip_", true);
+        this.edges = list(parts, x + "edge_", true);
+        this.embers = list(parts, x + "ember_", false);
         Section last = sections[sections.length - 1];
         float reach = last.z();
-        for (String name : parts.keySet()) if (name.startsWith("hb_tip_")) reach = Math.max(reach, -parts.get(name).pose()[2] + size(parts.get(name))[2] / 2);
+        for (String name : parts.keySet()) if (name.startsWith(x + "tip_")) reach = Math.max(reach, -parts.get(name).pose()[2] + size(parts.get(name))[2] / 2);
         this.end = reach;
         this.sectionsTo = last.z() + last.body().sizeZ() / 2;
         this.tipsFrom = last.z() - 2;
@@ -113,7 +128,7 @@ public final class FrostBreathRenderer {
     }
 
     /** A part's quads about an anchor: its pivot's offset within the section (or {@code ox, oy}), and its own turn when {@code turned}. */
-    private static Box box(NativeModelGeometry.Part part, float ox, float oy, boolean turned) {
+    static Box box(NativeModelGeometry.Part part, float ox, float oy, boolean turned) {
         float[] pose = part.pose();
         float px = turned ? 0 : pose[0], py = turned ? 0 : pose[1], pz = turned ? 0 : pose[2];
         var quads = part.quads();
@@ -162,7 +177,7 @@ public final class FrostBreathRenderer {
         public float drag = .9F;
         /** Quads built at submit: four vertices of x, y, z, u, v, then the normal and the colour's bits (24 numbers each). */
         private float[] quads = new float[0];
-        private int quadCount;
+        int quadCount;
 
         public void clear() { count = 0; }
 
@@ -182,7 +197,7 @@ public final class FrostBreathRenderer {
             count++;
         }
 
-        private void put(Box box, float bx, float by, float bz, float[] f, float scale, int color, boolean twoSided) {
+        void put(Box box, float bx, float by, float bz, float[] f, float scale, int color, boolean twoSided) {
             int needed = (quadCount + box.quads().length * (twoSided ? 2 : 1)) * 24;
             if (needed > quads.length) quads = Arrays.copyOf(quads, Math.max(needed, quads.length * 2));
             for (int q = 0; q < box.quads().length; q++) {
@@ -205,7 +220,7 @@ public final class FrostBreathRenderer {
             }
         }
 
-        private void write(PoseStack.Pose pose, VertexConsumer vertices) {
+        void write(PoseStack.Pose pose, VertexConsumer vertices) {
             for (int q = 0; q < quadCount; q++) {
                 int o = q * 24;
                 float nx = quads[o + 20], ny = quads[o + 21], nz = quads[o + 22];
@@ -241,6 +256,7 @@ public final class FrostBreathRenderer {
         }
     }
 
+    @Override
     public void submit(State s, PoseStack pose, SubmitNodeCollector collector, float ageInTicks) {
         if (s.count == 0) return;
         s.quadCount = 0;
@@ -272,11 +288,11 @@ public final class FrostBreathRenderer {
                 trail = Mth.clamp(gap, 0, MAX_TRAIL);
             }
             if (!puff.begin(i, fromTail[i])) continue;
-            int m = Math.min(LANES.length, Math.max(1, Mth.ceil(trail / (STEP * PIXEL))));
+            int m = Math.min(LANES.length, Math.max(1, Mth.ceil(trail / (STEP * pixel))));
             for (int j = 0; j < m; j++) {
                 float u = j / (float) m, back = trail * u;
                 float age = i < n - 1 ? Mth.lerp(u, s.age[i], s.age[i + 1]) : s.age[i];
-                puff.lay(j, s.x[i] - f[6] * back, s.y[i] - f[7] * back, s.z[i] - f[8] * back, age);
+                puff.lay(j, s.x[i] - f[6] * back, s.y[i] - f[7] * back, s.z[i] - f[8] * back, age, fromTail[i] - back);
             }
         }
         // the head of the stream: every tip, ahead of its oldest puff
@@ -284,9 +300,9 @@ public final class FrostBreathRenderer {
         if (g > .02F && tips.length > 0) {
             float[] f = puff.frame(0);
             for (int k = 0; k < tips.length; k++) {
-                float ahead = tips[k].sizeZ() * (.35F + .65F * ((s.seed[0] + k * 3) % 4) / 3F) * PIXEL * g;
+                float ahead = tips[k].sizeZ() * (.35F + .65F * ((s.seed[0] + k * 3) % 4) / 3F) * pixel * g;
                 sink.box(tips[k], s.x[0] + f[6] * ahead, s.y[0] + f[7] * ahead, s.z[0] + f[8] * ahead, f,
-                        PIXEL * g * (.8F + .2F * Mth.sin(time * 1.7F + k)), 0xFFFFFFFF, false);
+                        pixel * g * (.8F + .2F * Mth.sin(time * 1.7F + k)), 0xFFFFFFFF, false);
             }
         }
     }
@@ -375,27 +391,34 @@ public final class FrostBreathRenderer {
                     * (s.struck[i] ? 1.15F : 1);
             if (g <= .02F) return false;
             own = hash(s.seed[i], 0);
-            k = PIXEL * g * (1 + .05F * Mth.sin(time * 1.9F + own));
+            k = pixel * g * (1 + .05F * Mth.sin(time * 1.9F + own));
             // (in the blocks' own pixels)
             float wave = 1.1F * Math.min(1, out / 90), jostle = .3F + 1.6F * out / end;
             ox = wave * Mth.sin(out * .07F - time * .55F) + jostle * Mth.sin(own * 2.39F + age * .83F);
             oy = wave * .8F * Mth.sin(out * .05F - time * .41F + 1.3F) + jostle * .7F * Mth.sin(own * 1.71F + age * .67F);
-            // cooling toward the end of its life, a little deeper blue
+            // cooling toward the end of its life (frost a little bluer, fire deeper red)
             float cool = Mth.clamp((t - .45F) / .55F, 0, 1);
-            color = 0xFF000000 | Math.round(255 * (1 - .12F * cool)) << 16 | Math.round(255 * (1 - .08F * cool)) << 8 | 255;
+            color = 0xFF000000 | Math.round(255 * (1 - (1 - cooling[0]) * cool)) << 16 | Math.round(255 * (1 - (1 - cooling[1]) * cool)) << 8
+                    | Math.round(255 * (1 - (1 - cooling[2]) * cool));
             return true;
         }
 
-        /** Block {@code j} of the puff's trail at (x, y, z), of the age the flame has there. The frame is the puff's, already set. */
-        void lay(int j, float x, float y, float z, float age) {
+        /**
+         * Block {@code j} of the puff's trail at (x, y, z), of the age the flame has there, {@code fromMouth} blocks along the
+         * train from its newest puff (which a client sheds at the mouth). The frame is the puff's, already set.
+         */
+        void lay(int j, float x, float y, float z, float age, float fromMouth) {
             int sd = hash(s.seed[i], j);
             float out = along(age);
             float[] f = frame;
             // each block of a trail keeps its own lane beside the others, never a multiple of the art's quarter pixel
             // apart, so overlapping blocks of one trail never share a face's plane (they would flicker)
             float lx = ox + LANE_X * LANES[j], ly = oy + LANE_Y * LANES[(j * 5 + 1) % LANES.length];
-            // the newest blocks start at the mouth instead of straddling it, and a loose tail's last ones start at its end
-            float shift = Math.max(Math.max(0, 1 - age), 1 - tail) * reach * PIXEL;
+            // the blocks nearest the mouth start at it instead of straddling it (each a little ahead of it by its own way
+            // out and its age, so no two start on one plane, not even two puffs shed at one place), and a loose tail's
+            // last ones start at its end
+            float near = attached ? Math.max(0, 1 + .1F * Mth.clamp(age, 0, 1) - .75F * fromMouth / (reach * pixel)) : 0;
+            float shift = Math.max(near, 1 - tail) * reach * pixel;
             float bx = x + f[6] * shift - (f[0] * lx + f[3] * ly) * k;
             float by = y + f[7] * shift - (f[1] * lx + f[4] * ly) * k;
             float bz = z + f[8] * shift - (f[2] * lx + f[5] * ly) * k;
@@ -416,7 +439,7 @@ public final class FrostBreathRenderer {
                     float way = own * 2.39996F, off = s.radius[i] + .06F + .08F * e;
                     float ex = -Mth.cos(way) * off, ey = -Mth.sin(way) * off * .8F - .015F * e * e;
                     sink.box(embers[own % embers.length], bx + f[0] * ex + f[3] * ey, by + f[1] * ex + f[4] * ey, bz + f[2] * ex + f[5] * ey, f,
-                            PIXEL * (1 - e / 8) * 1.2F, 0xFFFFFFFF, false);
+                            pixel * (1 - e / 8) * 1.2F, 0xFFFFFFFF, false);
                 }
             }
         }

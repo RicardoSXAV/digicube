@@ -228,15 +228,21 @@ public final class BundledSpeciesLoader {
         DigimonBody.Serpent serpent = null;
         if (json.has("serpent")) {
             JsonObject s = GsonHelper.getAsJsonObject(json, "serpent");
+            DigimonBody.Coil coil = null;
+            if (s.has("coil")) {
+                JsonObject c = GsonHelper.getAsJsonObject(s, "coil");
+                coil = new DigimonBody.Coil(GsonHelper.getAsFloat(c, "girth"), GsonHelper.getAsFloat(c, "neck"),
+                        GsonHelper.getAsFloat(c, "tail"), GsonHelper.getAsFloat(c, "loops"));
+            }
             serpent = new DigimonBody.Serpent(GsonHelper.getAsFloat(s, "swim_height"), GsonHelper.getAsFloat(s, "turn_radius"),
                     GsonHelper.getAsFloat(s, "swim_turn_radius"), GsonHelper.getAsFloat(s, "standing_turn"),
                     GsonHelper.getAsFloat(s, "swim_head_drop", 0), GsonHelper.getAsFloat(s, "neck_turn", 180),
-                    GsonHelper.getAsFloat(s, "climb_share", 0));
+                    GsonHelper.getAsFloat(s, "climb_share", 0), coil);
             if (hitParts.isEmpty()) throw new IllegalArgumentException("A serpent's body needs hit parts along it");
         }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
                 EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts,
-                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN), serpent);
+                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN), serpent, GsonHelper.getAsBoolean(json, "fireproof", false));
     }
 
     private static AerialMount aerialMount(JsonObject j) {

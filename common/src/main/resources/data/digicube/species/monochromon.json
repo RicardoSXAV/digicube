@@ -1,0 +1,91 @@
+{
+  "stage": "adult",
+  "attribute": "data",
+  "base_health": 46,
+  "base_attack": 14,
+  "base_defence": 14,
+  "base_speed": 0.305,
+  "attacks": [
+    "guardy_tusk",
+    "volcano_strike"
+  ],
+  "evolutions": [],
+  "tactics": {
+    "dodge_chance": 0.15,
+    "reaction_ticks": 6,
+    "lead_ticks": 6,
+    "press_impaired": true,
+    "fight_speed": 1.3
+  },
+  "locomotion": {
+    "follow_start_distance": 6.0,
+    "follow_stop_distance": 3.0,
+    "walk_speed": 1,
+    "run_speed": 1,
+    "ground_gait": {
+      "cycle_ticks": 8,
+      "stride": 4.0,
+      "run_cycle_ticks": 8,
+      "run_stride": 6.5,
+      "side_stride": 1.625,
+      "back_stride": 1.875,
+      "max_playback_rate": 2.2,
+      "run_from": 0.27,
+      "run_until": 0.24,
+      "pivot_reach": 1.116,
+      "pivot_stride": 1.375,
+      "pivot_cadence": 1.6,
+      "footfalls": true
+    }
+  },
+  "body": {
+    "model_scale": 0.4,
+    "width": 1.9,
+    "height": 2.25,
+    "eye_height": 1.45,
+    "hit_parts": [
+      [
+        0,
+        0.85,
+        1.45,
+        1.0,
+        1.3
+      ],
+      [
+        0,
+        0.95,
+        -1.75,
+        0.7,
+        0.6
+      ]
+    ],
+    "mount": {
+      "seat": [
+        0.0,
+        1.662788,
+        -0.1
+      ],
+      "step_height": 1.0,
+      "turn_rate": 10.0,
+      "sprint": 1.9,
+      "sprint_build": 30,
+      "turn_to_travel": true,
+      "camera_distance": 7,
+      "rider_attacks": [
+        {
+          "attack": "volcano_strike",
+          "aim": "shot",
+          "input": "tap",
+          "cone": 12,
+          "move": true
+        },
+        {
+          "attack": "guardy_tusk",
+          "aim": "rush",
+          "input": "hold",
+          "cone": 30
+        }
+      ]
+    }
+  }
+}

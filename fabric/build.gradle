@@ -229,6 +229,15 @@ tasks.register('nativeGarurumonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeGarurumonTest') }
+tasks.register('nativeMonochromonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeMonochromonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-monochromon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeMonochromonTest') }
 tasks.register('nativeSeadramonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath
@@ -238,6 +247,15 @@ tasks.register('nativeSeadramonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeSeadramonTest') }
+tasks.register('nativeSeadramonWrapTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeSeadramonWrapRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-seadramon-wrap-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeSeadramonWrapTest') }
 tasks.register('nativeAgumonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath
@@ -247,6 +265,17 @@ tasks.register('nativeAgumonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeAgumonTest') }
+
+// Pins the Burn mark's own look: its particles' frames, the view's band of flames, the body's warm glow.
+tasks.register('burnVisualsTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.render.BurnVisualsRegressionTest'
+    workingDir = layout.buildDirectory.dir('burn-visuals-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('burnVisualsTest') }
 
 tasks.register('digiviceGripTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')

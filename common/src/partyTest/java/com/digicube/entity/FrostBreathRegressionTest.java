@@ -142,6 +142,10 @@ public final class FrostBreathRegressionTest {
             BlockHitResult hit = AABB.clip(boxes, from, to, BlockPos.ZERO);
             return hit != null ? hit : BlockHitResult.miss(to, Direction.UP, BlockPos.containing(to));
         }
+        /** Dry air everywhere: the boxes are the only things a puff meets. */
+        @Override public net.minecraft.world.level.material.FluidState getFluidState(BlockPos pos) {
+            return net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState();
+        }
     }
 
     private static void check(boolean value, String message) {

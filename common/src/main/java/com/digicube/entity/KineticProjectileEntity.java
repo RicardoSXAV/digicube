@@ -96,8 +96,9 @@ public final class KineticProjectileEntity extends Projectile {
                                     net.minecraft.sounds.SoundSource.HOSTILE, .9F, .7F + level.getRandom().nextFloat() * .15F);
                         }
                         com.digicube.digimon.ExposedMark.expose(victim, d.exposeTicks());
-                        // A shot of water puts out a burning victim, and so its Burn.
+                        // A shot of water puts out a burning victim, and so its Burn; a burning shot lights one.
                         if (d.shotStyle().douses() && victim.isOnFire()) victim.extinguishFire();
+                        if (d.burns()) DigimonEntity.scorch(victim, d.burn());
                         Constants.LOG.info("[kinetic] {} projectile hit {} age={}", d.attack().id(), victim.getType().toShortString(), age);
                         d.shotStyle().impact(level, point);
                         impact(point);return;

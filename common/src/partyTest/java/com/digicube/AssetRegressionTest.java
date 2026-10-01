@@ -25,7 +25,6 @@ public final class AssetRegressionTest {
     private static final double ROTATION = 2e-4, POSITION = 1e-3, SCALE = 2e-4;
     /** Share of keys a linear loader would never need; reduced exports sit far below this. */
     private static final double MAX_REDUNDANT = .25;
-    private static final Pattern LONG_DECIMALS = Pattern.compile("\\d\\.\\d{7,}");
     private static final Pattern LONG_MOTION_DECIMALS = Pattern.compile("\\d\\.\\d{9,}");
 
     /**
@@ -54,7 +53,6 @@ public final class AssetRegressionTest {
             }
         }
         check(surfaces >= 9, "every species model with an idle clip is checked for coplanar faces");
-        checkDecimals(data.resolve("constriction_motion/constriction.json"), LONG_DECIMALS, "four");
         try (Stream<Path> files = Files.list(data.resolve("attack_motion"))) {
             for (Path file : files.toList()) checkDecimals(file, LONG_MOTION_DECIMALS, "six");
         }

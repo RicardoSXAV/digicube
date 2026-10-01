@@ -16,7 +16,7 @@ import net.minecraft.world.phys.*;
 import net.minecraft.world.phys.shapes.*;
 import java.util.*;
 
-/** Executes real cast preparation/hold/release with flat-world collision fixtures. */
+/** The wrap's strike, coil, hold and release, and the AI's choice of it, run on the real session with flat-world fixtures. */
 public final class ConstrictionRegressionTest {
     private ConstrictionRegressionTest() {}
     public static void run() {
@@ -29,7 +29,9 @@ public final class ConstrictionRegressionTest {
         try { DCEffects.init(); } finally { field(registry,net.minecraft.core.MappedRegistry.class,"frozen",true); }
         var species=DigimonSpeciesRegistry.getOrThrow(Constants.id("seadramon"));
         check(species.stage()==DigimonStage.ADULT&&species.attribute()==DigimonAttribute.DATA,"adult data species");
-        check(species.attacks().equals(List.of(DigimonSpeciesBootstrap.CONSTRICTION,DigimonSpeciesBootstrap.ICE_BLAST)),"only the two authored attacks");
+        var wrap=DigimonSpeciesBootstrap.CONSTRICTION;
+        var ice=species.attacks().stream().filter(a->a.id().getPath().equals("ice_blast")).findFirst().orElseThrow();
+        check(species.attacks().equals(List.of(wrap,ice)),"only the two attacks, the wrap first");
         var hitParts=species.body().hitParts();
         check(hitParts.size()==9&&hitParts.get(0).offset().z()<0&&hitParts.get(8).offset().z()<-8.5,"the serpent body carries nine hit parts trailing behind the head");
         for(int i=1;i<hitParts.size();i++)check(hitParts.get(i).offset().z()<hitParts.get(i-1).offset().z()&&hitParts.get(i).offset().y()<=hitParts.get(i-1).offset().y(),"parts descend from the neck to the tail in order");
@@ -37,253 +39,191 @@ public final class ConstrictionRegressionTest {
         check(Math.abs(tail.getCenter().x-(10+8.8))<1e-6&&Math.abs(tail.getCenter().z-10)<1e-6&&Math.abs(tail.minY-5)<1e-9,"a part follows the body yaw like an authored attack point");
         check(DigimonPart.idFor(1234,3)<0&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1234,4)&&DigimonPart.idFor(1234,3)!=DigimonPart.idFor(1235,3),"part ids are negative and unique per parent and index");
         check(species.locomotion().canSwim()&&species.locomotion().swimSpeed()>.6,"fast aquatic navigation");
-        var ice=DigimonSpeciesBootstrap.ICE_BLAST;var wrap=DigimonSpeciesBootstrap.CONSTRICTION;
-        check(ice.fuel().equals(new AttackFuel(40,80,10))&&ice.fuel().damageIntervalTicks()==10,
-                "short two-second tank pulsing its damage every half second");
-        check(ice.motion().activeUntil()-ice.motion().activeFrom()+1>ice.fuel().capacityTicks(),"the tank ends emission early inside the authored window");
-        var tank=new FuelReserve(ice.fuel());tank.begin();for(int i=0;i<40;i++)check(tank.consume(),"full tank emits 40 ticks");
-        check(!tank.consume(),"the forty-first tick is dry");
-        tank.end();for(int i=0;i<79;i++)tank.tickRecharge();check(!tank.isReady(),"exhaustion cannot stutter-fire");
-        tank.tickRecharge();check(tank.isReady(),"empty tank refills in four seconds");
-        var motion=DigimonSpeciesBootstrap.CONSTRICTION_MOTION;
-        check(motion.fit(new AABB(-.3,0,-.3,.3,1.8,.3),.6F)!=null,"player fits");
-        check(motion.fit(new AABB(-.7,0,-.7,.7,1,.7),.6F)!=null,"wide spider-sized body fits");
-        check(motion.fit(new AABB(-1.125,0,-1.125,1.125,3.7,1.125),.6F)!=null,"a Champion as big as Gesomon is held around its lower body");
-        check(motion.fit(new AABB(-2,0,-2,2,5,2),.6F)==null,"prey it would be ridiculous to wrap selects breath");
-        check(motion.fit(new AABB(-.2,0,-.2,.2,.5,.2),.6F)==null,"tiny prey does not waste a wrap");
-        for(float radius:new float[]{27,33,39,47})for(float pitch:new float[]{22,26,34}) {
-            var fit=new ConstrictionMotion.Fit(radius,pitch);check(Math.abs(motion.blends(fit).stream().mapToDouble(ConstrictionMotion.Blend::weight).sum()-1)<1e-6,"interpolation normalized");
-            check(motion.root(fit,0,2,.6F).length()<1e-5&&motion.root(fit,120,2,.6F).length()<1e-5,"starts and finishes at actual feet");
-            for(int t=0;t<120;t++)check(motion.root(fit,t+1,2,.6F).distanceTo(motion.root(fit,t,2,.6F))<1,"root stays below collision escape threshold");
+        shapeChecks(species.body());
+        strikeAndHoldChecks(wrap);
+        aiChecks(wrap,ice);
+        System.out.println("Seadramon: coil fit, strike, capture, squeezes, release, interruption, drawing out and AI checks passed.");
+    }
+
+    /** The coil fits what the body can go round once with its neck and tail free, from a silverfish to a spider. */
+    private static void shapeChecks(DigimonBody body) {
+        var coil=body.serpent().coil();
+        check(coil!=null&&coil.girth()>.7&&coil.loops()>=2,"Seadramon's sheet carries its coil");
+        double widest=ConstrictionCoil.widest(body);
+        check(widest>1.4&&widest<1.8,"the widest prey its body goes round: past a spider, short of a Garurumon ("+widest+")");
+        for(double[] prey:new double[][]{{.4,.3},{.4,.5},{.4,.7},{.6,1.8},{.9,1.4},{1.,2.6},{1.4,.9},{.6,2.9},{1.2,.85}}) {
+            var shape=ConstrictionCoil.fit(prey[0],prey[1],body);
+            check(shape!=null,"a body "+prey[0]+" wide and "+prey[1]+" tall is wrapped");
+            double circle=2*Math.PI*(shape.hug()+coil.girth()/2);
+            check(shape.loops()>=ConstrictionCoil.LEAST_LOOPS&&shape.loops()<=coil.loops()+1e-9,"between once round and the sheet's most loops");
+            check(shape.loops()*circle+coil.neck()+coil.tail()<=body.length()-1+1e-6,"the loops, neck and tail fit in the body");
+            check(shape.bottom()>=coil.girth()/2-1e-9,"the bottom loop rests on the floor, never under it");
+            check(Math.abs(shape.top()-shape.bottom()-coil.girth()*ConstrictionCoil.STACK*shape.loops())<1e-9,"each loop a girth under the one it goes round");
+            check(shape.hug()>=prey[0]/2,"the loops press on the prey's sides");
         }
-        var owner=fixture(0,.9,2.65);var target=fixture(2,.9,1.4);target.world=owner.world;
-        place(target,new Vec3(0,0,6));
-        check(species.tactics().holdsRange()&&species.tactics().holdMin()>wrap.range(),"Seadramon holds a band outside its own wrap reach");
-        check(owner.chooseAttack(target)==ice&&!owner.tickConstrictionApproach(target,1),"a range holder chills distant prey from where it stands, without planning the wrap");
-        check(owner.positioningAttacks(target).equals(List.of(ice)),"navigation prepares the chilling stream rather than the wrap");
-        check(owner.preferredStanceRange(ice)==Double.POSITIVE_INFINITY,"a band holder's stream stance is not pulled inside wrap reach");
-        place(target,new Vec3(0,0,3));
-        check(owner.chooseAttack(target)==ice,"prey inside wrap reach is chilled at once");
-        place(target,new Vec3(0,0,6));
-        freeze(target);
-        check(owner.chooseAttack(target)==null,"approach frozen prey for the wrap instead of puffing frost at it");
-        check(owner.positioningAttacks(target).equals(List.of(wrap)),"navigation commits to the same wrap approach");
-        owner.target=target;
-        check(owner.minimumAttackSpacing()==0,"ready wrap does not retreat to Ice Blast spacing");
-        var exhausted = new FuelReserve(ice.fuel());exhausted.begin();
-        for(int i=0;i<80;i++)exhausted.consume();exhausted.end();
-        field(owner,DigimonEntity.class,"attackFuel",new HashMap<>(Map.of(ice.id(),exhausted)));
-        check(!owner.isAttackReady(ice)&&owner.isAttackReady(wrap),"Ice Blast exhaustion leaves Constriction available");
-        check(owner.positioningAttacks(target).equals(List.of(wrap)),"continue closing for wrap after Ice Blast empties");
-        owner.nav.reachable=false;owner.tickCount+=24;
-        check(owner.chooseAttack(target)==null,"empty tank cannot fire when wrap path is blocked");
-        for(int i=0;i<160;i++)exhausted.tickRecharge();
-        check(owner.chooseAttack(target)==null,"a refilled tank still never fires at frozen prey");
-        thaw(target);
-        check(owner.chooseAttack(target)==ice,"unreachable wrap falls back to recharged Ice Blast once prey thaws");
-        freeze(target);
-        owner.nav.reachable=true;
-        owner.tickCount=81;
-        check(owner.chooseAttack(target)==null&&owner.tickConstrictionApproach(target,1),"retry resumes a reachable wrap after backoff");
-        owner.tickCount+=ConstrictionMotion.APPROACH_TICKS;
-        check(owner.chooseAttack(target)==null&&!owner.tickConstrictionApproach(target,1),"bounded wrap approach gives up instead of chasing forever");
-        owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
-        place(target,new Vec3(0,0,2));
-        check(owner.chooseAttack(target)==wrap,"ready close frozen prey is wrapped at once");
-        check(ConstrictionSession.rejection(owner,target,wrap,owner.position())==null,"a possible cast reports no rejection");
-        owner.startAttack(wrap,target);check(owner.isAttacking(),"whiff fixture starts its cast");
-        place(target,new Vec3(0,0,4));owner.combatTick();
-        check(!owner.isAttacking()&&owner.constrictionReadyIn(wrap)<=ConstrictionMotion.APPROACH_RETRY_TICKS,"a wrap broken before capture refunds all but a short retry");
-        place(target,new Vec3(0,0,2));owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
-        target.effects.put(DCEffects.CONSTRICTION_RESISTANCE,new MobEffectInstance(DCEffects.CONSTRICTION_RESISTANCE,200));
-        check("prey hold-resistant".equals(ConstrictionSession.rejection(owner,target,wrap,owner.position())),"the trace names the gate that refuses a cast");
-        check(owner.chooseAttack(target)==null,"hold-resistant frozen prey is neither wrapped nor sprayed");
-        thaw(target);
-        check(owner.chooseAttack(target)==ice,"hold-resistant thawed prey falls back to fueled Ice Blast");target.effects.clear();
-        target.effects.put(DCEffects.FROST_RESISTANCE,new MobEffectInstance(DCEffects.FROST_RESISTANCE,200));
-        check(ConstrictionSession.prepare(owner,target,wrap)!=null,"frost resistance alone no longer refuses the wrap");
-        target.effects.clear();freeze(target);
-        var cast=ConstrictionSession.prepare(owner,target,wrap);check(cast!=null,"flat clear terrain permits cast");
-        for(int t=0;t<120;t++) {
-            check(cast.tick(t),"cast progresses at tick "+t);
-            check(target.hasEffect(DCEffects.CONSTRICTED)==(t>=40&&t<80),"exact two-second hold");
+        check(ConstrictionCoil.fit(.4,.7,body).loops()<ConstrictionCoil.fit(.6,1.8,body).loops(),"a taller prey gets more loops");
+        for(double[] prey:new double[][]{{1.8,2.1},{2.1,2.75},{2.25,3.7},{2.8,2.9},{4,4}})
+            check(ConstrictionCoil.fit(prey[0],prey[1],body)==null,"a body "+prey[0]+" wide is too big to go round");
+        check(ConstrictionCoil.fit(.6,body.dimensions().height()+1.5,body)==null,"a prey far taller than itself is refused");
+        // the timeline
+        check(ConstrictionCoil.clipTime(3,ConstrictionCoil.NOT_TAKEN)==3&&ConstrictionCoil.clipTime(10,ConstrictionCoil.NOT_TAKEN)==ConstrictionCoil.STRIKE_POSE,"the clip holds its lunge while the strike flies");
+        check(ConstrictionCoil.clipTime(12,5)==ConstrictionCoil.BITE+7,"then runs on the capture's clock");
+        check(ConstrictionCoil.squeeze(ConstrictionCoil.FIRST_SQUEEZE)==1&&ConstrictionCoil.squeeze(ConstrictionCoil.FIRST_SQUEEZE-ConstrictionCoil.SQUEEZE_RISE-1)==0,"a squeeze peaks on its own tick");
+        check(ConstrictionCoil.onCoil(0,0)==0&&ConstrictionCoil.onCoil(ConstrictionCoil.COIL_TICKS,1)==1&&ConstrictionCoil.onCoil(ConstrictionCoil.AFTER_CAPTURE,0)==0,"the coil closes by its ticks and opens again by the end");
+        check(ConstrictionCoil.onCoil(4,0)>ConstrictionCoil.onCoil(4,1),"the front of the body closes first");
+        check(ConstrictionCoil.RELEASE>ConstrictionCoil.FIRST_SQUEEZE+(ConstrictionCoil.SQUEEZES-1)*ConstrictionCoil.INTERVAL,"every squeeze lands before the release");
+        check(DigimonSpeciesBootstrap.CONSTRICTION.durationTicks()==ConstrictionCoil.STRIKE_TICKS+ConstrictionCoil.AFTER_CAPTURE,"the move lasts the longest strike and the hold after it");
+        var ring=ConstrictionCoil.ring(Vec3.ZERO,ConstrictionCoil.fit(.9,1.4,body),body);
+        for(var box:ring)check(box.minY>0&&Math.hypot(box.getCenter().x,box.getCenter().z)>.45,"the loops' line lies clear of the floor and outside the prey");
+    }
+
+    private static void strikeAndHoldChecks(DigimonAttack wrap)throws Exception {
+        var owner=fixture(0,.9,2.65);var cow=fixture(4,.9,1.4);cow.world=owner.world;
+        check(ConstrictionSession.whyIneligible(owner,cow,wrap)==null,"a cow may be wrapped");
+        check(ConstrictionSession.whyNotFrom(owner,cow,wrap,owner.position(),5)==null,"from four blocks a strike goes");
+        check("out of reach".equals(ConstrictionSession.whyNotFrom(owner,cow,wrap,owner.position(),2.5)),"out of reach names its gate");
+        cow.effects.put(DCEffects.CONSTRICTION_RESISTANCE,new MobEffectInstance(DCEffects.CONSTRICTION_RESISTANCE,200));
+        check("prey hold-resistant".equals(ConstrictionSession.whyIneligible(owner,cow,wrap)),"hold-resistant prey is refused and named");
+        cow.effects.clear();
+        var golemon=fixture(4,2.1,2.75);golemon.world=owner.world;
+        check("prey too big to go round".equals(ConstrictionSession.whyIneligible(owner,golemon,wrap))&&ConstrictionSession.strike(owner,golemon,wrap,5)==null,"a Golemon is too big to go round");
+        var hopping=fixture(3,.4,.5);hopping.world=owner.world;place(hopping,new Vec3(0,.9,3));hopping.airborne=true;
+        check(ConstrictionSession.whyNotFrom(owner,hopping,wrap,owner.position(),5)==null,"a rabbit in mid-hop is snatched");
+        place(hopping,new Vec3(0,2.5,3));
+        check("prey out of reach in the air".equals(ConstrictionSession.whyIneligible(owner,hopping,wrap)),"a flier well off the ground is not");
+        owner.world.wall=new AABB(-2,0,1.8,2,4,2);
+        check("no line to prey".equals(ConstrictionSession.whyNotFrom(owner,cow,wrap,owner.position(),5)),"a wall between names its gate");
+        owner.world.wall=null;
+
+        // strike, capture, four squeezes, release
+        owner=fixture(0,.9,2.65);cow=fixture(4,.9,1.4);cow.world=owner.world;
+        var session=ConstrictionSession.strike(owner,cow,wrap,5);check(session!=null,"a strike from four blocks");
+        int tick=0;
+        while(!session.captured()&&tick<=ConstrictionCoil.STRIKE_TICKS) check(session.tick(tick++)==ConstrictionSession.Status.GOING,"the strike flies at tick "+tick);
+        check(session.captured()&&session.captureTick()<=8,"a cow four blocks off is taken within eight ticks ("+session.captureTick()+")");
+        var shape=ConstrictionCoil.fit(cow.getBoundingBox(),owner.getBody());
+        double stand=owner.position().subtract(cow.position()).horizontalDistance();
+        check(Math.abs(stand-ConstrictionCoil.headDistance(shape,owner.getBody()))<ConstrictionCoil.CONTACT+.05,"the head stands beside its prey ("+stand+")");
+        check(owner.wrapCaptureTick()==session.captureTick()&&owner.wrapCenter().distanceTo(cow.position())<1e-6&&owner.wrapSize().x()==.9F,"the coil is sent to every client");
+        int capture=session.captureTick();
+        for(int t=capture;t<capture+ConstrictionCoil.AFTER_CAPTURE;t++) {
+            var status=session.tick(t);
+            check(status==ConstrictionSession.Status.GOING,"the hold goes on at "+(t-capture));
+            check(cow.hasEffect(DCEffects.CONSTRICTED)==(t-capture<ConstrictionCoil.RELEASE),"held exactly until the release, at "+(t-capture));
         }
-        check(owner.pulses==4,"four evenly spaced damage pulses");
-        check(Math.abs(owner.damage-14*wrap.power()*4)<.001&&Math.abs(wrap.power()-.08F)<1e-6&&ConstrictionMotion.CRUSH_SHARE==.06F,"4.5 raw champion damage plus 24 % of the prey's full health over two seconds, dealt as crushing");
-        check(target.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionMotion.RELEASE_TICK-ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.FROZEN_TAIL_TICKS,
-                "wrapping frozen prey re-ices it through the hold plus a one-second tail");
-        check(target.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&target.hasEffect(DCEffects.FROST_RESISTANCE),"capture grants shared anti-chain resistance");
-        check(ConstrictionSession.prepare(owner,target,wrap)==null,"another ready caster cannot immediately recapture");
-        check(wrap.cooldownTicks()==200&&wrap.cooldownTicks()>wrap.durationTicks(),"ten-second cooldown outlasts the complete performance");
-        check(ConstrictionMotion.CAPTURE_TICK+ConstrictionMotion.RESISTANCE_TICKS<=wrap.cooldownTicks(),"resistance does not add a hidden wait beyond the caster cooldown");
-        owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
-        cast=ConstrictionSession.prepare(owner,target,wrap);
-        for(int t=0;t<120;t++) {
-            if(t<40)place(target,new Vec3((t+1)*.04,0,2));
-            check(cast.tick(t),"ordinary cow walking is tracked through approach at tick "+t);
+        check(session.tick(capture+ConstrictionCoil.AFTER_CAPTURE)==ConstrictionSession.Status.DONE,"the move ends once the body is unwound");
+        check(owner.pulses==ConstrictionCoil.SQUEEZES,"four squeezes ("+owner.pulses+")");
+        check(Math.abs(wrap.power()-.08F)<1e-6&&ConstrictionCoil.CRUSH_SHARE==.06F,"each squeeze is power .08 and 6 % of the prey's full health");
+        check(cow.hasEffect(DCEffects.CONSTRICTION_RESISTANCE)&&cow.hasEffect(DCEffects.FROST_RESISTANCE),"the capture grants the shared anti-chain resistance");
+        check(ConstrictionSession.strike(owner,cow,wrap,5)==null,"no one wraps it again at once");
+        check(wrap.cooldownTicks()==200&&ConstrictionCoil.RESISTANCE_TICKS<=wrap.cooldownTicks(),"resistance never outlasts the caster's own cooldown");
+
+        // a frozen prey stays iced through the hold and a tail after it
+        owner=fixture(0,.9,2.65);cow=fixture(3,.9,1.4);cow.world=owner.world;freeze(cow);
+        session=ConstrictionSession.strike(owner,cow,wrap,5);
+        for(tick=0;!session.captured()&&tick<=ConstrictionCoil.STRIKE_TICKS;tick++)session.tick(tick);
+        check(cow.effects.get(DCEffects.FROZEN).getDuration()==ConstrictionCoil.RELEASE+ConstrictionCoil.FROZEN_TAIL_TICKS,"wrapping frozen prey re-ices it through the hold and a tail");
+
+        // prey walking off during the strike is still taken; one that dashes away is missed
+        owner=fixture(0,.9,2.65);cow=fixture(4,.9,1.4);cow.world=owner.world;
+        session=ConstrictionSession.strike(owner,cow,wrap,5);
+        for(tick=0;!session.captured()&&tick<=ConstrictionCoil.STRIKE_TICKS;tick++) {
+            place(cow,cow.position().add(.2,0,.1));
+            check(session.tick(tick)==ConstrictionSession.Status.GOING,"the strike turns after a walking prey at "+tick);
         }
-        check(owner.pulses==4&&!target.hasEffect(DCEffects.CONSTRICTED),"moving cow is captured, damaged and released");
-        check(owner.position().distanceTo(new Vec3(1.6,0,0))<.001,"root and target use the same translated anchor");
-        owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
-        cast=ConstrictionSession.prepare(owner,target,wrap);place(target,new Vec3(.8,0,2));
-        check(!cast.tick(0),"a dash still evades the wind-up (a run no longer does)");
-        for(String reason:List.of("escape","death","cleansed","wall","interruption")) {
-            owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
-            cast=ConstrictionSession.prepare(owner,target,wrap);check(cast!=null,"fresh test cast");
-            for(int t=0;t<=40;t++)check(cast.tick(t),"capture before interruption");
+        check(session.captured(),"a walking cow is taken");
+        owner=fixture(0,.9,2.65);cow=fixture(4,.9,1.4);cow.world=owner.world;
+        session=ConstrictionSession.strike(owner,cow,wrap,5);
+        ConstrictionSession.Status status=ConstrictionSession.Status.GOING;
+        for(tick=0;status==ConstrictionSession.Status.GOING&&tick<=ConstrictionCoil.STRIKE_TICKS+1;tick++) {
+            place(cow,cow.position().add(0,0,1.2));
+            status=session.tick(tick);
+        }
+        check(status==ConstrictionSession.Status.BROKEN&&!session.captured()&&!cow.hasEffect(DCEffects.CONSTRICTED),"a dash out of the strike's reach makes it miss ("+session.interruption()+")");
+
+        // a dead or cleansed prey is let go at once and the body unwinds from there; a caster gone breaks the move off
+        for(String reason:List.of("death","cleansed","caster")) {
+            owner=fixture(0,.9,2.65);cow=fixture(3,.9,1.4);cow.world=owner.world;
+            session=ConstrictionSession.strike(owner,cow,wrap,5);
+            for(tick=0;!session.captured()&&tick<=ConstrictionCoil.STRIKE_TICKS;tick++)session.tick(tick);
+            check(session.captured(),reason+": taken");
+            for(int t=0;t<5;t++)session.tick(tick++);
             switch(reason) {
-                case "escape" -> place(target,new Vec3(0,0,3));
-                case "death" -> owner.alive=false;
-                case "cleansed" -> target.effects.remove(DCEffects.CONSTRICTED);
-                case "wall" -> owner.world.wall=owner.getBoundingBox().inflate(.2);
-                case "interruption" -> {cast.release();check(!target.hasEffect(DCEffects.CONSTRICTED),"explicit interrupt releases");continue;}
+                case "death" -> cow.alive=false;
+                case "cleansed" -> cow.effects.remove(DCEffects.CONSTRICTED);
+                case "caster" -> owner.alive=false;
             }
-            check(!cast.tick(41),reason+" stops the cast");cast.release();check(!target.hasEffect(DCEffects.CONSTRICTED),reason+" releases immediately");
+            if(reason.equals("caster")) {
+                check(session.tick(tick)==ConstrictionSession.Status.BROKEN,"a caster gone breaks the move off");
+                session.release();
+                check(!cow.hasEffect(DCEffects.CONSTRICTED),"a caster gone lets the prey go");
+                continue;
+            }
+            check(session.tick(tick)==ConstrictionSession.Status.GOING&&!cow.hasEffect(DCEffects.CONSTRICTED),reason+" lets the prey go at once");
+            check(owner.wrapCaptureTick()==tick-ConstrictionCoil.RELEASE,reason+": every client unwinds the body from here");
+            int left=0;
+            while(session.tick(++tick)==ConstrictionSession.Status.GOING&&left<100)left++;
+            check(left==ConstrictionCoil.UNWIND_TICKS-1,reason+": the move ends once unwound ("+left+")");
         }
-        owner=fixture(0,.9,2.65);target=fixture(2,.9,1.4);target.world=owner.world;
-        owner.world.wall=new AABB(-4,0,1,4,5,1.2);
-        check(ConstrictionSession.prepare(owner,target,wrap)==null,"authored body cannot sweep through a wall");
+
+        // a cow with its back to a wall is drawn out into the open for the coil
+        owner=fixture(0,.9,2.65);cow=fixture(3,.9,1.4);cow.world=owner.world;
+        owner.world.wall=new AABB(-3,0,3.46,3,3,4.5);
+        check(ConstrictionSession.whyNotFrom(owner,cow,wrap,owner.position(),5)==null,"a wall behind the prey still lets the strike go");
+        session=ConstrictionSession.strike(owner,cow,wrap,5);
+        for(tick=0;!session.captured()&&tick<=ConstrictionCoil.STRIKE_TICKS;tick++)session.tick(tick);
+        for(int t=0;t<8;t++)session.tick(tick++);
+        var center=owner.wrapCenter();
+        check(center.z<3-.1&&center.distanceTo(new Vec3(0,0,3))<=ConstrictionCoil.DRAW_OUT+1e-6&&cow.position().distanceTo(center)<1e-6,"the prey is drawn out from the wall to the coil's middle");
+        for(var box:ConstrictionCoil.ring(center,shape,owner.getBody()))check(!box.intersects(owner.world.wall),"and the loops clear the wall");
+        // one in a corridor a block wide, where no coil goes round it however far it is drawn out, is not struck at
+        owner=fixture(0,.9,2.65);var boxed=fixture(3,.9,1.4);boxed.world=owner.world;
+        owner.world.wall=new AABB(.5,0,1,1.5,3,6);owner.world.plateau=new AABB(-1.5,0,1,-.5,3,6);
+        check(String.valueOf(ConstrictionSession.whyNotFrom(owner,boxed,wrap,owner.position(),5)).startsWith("no room to coil round the prey")
+                &&ConstrictionSession.strike(owner,boxed,wrap,5)==null,"prey in a corridor with no room for the loops is not struck at");
+    }
+
+    private static void aiChecks(DigimonAttack wrap,DigimonAttack ice)throws Exception {
+        // Cold prey within strike reach is wrapped at once; further off, the AI closes in for it
+        var owner=fixture(0,.9,2.65);var cow=fixture(4,.9,1.4);cow.world=owner.world;owner.target=cow;
+        emptyTank(owner,ice);cold(cow);
+        check(owner.chooseAttack(cow)==wrap,"Cold prey in strike reach is wrapped at once");
+        place(cow,new Vec3(0,0,7));
+        check(owner.chooseAttack(cow)==null&&owner.positioningAttacks(cow).equals(List.of(wrap)),"Cold prey beyond strike reach is closed in on");
+        check(owner.minimumAttackSpacing()==0,"a wanted wrap never backs off to shooting spacing");
+        check(owner.canAttackFrom(wrap,cow,new Vec3(0,0,3)),"a stance within reach is one to strike from");
+        // a chase that never gets there gives way to the other moves for a while
+        owner.tickCount+=100;owner.chooseAttack(cow);
+        check(owner.positioningAttacks(cow).stream().noneMatch(a->a==wrap),"a chase that came to nothing gives way to the other moves");
+        // the real timeline: strike, hold, release, cooldown
+        owner=fixture(0,.9,2.65);cow=fixture(4,.9,1.4);cow.world=owner.world;owner.target=cow;
+        emptyTank(owner,ice);cold(cow);
+        owner.startAttack(wrap,cow);check(owner.isAttacking(),"the AI's strike starts");
+        int ticks=0;
+        while(owner.isAttacking()&&ticks<wrap.durationTicks()+5) {owner.combatTick();owner.tickCount++;ticks++;}
+        check(!owner.isAttacking()&&owner.pulses==ConstrictionCoil.SQUEEZES&&!cow.hasEffect(DCEffects.CONSTRICTED),"the entity's timeline runs strike, hold and release ("+ticks+" ticks)");
+        check(ticks<=ConstrictionCoil.STRIKE_TICKS+ConstrictionCoil.AFTER_CAPTURE+1&&!owner.isAttackReady(wrap),"it ends with the body unwound, and cools down");
+        // a strike that misses costs a short retry, not the cooldown
+        owner=fixture(0,.9,2.65);cow=fixture(4,.9,1.4);cow.world=owner.world;owner.target=cow;
+        emptyTank(owner,ice);
+        owner.startAttack(wrap,cow);place(cow,new Vec3(0,0,12));
+        for(int t=0;t<ConstrictionCoil.STRIKE_TICKS+2&&owner.isAttacking();t++){owner.combatTick();owner.tickCount++;}
+        check(!owner.isAttacking()&&owner.constrictionReadyIn(wrap)<=ConstrictionCoil.RETRY_TICKS,"a missed strike costs a short retry");
+        // queued walking never turns or pushes a wrap under way
         owner=fixture(0,.9,2.65);
         field(owner,DigimonEntity.class,"activeAttack",wrap);
         var move=new com.digicube.entity.ai.DigimonMoveControl(owner);
         move.setWantedPosition(8,0,0,1);
         owner.setYRot(0);
-        move.tick(); // Vanilla executes this AFTER customServerAiStep's root/yaw update.
+        move.tick();
         check(owner.getYRot()==0&&owner.zza==0,"queued walking must not rotate or propel an active wrap");
-        integratedControllerChecks(wrap,ice);
-        recoveryAndElevationChecks(wrap,ice);
-        System.out.println("Seadramon: fuel, target fit, AI fallback, full cast, periodic damage, resistance and interruption checks passed.");
     }
-    private static void recoveryAndElevationChecks(DigimonAttack wrap,DigimonAttack ice)throws Exception {
-        var owner=fixture(0,.9,2.65);var cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        field(owner,DigimonEntity.class,"cooldownUntil",new HashMap<>(Map.of(wrap.id(),40)));
-        var empty=new FuelReserve(ice.fuel());empty.begin();for(int t=0;t<80;t++)empty.consume();empty.end();
-        field(owner,DigimonEntity.class,"attackFuel",new HashMap<>(Map.of(ice.id(),empty)));
-        var goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);goal.tick();
-        check(owner.nav.getPath()!=null,"prepare the next approach while cooldown and fuel recover");
-        check(!owner.isAttacking(),"preparation must not bypass the cooldown");
-        var arrival=owner.nav.getPath().getEntityPosAtNode(owner,owner.nav.getPath().getNodeCount()-1);
-        place(owner,arrival);owner.setYRot(AttackGeometry.yaw(arrival,cow.position()));
-        for(int t=1;t<40;t++) {owner.tickCount=t;goal.tick();check(!owner.isAttacking(),"no early capture during recovery at tick "+t);}
-        owner.tickCount=40;goal.tick();
-        check(owner.isAttacking(),"prepared wrap starts on the exact cooldown-ready tick");
 
-        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
-        owner.world.plateau=new AABB(-100,0,3,100,3,100);place(cow,new Vec3(0,3,10));
-        field(owner,DigimonEntity.class,"cooldownUntil",new HashMap<>(Map.of(wrap.id(),500)));
-        var path=com.digicube.entity.ai.DigimonCombatPosition.find(owner,cow);
-        check(path!=null,"find a firing stance against a target three blocks above");
-        var end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);
-        check(owner.canAttackFrom(ice,cow,end),"elevated stance must have a real unobstructed mouth path");
-        owner.nav.reachable=false;
-        check(com.digicube.entity.ai.DigimonCombatPosition.find(owner,cow)==null,"unreachable upper platform cannot be used as a firing stance");
-
-        for(double height:new double[]{1,3,-1,-3}) {
-            owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
-            if(height>0) {owner.world.plateau=new AABB(-1,0,9,1,height,11);place(cow,new Vec3(0,height,10));}
-            else {owner.world.plateau=new AABB(-100,0,-100,100,-height,3);place(owner,new Vec3(0,-height,0));}
-            check(owner.canAttackFrom(ice,cow,owner.position()),"authored breath can aim across Y difference "+height);
-            check(owner.chooseAttack(cow)==ice&&owner.nav.requests==0,"clear shot across Y difference fires without waiting for a wrap path: "+height);
-        }
-
-        owner=fixture(0,.9,2.65);cow=fixture(10,.9,1.4);cow.harmless=true;cow.world=owner.world;owner.target=cow;
-        owner.world.plateau=new AABB(-100,0,3,100,3,100);place(cow,new Vec3(0,3,10));
-        owner.world.wall=new AABB(-1,0,1.5,1,5,2.1);
-        field(owner,DigimonEntity.class,"cooldownUntil",new HashMap<>(Map.of(wrap.id(),500)));
-        empty=new FuelReserve(ice.fuel());empty.begin();for(int t=0;t<80;t++)empty.consume();empty.end();
-        field(owner,DigimonEntity.class,"attackFuel",new HashMap<>(Map.of(ice.id(),empty)));
-        check(!owner.canAttackFrom(ice,cow,owner.position()),"cover blocks the current breath stance");
-        goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);goal.tick();path=owner.nav.getPath();
-        check(path!=null&&!owner.isAttacking(),"reposition to an elevated firing stance during fuel recharge");
-        place(owner,path.getEntityPosAtNode(owner,path.getNodeCount()-1));owner.tickCount++;
-        goal.tick();check(owner.nav.getPath()==null,"hold the useful recovered stance instead of orbiting it");
-        for(int t=0;t<160;t++)empty.tickRecharge();
-        check(owner.chooseAttack(cow)==ice,"refilled tank can fire immediately from its prepared stance");
-
-        owner=fixture(0,.9,2.65);cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        freeze(cow);check(owner.tickConstrictionApproach(cow,1),"start stair-approach fixture");
-        path=owner.nav.getPath();end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);
-        place(owner,end.add(0,.1,0));owner.airborne=true;owner.tickCount++;
-        check(owner.tickConstrictionApproach(cow,1)&&owner.nav.getPath()==path&&!owner.combatControlsLocked(),"do not cancel or lock movement while landing at the wrap stance");
-        place(owner,end);owner.airborne=false;owner.tickCount++;owner.setYRot(AttackGeometry.yaw(end,cow.position()));
-        goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);goal.tick();
-        check(owner.isAttacking(),"start the wrap promptly once stair navigation lands");
-    }
-    private static void integratedControllerChecks(DigimonAttack wrap,DigimonAttack ice)throws Exception {
-        var owner=fixture(0,.9,2.65);var cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
-        owner.setYRot(170);freeze(cow);
-        var goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);
-        int turning=0;
-        while(!owner.isAttacking()&&turning<25) {
-            float before=owner.getYRot();
-            owner.getMoveControl().setWantedPosition(8,0,0,1);
-            owner.getJumpControl().jump();
-            goal.tick();
-            owner.combatTick();
-            check(!owner.jumping(),"queued navigation jump is discarded during alignment");
-            check(Math.abs(net.minecraft.util.Mth.wrapDegrees(owner.getYRot()-before))<=20.01,"alignment turns smoothly at no more than twenty degrees per tick");
-            owner.tickCount++;turning++;
-        }
-        check(owner.isAttacking()&&turning<=9,"real goal starts even a backward-facing wrap within half a second");
-        float yaw=owner.getYRot();
-        int remaining=0;
-        while(owner.isAttacking()&&remaining<120) {
-            if(remaining<39)place(cow,new Vec3((remaining+1)*.04,0,2));
-            owner.getMoveControl().setWantedPosition(-8,0,0,1);
-            owner.getLookControl().setLookAt(-8,3,0);
-            owner.getJumpControl().jump();
-            goal.tick();
-            owner.combatTick();
-            if(owner.isAttacking())check(owner.getYRot()==yaw&&owner.yHeadRot==yaw&&owner.yBodyRot==yaw
-                    &&owner.zza==0&&owner.xxa==0&&!owner.jumping(),"real post-AI controls preserve cast heading/root and discard jumps");
-            owner.tickCount++;remaining++;
-        }
-        check(!owner.isAttacking()&&remaining==119&&owner.pulses==4,"actual entity timeline completes one six-second cast and four pulses");
-        check(!cow.hasEffect(DCEffects.CONSTRICTED)&&!owner.isAttackReady(wrap),"actual release and cooldown survive the controller chain");
-        check(owner.position().distanceTo(new Vec3(1.56,0,0))<.001,"walking cow stays aligned through the actual timeline and controls");
-
-        owner=fixture(0,.9,2.65);cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        freeze(cow);check(owner.tickConstrictionApproach(cow,1),"distant cow gets a rehearsed approach");
-        var path=owner.nav.getPath();check(path!=null,"approach submits a real endpoint");
-        int requests=owner.nav.requests;
-        for(int t=1;t<20;t++) {owner.tickCount=t;check(owner.tickConstrictionApproach(cow,1),"retain approach while making progress");}
-        check(owner.nav.requests==requests&&owner.nav.submissions==1,"stable prey does not trigger an orbit of alternating paths");
-        Vec3 end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);place(owner,end);owner.tickCount=20;
-        goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);
-        for(int t=0;t<22&&!owner.isAttacking();t++){goal.tick();owner.combatTick();owner.tickCount++;}
-        check(owner.isAttacking(),"quantized arrival used by navigation really starts the cast");
-
-        owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
-        owner.world.wall=new AABB(-1,0,-3,1,3,-2);
-        freeze(cow);check(!owner.canAttackFrom(wrap,cow,owner.position()),"a wall behind the head blocks the authored tail sweep");
-        check(owner.tickConstrictionApproach(cow,1),"blocked current stance finds a usable alternate wrap angle");
-        path=owner.nav.getPath();check(path!=null,"alternate stance has a reachable path");
-        end=path.getEntityPosAtNode(owner,path.getNodeCount()-1);
-        check(owner.canAttackFrom(wrap,cow,end),"alternate endpoint passes the complete casting preflight");
-
-        owner=fixture(0,.9,2.65);cow=fixture(6,.9,1.4);cow.world=owner.world;owner.target=cow;
-        owner.nav.reachable=false;
-        check(owner.chooseAttack(cow)==ice,"no reachable wrap stance immediately selects breath");
-        requests=owner.nav.requests;
-        for(int t=1;t<40;t++){owner.tickCount=t;check(owner.chooseAttack(cow)==ice,"failed stance has a bounded retry backoff");}
-        check(owner.nav.requests==requests,"blocked wrap does not search every tick");
-        var tank=new FuelReserve(ice.fuel());tank.begin();for(int t=0;t<80;t++)tank.consume();tank.end();
+    private static void emptyTank(Fixture owner,DigimonAttack ice)throws Exception {
+        var tank=new FuelReserve(ice.fuel());tank.begin();while(tank.consume()){}tank.end();
         field(owner,DigimonEntity.class,"attackFuel",new HashMap<>(Map.of(ice.id(),tank)));
-        goal=new com.digicube.entity.ai.DigimonAttackGoal(owner,1);goal.tick();
-        check(owner.nav.getPath()==null&&!owner.isAttacking(),"blocked wrap plus exhausted tank waits instead of circling");
-        // The wrap was first rehearsed (and refused) only once the tank emptied, so its backoff runs from there.
-        owner.nav.reachable=true;owner.tickCount+=ConstrictionMotion.APPROACH_RETRY_TICKS;
-        check(owner.tickConstrictionApproach(cow,1),"wrap retries a reachable stance while Ice Blast is still empty");
-
-        owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;owner.target=cow;
-        owner.world.wall=new AABB(-20,3,-20,20,5,20);
-        check(!owner.canAttackFrom(wrap,cow,owner.position()),"clear eye line does not authorize a body-obstructed wrap");
-        check(owner.chooseAttack(cow)==ice,"terrain-invalid full body uses breath instead of repeatedly failing cast start");
-        owner=fixture(0,.9,2.65);cow=fixture(2,.9,1.4);cow.world=owner.world;
-        freeze(cow);owner.setYRot(90);check(owner.tickConstrictionApproach(cow,1),"begin alignment before terrain changes");
-        owner.world.wall=new AABB(-20,3,-20,20,5,20);owner.setYRot(0);owner.tickCount++;
-        check(owner.chooseAttack(cow)==null&&!owner.tickConstrictionApproach(cow,1),"obstruction appearing during alignment drops the wrap at commit");
     }
+    private static void cold(Fixture f){f.effects.put(DCEffects.COLD,new MobEffectInstance(DCEffects.COLD,120));}
     private static void check(boolean ok,String label){if(!ok)throw new AssertionError(label);}
     private static void freeze(Fixture f){f.effects.put(DCEffects.FROZEN,new MobEffectInstance(DCEffects.FROZEN,30));}
     private static void thaw(Fixture f){f.effects.remove(DCEffects.FROZEN);}
@@ -342,6 +282,12 @@ public final class ConstrictionRegressionTest {
         @Override public BlockState getBlockState(BlockPos p){return p.getY()<0?Blocks.STONE.defaultBlockState():Blocks.AIR.defaultBlockState();}
         @Override public boolean noCollision(Entity entity,AABB box){return !getBlockCollisions(entity,box).iterator().hasNext();}
         @Override public void broadcastEntityEvent(Entity entity,byte event){} // no chunk tracking offline
+        @Override public void playSeededSound(Entity entity,double x,double y,double z,Holder<net.minecraft.sounds.SoundEvent> sound,net.minecraft.sounds.SoundSource source,float volume,float pitch,long seed){} // no players offline
+        @Override public void playSeededSound(Entity entity,Entity from,Holder<net.minecraft.sounds.SoundEvent> sound,net.minecraft.sounds.SoundSource source,float volume,float pitch,long seed){}
+        @Override public void playSound(Entity entity,double x,double y,double z,net.minecraft.sounds.SoundEvent sound,net.minecraft.sounds.SoundSource source,float volume,float pitch){}
+        @Override public void playSound(Entity entity,double x,double y,double z,Holder<net.minecraft.sounds.SoundEvent> sound,net.minecraft.sounds.SoundSource source,float volume,float pitch){}
+        @Override public <T extends net.minecraft.core.particles.ParticleOptions> int sendParticles(T particle,double x,double y,double z,int count,double dx,double dy,double dz,double speed){return 0;}
+        @Override public net.minecraft.world.level.material.FluidState getFluidState(BlockPos p){return net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState();}
         @Override public <T extends Entity> List<T> getEntitiesOfClass(Class<T> type,AABB box,java.util.function.Predicate<? super T> predicate){return List.of();} // no shots in flight offline
         @Override public Iterable<VoxelShape> getBlockCollisions(Entity entity,AABB box){
             var floor=new AABB(-100,-1,-100,100,0,100);var hits=new ArrayList<VoxelShape>();
@@ -384,10 +330,12 @@ public final class ConstrictionRegressionTest {
         @Override public double getAttributeValue(Holder<Attribute> a){return 14;}
         @Override public PathNavigation getNavigation(){return nav;}
         @Override public boolean hasEffect(Holder<MobEffect> e){return effects.containsKey(e);}
+        @Override public MobEffectInstance getEffect(Holder<MobEffect> e){return effects.get(e);}
         @Override public boolean canBeAffected(MobEffectInstance e){return true;}
         @Override public boolean addEffect(MobEffectInstance e,Entity source){effects.put(e.getEffect(),e);return true;}
         @Override public boolean removeEffect(Holder<MobEffect> e){return effects.remove(e)!=null;}
         @Override public void move(MoverType type,Vec3 delta){if(!blocked)place(this,position().add(delta));}
+        @Override public void setPos(double x,double y,double z){place(this,new Vec3(x,y,z));}
         @Override DigimonAttack activeAttackDefinition(){return super.activeAttackDefinition()==null?DigimonSpeciesBootstrap.CONSTRICTION:super.activeAttackDefinition();}
         void combatTick(){super.customServerAiStep(world);getMoveControl().tick();getLookControl().tick();getJumpControl().tick();super.tickHeadTurn(0);}
         boolean jumping(){return jumping;}

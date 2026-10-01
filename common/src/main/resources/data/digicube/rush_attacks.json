@@ -1,0 +1,30 @@
+{
+  "guardy_tusk": {
+    "build": 18,
+    "ai_build": 12,
+    "pace": 0.6,
+    "ramp": 8,
+    "brake": 6,
+    "standing_below": 0.12,
+    "turn": 4.5,
+    "brace_turn": 3,
+    "max_ticks": 100,
+    "reach": 14,
+    "power": [
+      0.75,
+      1.25
+    ],
+    "knockback": [
+      0.6,
+      1.4
+    ],
+    "toss": [
+      0.2,
+      0.5
+    ],
+    "scrape": [
+      6.8,
+      9.6
+    ]
+  }
+}

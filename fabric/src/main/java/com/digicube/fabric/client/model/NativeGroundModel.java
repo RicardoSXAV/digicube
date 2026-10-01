@@ -94,6 +94,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
      * animation of the same name plays and on its clock: a charge in the mouth, a streak behind a claw.
      */
     public record AttackEffects(String effect, Map<String, String> clips) {}
+    /**
+     * A held rush's look ({@code rush} in the catalog; BullRush): {@code brace} is the whole body's clip as a standing brace
+     * stops and paws the ground (played over the rush's build, its end held), and {@code charge} a loop on the subtree at
+     * {@code path} (the head), added over the gait while it rushes and lowered in over a running brace.
+     */
+    public record Rush(String brace, String charge, java.util.List<String> path) {}
     public record Definition(Identifier species, double cullingMargin, boolean amphibious, boolean walkBlend, java.util.List<String> aimPath,
                              float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
@@ -101,7 +107,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                              HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes,
                              String carried, float swimPitch, boolean pitchAtRider, Stomps stomps, boolean bank,
                              java.util.List<SleeveBends.Bend> bends, float swimBank, SwimWakeSpec swimWake,
-                             java.util.List<TailChains.Tail> tails, Paws paws, SerpentSpine.Spine spine) {
+                             java.util.List<TailChains.Tail> tails, Paws paws, SerpentSpine.Spine spine, boolean glow, Rush rush) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -133,6 +139,8 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private final ModelPart[] riderHidden;
     /** Sleeves mitred over their joints each frame, after the pose and the cloth. */
     private final SleeveBends.Rig bends;
+    /** The parts a rush's charge loop moves (the subtree at its path), or null. */
+    private final java.util.Set<ModelPart> rushParts;
     /** A serpent's chain, laid along its trail each frame after the pose. */
     private final SerpentSpine.Rig spine;
     /** Paws: each looping clip's toe positions through its cycle ({@link #toes}); null without paws. */
@@ -168,6 +176,9 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         riderHidden=definition.rider()==null?new ModelPart[0]:definition.rider().hide().stream().map(animations::part).toArray(ModelPart[]::new);
         bends=SleeveBends.rig(root,definition.bends());
         spine=SerpentSpine.rig(root,definition.spine());
+        if(definition.rush()==null)rushParts=null;
+        else{ModelPart r=root;for(String name:definition.rush().path())r=r.getChild(name);
+            rushParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());rushParts.addAll(r.getAllParts());}
         if(definition.paws()==null){toeTracks=null;toeRest=null;}
         else{
             // Each looping clip alone, sampled through its cycle: where the toes are, so PawFalls can follow any blend of them.
@@ -284,71 +295,76 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             String attackClip=state.attackInWater && animations.has(state.attackAnimationName+"_water")
                     ? state.attackAnimationName+"_water" : state.attackAnimationName;
             float tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
-            if(state.attackDefinition!=null && state.attackDefinition.kind()==com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION) {
-                for(var b:com.digicube.digimon.DigimonSpeciesBootstrap.CONSTRICTION_MOTION.blends(state.constrictionFit)) animations.apply(b.clip(),tick,b.weight());
-                var offset=state.constrictionOffset.scale(16/state.modelScale);
-                rootPart.x+=(float)offset.x;rootPart.y-=(float)offset.y;rootPart.z-=(float)offset.z;
-            } else {
-                float weight=1;
-                if(definition.attackBlendIn()>0)weight=Math.min(weight,tick/definition.attackBlendIn());
-                if(definition.attackBlendOut()>0)weight=Math.min(weight,(animations.length(attackClip)-tick)/definition.attackBlendOut());
-                weight=Math.clamp(weight,0,1);weight=weight*weight*(3-2*weight);
-                if(state.attackUpperBody && upperParts!=null) {
-                    // A rider's attack on the run: the legs keep the gait, the upper body plays the attack and turns to the aim.
-                    float blend=Math.clamp(Math.min(tick/UPPER_BLEND,(animations.length(attackClip)-tick)/UPPER_BLEND),0,1);
-                    blend=blend*blend*(3-2*blend);
-                    applyGround(state,1);
-                    // A serpent's head rides its swimming (or slithering) neck: the attack adds to the gait's head
-                    // rather than replacing it, which would tip the head as it was posed on the reared land neck.
-                    if(definition.spine()==null)fromRest(upperParts,1-blend);
-                    animations.apply(attackClip,tick,blend,upperParts);
-                    var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
-                    if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch*blend);
-                    upperBase.yRot+=state.attackTwist*blend*((float)Math.PI/180);
-                    // A breath on the run aims its head up and down too, as it does standing.
-                    if (kinetic == null && aimPart != null && state.attackDefinition != null && state.attackDefinition.motion() != null
-                            && (com.digicube.digimon.BreathAttacks.handles(state.attackDefinition) || state.attackDefinition.fuel() != null))
-                        aimPart.xRot += state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*blend*((float)Math.PI/180);
-                    bank(state);
-                    supportFloor(state);
-                    return;
-                }
-                applyGround(state,1-weight);
-                if(definition.supportFloor()) {
-                    // Blend complete poses with shortest-arc quaternions. Segmented
-                    // tentacles can cross Euler's wrap boundary during a pad strike.
-                    rootPart.getAllParts().forEach(ModelPart::resetPose);
-                    applyGround(state,1);
-                    var base=rootPart.getAllParts().stream().map(p->new float[]{p.x,p.y,p.z,p.xRot,p.yRot,p.zRot,p.xScale,p.yScale,p.zScale}).toList();
-                    rootPart.getAllParts().forEach(ModelPart::resetPose);
-                    animations.apply(attackClip,tick,1);
-                    var all=rootPart.getAllParts();
-                    for(int i=0;i<all.size();i++) {
-                        var p=all.get(i);var a=base.get(i);
-                        var q=new org.joml.Quaternionf().rotationZYX(a[5],a[4],a[3])
-                                .slerp(new org.joml.Quaternionf().rotationZYX(p.zRot,p.yRot,p.xRot),weight);
-                        var e=q.getEulerAnglesZYX(new org.joml.Vector3f());
-                        p.x=a[0]+(p.x-a[0])*weight;p.y=a[1]+(p.y-a[1])*weight;p.z=a[2]+(p.z-a[2])*weight;
-                        p.xRot=e.x;p.yRot=e.y;p.zRot=e.z;
-                        p.xScale=a[6]+(p.xScale-a[6])*weight;p.yScale=a[7]+(p.yScale-a[7])*weight;p.zScale=a[8]+(p.zScale-a[8])*weight;
-                    }
-                } else animations.apply(attackClip,tick,weight);
-                var rootOffset = state.kineticOffset.scale(16 / state.modelScale);
-                rootPart.x += (float) rootOffset.x; rootPart.y -= (float) rootOffset.y; rootPart.z -= (float) rootOffset.z;
+            // A wrap's clip (head, jaw and fins; the body is laid on the coil) holds its lunge while the strike flies,
+            // then runs on the capture's clock.
+            if(state.attackDefinition!=null && state.attackDefinition.kind()==com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION)
+                tick=state.wrap.active && state.wrap.since>=0 ? com.digicube.digimon.ConstrictionCoil.BITE+state.wrap.since
+                        : Math.min(tick,com.digicube.digimon.ConstrictionCoil.STRIKE_POSE);
+            float weight=1;
+            if(definition.attackBlendIn()>0)weight=Math.min(weight,tick/definition.attackBlendIn());
+            if(definition.attackBlendOut()>0)weight=Math.min(weight,(animations.length(attackClip)-tick)/definition.attackBlendOut());
+            weight=Math.clamp(weight,0,1);weight=weight*weight*(3-2*weight);
+            if(state.attackUpperBody && upperParts!=null) {
+                // A rider's attack on the run: the legs keep the gait, the upper body plays the attack and turns to the aim.
+                float blend=Math.clamp(Math.min(tick/UPPER_BLEND,(animations.length(attackClip)-tick)/UPPER_BLEND),0,1);
+                blend=blend*blend*(3-2*blend);
+                applyGround(state,1);
+                // A serpent's head rides its swimming (or slithering) neck: the attack adds to the gait's head
+                // rather than replacing it, which would tip the head as it was posed on the reared land neck.
+                if(definition.spine()==null)fromRest(upperParts,1-blend);
+                animations.apply(attackClip,tick,blend,upperParts);
                 var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
-                if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch);
-                else if(aimPart!=null && state.attackDefinition!=null && state.attackDefinition.motion()!=null) {
-                    aimPart.xRot+=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
-                }
-                look(state,1-weight);
-                divePitch(state,1-weight);
-                pouncePitch(state);
+                if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch*blend);
+                upperBase.yRot+=state.attackTwist*blend*((float)Math.PI/180);
+                // A breath on the run aims its head up and down too, as it does standing.
+                if (kinetic == null && aimPart != null && state.attackDefinition != null && state.attackDefinition.motion() != null
+                        && (com.digicube.digimon.BreathAttacks.handles(state.attackDefinition) || state.attackDefinition.fuel() != null))
+                    aimPart.xRot += state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*blend*((float)Math.PI/180);
+                bank(state);
+                supportFloor(state);
+                return;
             }
+            // The blow a rush ends in takes over from the rush's own pose (its brace, its lowered head), not the bare gait.
+            float braced = state.rushBlow ? braceWeight(state) : 0;
+            applyGround(state,(1-weight)*(1-braced));
+            if (state.rushBlow) rushPose(state, braced*(1-weight), 1-weight);
+            if(definition.supportFloor()) {
+                // Blend complete poses with shortest-arc quaternions. Segmented
+                // tentacles can cross Euler's wrap boundary during a pad strike.
+                rootPart.getAllParts().forEach(ModelPart::resetPose);
+                applyGround(state,1);
+                var base=rootPart.getAllParts().stream().map(p->new float[]{p.x,p.y,p.z,p.xRot,p.yRot,p.zRot,p.xScale,p.yScale,p.zScale}).toList();
+                rootPart.getAllParts().forEach(ModelPart::resetPose);
+                animations.apply(attackClip,tick,1);
+                var all=rootPart.getAllParts();
+                for(int i=0;i<all.size();i++) {
+                    var p=all.get(i);var a=base.get(i);
+                    var q=new org.joml.Quaternionf().rotationZYX(a[5],a[4],a[3])
+                            .slerp(new org.joml.Quaternionf().rotationZYX(p.zRot,p.yRot,p.xRot),weight);
+                    var e=q.getEulerAnglesZYX(new org.joml.Vector3f());
+                    p.x=a[0]+(p.x-a[0])*weight;p.y=a[1]+(p.y-a[1])*weight;p.z=a[2]+(p.z-a[2])*weight;
+                    p.xRot=e.x;p.yRot=e.y;p.zRot=e.z;
+                    p.xScale=a[6]+(p.xScale-a[6])*weight;p.yScale=a[7]+(p.yScale-a[7])*weight;p.zScale=a[8]+(p.zScale-a[8])*weight;
+                }
+            } else animations.apply(attackClip,tick,weight);
+            var rootOffset = state.kineticOffset.scale(16 / state.modelScale);
+            rootPart.x += (float) rootOffset.x; rootPart.y -= (float) rootOffset.y; rootPart.z -= (float) rootOffset.z;
+            var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
+            if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch);
+            else if(aimPart!=null && state.attackDefinition!=null && state.attackDefinition.motion()!=null) {
+                aimPart.xRot+=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
+            }
+            look(state,1-weight);
+            divePitch(state,1-weight);
+            pouncePitch(state);
             supportFloor(state);
             return;
         }
-        applyGround(state,1);
-        look(state,1);
+        // A rush: a standing brace takes the whole body, and the head goes down for the charge over the gait.
+        float braced = braceWeight(state);
+        applyGround(state,1-braced);
+        float lowered = rushPose(state, braced, 1);
+        look(state,1-Math.max(braced, lowered));
         if (state.riderCharge >= 0 && flameParts != null) {
             // The jets burn through a rider's charge, flickering on the flame clip's own pose.
             var f=definition.flames();
@@ -358,6 +374,41 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         bank(state);
         divePitch(state,1);
         supportFloor(state);
+    }
+
+    /**
+     * How much of the pose a standing brace has (BullRush): in over its first ticks, handing over to the gait as the rush
+     * bursts off. A running brace leaves the body to its gait.
+     */
+    private float braceWeight(DigimonRenderState state) {
+        if (definition.rush() == null || state.rushTicks < 0 || !state.rushStanding) return 0;
+        float w = Math.min(Math.clamp(state.rushTicks / 3, 0, 1), 1 - Math.clamp((state.rushTicks - state.rushBuild) / 4, 0, 1));
+        return w * w * (3 - 2 * w);
+    }
+
+    /** How much of the charge loop the head has: from the burst after a standing brace, lowering over a running one's build. */
+    private float chargeWeight(DigimonRenderState state) {
+        if (rushParts == null || state.rushTicks < 0) return 0;
+        float w = state.rushStanding ? Math.clamp((state.rushTicks - state.rushBuild + 2) / 4, 0, 1)
+                : Math.clamp(state.rushTicks / Math.max(1, state.rushBuild), 0, 1);
+        return w * w * (3 - 2 * w);
+    }
+
+    /**
+     * A rush's own pose: its brace clip by {@code braced} (paced so its coiled end meets the burst, then held) and its
+     * charge loop added over the head by its weight times {@code keep}.
+     * @return the charge loop's weight
+     */
+    private float rushPose(DigimonRenderState state, float braced, float keep) {
+        var r = definition.rush();
+        if (r == null || state.rushTicks < 0) return 0;
+        if (braced > 0) {
+            float length = animations.length(r.brace());
+            animations.apply(r.brace(), Math.min(length, state.rushTicks * length / Math.max(1, state.rushBuild + 2)), braced);
+        }
+        float charge = chargeWeight(state) * keep;
+        if (charge > 0) animations.apply(r.charge(), state.rushTicks, charge, rushParts);
+        return charge;
     }
 
     /**
@@ -841,6 +892,14 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         return look;
     }
 
+    private static Rush rush(com.google.gson.JsonObject config) {
+        if(!config.has("rush"))return null;
+        var r=config.getAsJsonObject("rush");var path=new java.util.ArrayList<String>();
+        r.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));
+        if(path.isEmpty())throw new IllegalArgumentException("A rush's charge needs the path to its part");
+        return new Rush(r.get("brace").getAsString(),r.get("charge").getAsString(),java.util.List.copyOf(path));
+    }
+
     private static Stomps stomps(com.google.gson.JsonObject config) {
         if(!config.has("stomps"))return null;
         var s=config.getAsJsonObject("stomps");
@@ -978,7 +1037,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         // Paws heard where the clips set them down (PawFalls).
                         paws(config),
                         // A serpent's body laid along the path its head took (SerpentSpine).
-                        SerpentSpine.read(config)));
+                        SerpentSpine.read(config),
+                        // A body of fire is its own light (Meramon): drawn full-bright, day or night.
+                        GsonHelper.getAsBoolean(config,"glow",false),
+                        // A held rush's brace and the head it charges with (Monochromon's Guardy Tusk).
+                        rush(config)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

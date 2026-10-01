@@ -30,8 +30,10 @@ import java.util.function.Supplier;
  * turning as slowly, its head never turned further off its body than its neck; it climbs a ledge four blocks high, over a
  * thin wall two blocks high, and out of the pool onto rock three blocks over the water. Ridden: swinging the view round, it carves the turn (gathering
  * into it, no tighter than its circle); on land it goes faster than a player walks and sprints faster still; looking back
- * standing, its head turns only as far as its neck, and going on it curls round; it climbs the ledge, over the thin wall
- * head on and aslant, and out of the pool, stops at a wall five blocks high and lowers itself off the ledge; it swims on while it breathes Ice Blast, its head
+ * standing, its head turns only as far as its neck, and going on it curls round; it climbs the ledge (head on, from a
+ * standstill at its foot, and aslant), over the thin wall head on and aslant, and out of the pool, goes down into a pit
+ * and up out of it, stops at a wall five blocks high and lowers itself down the ledge's face; out of a sea onto a beach behind a shelf,
+ * a beach at the waterline and a terraced bank, head on and aslant, never stalled at the shore; it swims on while it breathes Ice Blast, its head
  * turned to prey off its line; breathed on the sea, the frost freezes floes on the surface and never where the body lies.
  * The verdict line starts with {@code [seadramon] RESULT}.
  */
@@ -49,6 +51,21 @@ public final class SeadramonScenario {
      * LAND_X0 + 1 to THIN_X1.
      */
     private static final int LEDGE_Z = 12, LEDGE = 4, LEDGE_X1 = 30, WALL_X0 = 33, WALL = 5, THIN_Z = -14, THIN = 2, THIN_X1 = 26;
+    /** A pit a block deep on the land's right, a step down into and a step up out of. */
+    private static final int PIT_X0 = 30, PIT_X1 = 36, PIT_Z0 = -36, PIT_Z1 = -33;
+    /**
+     * A patch of sand on the land (x SAND_X0..LAND_X1, z SAND_Z0..SAND_Z1) with a wall of logs LOGS high and a block
+     * thick standing on it at x LOG_X, z LOG_Z0..LOG_Z1: the free-standing wall a player builds on a beach.
+     */
+    private static final int SAND_X0 = 32, SAND_Z0 = -9, SAND_Z1 = 7, LOG_X = 36, LOG_Z0 = -3, LOG_Z1 = 3, LOGS = 3;
+    /**
+     * West of the pool, a basin of sea (its floor at BASIN_FLOOR, x BASIN_X0..BANK_X1, z BASIN_Z0 on) whose north end is
+     * a shore of three kinds, a lane each, the shore starting at z SHORE_Z: a beach behind a shelf a block under the
+     * surface (from x BASIN_X0, the shelf SHELF blocks deep before the beach), a beach at the waterline (from x BEACH_X0)
+     * and a bank a block over the water terraced on up (from x BANK_X0): the coasts a world's sea meets.
+     */
+    private static final int BASIN_X0 = -31, BEACH_X0 = -26, BANK_X0 = -21, BANK_X1 = -16, BASIN_Z0 = -25, BASIN_Z1 = 18, SHORE_Z = 6,
+            SHELF = 3, BASIN_FLOOR = SURFACE - 7;
 
     /**
      * One check. A wild body sent somewhere is sent again when its path ends short of the spot, every half second, as
@@ -73,6 +90,8 @@ public final class SeadramonScenario {
     private static boolean done;
     private static int passed, total;
     private static final List<String> failures = new ArrayList<>();
+    /** DIGICUBE_SEADRAMON_ONLY: only the checks whose names contain it. */
+    private static final String ONLY = System.getenv("DIGICUBE_SEADRAMON_ONLY");
     /** DIGICUBE_SEADRAMON_TRACE=true: the body's state every five ticks. */
     private static final boolean TRACE = Boolean.parseBoolean(System.getenv("DIGICUBE_SEADRAMON_TRACE"));
 
@@ -88,6 +107,7 @@ public final class SeadramonScenario {
                 build(level);
                 rider = FakePlayer.get(level, new GameProfile(UUID.randomUUID(), "SeaRider"));
                 steps = plan();
+                if (ONLY != null && !ONLY.isBlank()) steps = steps.stream().filter(step -> step.name().contains(ONLY)).toList();
                 stepIndex = 0;
                 begin(level);
                 return;
@@ -138,9 +158,44 @@ public final class SeadramonScenario {
             }
         }
         for (int x = LAND_X0; x <= LAND_X1; x++) for (int z = BACK; z <= FAR; z++) {
-            level.setBlock(new BlockPos(x, SURFACE - 1, z), stone, 2);
+            boolean pit = x >= PIT_X0 && x <= PIT_X1 && z >= PIT_Z0 && z <= PIT_Z1;
+            level.setBlock(new BlockPos(x, SURFACE - 2, z), stone, 2);
+            level.setBlock(new BlockPos(x, SURFACE - 1, z), pit ? air : stone, 2);
             int high = z == THIN_Z && x > LAND_X0 && x <= THIN_X1 ? THIN : z < LEDGE_Z ? 0 : x <= LEDGE_X1 ? LEDGE : x >= WALL_X0 ? WALL : 0;
             for (int y = SURFACE; y <= TOP; y++) level.setBlock(new BlockPos(x, y, z), y < SURFACE + high ? stone : air, 2);
+            if (x >= SAND_X0 && z >= SAND_Z0 && z <= SAND_Z1) {
+                level.setBlock(new BlockPos(x, SURFACE - 1, z), Blocks.SAND.defaultBlockState(), 2);
+                if (x == LOG_X && z >= LOG_Z0 && z <= LOG_Z1)
+                    for (int y = SURFACE; y < SURFACE + LOGS; y++) level.setBlock(new BlockPos(x, y, z), Blocks.OAK_LOG.defaultBlockState(), 2);
+            }
+        }
+        var sand = Blocks.SAND.defaultBlockState();
+        var dirt = Blocks.DIRT.defaultBlockState();
+        var grass = Blocks.GRASS_BLOCK.defaultBlockState();
+        for (int x = BASIN_X0 - 1; x <= BANK_X1; x++) for (int z = BASIN_Z0 - 1; z <= BASIN_Z1; z++) {
+            boolean rim = x < BASIN_X0 || z < BASIN_Z0;
+            // the top block of the column's ground (the floor under open water), and whether it is a beach's sand
+            int ground;
+            boolean beach;
+            if (rim) { ground = SURFACE + 1; beach = false; }
+            else if (x < BEACH_X0) {
+                ground = z < SHORE_Z - SHELF ? BASIN_FLOOR : z < SHORE_Z ? SURFACE - 2 : z < SHORE_Z + 3 ? SURFACE - 1 : SURFACE;
+                beach = z < SHORE_Z + 3;
+            } else if (x < BANK_X0) {
+                ground = z < SHORE_Z ? BASIN_FLOOR : z < SHORE_Z + 3 ? SURFACE - 1 : SURFACE;
+                beach = z < SHORE_Z + 3;
+            } else {
+                ground = z < SHORE_Z ? BASIN_FLOOR : z < SHORE_Z + 2 ? SURFACE : z < SHORE_Z + 4 ? SURFACE + 1 : SURFACE + 2;
+                beach = false;
+            }
+            for (int y = BASIN_FLOOR; y <= TOP; y++) {
+                var state = air;
+                if (rim) state = y <= ground ? stone : air;
+                else if (y == BASIN_FLOOR) state = stone;
+                else if (y <= ground) state = beach ? sand : y == ground ? grass : dirt;
+                else if (y < SURFACE) state = water;
+                level.setBlock(new BlockPos(x, y, z), state, 2);
+            }
         }
     }
 
@@ -218,6 +273,51 @@ public final class SeadramonScenario {
                 () -> verdict(body.getY() > SURFACE + LEDGE - .01 && body.getZ() > LEDGE_Z + 1 && sunk < .2,
                         "climbed to %.1f blocks up, %.1f blocks onto the ledge, its hit parts at most %.2f blocks into the rock",
                         body.getY() - SURFACE, body.getZ() - LEDGE_Z, sunk)));
+        // Standing at the foot of the ledge, its head half a block from the face, the push takes it up; and aslant, 30
+        // degrees off the face's normal, it climbs as it slides along the face (a flatter angle slid it past the ledge's end).
+        plan.add(new Step("ridden climbs from a standstill", 90, () -> ridden(new Vec3(LAND_X0 + 3.5, SURFACE, LEDGE_Z - .95), 0),
+                t -> keys(1, 0, false, false, 0, 0), () -> verdict(body.getY() > SURFACE + LEDGE - .01 && body.getZ() > LEDGE_Z + 1,
+                        "climbed to %.1f blocks up, %.1f blocks onto the ledge", body.getY() - SURFACE, body.getZ() - LEDGE_Z)));
+        plan.add(new Step("ridden climbs aslant", 60, () -> ridden(new Vec3(LAND_X0 + 1.5, SURFACE, LEDGE_Z - 3.5), -30),
+                t -> keys(1, 0, false, false, 0, -30), () -> verdict(body.getY() > SURFACE + LEDGE - .01 && body.getZ() > LEDGE_Z + 1,
+                        "climbed to %.1f blocks up, %.1f blocks onto the ledge", body.getY() - SURFACE, body.getZ() - LEDGE_Z)));
+        // A wall of logs three blocks high and a block thick on sand: it goes up it and over it however it comes to it: head
+        // on, from a standstill with its head at the wall, turning to it from alongside, at a gallop, and its rider looking
+        // down at it.
+        logWall(plan, "ridden climbs a log wall", LOG_X + 6.5, 90, 90, false, 0);
+        logWall(plan, "ridden climbs a log wall from a standstill", LOG_X + 1.5, 90, 90, false, 0);
+        logWall(plan, "ridden climbs a log wall turning to it", LOG_X + 4.5, 0, 90, false, 0);
+        logWall(plan, "ridden climbs a log wall at a gallop", LOG_X + 7.5, 90, 90, true, 0);
+        logWall(plan, "ridden climbs a log wall looking down", LOG_X + 5.5, 90, 90, false, 50);
+        // Looking round to the side as it climbs (and back) turns it off the face no way: it goes on up and over.
+        plan.add(new Step("ridden climbs a log wall looking round", 90, () -> ridden(new Vec3(LOG_X + 3.5, SURFACE, .5), 90),
+                t -> { keys(body.getX() < LOG_X - 2.5 ? 0 : 1, 0, false, false, 0, t >= 8 && t < 20 ? 160 : 90); sunk = Math.max(sunk, sunk()); },
+                SeadramonScenario::overTheLogs));
+        // Let go half way up, it lowers itself back down the face to its foot, no faster than it climbs, unhurt.
+        plan.add(new Step("ridden lets go of a log wall half way up", 60, () -> ridden(new Vec3(LOG_X + 1.5, SURFACE, .5), 90),
+                t -> keys(t < 9 ? 1 : 0, 0, false, false, 0, 90), () -> {
+            double highest = track.stream().mapToDouble(Vec3::y).max().orElse(SURFACE) - SURFACE, fastest = 0;
+            for (int i = 1; i < track.size(); i++) fastest = Math.max(fastest, track.get(i - 1).y - track.get(i).y);
+            float hurt = body.getMaxHealth() - body.getHealth();
+            return verdict(highest > 1 && highest < LOGS && body.getY() < SURFACE + .01 && body.getX() > LOG_X + 1 && fastest < DigimonEntity.CLIMB_PACE + .02
+                            && hurt == 0, "went up %.1f blocks, came back down to %.2f at most %.2f blocks a tick, %.1f blocks from the wall, hurt %.1f",
+                    highest, body.getY() - SURFACE, fastest, body.getX() - LOG_X - 1, hurt);
+        }));
+        // Pushed along the wall nearly alongside it (its nose 80 degrees off square to it), it slides on and does not climb.
+        plan.add(new Step("ridden along a log wall", 40, () -> ridden(new Vec3(LOG_X + 1.47, SURFACE, LOG_Z0 + .5), 10),
+                t -> keys(1, 0, false, false, 0, 10), () -> {
+            double highest = track.stream().mapToDouble(Vec3::y).max().orElse(SURFACE) - SURFACE;
+            return verdict(highest < .1 && body.getZ() > LOG_Z0 + 3, "went %.1f blocks along it, %.2f blocks up at most", body.getZ() - LOG_Z0 - .5, highest);
+        }));
+        // A pit a block deep: ridden through it, it steps down into it and up out of it as any body does, without a climb.
+        plan.add(new Step("ridden through a pit", 70, () -> ridden(new Vec3(PIT_X0 + 3.5, SURFACE, PIT_Z0 - 3.5), 0),
+                t -> keys(1, 0, false, false, 0, 0), () -> {
+            double highest = track.stream().mapToDouble(Vec3::y).max().orElse(SURFACE) - SURFACE;
+            float hurt = body.getMaxHealth() - body.getHealth();
+            return verdict(body.getZ() > PIT_Z1 + 2.5 && body.getY() > SURFACE - .01 && highest < .5 && hurt == 0,
+                    "went through it to %.1f blocks past it, back on the ground, never more than %.2f blocks over it, hurt %.1f",
+                    body.getZ() - PIT_Z1 - 1, highest, hurt);
+        }));
         // A wall five blocks high is more than it climbs: pressed into it, it stays at its foot and does not cling to it.
         plan.add(new Step("ridden at a high wall", 70, () -> ridden(new Vec3(WALL_X0 + 5.5, SURFACE, LEDGE_Z - 4.5), 0),
                 t -> keys(1, 0, false, false, 0, 0), () -> {
@@ -256,14 +356,29 @@ public final class SeadramonScenario {
             if (!goal.equals(nav.getTargetPos()) || nav.isDone() && t % 10 == 0) nav.moveTo(goal.getX() + .5, goal.getY(), goal.getZ() + .5, 1);
         }, () -> verdict(body.getY() > SURFACE + 3 - .01 && body.getZ() > ROCK + .5,
                 "came out onto the rock %.1f blocks over the water, %.1f blocks in from its edge", body.getY() - SURFACE, body.getZ() - ROCK)));
+        // Out of the sea onto each of its shores, head on and aslant: over a shelf whose lip lies a fifth of a block over
+        // the feet of a body afloat (it walled the body in), onto a beach at the waterline, up a terraced bank. Pushing
+        // all the way, it never stalls at the shore.
+        shore(plan, "ridden climbs out over a shelf", BASIN_X0 + 2.5, 5.5, 0);
+        shore(plan, "ridden climbs out over a shelf aslant", BASIN_X0 + .5, 3.5, -35);
+        shore(plan, "ridden climbs out onto a beach", BEACH_X0 + 2.5, 5.5, 0);
+        shore(plan, "ridden climbs out onto a beach aslant", BEACH_X0 + .5, 2.5, -40);
+        shore(plan, "ridden climbs out up a bank", BANK_X0 + 2.5, 5.5, 0);
+        shore(plan, "ridden climbs out up a bank aslant", BANK_X1 - .5, 2.5, 40);
         // Off the ledge it lowers itself down the face, no faster than it climbs, and takes no fall.
         plan.add(new Step("ridden lowers itself", 60, () -> ridden(new Vec3(LAND_X0 + 8.5, SURFACE + LEDGE, LEDGE_Z + 3.5), 180),
                 t -> keys(1, 0, false, false, 0, 180), () -> {
-            double fastest = 0;
-            for (int i = 1; i < track.size(); i++) fastest = Math.max(fastest, track.get(i - 1).y - track.get(i).y);
+            double fastest = 0, landed = Double.NaN;
+            for (int i = 1; i < track.size(); i++) {
+                fastest = Math.max(fastest, track.get(i - 1).y - track.get(i).y);
+                if (Double.isNaN(landed) && track.get(i).y < SURFACE + .05) landed = track.get(i).z;
+            }
             float hurt = body.getMaxHealth() - body.getHealth();
-            return verdict(body.getY() < SURFACE + .01 && fastest < DigimonEntity.CLIMB_PACE + .02 && hurt == 0,
-                    "came down to %.1f blocks up, at most %.2f blocks a tick, hurt %.1f", body.getY() - SURFACE, fastest, hurt);
+            // it comes down the face: its feet land near it (sailing out at its pace it landed 4 out)
+            double out = LEDGE_Z - landed;
+            return verdict(body.getY() < SURFACE + .01 && fastest < DigimonEntity.CLIMB_PACE + .02 && hurt == 0 && out < 1.2,
+                    "came down to %.1f blocks up, at most %.2f blocks a tick, %.1f blocks out from the face, hurt %.1f",
+                    body.getY() - SURFACE, fastest, out, hurt);
         }));
         // Ridden, the view swings a quarter round: it carves the turn, gathering into it, no tighter than its circle.
         plan.add(new Step("ridden carve", 70, () -> ridden(new Vec3(.5, FLOOR + 6, -32), 0), t -> keys(1, 0, false, false, 0, t < 20 ? 0 : -90), () -> {
@@ -399,6 +514,52 @@ public final class SeadramonScenario {
     private static void wild(Vec3 at, float yaw) { pendingAt = at; pendingYaw = yaw; pendingRidden = false; }
 
     private static void ridden(Vec3 at, float yaw) { pendingAt = at; pendingYaw = yaw; pendingRidden = true; }
+
+    /**
+     * Ridden from {@code x} on the sand east of the log wall, the body facing {@code bodyYaw} and the rider's view
+     * {@code viewYaw} (and {@code pitch} down), pushing forward (sprinting too with {@code gallop}): it goes up the wall
+     * and over it, coming down on its far side unhurt.
+     */
+    private static void logWall(List<Step> plan, String name, double x, float bodyYaw, float viewYaw, boolean gallop, float pitch) {
+        plan.add(new Step(name, 100, () -> ridden(new Vec3(x, SURFACE, .5), bodyYaw),
+                t -> { keys(body.getX() < LOG_X - 2.5 ? 0 : 1, 0, false, gallop, pitch, viewYaw); sunk = Math.max(sunk, sunk()); },
+                SeadramonScenario::overTheLogs));
+    }
+
+    /**
+     * Ridden afloat at its float line from {@code x}, {@code out} blocks out from the shore, heading {@code yaw} and the
+     * rider looking there a little down, pushing forward until it is up: it comes out onto the shore's first level a
+     * block over the water (the beach's grass, the bank's first terrace), unhurt, and never stands still pushing for more
+     * than half a second on the way (the most ticks it moved less than .02 blocks).
+     */
+    private static void shore(List<Step> plan, String name, double x, double out, float yaw) {
+        int top = SURFACE + 1;
+        plan.add(new Step(name, 90, () -> ridden(new Vec3(x, SURFACE - mount().sea().floatLine() * body().dimensions().height(), SHORE_Z - out), yaw),
+                t -> keys(body.getY() > top - .01 && body.onGround() ? 0 : 1, 0, false, false, 10, yaw), () -> {
+            int stalled = 0, run = 0, reached = -1;
+            for (int i = 1; i < track.size() && reached < 0; i++) {
+                run = track.get(i).distanceTo(track.get(i - 1)) < .02 ? run + 1 : 0;
+                stalled = Math.max(stalled, run);
+                if (track.get(i).y > top - .01) reached = i;
+            }
+            float hurt = body.getMaxHealth() - body.getHealth();
+            return verdict(reached >= 0 && stalled <= 10 && hurt == 0,
+                    "%s, %.1f blocks in from the shore at x %.1f, stood still pushing %d ticks at most, hurt %.1f",
+                    reached < 0 ? String.format("got no further than %.1f blocks over the water", body.getY() - SURFACE) : "up out of the water after " + reached + " ticks",
+                    body.getZ() - SHORE_Z, body.getX(), stalled, hurt);
+        }));
+    }
+
+    private static com.digicube.digimon.DigimonBody.Mount mount() { return body().mount().orElseThrow(); }
+
+    /** Up the log wall and over it: down on the sand past it, unhurt, no hit part in the logs. */
+    private static String overTheLogs() {
+        double highest = track.stream().mapToDouble(Vec3::y).max().orElse(SURFACE) - SURFACE;
+        float hurt = body.getMaxHealth() - body.getHealth();
+        return verdict(highest > LOGS - .01 && body.getX() < LOG_X - 1 && body.getY() < SURFACE + .5 && hurt == 0 && sunk < .2,
+                "went up %.1f blocks and over it to %.1f blocks past it, back on the sand, hurt %.1f, its hit parts at most %.2f blocks into the logs",
+                highest, LOG_X - body.getX(), hurt, sunk);
+    }
 
     private static void dummy(Vec3 at) {
         dummy = DigimonEntity.spawnWild(world, DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon")), 20, at);

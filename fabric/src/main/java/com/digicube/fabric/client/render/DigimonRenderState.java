@@ -19,6 +19,13 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float attackTwist;
     /** Ticks into a rider's jet charge (partial included), -1 when none runs. */
     public float riderCharge = -1;
+    /**
+     * A held rush (BullRush): ticks since the press (partial included; held where it struck through its blow), -1 with
+     * none; whether its brace stands, whether its blow is playing, and the ticks its brace takes.
+     */
+    public float rushTicks = -1;
+    public boolean rushStanding, rushBlow;
+    public int rushBuild = 1;
     /** The leap's clip tick (-1 on the ground) and how much of the pose it has; see DigimonEntity.tickLeapPose. */
     public float leapTick = -1, leapWeight;
     /** How far the body pitches along a pounce's burst, degrees up (DigimonEntity.getPouncePitch). */
@@ -37,19 +44,33 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public com.digicube.fabric.client.model.RopeChains.State ropes;
     /** The tails' simulation, one per entity, kept by the renderer between frames. */
     public com.digicube.fabric.client.model.TailChains.State tails;
+    /**
+     * A serpent's wrap as drawn: the prey's feet (the coil's axis, world blocks), the coil's shape and the body's girth
+     * there, which way it winds (1 counterclockwise seen from above, -1 clockwise) and the ticks since the capture
+     * (negative through the strike). Inactive: no wrap.
+     */
+    public static final class Wrap {
+        public boolean active;
+        public double x, y, z;
+        public com.digicube.digimon.ConstrictionCoil.Shape shape;
+        public float girth, since;
+        public int winding = 1;
+    }
+
     /** A serpent's drawn trail, one per entity, kept by the renderer between frames; null for any other body. */
     public com.digicube.fabric.client.model.SerpentSpine.State serpent;
-    /**
-     * A serpent's body: how much of it lies along its trail (none while a wrap coils it), how far it sways aside (blocks),
-     * and how far its head dives (degrees, nose down).
-     */
-    public float spineWeight, spineWave, spinePitch;
+    /** A serpent's body: how much of it lies along its trail (none while a wrap coils it), and how far it sways aside (blocks). */
+    public float spineWeight, spineWave;
     /** Blocks lower a serpent's swimming head breathes its stream from than the land pose its motion was measured in. */
     public float streamDrop;
-    /** A serpent's shadow: soft blobs along the body where it lies, in place of the one under its feet. */
-    public final java.util.List<SerpentShadow> serpentShadows = new java.util.ArrayList<>();
-    /** One blob of a serpent's shadow: its middle relative to the drawn feet, its radius and the ground it falls on. */
-    public record SerpentShadow(float x, float y, float z, float radius, java.util.List<net.minecraft.client.renderer.entity.state.EntityRenderState.ShadowPiece> pieces) {}
+    /**
+     * Where a serpent's joints came to lie this frame (world blocks, x y z a joint, from the chain's start to its tip) and
+     * the body's half-thickness at each, for its shadow (SerpentShadow); null until the chain is laid, or for any other body.
+     */
+    public double[] serpentLine;
+    public float[] serpentRadius;
+    /** The level a serpent's shadow falls in; null for a screen preview. */
+    public net.minecraft.world.level.Level shadowLevel;
     /** This tick's move went from the ground to the ground: a rise or drop in it is a step, not a leap or a fall. */
     public boolean groundedMove;
     /** How far into a skid on ice the body is, 0 to 1 (DigimonEntity.getSkid): the model's skid pose takes over the gait. */
@@ -75,8 +96,8 @@ public class DigimonRenderState extends LivingEntityRenderState {
     public float flightLandingProgress;
     public com.digicube.digimon.DigimonAttack attackDefinition;
     public float attackAimPitch;
-    public com.digicube.digimon.ConstrictionMotion.Fit constrictionFit = new com.digicube.digimon.ConstrictionMotion.Fit(34,36);
-    public net.minecraft.world.phys.Vec3 constrictionOffset = net.minecraft.world.phys.Vec3.ZERO;
+    /** A serpent's wrap in progress ({@code ConstrictionCoil}): the coil its body is laid along, and when it closed. */
+    public final Wrap wrap = new Wrap();
     public final NativeEffectState fistEffect = new NativeEffectState();
     public final MegaFlameRenderState mouthFlame = new MegaFlameRenderState();
     public final BlueBlasterRenderState blueBlaster = new BlueBlasterRenderState();

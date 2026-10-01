@@ -179,6 +179,22 @@ public final class RiderControls {
                 wasDown[slot] = down;
                 continue;
             }
+            if (spec.aim() == RiderAttack.Aim.RUSH) {
+                // Held, the mount braces and then rushes (the server moves it); let go, it strikes. Only a fresh press
+                // starts one: a button still held after a blow waits for the next press, but one pressed a moment before
+                // the mount is ready is tried again for a few ticks.
+                boolean canSend = ClientPlayNetworking.canSend(PartyActionPayload.TYPE);
+                if (down && !wasDown[slot]) pressed[slot] = mount.tickCount;
+                if (down && canSend && mount.rushCode() == 0 && mount.getAnimatingAttack() == null
+                        && mount.tickCount - pressed[slot] <= RUSH_PRESS_TICKS && mount.tickCount != lastSend[slot] && cast(mount, slot)) {
+                    lastSend[slot] = mount.tickCount;
+                    pressed[slot] = Integer.MIN_VALUE / 2;
+                }
+                if (!down && wasDown[slot] && canSend)
+                    ClientPlayNetworking.send(new PartyActionPayload(PartyActionPayload.RIDER_RELEASE, PartyActionPayload.NO_MEMBER, slot));
+                wasDown[slot] = down;
+                continue;
+            }
             if (hold && spec.aim() == RiderAttack.Aim.SHOT && down) DigimonEntity.localRiderDraws = true;
             if (hold && (spec.aim() == RiderAttack.Aim.STREAM || spec.aim() == RiderAttack.Aim.SHOT)) {
                 // Breathes (or holds a drawn shot raised) for as long as the button is held; a press while it recovers is tried again.
@@ -204,6 +220,9 @@ public final class RiderControls {
 
     /** Ticks between the pounces of a held button: one has to finish its burst before the next leaves. */
     private static final int POUNCE_REPEAT_TICKS = 12;
+    /** Ticks after a press in which a rush that the mount was not yet ready for is tried again. */
+    private static final int RUSH_PRESS_TICKS = 8;
+    private static final int[] pressed = new int[SLOTS];
 
     /** The attack has something to aim right now: anything but a returning weapon that is away from its thrower. */
     private static boolean aims(DigimonEntity mount, DigimonAttack attack) {
@@ -356,6 +375,13 @@ public final class RiderControls {
         if (landing >= 0 && landing < 7) nod = 2.2F * mount.leapImpact() * Mth.sin(Mth.PI * landing / 7) * (1 - landing / 7);
         // A heavy walker's stomps dip the view a little on every footfall, more at a run.
         nod += com.digicube.fabric.client.render.Stomps.nod(mount, partialTick);
+        // A rush rumbles under the saddle: a fine shudder while it braces, a heavy one and a wider view as it charges.
+        float rush = mount.rushBuild(partialTick);
+        if (rush >= 0) {
+            float t = mount.tickCount + partialTick, rumble = rush < 1 ? .12F * rush : .45F;
+            if (rumble > shake) { shake = rumble; time = t * 3.3F; }
+            if (rush >= 1) fov += .05F;
+        }
         float shot = mount.ticksSinceShot() + partialTick;
         if (shot >= 0 && shot < 6) { nod -= 1.8F * Mth.square(1 - shot / 6); fov += .025F * Mth.square(1 - shot / 6); }
         // Falling back into the water off a leap dips the view and punches it out, harder the faster it came down.

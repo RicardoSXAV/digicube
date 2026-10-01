@@ -47,6 +47,8 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         com.digicube.fabric.client.render.PixelPlaneParticle.register();
         com.digicube.fabric.client.render.InkParticle.register();
         com.digicube.fabric.client.render.InkedVisuals.init();
+        com.digicube.fabric.client.render.BurnParticle.register();
+        com.digicube.fabric.client.render.BurnedVisuals.init();
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
             ModelLayerRegistry.registerModelLayer(definition.layer(), definition::createLayer);
         }
@@ -92,8 +94,6 @@ public class DigiCubeFabricClient implements ClientModInitializer {
                     () -> com.digicube.fabric.client.model.NativeEffectModel.createLayer(effect));
         }
         ModelLayerRegistry.registerModelLayer(BlueBlasterModel.LAYER, BlueBlasterModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(com.digicube.fabric.client.model.IceBlastModel.LAYER,
-                com.digicube.fabric.client.model.IceBlastModel::createBodyLayer);
         EntityRendererRegistry.register(DCEntityTypes.DIGIMON, DigimonRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.DROPPED_DIGIVICE, com.digicube.fabric.client.render.DroppedDigiviceRenderer::new);
         EntityRendererRegistry.register(DCEntityTypes.PEPPER_BREATH, PepperBreathRenderer::new);

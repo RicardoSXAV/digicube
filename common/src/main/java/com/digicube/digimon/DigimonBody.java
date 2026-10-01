@@ -17,9 +17,10 @@ import java.util.Optional;
  *                 75 without one). A head fused to its trunk that can hardly turn on its own (Mojyamon) sets it low, so
  *                 the whole body comes round to what it looks at.
  * @param serpent  a long body that lies along the path its head took ({@code serpent}), or null
+ * @param fireproof a body of fire ({@code fireproof}: Meramon): fire and lava never burn it, so it is never Burned
  */
 public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn,
-                          Serpent serpent) {
+                          Serpent serpent, boolean fireproof) {
     /** Vanilla's {@code Mob.getMaxHeadYRot}. */
     public static final float HEAD_TURN = 75;
 
@@ -35,6 +36,11 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
         Objects.requireNonNull(mount, "mount");
         hitParts = List.copyOf(Objects.requireNonNull(hitParts, "hitParts"));
         if (!Float.isFinite(headTurn) || headTurn < 5 || headTurn > 180) throw new IllegalArgumentException("Invalid head turn");
+    }
+
+    public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn,
+                       Serpent serpent) {
+        this(modelScale, dimensions, mount, hitParts, headTurn, serpent, false);
     }
 
     public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn) {
@@ -60,18 +66,38 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
      * @param climbShare     the share of its body it holds up a face, the rest on the ground under it: it climbs a wall (and
      *                       lowers itself down one) that share of its length high ({@link DigimonBody#climbHeight}); 0 for
      *                       only its step
+     * @param coil           how it wraps its prey ({@code coil}), or null for a serpent that does not
      */
     public record Serpent(float swimHeight, float turnRadius, float swimTurnRadius, float standingTurn, float swimHeadDrop,
-                          float neckTurn, float climbShare) {
+                          float neckTurn, float climbShare, Coil coil) {
         public Serpent {
             if (!(swimHeight >= 0 && turnRadius > 0 && swimTurnRadius > 0 && standingTurn >= 0 && Float.isFinite(swimHeadDrop)
                     && neckTurn > 0 && neckTurn <= 180 && climbShare >= 0 && climbShare < 1))
                 throw new IllegalArgumentException("Invalid serpent");
         }
 
+        public Serpent(float swimHeight, float turnRadius, float swimTurnRadius, float standingTurn, float swimHeadDrop,
+                       float neckTurn, float climbShare) {
+            this(swimHeight, turnRadius, swimTurnRadius, standingTurn, swimHeadDrop, neckTurn, climbShare, null);
+        }
+
         /** Degrees a tick it may turn going {@code speed} blocks a tick: its circle at that pace, and its standing turn. */
         public float turnRate(double speed, boolean swimming) {
             return (float) Math.max(standingTurn, Math.toDegrees(speed / (swimming ? swimTurnRadius : turnRadius)));
+        }
+    }
+
+    /**
+     * How a serpent wraps its prey ({@code coil} in its {@code serpent}; {@link ConstrictionCoil}), in blocks.
+     * @param girth the body's thickness where it coils: the loops lie that far out from the prey and stack that high
+     * @param neck  the body behind the head left free of the loops, rearing from the top loop to the head over the prey
+     * @param tail  the thin end of the tail left out of the loops, lying on the ground
+     * @param loops the most loops it throws round a small prey
+     */
+    public record Coil(float girth, float neck, float tail, float loops) {
+        public Coil {
+            if (!(girth > 0 && girth < 4 && neck >= 0 && tail >= 0 && loops >= 1 && loops <= 4))
+                throw new IllegalArgumentException("Invalid coil");
         }
     }
 

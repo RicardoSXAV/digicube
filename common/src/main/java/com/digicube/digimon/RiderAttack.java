@@ -46,7 +46,12 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
          * enemy within {@code cone} of it), from the ground or mid-leap, and bites the first body its jaws meet. The
          * rider's client flies the dash at the press.
          */
-        POUNCE
+        POUNCE,
+        /**
+         * A held charge that ends in a blow ({@link RushAttacks}): held, the mount braces (the tile fills) and then rushes
+         * along the view; let go, or meeting an enemy close ahead, it strikes with the attack of the same id.
+         */
+        RUSH
     }
 
     public enum Input {

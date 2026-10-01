@@ -434,5 +434,79 @@
       "apex": 0.85,
       "edge": true
     }
+  },
+  "fire_fist": {
+    "kind": "BOX_SWEEP",
+    "power": 1.5,
+    "cooldown": 60,
+    "duration": 28,
+    "hit_tick": 12,
+    "range": 5.0,
+    "knockback": 0.75,
+    "hit_interval": 28,
+    "max_hits": 1,
+    "effect": "fire_fist_fx",
+    "emissive": true,
+    "hit_windows": [[10.5, 14.0]],
+    "particles": "fire",
+    "root_travel": true,
+    "impact_tick": 12.0,
+    "burn": 80,
+    "contact_parts": [
+      "burst_knuckle_flame_a",
+      "burst_knuckle_flame_b",
+      "burst_rim",
+      "burst_tongue_0",
+      "burst_tongue_1",
+      "burst_tongue_2",
+      "burst_tongue_3",
+      "burst_ember_0",
+      "burst_ember_1",
+      "burst_ember_2",
+      "burst_ember_3",
+      "burst_ember_4",
+      "burst_ember_5"
+    ]
+  },
+  "guardy_tusk": {
+    "kind": "BOX_SWEEP",
+    "power": 1.35,
+    "cooldown": 90,
+    "duration": 26,
+    "hit_tick": 7,
+    "range": 4.4,
+    "knockback": 1.2,
+    "hit_interval": 26,
+    "max_hits": 2,
+    "effect": "guardy_tusk_fx",
+    "emissive": true,
+    "hit_windows": [
+      [
+        5.5,
+        9.5
+      ]
+    ],
+    "particles": "ram",
+    "root_travel": true,
+    "impact_tick": 7,
+    "contact_parts": [
+      "gi_contact",
+      "gi_depth_flash",
+      "gi_fragment_0",
+      "gi_fragment_1",
+      "gi_fragment_2",
+      "gi_fragment_3",
+      "gi_fragment_4",
+      "gi_stab_0",
+      "gi_stab_1",
+      "gi_stab_2"
+    ],
+    "sounds": {
+      "contact": {
+        "sound": "minecraft:entity.ravager.attack",
+        "volume": 1.4,
+        "pitch": 0.75
+      }
+    }
   }
 }

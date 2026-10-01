@@ -21,6 +21,14 @@
     "pitch": 0.72,
     "ambient_interval": 360
   },
+  "meramon": {
+    "ambient": "minecraft:entity.blaze.ambient",
+    "hurt": "minecraft:entity.blaze.hurt",
+    "death": "minecraft:entity.blaze.death",
+    "cry": "minecraft:entity.blaze.shoot",
+    "pitch": 0.75,
+    "ambient_interval": 360
+  },
   "garurumon": {
     "ambient": "minecraft:entity.wolf_big.ambient",
     "hurt": "minecraft:entity.wolf_big.hurt",
@@ -28,5 +36,13 @@
     "cry": "minecraft:entity.wolf_angry.growl",
     "pitch": 0.8,
     "ambient_interval": 400
+  },
+  "monochromon": {
+    "ambient": "minecraft:entity.hoglin.ambient",
+    "hurt": "minecraft:entity.hoglin.hurt",
+    "death": "minecraft:entity.hoglin.death",
+    "cry": "minecraft:entity.hoglin.angry",
+    "pitch": 0.62,
+    "ambient_interval": 380
   }
 }

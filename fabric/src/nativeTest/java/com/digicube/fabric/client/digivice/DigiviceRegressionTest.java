@@ -143,8 +143,10 @@ public final class DigiviceRegressionTest {
         MarkGuide.Entry freeze = guide.get(CombatMark.FREEZE), burn = guide.get(CombatMark.BURN), crack = guide.get(CombatMark.CRACK);
         check(freeze.appliers().size() == 1 && freeze.appliers().getFirst().species().id().equals(Constants.id("garurumon")) && freeze.appliers().getFirst().attacks().size() == 2,
                 "Freeze is Garurumon's, with two moves");
-        check(burn.appliers().size() == 2 && burn.appliers().get(0).species().id().equals(Constants.id("agumon")) && burn.appliers().get(1).species().id().equals(Constants.id("greymon")),
-                "Burn is Agumon's and Greymon's, Rookie first");
+        check(burn.appliers().size() == 4 && burn.appliers().get(0).species().id().equals(Constants.id("agumon")) && burn.appliers().get(1).species().id().equals(Constants.id("greymon"))
+                        && burn.appliers().get(2).species().id().equals(Constants.id("meramon")) && burn.appliers().get(2).attacks().size() == 2
+                        && burn.appliers().get(3).species().id().equals(Constants.id("monochromon")) && burn.appliers().get(3).attacks().size() == 1,
+                "Burn is Agumon's, Greymon's, Meramon's (both its moves) and Monochromon's (Volcano Strike), Rookie first");
         check(burn.shortest() == 60 && burn.longest() == 120 && freeze.shortest() == FreezeMark.FROZEN_TICKS && crack.longest() == CrackMark.CRACKED_TICKS, "a mark lasts what its moves say");
         java.util.function.BinaryOperator<String> span = (a, b) -> a + " to " + b;
         check(Arrays.equals(MarkGuide.numbers(burn, span), new Object[]{"3 to 6"}) && Arrays.equals(MarkGuide.numbers(freeze, span), new Object[]{"2.5", "4"}),

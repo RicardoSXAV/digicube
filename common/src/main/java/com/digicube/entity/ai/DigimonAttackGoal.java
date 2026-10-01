@@ -127,7 +127,6 @@ public final class DigimonAttackGoal extends Goal {
         if (tickDodge(target, tactics)) return;
         // A species with a fight pace of its own (slow traveller, fast striker) uses it for every move of the fight.
         double speedModifier = tactics.fightSpeed() > 0 ? tactics.fightSpeed() : this.speedModifier;
-        if (mob.tickConstrictionApproach(target,speedModifier)) return;
         mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
         if (engage(target, tactics)) return;
 
@@ -314,8 +313,7 @@ public final class DigimonAttackGoal extends Goal {
         if (!(target instanceof DigimonEntity other) || !other.isAttacking()) return -1;
         DigimonAttack attack = other.getActiveAttack();
         if (attack == null || attack.isRanged() && attack.kind() != DigimonAttack.Kind.GROUND_WAVE && leap(attack) == null) return -1;
-        // A wrap's hit tick is its capture, two seconds in: the one wind-up worth running from. A whip lands on its
-        // wielder's own plan (DigimonEntity.attackLandsIn).
+        // A wrap's strike lands when it reaches its prey, and a whip on its wielder's own plan (DigimonEntity.attackLandsIn).
         int remaining = other.attackLandsIn();
         if (remaining <= 0) return -1;
         double reach = attack.range() + (mob.getBbWidth() + other.getBbWidth()) * .5 + 1;

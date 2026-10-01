@@ -53,6 +53,8 @@ public final class FuelReserve {
     public int availableTicks() { return charge / definition.rechargeTicks(); }
     /** @return whether exhaustion requires a full refill before the next use */
     public boolean isRecharging() { return recharging; }
+    /** @return how full the tank is, 0 to 1 (while an emptied tank refills, how far it has come back) */
+    public float fill() { return charge / (float) maximum(); }
 
     /**
      * Loading interrupts emission but preserves exactly how much fuel still needs refilling.

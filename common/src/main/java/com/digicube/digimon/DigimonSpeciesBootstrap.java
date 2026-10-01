@@ -63,16 +63,13 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("tectonic_fist"), DigimonAttack.Kind.GROUND_WAVE,
             2.5F, 320, 84, 28, 7.5, false, AttackMotion.load(Constants.id("tectonic_fist")), null, 1.15);
 
-    /** A short chilling jet that charges Cold and never freezes: two-second tank, four-second empty-to-full refill, Howling Blaster's pulse cadence. */
-    public static final DigimonAttack ICE_BLAST = new DigimonAttack(
-            Constants.id("ice_blast"), DigimonAttack.Kind.FROST_STREAM,
-            .54F, 0, 108, 12, 12, false, AttackMotion.load(Constants.id("ice_blast")),
-            new AttackFuel(40, 80, 10), 0);
-
+    /**
+     * A serpent's wrap (ConstrictionCoil): a strike from up to its range at its prey, then the coil round it, four squeezes
+     * and the release. Its hit tick is the strike's own (contact); its duration the longest strike and the hold after it.
+     */
     public static final DigimonAttack CONSTRICTION = new DigimonAttack(
             Constants.id("constriction"), DigimonAttack.Kind.CONSTRICTION,
-            .08F, 200, ConstrictionMotion.DURATION, ConstrictionMotion.CAPTURE_TICK, 3.2, false);
-    public static final ConstrictionMotion CONSTRICTION_MOTION = new ConstrictionMotion(Constants.id("constriction"));
+            .08F, 200, ConstrictionCoil.DURATION, 0, 6.5, false);
 
     public static Map<Identifier, DigimonAttack> attacks() {
         var data = java.util.stream.Stream.of(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack),
@@ -80,7 +77,7 @@ public final class DigimonSpeciesBootstrap {
                 WhipAttacks.attacks().stream(), PounceAttacks.attacks().stream(), BreathAttacks.attacks().stream()).flatMap(s -> s);
         return java.util.stream.Stream.concat(data, java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
                 BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, ROCK_PUNCH, TECTONIC_FIST,
-                ICE_BLAST, CONSTRICTION))
+                CONSTRICTION))
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));
     }
 

@@ -551,6 +551,14 @@
     "meramon": {
       "culling_margin": 1.5,
       "walk_blend": true,
+      "glow": true,
+      "aim_path": [
+        "root",
+        "pelvis",
+        "torso"
+      ],
+      "attack_blend_in": 2,
+      "attack_blend_out": 5,
       "look": {
         "path": [
           "root",
@@ -759,6 +767,104 @@
           "minecraft:block.pink_petals.step",
           "minecraft:block.azalea_leaves.step",
           "minecraft:block.cherry_leaves.step"
+        ]
+      }
+    },
+    "monochromon": {
+      "culling_margin": 6,
+      "walk_blend": true,
+      "aim_path": [
+        "monochromon",
+        "body",
+        "head"
+      ],
+      "attack_blend_in": 2,
+      "attack_blend_out": 5,
+      "upper_body": [
+        "monochromon",
+        "body",
+        "head"
+      ],
+      "rider": {
+        "path": [
+          "monochromon",
+          "body"
+        ],
+        "point": [
+          0.0,
+          0.25,
+          4.157
+        ],
+        "pose": [
+          -0.9,
+          0.85,
+          1.05,
+          2
+        ],
+        "lean": [
+          0.5,
+          0.7
+        ]
+      },
+      "bank": true,
+      "look": {
+        "path": [
+          "monochromon",
+          "body",
+          "head"
+        ],
+        "yaw": 30,
+        "pitch": 18
+      },
+      "stomps": {
+        "down": [
+          0,
+          0.5
+        ],
+        "feet": [
+          [
+            0.625,
+            -0.7
+          ],
+          [
+            -0.625,
+            -0.7
+          ]
+        ],
+        "pitch": 0.42,
+        "run_down": [
+          0.0,
+          0.1,
+          0.4,
+          0.5
+        ],
+        "run_feet": [
+          [
+            0.625,
+            -0.7
+          ],
+          [
+            -0.625,
+            -0.7
+          ],
+          [
+            -0.625,
+            0.725
+          ],
+          [
+            0.625,
+            0.725
+          ]
+        ],
+        "roar_pitch": 0.6
+      },
+      "rush": {
+        "brace": "guardy_tusk_brace",
+        "charge": "guardy_tusk_rush",
+        "path": [
+          "monochromon",
+          "body",
+          "head"
         ]
       }
     }

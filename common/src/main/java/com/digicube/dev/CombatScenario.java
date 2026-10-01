@@ -71,7 +71,10 @@ public final class CombatScenario {
         if (NAME.equals("battle_checks")) return; // Battle Testing, also staged by the Fabric module with its fake player
         if (NAME.equals("analyzer_checks")) return; // the Analyzer record, staged by the Fabric module with its fake player
         if (NAME.equals("garurumon_checks")) return; // Garurumon ridden and wild, staged by the Fabric module with its fake rider
+        if (NAME.equals("meramon_checks")) return; // Meramon's two moves on its own AI, staged by the Fabric module
+        if (NAME.equals("monochromon_checks")) return; // Monochromon ridden and wild, staged by the Fabric module with its fake rider
         if (NAME.equals("seadramon_checks")) return; // Seadramon wild and ridden, staged by the Fabric module
+        if (NAME.equals("wrap_checks")) return; // a serpent's wrap, wild and ridden, staged by the Fabric module
         if (NAME.startsWith("digivice_checks")) return;
         if (NAME.startsWith("recall_checks")) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
@@ -136,10 +139,10 @@ public final class CombatScenario {
         caster = DigimonEntity.spawnWild(level, casterSpecies, 20, new Vec3(.5, terrain.equals("down") ? y+1:y, -3.5));
         prey = DigimonEntity.spawnWild(level, preySpecies, 20, new Vec3(.5, terrain.equals("ledge") ? y + 1 : y, -3.5 + distance));
         if (caster == null || prey == null) { finish(level, "FAIL could not spawn"); return; }
-        if (wrapCaster && caster.constrictionMotion().fit(prey.getBoundingBox(), caster.getBody().modelScale()) == null) {
+        if (wrapCaster && com.digicube.digimon.ConstrictionCoil.fit(prey.getBoundingBox(), caster.getBody()) == null) {
             oversizedWrapPrey = true;
             wrapCaster = false;
-            Constants.LOG.info("[scenario] prey exceeds authored wrap fit; require landed fallback attacks and no capture");
+            Constants.LOG.info("[scenario] prey too big for the wrap's coil; require landed fallback attacks and no capture");
         }
         // Facing each other by default; +behind turns the prey's back (and any long body) toward the caster.
         caster.setYRot(0); prey.setYRot(preyFacesAway ? 0 : 180); prey.yBodyRot = prey.yHeadRot = prey.getYRot();

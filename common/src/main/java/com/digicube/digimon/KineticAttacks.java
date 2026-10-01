@@ -53,7 +53,9 @@ public final class KineticAttacks {
                              float modelScale, double maxLead, float maxPitch, List<AttackBox> projectileBoxes,
                              List<String> aimPath, ProjectileMotion projectileMotion, int impairmentTicks, boolean emissive,
                              boolean blendAim, boolean aimAtTop, int riderDrawTick, RiderKick riderKick,
-                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks, float projectileScale) {
+                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks, float projectileScale, int burn) {
+        /** A shot that lands sets its victim alight for {@code burn} ticks, a Burn ({@code burn}, 0 for none). */
+        public boolean burns() { return burn > 0; }
         public Motion motion(boolean kick) { return kick && kickMotion != null ? kickMotion : motion; }
         public String animation(boolean kick) { return kick && kickAnimation != null ? kickAnimation : attack.id().getPath(); }
         public int duration(boolean kick) { return Math.round(motion(kick).duration()); }
@@ -166,6 +168,13 @@ public final class KineticAttacks {
         return new RiderKick(data.get("animation").getAsString(), clock);
     }
 
+    /** Ticks a landed shot sets its victim alight for (0 to 400; 0: none). */
+    private static int burn(JsonObject c, Identifier id) {
+        int ticks = GsonHelper.getAsInt(c, "burn", 0);
+        if (ticks < 0 || ticks > 400) throw new IllegalArgumentException("A shot burns 0 to 400 ticks " + id);
+        return ticks;
+    }
+
     private static Map<Identifier, Definition> load() {
         var config = read("/data/digicube/kinetic_attacks.json");
         var geometry = read("/data/digicube/kinetic_motion.json");
@@ -214,7 +223,7 @@ public final class KineticAttacks {
                     riderKick(c, alternate, id),
                     com.digicube.entity.ShotStyle.byId(GsonHelper.getAsString(c, "shot_style", null)),
                     // A shot that lands leaves its victim Exposed (ExposedMark) for this long.
-                    GsonHelper.getAsInt(c, "expose_ticks", 0), shrink));
+                    GsonHelper.getAsInt(c, "expose_ticks", 0), shrink, burn(c, id)));
         }
         return Collections.unmodifiableMap(result);
     }

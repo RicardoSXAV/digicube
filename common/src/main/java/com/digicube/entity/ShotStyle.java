@@ -27,7 +27,12 @@ public enum ShotStyle {
      * Crabmon's Water Shot: a wet spit and a spray of droplets at the mouth, a slug that sheds drops and specks as it
      * flies, and a splash of spray where it bursts. Water, so it also puts out a burning victim ({@link #douses}).
      */
-    WATER;
+    WATER,
+    /**
+     * Monochromon's Volcano Strike: a roaring cough of fire and smoke at the jaws, a ball of magma that drips lava and
+     * trails flame, smoke and ash, and an eruption of fire, lava and smoke where it bursts.
+     */
+    MAGMA;
 
     public static ShotStyle byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -38,6 +43,15 @@ public enum ShotStyle {
 
     /** The shot leaves the muzzle; {@code charge} is a rider's draw (1 for an unridden shot). */
     public void fire(ServerLevel level, Vec3 muzzle, Vec3 direction, float charge) {
+        if (this == MAGMA) {
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.2F, .55F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 1F, .7F);
+            Vec3 ahead = muzzle.add(direction.scale(.3));
+            level.sendParticles(ParticleTypes.FLAME, true, true, ahead.x, ahead.y, ahead.z, 16, .18, .14, .18, .06);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, muzzle.x, muzzle.y, muzzle.z, 6, .15, .1, .15, .02);
+            level.sendParticles(ParticleTypes.LAVA, true, true, ahead.x, ahead.y, ahead.z, 4, .12, .08, .12, 0);
+            return;
+        }
         if (this == WATER) {
             level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.PUFFER_FISH_BLOW_OUT, SoundSource.NEUTRAL, 1.1F, 1.25F);
             level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.SQUID_SQUIRT, SoundSource.NEUTRAL, .8F, 1.5F);
@@ -55,6 +69,21 @@ public enum ShotStyle {
 
     /** Client, every tick of flight: sparks along the stretch from {@code from} to {@code to}. */
     public void trail(Level level, Vec3 from, Vec3 to, RandomSource random) {
+        if (this == MAGMA) {
+            // Flame licks off the ball and hangs where it passed; smoke and ash drift up behind; lava drips off it.
+            Vec3 step = to.subtract(from);
+            int puffs = Math.max(1, (int) Math.round(step.length() * 3));
+            for (int i = 0; i < puffs; i++) {
+                Vec3 at = from.add(step.scale((i + random.nextDouble()) / puffs));
+                level.addParticle(ParticleTypes.FLAME, at.x + random.nextGaussian() * .12, at.y + random.nextGaussian() * .12,
+                        at.z + random.nextGaussian() * .12, step.x * .05, step.y * .05 + .01, step.z * .05);
+                if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.SMOKE, at.x, at.y + .1, at.z, 0, .03, 0);
+                if (random.nextInt(3) == 0) level.addParticle(ParticleTypes.ASH, at.x, at.y, at.z, 0, 0, 0);
+            }
+            if (random.nextInt(3) == 0) level.addParticle(ParticleTypes.DRIPPING_LAVA, from.x, from.y - .2, from.z, 0, 0, 0);
+            if (random.nextInt(4) == 0) level.addParticle(ParticleTypes.LARGE_SMOKE, from.x, from.y, from.z, 0, .04, 0);
+            return;
+        }
         if (this == WATER) {
             // Drops fall off the slug and fine spray hangs where it passed.
             Vec3 step = to.subtract(from);
@@ -80,6 +109,18 @@ public enum ShotStyle {
 
     /** The bolt strikes a block or a body at {@code at}. */
     public void impact(ServerLevel level, Vec3 at) {
+        if (this == MAGMA) {
+            RandomSource random = level.getRandom();
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.DRAGON_FIREBALL_EXPLODE, SoundSource.NEUTRAL, 1.1F, .75F + random.nextFloat() * .1F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.LAVA_POP, SoundSource.NEUTRAL, 1.4F, .6F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.BASALT_BREAK, SoundSource.NEUTRAL, 1F, .6F);
+            level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y, at.z, 34, .35, .3, .35, .12);
+            level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y, at.z, 14, .3, .25, .3, 0);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y + .2, at.z, 10, .35, .3, .35, .03);
+            level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, true, at.x, at.y + .2, at.z, 4, .3, .2, .3, .01);
+            level.sendParticles(ParticleTypes.ASH, true, true, at.x, at.y, at.z, 30, .6, .5, .6, 0);
+            return;
+        }
         if (this == WATER) {
             RandomSource random = level.getRandom();
             level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_SPLASH, SoundSource.NEUTRAL, 1F, 1.1F + random.nextFloat() * .15F);
@@ -102,6 +143,12 @@ public enum ShotStyle {
 
     /** A bolt that flew its full range without striking anything fizzles out where it is. */
     public void fizzle(ServerLevel level, Vec3 at) {
+        if (this == MAGMA) {
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y, at.z, 8, .2, .2, .2, .02);
+            level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y, at.z, 3, .15, .1, .15, 0);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .6F, .7F);
+            return;
+        }
         if (this == WATER) {
             level.sendParticles(ParticleTypes.SPLASH, true, true, at.x, at.y, at.z, 16, .2, .15, .2, .08);
             level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_SPLASH, SoundSource.NEUTRAL, .4F, 1.5F);

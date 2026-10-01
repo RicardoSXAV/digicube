@@ -8,22 +8,34 @@ final class IceComboRegressionTest {
     private IceComboRegressionTest() {}
 
     static void run() {
-        var ice = DigimonSpeciesBootstrap.ICE_BLAST;
+        var ice = BreathAttacks.attacks().stream().filter(a -> a.id().getPath().equals("ice_blast")).findFirst().orElseThrow();
         check(IceCombo.COLD_CHARGE_TICKS == 20 && IceCombo.chillFuelTicks(ice.fuel()) == 28
                         && ice.fuel().capacityTicks() - IceCombo.chillFuelTicks(ice.fuel()) >= ice.fuel().damageIntervalTicks(),
                 "a Cold charge costs a second of contact and one tank pays for it with a damage pulse to spare");
         int wrapExhale = ice.durationTicks() - ice.motion().activeUntil() - 1;
-        check(wrapExhale + 8 + com.digicube.digimon.ConstrictionMotion.CAPTURE_TICK < IceCombo.COLD_TICKS,
-                "exhale, alignment and the wrap wind-up all fit inside one Cold");
+        check(wrapExhale + 8 + ConstrictionCoil.STRIKE_TICKS < IceCombo.COLD_TICKS,
+                "exhale, alignment and the wrap's strike all fit inside one Cold");
         check(IceCombo.COLD_SLOW > -1 && IceCombo.COLD_SLOW < 0, "Cold slows and never stops");
         check(IceCombo.COLD_DECAY_DELAY_TICKS >= 2 * ice.fuel().damageIntervalTicks(), "a brief miss does not drain the charge");
         var tank = new FuelReserve(ice.fuel());
         tank.begin();
         for (int i = 0; i < 21; i++) tank.consume();
         tank.end();
-        check(tank.availableTicks() == 19, "partial tank reports exact emission ticks");
-        tank.tickRecharge(); tank.tickRecharge();
-        check(tank.availableTicks() == 20, "two resting ticks restore one emission tick");
+        check(tank.availableTicks() == ice.fuel().capacityTicks() - 21, "partial tank reports exact emission ticks");
+        // a tick of emission refills in rechargeTicks / capacityTicks resting ticks (an emptied tank in rechargeTicks)
+        int rest = (int) Math.ceil(ice.fuel().rechargeTicks() / (double) ice.fuel().capacityTicks());
+        for (int i = 0; i < rest; i++) tank.tickRecharge();
+        check(tank.availableTicks() == ice.fuel().capacityTicks() - 20, "resting ticks restore emission ticks at the tank's refill rate");
+        check(ice.fuel().capacityTicks() == 80 && ice.fuel().rechargeTicks() == 120, "Ice Blast breathes four seconds on a tank and refills in six");
+        var empty = new FuelReserve(ice.fuel());
+        empty.begin();
+        while (empty.consume()) {}
+        empty.end();
+        check(empty.isRecharging() && empty.fill() < .01F, "an emptied tank is locked until it refills");
+        for (int i = 0; i < ice.fuel().rechargeTicks() / 2; i++) empty.tickRecharge();
+        check(empty.isRecharging() && Math.abs(empty.fill() - .5F) < .01F, "half way through its refill it shows half full, still locked");
+        for (int i = 0; i < ice.fuel().rechargeTicks() / 2; i++) empty.tickRecharge();
+        check(!empty.isRecharging() && empty.isReady() && empty.fill() == 1, "refilled, it fires again");
 
         int marks = CombatMarkState.pack(false, 10, 118, .5F, 2, .5F);
         check(!CombatMarkState.has(marks, CombatMarkState.HELD) && CombatMarkState.has(marks, CombatMarkState.INKED)
@@ -35,7 +47,7 @@ final class IceComboRegressionTest {
                         && marks > 0,
                 "the tracked readout carries flags, half a charge, remaining Cold rounded up to its step, half an ink, two Crack charges and half a Cracked");
         check(CrackMark.charges(DigimonSpeciesBootstrap.ROCK_PUNCH) == 1 && CrackMark.charges(DigimonSpeciesBootstrap.TECTONIC_FIST) == 2
-                        && CrackMark.charges(DigimonSpeciesBootstrap.ICE_BLAST) == 0 && CrackMark.CHARGES == 3 && CrackMark.DAMAGE_TAKEN > 1,
+                        && CrackMark.charges(ice) == 0 && CrackMark.CHARGES == 3 && CrackMark.DAMAGE_TAKEN > 1,
                 "stone blows fill the Crack gauge (punch one, spikes two of three), other attacks do not");
         check(!CombatMarkState.has(CombatMarkState.pack(false, 0, 0, 0, 0, 0), CombatMarkState.INKED), "no ink, no Inked flag");
         int readout2 = CombatMarkState.pack2(.5F, true, 0);

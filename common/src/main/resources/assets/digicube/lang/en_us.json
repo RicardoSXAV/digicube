@@ -97,6 +97,8 @@
   "digimon.digicube.garurumon": "Garurumon",
   "attack.digicube.freeze_fang": "Freeze Fang",
   "attack.digicube.howling_blaster": "Howling Blaster",
+  "attack.digicube.heat_wave": "Heat Wave",
+  "attack.digicube.fire_fist": "Fire Fist",
   "digimon.digicube.agumon": "Agumon",
   "digimon.digicube.greymon": "Greymon",
   "digicube.stage.baby_i": "Baby I",
@@ -354,5 +356,9 @@
   "digimon.digicube.ganimon": "Crabmon",
   "digimon.digicube.ganimon.profile": "A Crustacean Digimon armoured in a hard shell. It scuttles sideways far faster than it looks, snips at anything that comes close with the great pincer on its left arm, and spits a hard slug of water at whatever keeps its distance.",
   "attack.digicube.scissors_execution": "Scissors Execution",
-  "attack.digicube.water_shot": "Water Shot"
+  "attack.digicube.water_shot": "Water Shot",
+  "digimon.digicube.monochromon": "Monochromon",
+  "digimon.digicube.monochromon.profile": "A Dinosaur Digimon plated in black armour harder than steel. Calm until it is roused, it then lowers its great horn and charges, and spits balls of volcanic magma at foes out of reach.",
+  "attack.digicube.guardy_tusk": "Guardy Tusk",
+  "attack.digicube.volcano_strike": "Volcano Strike"
 }

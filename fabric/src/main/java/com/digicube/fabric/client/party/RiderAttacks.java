@@ -95,21 +95,39 @@ public final class RiderAttacks {
         }
         int color = DigiTheme.withAlpha(DigiTheme.WHITE, alpha);
         g.blit(RenderPipelines.GUI_TEXTURED, ready, x, y, 0, 0, size, size, TEXTURE, TEXTURE, TEXTURE, TEXTURE, color);
-        // A cooldown drains as a clock; a stream's tile shows its tank the same way.
-        float left = attack.fuel() != null ? 0 : Math.max(0, mount.seenCooldown(attack) - partial);
+        // A cooldown drains as a clock; a stream's tile shows its tank the same way, and an emptied tank comes back
+        // round the clock with the seconds it still needs.
+        float left = attack.fuel() != null ? mount.riderRefillTicks(attack) : Math.max(0, mount.seenCooldown(attack) - partial);
         float done = mount.riderReadiness(attack, partial);
         // A hold is only lit while it has prey: a dull tile says a press would do nothing.
         var spec = mount.riderSpec(attack);
         if (done >= 1 && spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.GRAB && mount.grabPrey() == null) done = 0;
+        Identifier off = attack.id().withPath(path -> "textures/gui/attack/" + path + "_off.png");
+        // A rush fills its tile round the clock as it braces, and burns with a pulsing amber rim once it charges.
+        float rush = spec != null && spec.aim() == com.digicube.digimon.RiderAttack.Aim.RUSH ? mount.rushBuild(partial) : -1;
+        if (rush >= 0) {
+            if (rush < 1) dullSweep(g, off, x, y, size, rush, color);
+            else rushRim(g, x, y, size, mount.tickCount + partial, alpha);
+            return;
+        }
         boolean stacked = com.digicube.digimon.AttackCharges.of(attack) > 1;
         int uses = stacked ? mount.readyUses(attack) : 0;
         if (done >= 1) {
             if (stacked) uses(g, x, y, size, uses, alpha);
             return;
         }
-        Identifier off = attack.id().withPath(path -> "textures/gui/attack/" + path + "_off.png");
         // With a use still ready the tile stays lit: the refill only shades it (55 % lit, 45 % dull, as approved in v3).
         int sweep = stacked && uses > 0 ? DigiTheme.withAlpha(DigiTheme.WHITE, alpha * 115 / 255) : color;
+        dullSweep(g, off, x, y, size, done, sweep);
+        if (stacked) uses(g, x, y, size, uses, alpha);
+        if (left >= 20 && size >= HUD_TILE && uses == 0) {
+            String seconds = Integer.toString((int) Math.ceil(left / 20));
+            g.text(font, seconds, x + (size - font.width(seconds)) / 2 + 1, y + (size - 8) / 2 + 1, DigiTheme.withAlpha(DigiTheme.WHITE, alpha), true);
+        }
+    }
+
+    /** The dull twin over the part of the clock face a sweep that has reached {@code done} (0 to 1, from twelve) has not. */
+    private static void dullSweep(GuiGraphicsExtractor g, Identifier off, int x, int y, int size, float done, int sweep) {
         g.pose().pushMatrix();
         g.pose().translate(x, y);
         g.pose().scale(size / (float) TEXTURE, size / (float) TEXTURE);
@@ -126,11 +144,16 @@ public final class RiderAttacks {
             }
         }
         g.pose().popMatrix();
-        if (stacked) uses(g, x, y, size, uses, alpha);
-        if (left >= 20 && size >= HUD_TILE && uses == 0) {
-            String seconds = Integer.toString((int) Math.ceil(left / 20));
-            g.text(font, seconds, x + (size - font.width(seconds)) / 2 + 1, y + (size - 8) / 2 + 1, DigiTheme.withAlpha(DigiTheme.WHITE, alpha), true);
-        }
+    }
+
+    private static final int RUSH_RIM = 0xFFFFA62E, RUSH_GLOW = 0xFFFFE6A0, RUSH_SHEEN = 0xFFFFB84D;
+
+    /** A charging rush: an amber rim pulsing round the tile (over its frame) and a warm sheen over the art. */
+    private static void rushRim(GuiGraphicsExtractor g, int x, int y, int size, float time, int alpha) {
+        float pulse = .5F + .5F * (float) Math.sin(time * .9F);
+        g.fill(x, y, x + size, y + size, DigiTheme.withAlpha(RUSH_SHEEN, (int) (alpha * .2F * pulse)));
+        g.outline(x - 2, y - 2, size + 4, size + 4, DigiTheme.withAlpha(RUSH_RIM, (int) (alpha * (.6F + .4F * pulse))));
+        g.outline(x - 1, y - 1, size + 2, size + 2, DigiTheme.withAlpha(RUSH_GLOW, (int) (alpha * .85F * pulse)));
     }
 
     /** 3 x 5 texel digits for the stack count. */

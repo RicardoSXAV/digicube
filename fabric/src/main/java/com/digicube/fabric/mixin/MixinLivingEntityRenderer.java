@@ -15,8 +15,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * An inked body is drawn stained ({@link InkedVisuals}): the tint of its model, whatever the renderer made of it
- * (a wolf's or a tropical fish's own), is darkened toward the ink.
+ * An inked body is drawn stained ({@link InkedVisuals}) and a Burned one glowing ({@code BurnedVisuals}): the tint of its
+ * model, whatever the renderer made of it (a wolf's or a tropical fish's own), is darkened toward the ink or warmed
+ * toward the fire.
  */
 @Mixin(LivingEntityRenderer.class)
 public class MixinLivingEntityRenderer {
@@ -58,7 +59,10 @@ public class MixinLivingEntityRenderer {
             index = 6)
     private int digicube$inkStain(Model<?> model, Object state, PoseStack pose, RenderType type, int light, int overlay, int tint,
                                   TextureAtlasSprite sprite, int outline, ModelFeatureRenderer.CrumblingOverlay crumbling) {
-        Float ink = state instanceof FabricRenderState extra ? extra.getData(InkedVisuals.INK) : null;
+        if (!(state instanceof FabricRenderState extra)) return tint;
+        var burning = extra.getData(com.digicube.fabric.client.render.BurnedVisuals.BURNING);
+        Float ink = extra.getData(InkedVisuals.INK);
+        if (burning != null) tint = com.digicube.fabric.client.render.BurnedVisuals.tint(tint, burning.heat());
         return ink == null || ink <= 0 ? tint : InkedVisuals.tint(tint, ink);
     }
 }

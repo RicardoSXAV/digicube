@@ -27,6 +27,12 @@ public class MixinEntityRenderer {
         // Deadly Shade's ink stains the body it hit (MixinLivingEntityRenderer draws it darker while the mark lasts).
         extra.setData(com.digicube.fabric.client.render.InkedVisuals.INK,
                 entity instanceof LivingEntity living ? com.digicube.fabric.client.render.InkedVisuals.ink(living) : null);
+        // A Burned body glows and burns in its own flames (BurnedVisuals, MixinEntityRenderDispatcher), never under
+        // vanilla's sheet of fire.
+        float burn = entity instanceof LivingEntity living ? com.digicube.fabric.client.render.BurnedVisuals.burn(living) : 0;
+        extra.setData(com.digicube.fabric.client.render.BurnedVisuals.BURNING, burn <= 0 ? null : new com.digicube.fabric.client.render.BurnedVisuals.Burning(
+                com.digicube.fabric.client.render.BurnedVisuals.heat(burn, entity.tickCount + partialTick, entity.getId()), burn, entity.getId()));
+        if (burn > 0) state.displayFireAnimation = false;
         // The partner under the crosshair is outlined in blue, where a soft target keeps the white of vanilla.
         if (entity == com.digicube.fabric.client.party.PartyClient.aimedPartner()) state.outlineColor = com.digicube.fabric.client.party.PartyClient.AIM_OUTLINE;
         // So is the prey a press of the hold would take, in the colour of its tile.

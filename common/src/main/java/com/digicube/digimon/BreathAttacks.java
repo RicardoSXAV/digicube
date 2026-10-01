@@ -16,11 +16,11 @@ import java.util.Map;
 
 /**
  * A breath that behaves like a gas thrown from the mouth ({@code data/digicube/breath_attacks.json}; Garurumon's
- * Howling Blaster), a frost stream ({@link DigimonAttack.Kind#FROST_STREAM}) on a tank like any other. Instead of a
- * straight jet it is a train of puffs ({@code com.digicube.entity.FrostBreath}): each tick the mouth sheds some along
- * the aim with the body's own motion added, they fly on slowed by the air, widen as they age, slide along what they hit
- * and die away, so a swept aim bends the stream like water from a hose and a running breather trails it. The server
- * strikes with the same puffs every client draws.
+ * Howling Blaster, Seadramon's Ice Blast, Meramon's Heat Wave from his two palms), a frost stream ({@link DigimonAttack.Kind#FROST_STREAM}) on a tank like any
+ * other. Instead of a straight jet it is a train of puffs ({@code com.digicube.entity.FrostBreath}): each tick the mouth
+ * sheds some along the aim with the body's own motion added, they fly on slowed by the air, widen as they age, slide
+ * along what they hit and die away, so a swept aim bends the stream like water from a hose and a running breather trails
+ * it. The server strikes with the same puffs every client draws.
  */
 public final class BreathAttacks {
     /**
@@ -36,16 +36,27 @@ public final class BreathAttacks {
      * @param rise      what a puff's vertical speed gains each tick (negative sinks: cold air is heavy)
      * @param bounce    share of the speed into a surface that a puff keeps, turned along it
      * @param freeze    share of a Freeze gauge ({@link FreezeMark}) each tick of contact pays in (0 to 100)
+     * @param chills    contact charges Cold ({@link IceCombo}) instead of the Freeze gauge ({@code "mark": "cold"})
+     * @param burn      ticks contact sets a body alight for, kept topped up while it plays on it ({@code "mark": "burn"}:
+     *                  a fire breath, a Burn in the fight's terms; it thaws a frozen body and pays no Freeze), else 0
+     * @param melt      snow and ice the breath plays on melt (snow layers and blocks go, ice turns to water)
      * @param waterIce  still water the breath crosses freezes into frosted ice (the frost walker's, which melts back)
      * @param douse     fire the breath crosses goes out
      * @param turn      degrees a tick the head follows the aim across, and {@code pitchTurn} up or down
      * @param twist     the most the neck turns off the body's heading toward the aim (degrees); past it the body turns
      * @param effect    the effect model the renderer draws the puffs with
+     * @param art       how the puffs are drawn from it: {@code flame} (sections of one flame, Howling Blaster's) or
+     *                  {@code shards} (ice shards, frosty sheets and snow, Ice Blast's)
      * @param sounds    what every client plays for it (optional: null plays nothing)
+     * @param pixel     blocks one pixel of the effect model's art is drawn at (the flame's breadth scales with it)
+     * @param cooling   the colour a puff's blocks are tinted toward as it dies (red, green, blue shares; Howling Blaster's
+     *                  frost cools a little bluer, Heat Wave's fire deeper red)
      */
     public record Spec(DigimonAttack attack, float speed, float drag, int life, float[][] radius, int perTick, float spread, float rise,
-                       float bounce, float freeze, boolean waterIce, boolean douse, float turn, float pitchTurn, float twist, String effect,
-                       Sounds sounds) {
+                       float bounce, float freeze, boolean chills, int burn, boolean melt, boolean waterIce, boolean douse, float turn,
+                       float pitchTurn, float twist, String effect, String art, Sounds sounds, float pixel, float[] cooling) {
+        /** A fire breath: contact sets bodies alight instead of chilling them. */
+        public boolean burns() { return burn > 0; }
         /** Blocks a puff flies over its whole life in still air (the stream's reach). */
         public float reach() {
             float d = 0, v = speed;
@@ -119,16 +130,27 @@ public final class BreathAttacks {
                 var attack = new DigimonAttack(id, DigimonAttack.Kind.FROST_STREAM, GsonHelper.getAsFloat(c, "power"), 0,
                         GsonHelper.getAsInt(c, "duration"), GsonHelper.getAsInt(c, "hit_tick"), GsonHelper.getAsDouble(c, "range"), false,
                         AttackMotion.load(id), new AttackFuel((int) fuel[0], (int) fuel[1], (int) fuel[2]), 0);
+                String mark = GsonHelper.getAsString(c, "mark", "freeze");
+                if (!mark.equals("freeze") && !mark.equals("cold") && !mark.equals("burn"))
+                    throw new IllegalArgumentException("Breath " + id + " marks freeze, cold or burn");
+                int burn = mark.equals("burn") ? GsonHelper.getAsInt(c, "burn") : 0;
+                if (mark.equals("burn") && (burn < 1 || burn > 400)) throw new IllegalArgumentException("Breath " + id + " burns 1 to 400 ticks");
+                float[] cooling = c.has("cooling") ? floats(c, "cooling", 3) : new float[]{.88F, .92F, 1};
+                String art = GsonHelper.getAsString(c, "art", "flame");
+                if (!art.equals("flame") && !art.equals("shards")) throw new IllegalArgumentException("Breath " + id + " is drawn as flame or shards");
                 var spec = new Spec(attack, GsonHelper.getAsFloat(c, "speed"), GsonHelper.getAsFloat(c, "drag"), GsonHelper.getAsInt(c, "life"),
                         profile(c, "radius"), GsonHelper.getAsInt(c, "per_tick"), GsonHelper.getAsFloat(c, "spread"), GsonHelper.getAsFloat(c, "rise"),
-                        GsonHelper.getAsFloat(c, "bounce"), GsonHelper.getAsFloat(c, "freeze"), GsonHelper.getAsBoolean(c, "water_ice", false),
-                        GsonHelper.getAsBoolean(c, "douse", false), GsonHelper.getAsFloat(c, "turn"), GsonHelper.getAsFloat(c, "pitch_turn"),
-                        GsonHelper.getAsFloat(c, "twist"), GsonHelper.getAsString(c, "effect"), sounds(c));
+                        GsonHelper.getAsFloat(c, "bounce"), GsonHelper.getAsFloat(c, "freeze"), mark.equals("cold"), burn,
+                        GsonHelper.getAsBoolean(c, "melt", false), GsonHelper.getAsBoolean(c, "water_ice", false), GsonHelper.getAsBoolean(c, "douse", false),
+                        GsonHelper.getAsFloat(c, "turn"), GsonHelper.getAsFloat(c, "pitch_turn"), GsonHelper.getAsFloat(c, "twist"),
+                        GsonHelper.getAsString(c, "effect"), art, sounds(c), GsonHelper.getAsFloat(c, "pixel", .025F), cooling);
                 if (!(spec.speed() > 0 && spec.speed() < 4) || !(spec.drag() > 0 && spec.drag() <= 1) || spec.life() < 2 || spec.life() > 80
                         || spec.perTick() < 1 || spec.perTick() > 6
                         || !(spec.spread() >= 0 && spec.spread() < 1) || !(spec.bounce() >= 0 && spec.bounce() <= 1)
                         || !(spec.freeze() >= 0 && spec.freeze() <= FreezeMark.FULL) || !(spec.turn() > 0) || !(spec.pitchTurn() > 0)
-                        || !(spec.twist() >= 0 && spec.twist() <= 110))
+                        || !(spec.twist() >= 0 && spec.twist() <= 110) || !(spec.pixel() > .005F && spec.pixel() < .1F)
+                        || spec.burns() && (spec.freeze() > 0 || spec.waterIce())
+                        || !(cooling[0] >= 0 && cooling[0] <= 1 && cooling[1] >= 0 && cooling[1] <= 1 && cooling[2] >= 0 && cooling[2] <= 1))
                     throw new IllegalArgumentException("Invalid breath " + id);
                 result.put(id, spec);
             }

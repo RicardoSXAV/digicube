@@ -1,7 +1,7 @@
 package com.digicube.fabric.client.digivice;
 
 import com.digicube.digimon.BreathAttacks;
-import com.digicube.digimon.ConstrictionMotion;
+import com.digicube.digimon.ConstrictionCoil;
 import com.digicube.digimon.CrackMark;
 import com.digicube.digimon.DigimonAttack;
 import com.digicube.digimon.ExposedMark;
@@ -64,9 +64,9 @@ public final class MarkLife {
                     ? new Frame(Draw.BUILD, (t + 1F) / IceCombo.COLD_CHARGE_TICKS, "chill", percent((t + 1F) / IceCombo.COLD_CHARGE_TICKS))
                     : timer(t - IceCombo.COLD_CHARGE_TICKS, IceCombo.COLD_TICKS, "slowed");
             case HELD -> {
-                int held = ConstrictionMotion.RELEASE_TICK - ConstrictionMotion.CAPTURE_TICK;
-                if (t >= held) yield CLEAR;
-                boolean squeezed = t >= ConstrictionMotion.INTERVAL && t % ConstrictionMotion.INTERVAL < 4;
+                if (t >= ConstrictionCoil.RELEASE) yield CLEAR;
+                int squeeze = t - ConstrictionCoil.FIRST_SQUEEZE;
+                boolean squeezed = squeeze >= 0 && squeeze % ConstrictionCoil.INTERVAL < 4 && squeeze / ConstrictionCoil.INTERVAL < ConstrictionCoil.SQUEEZES;
                 yield new Frame(squeezed ? Draw.HURT : Draw.WHOLE, 1, squeezed ? "squeezed" : "held");
             }
             case INKED -> timer(t, lasts(entry), "inked");
@@ -93,7 +93,7 @@ public final class MarkLife {
         int run = switch (entry.mark()) {
             case FREEZE -> STEP + breathTicks(entry) + 2 * FreezeMark.FLASH_TICKS + FreezeMark.FROZEN_TICKS + FreezeMark.RESIST_TICKS;
             case COLD -> IceCombo.COLD_CHARGE_TICKS + IceCombo.COLD_TICKS;
-            case HELD -> ConstrictionMotion.RELEASE_TICK - ConstrictionMotion.CAPTURE_TICK;
+            case HELD -> ConstrictionCoil.RELEASE;
             case CRACK -> (CrackMark.CHARGES - 1) * STEP + 4 + CrackMark.CRACKED_TICKS;
             case INKED, EXPOSED, BURN -> lasts(entry);
         };

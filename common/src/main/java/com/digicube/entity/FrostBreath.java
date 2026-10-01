@@ -23,7 +23,8 @@ import java.util.List;
  * as the breath's profile says (narrow at the mouth, broadest partway out), sink a little (cold air is heavy), and a puff
  * that meets a block or the water keeps its speed along the surface, a little of the rest thrown back and some splashing
  * out over the surface, and spreads wider, so the frost washes along floors and walls instead of passing through them. A
- * swept aim bends the train like water from a hose; the oldest puffs fade out at the end of their life.
+ * puff already under water flies on through it (breathed by a swimmer, it meets only blocks and the surface from below).
+ * A swept aim bends the train like water from a hose; the oldest puffs fade out at the end of their life.
  */
 public final class FrostBreath {
     /** One puff: position and velocity (blocks, a tick), age (ticks), whether it has struck a surface, and a seed for its look. */
@@ -104,7 +105,9 @@ public final class FrostBreath {
             p.px = p.x; p.py = p.y; p.pz = p.z;
             Vec3 from = p.position(), to = from.add(p.vx, p.vy, p.vz);
             if (level != null && to.distanceToSqr(from) > 1.0E-8) {
-                BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY, CollisionContext.empty()));
+                boolean wet = !level.getFluidState(BlockPos.containing(from)).isEmpty();
+                BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, wet ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY,
+                        CollisionContext.empty()));
                 if (hit.getType() != HitResult.Type.MISS) {
                     Direction face = hit.getDirection();
                     Vec3 n = new Vec3(face.getStepX(), face.getStepY(), face.getStepZ());

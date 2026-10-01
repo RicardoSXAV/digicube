@@ -78,7 +78,13 @@ public final class AttackTravelSync {
      */
     public static int steps(DigimonAttack attack, int arrivalTick) {
         return drivesRoot(attack) && window(attack.motion()).contains(arrivalTick) || flight(attack).contains(arrivalTick)
-                || burst(attack).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
+                || burst(attack).contains(arrivalTick) || strike(attack).contains(arrivalTick) ? LUNGE_STEPS : VANILLA_STEPS;
+    }
+
+    /** @return the strike of a wrap (from its wind-up to its longest reach, and the settling beside its prey); empty for other attacks */
+    private static Window strike(DigimonAttack attack) {
+        return attack == null || attack.kind() != DigimonAttack.Kind.CONSTRICTION ? NONE
+                : new Window(2, com.digicube.digimon.ConstrictionCoil.STRIKE_TICKS + 8);
     }
 
     /** @return the burst of a pounce (its clip ticks, the same from the ground and from the air); empty for other attacks */

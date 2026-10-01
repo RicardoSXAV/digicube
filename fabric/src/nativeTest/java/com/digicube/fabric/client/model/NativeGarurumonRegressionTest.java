@@ -475,6 +475,10 @@ public final class NativeGarurumonRegressionTest {
         double covered = spans.get(0)[1], widestGap = 0;
         for (var span : spans) { widestGap = Math.max(widestGap, span[0] - covered); covered = Math.max(covered, span[1]); }
         check(widestGap < .05, "a steady stream is one body of blocks: a gap of " + widestGap + " blocks along it");
+        // Drawn at any moment between ticks, the stream's base stays on the mouth: its nearest block starts there.
+        double baseOff = 0;
+        for (float partial : new float[]{0, .25F, .5F, .75F, .95F}) baseOff = Math.max(baseOff, Math.abs(base(lay(flame, breathe(spec, t -> new Vec3(0, 0, 1), 24, 0), partial))));
+        check(baseOff < .12, "the stream's base stays on the mouth between ticks: off by " + baseOff + " blocks");
 
         // Whipped back and forth at the breath's full turn, the flame stays a stream of whole blocks: none is stretched
         // along the curve, whatever the gap between puffs.
@@ -509,8 +513,12 @@ public final class NativeGarurumonRegressionTest {
         check(astray < .25, "every block of a whipped stream rides its own puff's flight: one strays " + astray + " blocks off");
 
         // Overlapping boxes never share a face's plane (they would flicker), steady or whipped.
-        int steadyFlicker = coplanar(steady.boxes()), whippedFlicker = coplanar(whipped.boxes());
-        check(steadyFlicker == 0 && whippedFlicker == 0, "no two boxes share a face's plane where they overlap: " + steadyFlicker + " steady, " + whippedFlicker + " whipped");
+        // (Within a puff's trail the lanes rule it out; two puffs' blocks may meet on a plane by chance for a frame, so a
+        // steady stream is judged over a few moments between ticks.)
+        int steadyFlicker = 0, whippedFlicker = coplanar(whipped.boxes());
+        var steadyBreath = breathe(spec, t -> new Vec3(0, 0, 1), 24, 0);
+        for (float partial : new float[]{0, .25F, .5F, .75F}) steadyFlicker += coplanar(lay(flame, steadyBreath, partial).boxes());
+        check(steadyFlicker <= 1 && whippedFlicker == 0, "no two boxes share a face's plane where they overlap: " + steadyFlicker + " steady over four moments, " + whippedFlicker + " whipped");
 
         // Let go, the flame leaves the mouth thinning at its tail.
         var released = lay(flame, breathe(spec, t -> new Vec3(0, 0, 1), 24, 3));
@@ -539,7 +547,7 @@ public final class NativeGarurumonRegressionTest {
     }
 
     /** One box the flame renderer laid: the art's box, where, its axes (right, up, forward) and its scale. */
-    private record Laid(com.digicube.fabric.client.render.FrostBreathRenderer.Box box, float x, float y, float z, float[] frame, float scale, boolean twoSided) {
+    record Laid(com.digicube.fabric.client.render.FrostBreathRenderer.Box box, float x, float y, float z, float[] frame, float scale, boolean twoSided) {
         float[] at(float[] v) {
             return new float[]{x - (frame[0] * v[0] + frame[3] * v[1] + frame[6] * v[2]) * scale,
                     y - (frame[1] * v[0] + frame[4] * v[1] + frame[7] * v[2]) * scale,
@@ -547,22 +555,40 @@ public final class NativeGarurumonRegressionTest {
         }
     }
 
-    private record Flame(com.digicube.fabric.client.render.FrostBreathRenderer.State puffs, List<Laid> boxes) {}
+    record Flame(com.digicube.fabric.client.render.FrostBreathRenderer.State puffs, List<Laid> boxes) {}
 
-    /** A breath shed from a mouth 1.5 blocks up for {@code ticks} along {@code aim(tick)}, then flown {@code after} ticks more. */
-    private static com.digicube.entity.FrostBreath breathe(com.digicube.digimon.BreathAttacks.Spec spec, java.util.function.IntFunction<Vec3> aim, int ticks, int after) {
+    /**
+     * A breath shed from a mouth 1.5 blocks up for {@code ticks} along {@code aim(tick)}, then flown {@code after} ticks
+     * more, as a client flies it (the puffs in flight move on, then the tick's new ones leave the mouth).
+     */
+    static com.digicube.entity.FrostBreath breathe(com.digicube.digimon.BreathAttacks.Spec spec, java.util.function.IntFunction<Vec3> aim, int ticks, int after) {
         var breath = new com.digicube.entity.FrostBreath(spec);
         for (int t = 0; t < ticks + after; t++) {
+            breath.step(null);
             if (t < ticks) breath.emit(new Vec3(0, 1.5, 0), aim.apply(t), Vec3.ZERO, net.minecraft.util.RandomSource.create(t));
             else breath.breakTrain();
-            breath.step(null);
         }
         return breath;
     }
 
-    private static Flame lay(com.digicube.fabric.client.render.FrostBreathRenderer renderer, com.digicube.entity.FrostBreath breath) {
+    /** Where a stream aimed along +z from the origin begins: the nearest z of its flame's blocks (embers left out). */
+    static double base(Flame flame) {
+        double near = Double.MAX_VALUE;
+        for (var box : flame.boxes()) {
+            if (box.box().longest() < 6) continue;
+            for (var quad : box.box().quads()) for (float[] vertex : quad) near = Math.min(near, box.at(vertex)[2]);
+        }
+        return near;
+    }
+
+    static Flame lay(com.digicube.fabric.client.render.FrostBreathRenderer renderer, com.digicube.entity.FrostBreath breath) {
+        return lay(renderer, breath, 0);
+    }
+
+    /** The flame as the renderer lays it {@code partial} of a tick after the breath's last tick. */
+    static Flame lay(com.digicube.fabric.client.render.FrostBreathRenderer renderer, com.digicube.entity.FrostBreath breath, float partial) {
         var puffs = new com.digicube.fabric.client.render.FrostBreathRenderer.State();
-        com.digicube.fabric.client.render.FrostBreathRenderer.extract(breath, puffs, 0, 0, 0, 0);
+        com.digicube.fabric.client.render.FrostBreathRenderer.extract(breath, puffs, 0, 0, 0, partial);
         List<Laid> boxes = new java.util.ArrayList<>();
         renderer.place(puffs, 40, (box, x, y, z, frame, scale, color, twoSided) -> boxes.add(new Laid(box, x, y, z, frame.clone(), scale, twoSided)));
         return new Flame(puffs, boxes);
@@ -575,7 +601,7 @@ public final class NativeGarurumonRegressionTest {
     private static final float PLANE = 1.0E-5F;
 
     /** Pairs of faces of different boxes facing the same way on one plane that overlap. */
-    private static int coplanar(List<Laid> boxes) {
+    static int coplanar(List<Laid> boxes) {
         List<float[][]> faces = new java.util.ArrayList<>();
         List<Integer> owner = new java.util.ArrayList<>();
         for (int b = 0; b < boxes.size(); b++) {
@@ -620,7 +646,7 @@ public final class NativeGarurumonRegressionTest {
     }
 
     /** A box drawn whole: an orthonormal frame and one scale no larger than the flame's pixel with its flicker. */
-    private static boolean rigid(Laid box, float pixel) {
+    static boolean rigid(Laid box, float pixel) {
         float[] f = box.frame();
         for (int a = 0; a < 3; a++) {
             float l = f[a * 3] * f[a * 3] + f[a * 3 + 1] * f[a * 3 + 1] + f[a * 3 + 2] * f[a * 3 + 2];

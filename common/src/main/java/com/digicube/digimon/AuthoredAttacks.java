@@ -13,7 +13,8 @@ import java.util.*;
 /**
  * Finite native performances: the visual cells and damage volumes share one clock. A definition's {@code effectClip}
  * is the clip of its effect model it plays (forms share one model), {@code key} the movement key a rider holds to pick
- * that form ({@code forward}, {@code left}, {@code right}; none for the first form's default).
+ * that form ({@code forward}, {@code left}, {@code right}; none for the first form's default). {@code burn} is the ticks a
+ * landed blow sets its victim alight for ({@code burn}; 0: none), a Burn in the fight's terms (Meramon's Fire Fist).
  */
 public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
@@ -21,7 +22,7 @@ public final class AuthoredAttacks {
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
                              com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley,
                              List<String> formNames, FormChoice formChoice, String effectClip, String key,
-                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds) {
+                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds, int burn) {
         /**
          * Plays the move's own sound for {@code cue} at {@code at}, if its sheet names one ({@code sounds} in
          * {@code authored_attacks.json}: {@code wind_up} as it starts, {@code release} as a dash sets off or a discharge
@@ -111,6 +112,8 @@ public final class AuthoredAttacks {
     public record Forms(List<DigimonAttack> all, FormChoice choice) {
         public int index(DigimonAttack form) { return all.indexOf(form); }
     }
+    /** The cues a move may name its own sounds for; before the definitions, which read them as they load. */
+    private static final Set<String> CUES = Set.of("wind_up", "release", "contact", "struck");
     private static final Map<Identifier,Definition> DEFINITIONS=load();
     private static final Map<Identifier,Forms> FORMS=new HashMap<>();
     private static final Map<Identifier,DigimonAttack> FIRST_FORMS=new HashMap<>();
@@ -223,11 +226,10 @@ public final class AuthoredAttacks {
                     forms(c),FormChoice.valueOf(GsonHelper.getAsString(c,"form_choice","combo").toUpperCase(Locale.ROOT)),
                     GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null),
                     impact(c,attack,rootTravel),c.has("arc")?com.digicube.entity.ArcDischarge.Spec.load(c.getAsJsonObject("arc")):null,
-                    sounds(c)));
+                    sounds(c),burn(c,id)));
         }
         return Collections.unmodifiableMap(result);
     }
-    private static final Set<String> CUES = Set.of("wind_up", "release", "contact", "struck");
     /** A move's own sounds by cue ({@code sounds}: {"cue": "sound id"} or {"cue": {"sound": id, "volume": v, "pitch": p}}). */
     private static Map<String, Cue> sounds(JsonObject c) {
         if (!c.has("sounds")) return Map.of();
@@ -240,6 +242,12 @@ public final class AuthoredAttacks {
                     GsonHelper.getAsFloat(v.getAsJsonObject(), "volume", 1), GsonHelper.getAsFloat(v.getAsJsonObject(), "pitch", 1)));
         }
         return Map.copyOf(out);
+    }
+    /** Ticks a landed blow sets its victim alight for (0 to 400; 0: none). */
+    private static int burn(JsonObject c, Identifier id) {
+        int ticks = GsonHelper.getAsInt(c, "burn", 0);
+        if (ticks < 0 || ticks > 400) throw new IllegalArgumentException("A blow burns 0 to 400 ticks " + id);
+        return ticks;
     }
     /** A travelling blow's impact pose, in its clip's ticks (-1: none); inside the performance, only on a blow that travels. */
     private static double impact(JsonObject c, DigimonAttack attack, boolean rootTravel) {

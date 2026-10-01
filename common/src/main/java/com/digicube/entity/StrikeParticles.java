@@ -57,7 +57,14 @@ public enum StrikeParticles {
      * An electric discharge (Betamon's Electric Shock): the bolts, their sparks and their bursts are the discharge's own
      * (ArcDischarge, drawn by each client), so the style only keeps the growl away.
      */
-    SPARK;
+    SPARK,
+    /**
+     * A burning fist (Meramon's Fire Fist): a fire's low roar and the hiss of the fist catching alight as it is drawn
+     * back, a burst of flame and the floor kicked back as the dash sets off, flames and smoke streaming off the fist
+     * through the dash and a whoosh as it is thrown, and where it lands a blast of flame, spat embers and smoke with a
+     * heavy blow and a searing hiss.
+     */
+    FIRE;
 
     public static StrikeParticles byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -85,6 +92,11 @@ public enum StrikeParticles {
             return true;
         }
         if (this == RAM || this == SPARK) return true;
+        if (this == FIRE) {
+            play(level, at, SoundEvents.BLAZE_AMBIENT, .9F, .7F);
+            play(level, at, SoundEvents.FIRECHARGE_USE, .7F, 1.25F);
+            return true;
+        }
         if (this == STEEL) {
             // Every use of a stacked blade combo starts one: a clink, never a monster's growl.
             play(level, at, SoundEvents.ARMOR_EQUIP_IRON.value(), .7F, 1.25F);
@@ -102,6 +114,7 @@ public enum StrikeParticles {
             case STONE -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .6F, 1.45F);
             case STEEL -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .9F, .9F);
             case CLAW -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .8F, 1.35F);
+            case FIRE -> play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .9F, .75F);
             case PINCER -> {
                 play(level, at, SoundEvents.PLAYER_ATTACK_SWEEP, .8F, 1.25F);
                 play(level, at, SoundEvents.SHEARS_SNIP, 1F, 1.1F);
@@ -125,6 +138,11 @@ public enum StrikeParticles {
                 }
             }
             case PINCER -> level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 1, .06, .06, .06, .04);
+            case FIRE -> {
+                level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y, at.z, 3, .1, .1, .1, .01);
+                level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, at.x, at.y, at.z, 2, .14, .14, .14, .02);
+                if (level.getRandom().nextInt(2) == 0) level.sendParticles(ParticleTypes.SMOKE, true, true, at.x, at.y, at.z, 1, .1, .1, .1, .01);
+            }
             case RAM -> {
                 if (!level.getFluidState(BlockPos.containing(at)).isEmpty())
                     level.sendParticles(ParticleTypes.BUBBLE, true, true, at.x, at.y, at.z, 4, .15, .15, .15, .05);
@@ -161,6 +179,13 @@ public enum StrikeParticles {
                 }
                 level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 14, .35, .02, .35, .14);
                 level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y + .05, at.z, 6, .3, .02, .3, .04);
+            }
+            case FIRE -> {
+                // The dash sets off: a burst of flame off the driving foot and the floor kicked back.
+                play(level, at, SoundEvents.BLAZE_SHOOT, 1F, .85F);
+                level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y + .15, at.z, 12, .3, .05, .3, .05);
+                level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, floor(level, at)), true, true, at.x, at.y + .05, at.z, 10, .3, .02, .3, .12);
+                level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y + .2, at.z, 3, .25, .05, .25, .02);
             }
             case CLAW -> {
                 play(level, at, SoundEvents.GOAT_LONG_JUMP, .7F, 1.35F);
@@ -203,6 +228,15 @@ public enum StrikeParticles {
                 level.sendParticles(ParticleTypes.POOF, true, true, at.x, at.y, at.z, 6, .15, .15, .15, .05);
                 // A few small white sparks off the brow: the knock without lighting up the whole scene.
                 level.sendParticles(ParticleTypes.FIREWORK, true, true, at.x, at.y, at.z, 6, .08, .08, .08, .12);
+            }
+            case FIRE -> {
+                level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y, at.z, 22, .22, .22, .22, .14);
+                level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y, at.z, 5, .15, .15, .15, 0);
+                level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y, at.z, 4, .2, .2, .2, .03);
+                level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 8, .2, .2, .2, .3);
+                play(level, at, SoundEvents.PLAYER_ATTACK_STRONG, 1.1F, .85F);
+                play(level, at, SoundEvents.FIRECHARGE_USE, 1F, .75F);
+                play(level, at, SoundEvents.GENERIC_BURN, .7F, 1.1F);
             }
             case CLAW -> {
                 level.sendParticles(ParticleTypes.SWEEP_ATTACK, true, true, at.x, at.y, at.z, 1, 0, 0, 0, 0);

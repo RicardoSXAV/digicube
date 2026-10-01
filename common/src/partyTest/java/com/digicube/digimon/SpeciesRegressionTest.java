@@ -19,7 +19,21 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 24, "all bundled species loaded");
+            check(DigimonSpeciesRegistry.size() == 25, "all bundled species loaded");
+            var monochromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("monochromon"));
+            var monochromonGait = monochromon.locomotion().groundGait();
+            var monochromonRiding = monochromon.body().mount().orElseThrow().riderAttacks();
+            // An amble of 8 ticks at 0.2 blocks a tick that the AI walks and runs at; Guardy Tusk a held rush, Volcano
+            // Strike a burning shot.
+            check(monochromon.stage() == DigimonStage.ADULT && monochromon.attribute() == DigimonAttribute.DATA
+                            && monochromon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("guardy_tusk", "volcano_strike"))
+                            && monochromonGait != null && monochromonGait.cycleTicks() == 8 && monochromonGait.directional()
+                            && Math.abs(monochromonGait.fullSpeed(monochromon.body().modelScale()) - .2) < 1.0E-6
+                            && monochromon.locomotion().runSpeed() == monochromon.locomotion().walkSpeed()
+                            && RushAttacks.get(monochromon.attacks().getFirst()) != null && AuthoredAttacks.get(monochromon.attacks().getFirst()).rootTravel()
+                            && KineticAttacks.get(monochromon.attacks().get(1)).burns()
+                            && monochromonRiding.get(1).aim() == RiderAttack.Aim.RUSH && monochromonRiding.get(1).input() == RiderAttack.Input.HOLD,
+                    "Monochromon is a data champion on an amble, with a held Guardy Tusk rush and a burning Volcano Strike");
             var ganimon = DigimonSpeciesRegistry.getOrThrow(Constants.id("ganimon"));
             var ganimonGait = ganimon.locomotion().groundGait();
             // The wave gait: 12 ticks, 52 px forward and side-on, 44 px back;
@@ -34,11 +48,13 @@ public final class SpeciesRegressionTest {
             var meramon = DigimonSpeciesRegistry.getOrThrow(Constants.id("meramon"));
             var meramonGait = meramon.locomotion().groundGait();
             // Planted walk and run: one 18-tick phase, the run played in 13.
-            check(meramon.stage() == DigimonStage.ADULT && meramon.attribute() == DigimonAttribute.DATA && meramon.attacks().isEmpty()
+            check(meramon.stage() == DigimonStage.ADULT && meramon.attribute() == DigimonAttribute.DATA
+                            && meramon.attacks().stream().map(a -> a.id().getPath()).toList().equals(java.util.List.of("fire_fist", "heat_wave"))
+                            && meramon.tactics().preferClose()
                             && meramonGait != null && meramonGait.cycleTicks() == 18 && meramonGait.directional()
                             && Math.abs(meramonGait.fullSpeed(meramon.body().modelScale()) - 5.6 * .26 / 18) < 1.0E-6
                             && Math.abs(meramonGait.runSpeed(meramon.body().modelScale()) - 10.4 * .26 / 13) < 1.0E-6,
-                    "Meramon is a data champion with no attacks yet, on the authored planted stride");
+                    "Meramon is a data champion, a brawler with Fire Fist and Heat Wave, on the authored planted stride");
             var mojyamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("mojyamon"));
             check(mojyamon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("boomerang_bone", "icicle_rod"))
                             && ThrownAttacks.returning(mojyamon.attacks().get(0)) != null && ThrownAttacks.charged(mojyamon.attacks().get(1)) != null,

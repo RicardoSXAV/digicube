@@ -5,13 +5,24 @@
   "base_attack": 14,
   "base_defence": 9,
   "base_speed": 0.1917,
-  "attacks": [],
+  "attacks": [
+    "fire_fist",
+    "heat_wave"
+  ],
   "evolutions": [],
+  "tactics": {
+    "prefer_close": true,
+    "fight_speed": 1.5,
+    "dodge_chance": 0.3,
+    "reaction_ticks": 4,
+    "lead_ticks": 4
+  },
   "body": {
     "model_scale": 0.26,
     "width": 1.0,
     "height": 2.35,
-    "eye_height": 2.1
+    "eye_height": 2.1,
+    "fireproof": true
   },
   "locomotion": {
     "follow_start_distance": 5.0,

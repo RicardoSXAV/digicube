@@ -74,18 +74,33 @@ public enum CombatMark {
                 return pounce != null && pounce.freeze() > 0 ? FREEZE : null;
             }
             case FROST_STREAM -> {
-                // A breath of puffs builds Freeze; a stream charges Cold.
+                // A straight stream, or a breath of puffs marked cold, charges Cold; a fire breath Burns; any other breath
+                // builds Freeze.
                 BreathAttacks.Spec breath = BreathAttacks.get(attack);
-                return breath == null ? COLD : breath.freeze() > 0 ? FREEZE : null;
+                return breath == null || breath.chills() ? COLD : breath.burns() ? BURN : breath.freeze() > 0 ? FREEZE : null;
             }
             case CONSTRICTION -> { return HELD; }
             case FIREBALL, FLAME_SHOT -> { return BURN; }
             default -> { }
         }
+        AuthoredAttacks.Definition authored = AuthoredAttacks.handles(attack) ? AuthoredAttacks.get(attack) : null;
+        if (authored != null && authored.burn() > 0) return BURN;
         KineticAttacks.Definition shot = KineticAttacks.get(attack);
+        if (shot != null && shot.burns()) return BURN;
         if (shot != null && shot.impairmentTicks() > 0) return INKED;
         if (shot != null && shot.exposeTicks() > 0) return EXPOSED;
         return CrackMark.charges(attack) > 0 ? CRACK : null;
+    }
+
+    /** How long a body {@code attack} lights burns: a fire breath's or a burning blow's own, a fireball's or Mega Flame's. */
+    private static int burnTicks(DigimonAttack attack) {
+        BreathAttacks.Spec breath = BreathAttacks.get(attack);
+        if (breath != null && breath.burns()) return breath.burn();
+        AuthoredAttacks.Definition authored = AuthoredAttacks.handles(attack) ? AuthoredAttacks.get(attack) : null;
+        if (authored != null && authored.burn() > 0) return authored.burn();
+        KineticAttacks.Definition shot = KineticAttacks.get(attack);
+        if (shot != null && shot.burns()) return shot.burn();
+        return attack.kind() == DigimonAttack.Kind.FLAME_SHOT ? MegaFlameEntity.BURN_TICKS : PepperBreathEntity.BURN_TICKS;
     }
 
     /** How long the mark {@code attack} leaves lasts, in ticks; 0 for no mark, and for Held, which lasts as long as the hold. */
@@ -99,7 +114,7 @@ public enum CombatMark {
             case HELD -> 0;
             case INKED -> KineticAttacks.get(attack).impairmentTicks();
             case EXPOSED -> KineticAttacks.get(attack).exposeTicks();
-            case BURN -> attack.kind() == DigimonAttack.Kind.FLAME_SHOT ? MegaFlameEntity.BURN_TICKS : PepperBreathEntity.BURN_TICKS;
+            case BURN -> burnTicks(attack);
         };
     }
 }

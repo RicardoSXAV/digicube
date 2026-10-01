@@ -103,5 +103,32 @@
     "emissive": false,
     "aim_at_top": false,
     "shot_style": "water"
+  },
+  "volcano_strike": {
+    "kind": "KINETIC_SHOT",
+    "power": 1.1,
+    "cooldown": 70,
+    "duration": 24,
+    "hit_tick": 11,
+    "range": 14,
+    "knockback": 0.45,
+    "model_scale": 0.4,
+    "projectile": "volcano_strike_projectile",
+    "projectile_scale": 0.75,
+    "projectile_speed": 1.0,
+    "projectile_life": 18,
+    "max_lead": 3,
+    "max_pitch": 40,
+    "aim_path": [
+      "monochromon",
+      "body",
+      "head"
+    ],
+    "impact_ticks": 13,
+    "emissive": true,
+    "blend_aim": true,
+    "aim_at_top": false,
+    "shot_style": "magma",
+    "burn": 100
   }
 }
