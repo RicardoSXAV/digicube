@@ -22,9 +22,10 @@ gauge, full = `digicube:cracked` for 6 s, +25 % damage taken from every source (
 with `expose_ticks` (Hunting Cannon, 80) leaves its victim `digicube:exposed`: +30 points of crit chance on
 every Digimon hit against it (on top of the triangle, in `CriticalHits.chance`) and no dodging
 (`DigimonAttackGoal.dodgeChance`); a crit on it blinks the emblem (`mark_exposed_flash`). **Burn**: fire a
-Digimon's attack lights (Pepper Breath, Mega Flame; call `digicube$burn(ticks)` after igniting) is a Burn for
+Digimon's attack lights (Pepper Breath, Mega Flame, a breath's, an authored blow's or a kinetic shot's `burn`: `DigimonEntity.scorch`,
+which also thaws; call `digicube$burn(ticks)` after igniting) is a Burn for
 as long as the body keeps burning; vanilla fire does the damage and water puts it out, the emblem's rim drains
-with the fire (`mark_burn`). **Freeze** (`FreezeMark`): frost pays into a gauge of 100 (a pounce's bite and each
+with the fire (`mark_burn`), and the body burns in the mark's own look ([effects.md](effects.md#burning-bodies)). **Freeze** (`FreezeMark`): frost pays into a gauge of 100 (a pounce's bite and each
 tick of a breath's contact, amounts in their data); left unfed for `HOLD_TICKS` it drains; full, the body is
 `digicube:frozen` for `FROZEN_TICKS` (no moving, jumping or acting, vanilla's freezing shake; a Digimon's attack
 under way is cut) and then `digicube:frost_resistance` for `RESIST_TICKS`, when the gauge cannot fill. A pounce on a
@@ -41,15 +42,13 @@ a constant of `CombatMark` (common), the list the Analyzer's guide and a tamer's
 tells which mark a move leaves from the move's own data and kind, `showing(marks, marks2)` which emblems a body
 shows, the same rule as the badges. `:common:analyzerTest` pins both.
 
-A frost stream that is not a breath of puffs (Seadramon's Ice Blast) never freezes a creature: a second of landed contact
-charges **Cold** on the victim (`CombatMarkState`, slowed movement for `IceCombo.COLD_TICKS`, topped up by further contact,
-melted by fire), and its wrap may take any prey, Cold or not. It freezes the sea instead (`frostSurface`, with
-`mobGriefing`): still water at the surface where the stream ends (on its prey, or as far as it reaches skimming the sea),
-or where it first comes down into it from above, turns to frosted ice in a floe round the spot (at most four blocks a time,
-growing as the stream plays on it), which melts back as the frost walker's does; never within two blocks of the mouth,
-under the surface, or where a body is. A rider's stream breathed on the move (`move` on its rider attack) leaves along
-the attack yaw, which follows the crosshair within `STREAM_TWIST` (70 degrees) of the body at `STREAM_TURN` a tick
-(`streamYaw`) while the rider steers the body; a serpent swimming breathes it from its lower head (`swim_head_drop`).
+Frost that chills (a breath of puffs marked `cold`, Seadramon's Ice Blast, or a straight frost stream: `chills`) never
+freezes a creature: a second of landed contact charges **Cold** on the victim (`CombatMarkState`, slowed movement for
+`IceCombo.COLD_TICKS`, topped up by further contact, melted by fire), and its wrap may take any prey, Cold or not; on prey
+already Cold the AI keeps a charge's worth of fuel back (`IceCombo.chillFuelTicks`). A straight stream breathed on the
+move (`move` on its rider attack) leaves along the attack yaw, within `STREAM_TWIST` (70 degrees) of the body at
+`STREAM_TURN` a tick (`streamYaw`), and freezes a floe where it ends on the sea (`frostSurface`); a serpent swimming
+breathes from its lower head (`swim_head_drop`).
 
 ## Attacks as data
 
@@ -69,12 +68,18 @@ Two kinds carry their own data file (Garurumon's; see [species/garurumon.md](spe
 - A **breath of puffs** (`breath_attacks.json`, `BreathAttacks`, a fueled `FROST_STREAM`): instead of a straight jet,
   each tick the mouth sheds puffs with the aim's speed plus the body's motion, which slow, sink, slide along what they
   strike (met head-on, part of their push splashes out over the surface) and die (`FrostBreath`, the same on the server,
-  which strikes with them, and on every client, which draws them); a swept aim bends the stream like a hose. A puff's
-  radius follows the breath's `radius` profile, `[age, radius]` points from age 0 (straight between them, held past the
-  last), and the drawn flame is as wide as it, so what the flame covers is what it strikes. Optional `sounds` names its
-  `start`, `loop` and `end` sound events, which every client plays itself. Contact pays into the Freeze gauge and pulses damage every
-  `fuel` interval per victim; still water it strikes turns to frosted ice and fire it crosses goes out (with
-  `mobGriefing`).
+  which strikes with them, and on every client, which draws them); a swept aim bends the stream like a hose. The AI
+  aims at its prey's chest led by its pace, through an alpha-beta filter (`breathLead`), so prey stepping about never
+  jerks the body round. A puff's radius follows the breath's `radius` profile, `[age, radius]` points from age 0
+  (straight between them, held past the last), and the drawn flame is as wide as it, so what the flame covers is what
+  it strikes. Optional `sounds` names its
+  `start`, `loop` and `end` sound events, which every client plays itself (without, the server bubbles on every damage
+  pulse). Contact pays into the Freeze gauge (`mark` `freeze`, the default) or charges Cold (`mark` `cold`) and pulses
+  damage every `fuel` interval per victim; `mark` `burn` sets it alight for `burn` ticks instead (a fire breath, with `melt`
+  melting snow and ice: [species/meramon.md](species/meramon.md)); `art` picks how it is drawn (`flame` or `shards`,
+  [effects.md](effects.md#breaths-and-pounces)). A puff under water flies on through it. Still water it strikes turns to
+  frosted ice in a floe that grows round the spot as it plays there (`frostTheWorld`: two neighbours a block, six blocks a
+  tick, never within two blocks of the mouth or where the body lies) and fire it crosses goes out (with `mobGriefing`).
 
 A pouncer's AI (`choosePounce`) breathes on prey from `BREATH_FROM` blocks out while its gauge can fill and the tank
 holds a share, pounces up close, on Frozen prey (the shatter) and on prey that resists frost, and leaps at prey on a
@@ -108,12 +113,7 @@ sidestepped late, just before its aim locks) and inbound projectiles server-side
 that fights us is timed (`DigimonEntity.wrapPunished`): a range-holding caster never walks into a brawler for
 it but wraps one that has caught it (within wrap range + 1), and it waits out a heavy move (power >= 1.0) that
 is under way or ready within `LOOMING_TICKS` = 10 (a wider window makes wraps rare and only open when the
-fight is already won: rounds with a catch must stay under 80 % wins). The move itself: the coil follows prey
-up to .6 blocks a tick, ordinary knockback does not shake the caster off (only a push of
-`ConstrictionMotion.BREAKING_PUSH` = 1.0 breaks the wrap and frees the prey), squeezes are
-`digicube:crush_attack` (bypasses armour; each of the four deals power .08 plus
-`ConstrictionMotion.CRUSH_SHARE` = 6 % of the prey's full health, so a hold costs about a third of any
-champion, never most of it), and release leaves Digimon prey winded (no attack for 20 ticks); an inked mob
+fight is already won: rounds with a catch must stay under 80 % wins); the move itself is under [Wraps](#wraps). An inked mob
 cannot take or keep a target more than three blocks from its body (`DCEffects.blindTo`, body to body: from the
 centres two big Digimon were blind unless touching) and acts on `lastSeenThreat` instead. Ink stops aiming,
 not blows: an attack already under way plays out and lands (`canStrike` on the hit paths), only a move that
@@ -121,6 +121,40 @@ keeps aiming itself at its prey breaks off (a homing jet charge, a drawn kinetic
 and a body a whip has just touched feels where it came from for 5 s (`feels`).
 
 `DIGICUBE_TACTICS=<species>:key=value,...;<species>:...` overrides knobs per process for sweeps.
+
+## Wraps
+
+A serpent with a `coil` on its sheet (`body.serpent.coil`: `girth`, `neck`, `tail`, `loops`; Seadramon) wraps with the
+constriction move: `ConstrictionSession` runs it, `ConstrictionCoil` holds its shape and clock.
+
+- **Strike.** After two ticks drawing back, the body flies at the spot beside its prey where its head will loom (0.7
+  blocks a tick, 0.85 swimming, turning after the prey 30 degrees a tick) and takes it there; past `STRIKE_TICKS` (14),
+  or stalled, it has missed and costs `RETRY_TICKS` (40) instead of the cooldown. The AI strikes from the move's range
+  (6.5 blocks), a rider from the tile's `reach`. The prey may be a step up or down (1.5 blocks), in mid-hop within
+  `SNATCH` (1.6) of the floor (it is held down there) or swimming at any depth within reach.
+- **Size.** Only what the body goes all the way round once with its `neck` and `tail` free, and no more than a block
+  taller than the serpent (`fit`): Seadramon takes prey up to about 1.4 blocks wide (rookies, players, most animals,
+  spiders, horses), never Garurumon, Golemon or Gesomon.
+- **Coil.** The loops press on the prey's box (`HUG` 1.05 of its half-width plus the body's half-girth), each a girth under
+  the one it goes round, as many as cover four fifths of its height (1.15 at least, `loops` at most, fewer where the body
+  runs short), round its middle and never under the floor. The server checks the loops' line for blocks (`ring`): a mob
+  with one in the way is drawn out up to `DRAW_OUT` (1.2 blocks) toward the caster, a player never is (refused), and the
+  caster's feet stand beside the loops on the side it came from (`headDistance`).
+- **Hold.** From the capture the prey is held (`CONSTRICTED`; a mob kept at the coil's middle, a player that slips
+  `SLIPPED` 0.75 from it is let go) and squeezed at 14, 24, 34 and 44 ticks (`digicube:crush_attack`, through armour:
+  power .08 plus `CRUSH_SHARE` 6 % of its full health each), let go at 48; the move ends at 60. Only a push of
+  `BREAKING_PUSH` (1.0) breaks it off. Release leaves Digimon prey winded (no attack for 20 ticks) and any prey resistant
+  to holds and frost for 160.
+- **Drawn.** The coil is synced (`DATA_WRAP_*`: the prey's feet, its width and height, the winding, the capture tick) and
+  laid by `SerpentCoil` ([animation.md](animation.md#serpent-spines)); the move's clip keys only head, jaw and fins, on
+  `clipTime` (its lunge held while the strike flies).
+- **AI** (`wrapWanted`): chill first; a fighter is wrapped on its timing (`wrapPunished`); a ready shot beats walking to a
+  wrap on another level. Otherwise it closes in to strike reach from 40 ticks before the move is back, gives a chase that
+  has not got there in 80 ticks up for 40, and strikes when `ConstrictionSession.whyNotFrom` its feet allows; the
+  development trace names that gate (`[wrap-trace] ... strikeFromHere=`).
+
+Checked by `ConstrictionRegressionTest` (`:common:speciesTest`), `wrap_checks` ([testing.md](testing.md#index-of-checks))
+and `:fabric:nativeSeadramonWrapTest`.
 
 ## Projectiles
 

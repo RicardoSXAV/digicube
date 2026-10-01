@@ -37,10 +37,16 @@ up to 0.46 sprinting (`sprint` 1.5), turning at most 6 degrees a tick (`turn_rat
 
 - Standing, its head turns 70 degrees at most off its body: a rider looking back turns it that far, and going on (W, or
   the strafe keys) it curls round after its head. Wild, it never turns on the spot past that either.
-- A wall or a ledge up to 4.6 blocks high (half its body) it climbs, and a bank that high over the water: its neck rears
-  up the face, its head goes over the top and its body drapes over the edge after it. A higher wall stops it. Off a
-  ledge it lowers itself down the face, unhurt. On steps and broken ground its body lies over the edges, never down every
-  riser.
+- A wall or a ledge up to 4.6 blocks high (half its body) it climbs, and a bank that high over the water: pushed at it
+  with its nose at it (head on, aslant up to 60 degrees, from a standstill at its foot, or turning to it) it comes round
+  square to the face and goes straight up it, the view turning it no other way, over the top and on. Let go half way, it
+  lowers itself back down; a higher wall stops it. Off a ledge deeper than a step it lowers itself down the face,
+  unhurt, its push carrying it no further out; a step it drops. Its body lies on the ground along the way its head went
+  (a climb it gave up or a jump stands nothing up), ramps over steps and edges and drapes over a thin wall, bending no
+  tighter than 1.25 blocks, never down every riser and never twisted; come down a bush or a ledge, its neck rises from
+  the head over the edge to the body still on top (it no longer curls into a ring), a turn tighter than it can follow it
+  rounds, and frame by frame nothing shakes. One shadow band lies under it
+  ([animation.md](../animation.md#serpent-spines)).
 
 ## In the water
 
@@ -48,18 +54,26 @@ A sea mount (`water_turn_rate` 9, `water_sprint` 1.5, `sprint_build` by default)
 
 - It holds the surface (`surface_dive` 30) with its neck and its rider out; looking down past 30 degrees, or C, dives;
   a surge looking up breaches, the whole body arcing out after the head.
-- A and D steer it (`turn_to_travel`), and it carves the turn as a serpent does.
+- A and D steer it (`turn_to_travel`), and it carves the turn as a serpent does; afloat and still, a rider looking round
+  turns its head 70 degrees at most, as on land.
+- Out of the water it climbs up any shore it is pushed at: a beach behind a shelf under the surface (the shelf's lip
+  just over its floating feet walled it in), a beach at the waterline, a bank, head on or aslant.
 - A double tap of Space rolls it round its length (`water_roll` 0.3), the whole body corkscrewing after the head.
 - `swim_wake` (28, 28, 14): a bow wave off the head, a wake off its back along the body at the surface and spray from it
   on a dash, bubbles off its length under water.
 
 ## Attacks
 
-- Ice Blast, the first rider slot, held: `move`, so the body swims (or slithers) on under the rider's keys while the
-  head (`upper_body`) turns to the crosshair, up to 70 degrees off the body. It charges Cold, and on the sea it freezes
-  floes of frosted ice where it plays.
-- Constriction, the second, a press: the wrap ([mounts.md](../mounts.md#the-wrap-as-a-rider-move)); the body lets go of
-  its trail while the coil holds its prey.
+- Ice Blast, the first rider slot, held: a breath of puffs marked `cold`, drawn as `shards`
+  ([combat.md](../combat.md#attacks-as-data)): four seconds on a tank that refills in six, the jet bending as the aim
+  sweeps and trailing as the body swims. `move`, so the body swims (or slithers) on under the rider's keys while the head
+  (`upper_body`) turns to the crosshair, up to 70 degrees off the body; the AI's own breath turns the neck too, its body
+  curling round after it at its steady turn. It charges Cold, flies on under water, and on the sea it freezes floes.
+- Constriction, the second, a press: the strike and the coil ([combat.md](../combat.md#wraps),
+  [mounts.md](../mounts.md#the-wrap-as-a-rider-move)); `coil` girth 0.8, neck 1.3, tail 0.7, at most 2.25 loops, so
+  prey up to about 1.4 blocks wide. Its clip `constriction` keys only the head, jaw, frills and fins; through the hold
+  the neck's first link turns down (the head and the rest turned back by as much) so the neck can drop from the looming
+  head to the top loop.
 
 ## Checks
 
@@ -73,18 +87,42 @@ A sea mount (`water_turn_rate` 9, `water_sprint` 1.5, `sprint_build` by default)
   - `ridden looks back on land`: standing, its head turns no further than its neck and the body stays put; going on, it
     comes round to the view;
   - `wild climbs a ledge` and `ridden climbs a ledge`: four blocks up and onto the top, no hit part in the rock;
+    `ridden climbs from a standstill` (its head half a block from the face) and `ridden climbs aslant` (30 degrees off
+    the face's normal): up and onto the top; `ridden through a pit`: down into a pit a block deep and up out of it,
+    never over half a block off the ground, unhurt; on a sand patch with a wall of logs three high and a block thick (the
+    wall a player builds on a beach), `ridden climbs a log wall` head on, `from a standstill`, `turning to it` (its body
+    alongside the wall, the view on it), `at a gallop`, `looking down` and `looking round` (the view swung off to the side
+    and back while it climbs): up it, over it and down on the sand past it, unhurt, no hit part in the logs; `ridden lets
+    go of a log wall half way up`: back down to its foot no faster than it climbs; `ridden along a log wall`: pushed 80
+    degrees off square to it, it slides along and does not climb;
     `ridden over a thin wall`, `ridden over a thin wall aslant` and `wild over a thin wall`: over a wall two blocks high
     and one thick; `ridden climbs out of the water` and `wild climbs out of the water`: onto the pool's rock three blocks
-    over the water, and `wild climbs out along the rock` from swimming along under it; `ridden at a high wall`: five blocks stop it at the foot; `ridden lowers itself`: down four blocks no
-    faster than it climbs, unhurt;
+    over the water, and `wild climbs out along the rock` from swimming along under it; in a sea basin west of the pool,
+    `ridden climbs out over a shelf`, `onto a beach` and `up a bank`, each head on and `aslant`: up out of the water onto
+    the shore's first level, never standing still pushing for over half a second, unhurt; `ridden at a high wall`: five
+    blocks stop it at the foot; `ridden lowers itself`: down four blocks no faster than it climbs, landing within 1.2
+    blocks of the face, unhurt;
   - `ridden carve`: the view swung a quarter round, it comes round within its rates, gathering into the turn;
   - `ice blast swimming`: it swims on (20 blocks) while it breathes, its head turned to prey off its line;
   - `frost on the sea`: the stream on the water ahead freezes floes, none where its body lies.
 - `:fabric:nativeSeadramonTest`: every link keeps its length round a bend and diving, the body lies along its path within
   its sway, the sway keeps its place on the ground on land and runs back in the water, a dive draws the tail up after
   the head, the seat holds, and a wrap keeps the clips' own pose; a head turned round, a tight turn and a knock aside
-  roll no link belly up, bend no joint past 45 degrees and fold nothing; up a ledge and down it no point goes into the
-  rock; on a stair, down, off, across and up, it lies along the nosings with no point in a step and no fold.
+  roll no link belly up, bend no joint past 40 degrees and fold nothing; up a ledge and down it no point goes into the
+  rock; on a stair, down, off, across and up, it lies along the nosings with no point in a step and no fold; a climb
+  given up and a head lowered off a ledge stand nothing up; over a wall of logs no point in it; a dive off a bank stands
+  nothing over the bank; no link twists past 8 degrees against the one before it; down a bush three blocks high and
+  away the neck turns less than 200 degrees in any nine links (no ring), folds nothing and goes into nothing; frame by
+  frame, the head going on while its body comes up a stair, through a pit or down a ledge's face, no joint shakes past
+  0.08 blocks; turned slowly round on the spot to 250 degrees, no joint jumps 0.3 blocks between two frames.
+- `DIGICUBE_SEADRAMON_ONLY=<words>` runs only the checks whose names hold them, `DIGICUBE_SEADRAMON_TRACE=true` logs the
+  body every five ticks.
 - `sea_mount_checks`: cruise, surge, dive, the surface at its float line, the keys, a breach, surging along the surface,
   diving from it, steering, the roll, the haul-out, and walking on land and back in.
 - `rider_checks`: Ice Blast and the wrap, afloat too; `gait_checks:seadramon`: its land pace on the walk's stride.
+- `wrap_checks`: wild, it wraps a chicken, a rabbit hopping off, a cow, a zombie and a spider (each held, squeezed four
+  times, let go), leaves a Golemon to Ice Blast, draws a cow off a wall to wrap it, and wraps a squid keeping still in the water;
+  ridden, one press takes a rabbit six blocks off (outlined first), and a press with no prey or at a Golemon casts nothing.
+- `:fabric:nativeSeadramonWrapTest`: round a chicken, a rabbit, a player, a cow, a spider and an enderman, held, the
+  links lie on their loops round the prey's box, none inside it or under the floor, bending no joint past what a joint
+  can; winding on and off, no link strays far from its way; at the end the body is back on its trail.

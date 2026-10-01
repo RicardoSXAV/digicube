@@ -56,11 +56,12 @@ Betamon (rigid limbs rowing about their lateral point: [species/betamon.md](spec
 
 ## Serpents
 
-A body with `serpent` on its sheet (`DigimonBody.Serpent`; Seadramon) lies along the path its head took
-(`SerpentTrail`: the places its feet went through, sampled by distance behind the head), so it goes where its head went
-and never through the ground or a wall beside the way. Backing up, the head takes its trail back; a teleport or a first
-sight lays it out afresh behind the head, bending round blocks. The server lays the hit parts on its own trail (their
-middles at `swim_height` in the water); each client draws the body on its own
+A body with `serpent` on its sheet (`DigimonBody.Serpent`; Seadramon) lies along the path its head took (`SerpentTrail`:
+the places its feet went through, sampled by distance behind the head), so it goes where its head went and never through
+the ground or a wall beside the way. The trail keeps the body's length of the way the head went over the ground (counted
+whole, climbs used it up and the body's end ran on off it, swinging). Backing up, the head takes its trail back; a
+teleport or a first sight lays it out afresh behind the head, bending round blocks. The server lays the hit parts on its
+own trail (their middles at `swim_height` in the water); each client draws the body on its own
 ([animation.md](animation.md#serpent-spines)).
 
 It turns only as it goes (`Serpent.turnRate`): no tighter than a circle of `turn_radius` blocks on land, or
@@ -68,24 +69,36 @@ It turns only as it goes (`Serpent.turnRate`): no tighter than a circle of `turn
 turn and easing out of it (`SteadyBodyControl.ease`). The server turns it and clients draw the facing it is sent
 (`turnsSteadily`). Ridden it carves its turn the same way, within the mount's turn rates.
 
-Its head turns no further off the way its body runs up to it (the trail over the last 1.5 blocks, `SerpentTrail.heading`)
-than `neck_turn` degrees on land (`holdNeck`, where the body moves, after it moved; the AI's path, a look round, an attack's
-aim and a rider alike): turned on the spot, the head swung round over its own body and the drawn neck folded after it. Not
-swimming: the body is free round it there, and held, a swimmer gliding slowly round to a node below it circled it. To come
-further round it goes on: on a path it keeps a quarter of its pace through any turn (`SLITHER`), its body curling after
-its head, and a node beside it counts as reached from 1.5 blocks across (`DigimonAmphibiousNavigation`), so it never
-circles one inside its turn. Ridden and standing, a look back turns its head as far as its neck; the keys take it round.
+Its head turns no further off the way its body runs up to it (the trail over the last 1.5 blocks,
+`SerpentTrail.heading`) than `neck_turn` degrees on land and ridden in the water (`holdNeck`, where the body moves,
+after it moved; the AI's path, a look round, an attack's aim and a rider alike): turned on the spot, the head swung
+round over its own body and the drawn neck had no way round to take. Not a wild swimmer: its body is free round it, and
+held, one gliding slowly round to a node below it circled it. To come further round it goes on: on a path it keeps a
+quarter of its pace through any turn (`SLITHER`), its body curling after its head, and a node beside it counts as
+reached from 1.5 blocks across (`DigimonAmphibiousNavigation`), so it never circles one inside its turn. Ridden and
+standing, a look back turns its head as far as its neck; the keys take it round.
 
 A serpent climbs walls as high as its body lets it (`DigimonEntity.climb`, where the body moves): `climb_share` on its
 sheet is the share of its body it holds up a face, the rest on the ground under it, so it climbs that share of its
-length (`DigimonBody.climbHeight`, the body behind its feet to its furthest hit part; Seadramon half of 9.2 blocks, 4.6).
-Pressed forward into a wall whose top is within that of the ground it set off from (or of the water's surface: a ridden
-sea mount's haul, `haulsOut`, goes as high), with room there for its box, it rises up the face at `CLIMB_PACE` (0.2
-blocks a tick) until its feet clear the top, and its push carries it over. A higher wall stops
-it, and let go of the push it lowers itself back down: it never clings. Off a ledge no deeper than its climb it lowers
-itself at the same pace and takes no fall. Its paths are planned up such ledges (`maxUpStep` answers the climb while
-`DigimonAmphibiousNavigation` plans, and the mount's step otherwise), and on land it never takes a navigation hop
-(`DigimonJumpControl`). `seadramon_checks` pins the neck, the curl and the climbs.
+length (`DigimonBody.climbHeight`, the body behind its feet to its furthest hit part; Seadramon half of 9.2 blocks,
+4.6). Pushed at a face with its nose at it (`CLIMB_TOUCH`, 0.1 blocks, less than `CLIMB_ASLANT` (60) degrees off square
+to it; flatter it slides along), whose top is higher than its step (afloat or in the air, any higher than its feet:
+afloat it steps up nothing, and the lip of a shelf a fifth of a block over its floating feet walled it in) and within
+its climb of the ground it set off from (or of the water's surface: out of the water it climbs as on land, and the sea
+mounts' haul, `haulsOut`, is left to bodies that do not climb), with room there for its box, it climbs: it rises up the
+face at `CLIMB_PACE` (0.2 blocks a tick), held to it, while the push holds, the keys and the rider's view moving it no
+other way, until its feet clear the top, however near the top comes; there it is carried on over the edge. A face higher
+than its step it comes round square to and goes straight up; over a lower one it keeps its heading. Neither the push
+being blocked that tick nor where it last stood decides it: the nose at the face does. A higher wall stops it, and let
+go of the push half way up it lowers itself back down the face: it never clings. Off a ledge deeper than its step and no
+deeper than its climb it lowers itself down the face at the same pace, its push carrying it no further out from the edge
+(the air's own drift only), all the way to the ground, and takes no fall; a step it drops as any body does. Its paths
+are planned up such ledges (`maxUpStep` answers the climb while `DigimonAmphibiousNavigation` plans, and the mount's
+step otherwise), and on land it never takes a navigation hop (`DigimonJumpControl`). Each climb's start is logged at
+debug level (`[climb]`, with where it was and which way it faced), and so is why a push into a face it does not climb.
+`seadramon_checks` pins the neck, the curl and the climbs: head on, from a standstill at the foot, aslant, a wall of
+logs from every approach, let go half way, alongside a wall, through a pit, and out of a sea onto a beach behind a
+shelf, a beach at the waterline and a terraced bank, head on and aslant, never standing still at the shore.
 
 ## Swimming on a path
 

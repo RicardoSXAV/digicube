@@ -40,8 +40,8 @@ $env:DIGICUBE_SCENARIO='seadramon_vs_golemon@steps'; .\gradlew.bat :fabric:runSe
   three landed hits, reporting the tick of the first one. Compare the numbers before
   and after a change, not just PASS.
 - Read `fabric/runs/server/logs/latest.log`. Chill-loop casters also log a
-  `[wrap-trace]` line every second (distance, level, status flags, fuel, planner state
-  with its last failure, and the exact gate refusing a cast from the current position).
+  `[wrap-trace]` line every second (distance, level, status flags, fuel, the wrap's chase
+  or its backoff, and the exact gate refusing a strike from the current position).
   The trace turns "it hesitates sometimes" into the name of a gate; fix the gate, rerun.
 - Add a terrain to `CombatScenario.build` when a bug needs new geometry, and add a
   verdict rule when a new kind of move needs its own success criterion. Keep scenarios
@@ -96,8 +96,11 @@ verdict in `fabric/runs/server/logs/latest.log`. The dispatch in `CombatScenario
 | `thrower_checks` | the returning bone and the icicle | [species/mojyamon.md](species/mojyamon.md) |
 | `agumon_checks` | Pepper Breath and the leaping claw | [species/agumon.md](species/agumon.md) |
 | `gesomon_checks` | the AI's whip | [species/gesomon.md](species/gesomon.md#checks) |
+| `monochromon_checks` | Monochromon ridden (amble, gallop, Guardy Tusk's rush along the view, into a dummy and let go in the brace, Volcano Strike's Burn) and wild (a rush from afar, the ball at prey on a pillar) | [species/monochromon.md](species/monochromon.md#checks) |
+| `meramon_checks` | Meramon on its own AI: Fire Fist dashed from afar and up close, Heat Wave ahead, aside, at moving prey (no twitching) and over snow and ice, standing in a fire | [species/meramon.md](species/meramon.md#checks) |
 | `garurumon_checks` | Garurumon ridden (pace, ice, bends, turning, leaps, pounces, breath, frost on the world) and wild (turning, hunting) | [species/garurumon.md](species/garurumon.md#checks) |
-| `seadramon_checks` | Seadramon wild (swimming without spinning, a channel's corner, land and its neck, a ledge, a thin wall, out of the water) and ridden (carving, its land pace, looking back, climbing, a thin wall, a high wall, lowering itself, Ice Blast on the move, floes) | [species/seadramon.md](species/seadramon.md#checks) |
+| `seadramon_checks` | Seadramon wild (swimming without spinning, a channel's corner, land and its neck, a ledge, a thin wall, out of the water) and ridden (carving, its land pace, looking back, climbing head on, from a standstill and aslant, a wall of logs from every approach, let go half way and alongside, a thin wall, a high wall, a pit, lowering itself down the face, out of a sea onto a shelf's beach, a beach and a bank, Ice Blast on the move, floes) | [species/seadramon.md](species/seadramon.md#checks) |
+| `wrap_checks` | a serpent's wrap: wild, prey of every size it goes round, one too big, a wall, the water; ridden, presses with and without prey (`DIGICUBE_WRAP_ONLY=<words>` runs the checks named so) | [combat.md](combat.md#wraps) |
 | `battle_checks` | battle testing teams | [dev-panel.md](dev-panel.md#battle-testing) |
 | `analyzer_checks` | the Analyzer record: witnessing, marks, reveal and forget | [screens.md](screens.md#the-digivice-screen) |
 | `digivice_checks`, `digivice_checks_reload` | the Digivice item's custody | [digivice-item.md](digivice-item.md) |

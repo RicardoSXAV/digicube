@@ -72,7 +72,8 @@ Golemon.
 `"particles": "steel"` is the blade style, quiet on screen because its moves draw their own cuts and impact: a clink
 as a blade is readied, a whoosh, a few sparks on contact, and only the floor's dust under the sword. The other styles belong to one species each: `drill` in
 [species/digmon.md](species/digmon.md), `pincer` in [species/ganimon.md](species/ganimon.md), `ram` and `spark` in
-[species/betamon.md](species/betamon.md).
+[species/betamon.md](species/betamon.md), `fire` in [species/meramon.md](species/meramon.md). A move's `burn` (ticks) sets
+the body it lands on alight, a Burn (`DigimonEntity.scorch`).
 
 ## Sound cues
 

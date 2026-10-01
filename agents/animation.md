@@ -127,39 +127,52 @@ it with an init script).
 ## Serpent spines
 
 A serpent's body is `spine` in `ground_models.json` (`SerpentSpine`): the `path` to the part its first link hangs in,
-the `chain` of links (each the next one's parent) and the `tip` part after the last. After the pose each frame, the chain
-is laid along the drawn body's trail ([locomotion.md](locomotion.md#serpents)): the clips give each point its height
-above the feet and its spacing, the trail where along the ground it lies, and a sway its place aside. On land the sway
-is fixed to the ground (`land_wave` blocks, over `wavelength`), so the body slides through it without slipping aside, as
-a snake does; in the water it runs back along the body faster than the body swims (`slip`), stronger with its pace
-(`rest_wave`, `swim_wave`, `dash_wave`), and slowly at rest (`rest_pace`, blocks a tick). Within `neck` blocks of the
-head the body keeps the head's own heading and dive (so the pitch part's dive is not added again), each point swung round
-the head's feet from the head's frame to the trail's: a head turned off its trail bends the neck round in an arc. Out of
-the water the neck's stretch of trail is read level (`SerpentTrail.sample` with `level`): whatever face the head is on,
-the neck lies over the ground behind it, the clips' reared neck stretched or eased to span from the head down to that
-ground (it rears from the foot of a ledge it climbs, and lies over the top of one it lowers itself off), and the body
-goes on along the trail from there, up or down the face. Out of the water the line the body lies along is its trail's
-heights (the feet's, sheer up and down every step) relaxed like a rope over the ground under the body (`drape`, never
-under it): over a step it bridges from edge to edge and up a stair it lies along the nosings, where laid on the feet's
-steps it went sheer up each riser and kinked round every edge; down a face it still hangs as the trail does. No point
-sinks into the ground under it (a step lifts it, up to 1.1 blocks), and the sway gives way where it would push the body
-into a wall. A wrap lets go of the trail over the coil's first and last 12 ticks.
+the `chain` of links (each the next one's parent) and the `tip` part after the last. After the pose each frame, the
+chain is laid along the drawn body's trail ([locomotion.md](locomotion.md#serpents)): the clips give each point its
+height above the feet and its spacing, the trail where along the ground it lies, and a sway its place aside. On land the
+sway is fixed to the ground (`land_wave` blocks, over `wavelength`), so the body slides through it without slipping
+aside, as a snake does; in the water it runs back along the body faster than the body swims (`slip`), stronger with its
+pace (`rest_wave`, `swim_wave`, `dash_wave`), and slowly at rest (`rest_pace`, blocks a tick). Within `neck` blocks of
+the head the body keeps the head's own heading, each point swung round the head's feet from the head's frame to the
+trail's: a head turned off its trail bends the neck round in an arc.
 
-The links are laid from the head, each from where the one before it ends toward its point, keeping its length and bending
-no more than 45 degrees a joint (the first no more than 30 off the clips: the head rides on it), and turned up, 40 degrees
-at most, over a ledge's edge its middle line would cut through (`clear`; turned further, or for its belly brushing a
-step, the body shot up over a stair and looped back onto it). Each link's back is carried on from the link before it and turned
-back up, rolled about its line only as far as the clips roll it (a barrel roll). Turned each the shortest way onto its
-point, a body that came round rolled over belly up, and one aimed at a point behind a fold folded back on itself.
+The body is laid as a fine level line first (`SerpentTrail.line`): a point at every tenth of a block of the way the head
+went over the ground, so each keeps its place on the ground as the head goes on (laid a step from the head, they slid
+over every edge and the body shivered); straight up or down is no distance at all, so a climb given up or a jump stands
+nothing off the ground; its plan is smoothed over 0.4 blocks, less by the head. The line settles on what lies under it:
+the ground (the highest of three columns across its thickness, and where the head stood its feet's height: walking an
+edge on its box's corner, the body flipped off it and back) or, in the water, the path the head swam, no lower than the
+bed. It settles like a stiff rope (`rope`): on or over what it lies on, bending no tighter than `ROPE_RADIUS` (1.25
+blocks), so it ramps up to a step from before it, rounds an edge (its lower side rises), bridges a dip and drapes over a
+thin wall; its hold grows over the first half block behind the head (held from the second point, the body stuttered),
+and it lifts no point over the ground within `ROPE_SPAN` (2.5 blocks). The clips' chain lies over that line, along the
+neck over the head's own feet instead, easing onto the line by the neck's end (kept to the ground under it, the neck
+stepped at every edge), never under the ground (by the head, that under the head's way), every dip bridged exactly
+(`bridge`: a head come down a face, the body still on top, dipped its neck and curled). Each point eases into a new
+place over `FILTER` (2 ticks), by its step, past the neck's first block. The sway gives way, spread along the body,
+where it would push the body's side into a wall; the neck swings round the way nearest the head's turn off the line
+(`NECK_READ` behind it), followed round frame to frame up to 270 degrees (read afresh, it flipped at half round). The
+joints are laid on a path that sets out along the clips' way out of the head and steers for the line `PATH_LEAD` (0.85
+blocks) on, bending no tighter than `PATH_BEND` (0.72 blocks, 0.4 by the head), so it rounds a turn too tight for the
+body and swings wide round a hairpin (laid straight on it, links curled and flipped); each link keeps its length, bends
+no more than 40 degrees (the first 30 off the clips: the head rides on it), and has its back carried on from the one
+before and turned toward up, rolled only as far as the clips roll it, by at most `ROLL_STEP` (8 degrees) a link, not at
+all up a face (paid at once, a roll twisted the link). A wrap winds the body off its trail and round its prey
+(`SerpentCoil`, the coil `ConstrictionCoil` shapes): each point swings round the prey's axis onto its loop, the front
+first, and back off it the same way on release ([combat.md](combat.md#wraps)).
 
 So a serpent's clips keep the chain straight in plan (no sway of their own, and not the rest pose's) and give only
 heights, head, jaw, fins and frills; a move played on the run (`upper_body`) adds to the swimming head instead of
-replacing it. A serpent's shadow is soft blobs along its body where it lies (thick to thin, from 1.8 blocks behind the
-head), not one under its reared head (`DigimonRenderer.serpentShadow`). A screen preview lies straight back in its rest
-sway. `nativeSeadramonTest` pins the lengths, the path round a bend, the sway on land and in the water, a dive, the seat
-and the wrap; a head turned round, a tight turn and a knock aside (no link belly up, no joint past 45 degrees, no fold);
-a ledge climbed and come down (no point in the rock); and a stair walked down, off, across and up (no point in a step, no
-fold, no joint past 45 degrees).
+replacing it. A serpent's shadow is one soft band along its body where it lies (`SerpentShadow`: the laid joints,
+`serpentLine` on the render state, drawn onto the tops of the blocks under them with vanilla's own shadow texture across
+the band, fainter the higher the body's underside is over the face, faint under the reared neck and head, thinning to a
+point past the tail), not vanilla's round one under its reared head, and not blobs along it, which read as several
+shadows. A screen preview lies straight back in its rest sway. `nativeSeadramonTest` pins the lengths, the path round a
+bend, the sway on land and in the water, a dive, the seat, the clips' pose with no weight on the trail; a head turned
+round, a tight turn, a knock aside (no link belly up, no joint past 40 degrees, no fold); a ledge, a stair, a pit, a log
+wall (no point in them, no fold); a climb given up, a head lowered off a ledge (nothing standing up); a dive off a bank;
+no twist past the roll's step; down a bush and away (no curl); frame by frame no joint shaking; a head turned round on
+the spot (no joint jumping); and the shadow band under every joint, fainter under the neck.
 
 ## Rescaling a species
 

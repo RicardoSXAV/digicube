@@ -495,8 +495,10 @@ under its body, not under its reared head.
 On land it slithers faster than you walk, and faster still sprinting. Its head turns only so
 far off its body: looking back standing turns its head, and going on it curls round after it.
 It climbs walls as high as half its body (four and a half blocks), its body draping over the
-edge after its head, out of the water too, and lowers itself down them; a higher wall stops
-it. On steps and broken ground its body lies over the edges instead of down every riser.
+edge after its head, and lowers itself down them; a higher wall stops it. It climbs out of
+the water up any shore it is pushed at, a beach behind a shallow shelf too. On steps and
+broken ground its body lies over the edges instead of down every riser, and it moves
+smoothly, never curling up or shaking.
 
 In water:
 
@@ -508,9 +510,22 @@ In water:
 - Hold the quick attack to breathe Ice Blast while it keeps swimming: its head turns toward
   the crosshair, and where the frost plays on the sea it freezes floes of ice that melt again.
 
+Its attacks, on land and in water:
+
+- **Ice Blast** (hold the quick attack): a jet of ice shards that bends as you sweep it and
+  trails behind as you move, for four seconds on a tank; it slows what it touches, works
+  under water, and heaps snow where it strikes. Once the tank runs dry its tile refills
+  clockwise with the seconds left.
+- **Constriction** (press the special attack): prey the wrap can take near the crosshair is
+  outlined in magenta and the tile lights. Press and Seadramon strikes at it from up to eight
+  blocks and throws its body round it in loops that fit its size, squeezing four times before
+  letting go. Its body has to go all the way round: a chicken, a player or a cow, a spider,
+  never a Golemon.
+
 `DIGICUBE_SCENARIO=seadramon_checks` checks wild swimming (no spinning on the spot), a
-channel's corner, land, its land pace, its neck, climbing and lowering itself, a ridden turn,
-Ice Blast on the move and the floes.
+channel's corner, land, its land pace, its neck, climbing (head on, from a standstill, aslant,
+a wall of logs), a pit, lowering itself down a face, out of the sea onto beaches and banks, a
+ridden turn, Ice Blast on the move and the floes.
 
 ### Tentomon: biped walking and short flights
 

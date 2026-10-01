@@ -8,7 +8,7 @@ mounts, charges and drawn shots, and flying mounts. Check with `rider_checks` an
 ## Rider attacks
 
 Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
-(`sweep`/`line`/`shot`/`stream`/`grab`/`charge`/`whip`/`pounce`), `input` (`tap`/`hold`), soft-target `cone`/`reach`
+(`sweep`/`line`/`shot`/`stream`/`grab`/`charge`/`whip`/`pounce`/`rush`: [monochromon](species/monochromon.md)), `input` (`tap`/`hold`), soft-target `cone`/`reach`
 and `move` (`RiderAttack`; Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon,
 Gesomon, DarkTyrannomon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
 or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray in third person too), and commits
@@ -41,7 +41,8 @@ each in its own 20-unit frame one unit above the experience bar, the 7x9 mouse g
 in tile order (layout approved 20 September 2026).
 
 `RiderAttacks` owns the mount-hearts slot for every Digimon mount, flying ones included (`AerialMountClient`
-draws only the flight reserve, on the experience bar's row).
+draws only the flight reserve, on the experience bar's row). A stream's tile shows its tank; an emptied one,
+which fires again only full, comes back round the clock with its seconds (`riderRefillTicks`).
 
 ## Controls
 
@@ -98,7 +99,8 @@ and mane out and its rider dry): above it the body settles back and its climb is
 (`surfaceAndHaul`; before, a swimmer, which has no gravity, coasted up on its momentum and stood on the
 water). Pushing into a bank or a quay no higher than `HAUL_ABOVE` (1.6) over the water, or a ledge under it,
 it hauls itself up at `HAUL_PACE` until its feet clear the top and walks on (`haulsOut`; a floating body is
-never on the ground, so vanilla's step never helped it out). A surge streams bubbles and sets off with a
+never on the ground, so vanilla's step never helped it out); a serpent climbs out as it climbs on land, up any face
+over its floating feet, a shelf's lip too ([locomotion.md](locomotion.md#serpents)). A surge streams bubbles and sets off with a
 squirt on every client (`seaWake`, read from the body's travel).
 
 A body that holds the surface (`body.mount.surface_dive`, degrees; Ikkakumon 30) stays afloat within `SURFACE_BAND`
@@ -144,11 +146,10 @@ in [ikkakumon.md](species/ikkakumon.md#checks).
 
 ## The wrap as a rider move
 
-A wrap is a rider move (`RiderAttack.Aim.GRAB`): the server picks the prey near the crosshair (`grabPick`,
-synced as `DATA_GRAB_PREY`), the client outlines it in magenta and lights the tile (dull = a press does
-nothing), one press lunges at it (`tickGrabLunge`) and wraps; through lunge and wrap `getControllingPassenger`
-is null (`wrapOwnsBody`) so the server owns the body as it does unridden. Use `rider()` for "who is in the
-saddle".
+A wrap is a rider move (`RiderAttack.Aim.GRAB`): the server picks the prey near the crosshair the strike would
+take (`grabPick`, synced as `DATA_GRAB_PREY`), the client outlines it in magenta and lights the tile (dull = a
+press does nothing), and one press strikes at it and wraps ([combat.md](combat.md#wraps)); through the move
+`getControllingPassenger` is null (`serverOwnsBody`), so the server owns the body. `rider()` is the saddle.
 
 ## Pace, sprint and leaps
 
