@@ -13,6 +13,8 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
     private final ModelPart rootPart;
     private final java.util.Map<String,ModelPart> cells=new java.util.HashMap<>();
     private final ModelPart[] spikes=new ModelPart[6];
+    /** The mesh's own top part: an effect that follows its caster's body takes the body's root pose there. */
+    private ModelPart top;
     public static ModelLayerLocation layer(String name) {return new ModelLayerLocation(Constants.id(name),"main");}
     public static LayerDefinition createLayer(String name) {return NativeModelGeometry.createLayer(Constants.id("models/entity/"+name+".mesh.json"));}
     public NativeEffectModel(ModelPart root,String name) {
@@ -21,6 +23,7 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
         animation=new NativeAnimationSet(root,Constants.id("models/entity/"+name+".animation.json"));
         for(var p:NativeModelGeometry.mesh(Constants.id("models/entity/"+name+".mesh.json")).parts()) {
             ModelPart cell=root;for(String child:p.path())cell=cell.getChild(child);cells.put(p.name(),cell);
+            if(p.path().length==1)top=cell;
         }
         if(name.equals("tectonic_fist_fx")) {
             for(var part:NativeModelGeometry.mesh(Constants.id("models/entity/"+name+".mesh.json")).parts()) {
@@ -30,9 +33,16 @@ public final class NativeEffectModel extends EntityModel<NativeEffectState> {
         }
     }
     public boolean has(String clip) { return animation.has(clip); }
+    /** Whether the clip loops (a projectile's flight that plays on its age rather than stopping at a hold). */
+    public boolean loops(String clip) { return animation.loops(clip); }
     @Override public void setupAnim(NativeEffectState state) {
         super.setupAnim(state);cells.values().forEach(p->p.visible=true);
         animation.hideMembranes();animation.apply(state.clip,state.tick,1);
+        if(state.root!=null&&top!=null) {
+            // drawn in the frame of its caster's root as the caster is drawn (a flyer's turns, a pounce's pitch)
+            top.setPos(state.root[0],state.root[1],state.root[2]);
+            top.setRotation(state.root[3],state.root[4],state.root[5]);
+        }
         if(state.aimPitch!=0) {
             double a=Math.toRadians(state.aimPitch), c=Math.cos(a), s=Math.sin(a);
             double y=24-state.aimPivot.y*16/state.scale, z=-state.aimPivot.z*16/state.scale;

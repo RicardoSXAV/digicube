@@ -11,6 +11,12 @@ public final class EntityFixtureDefaults {
             var field = DigimonEntity.class.getDeclaredField("evolution");
             field.setAccessible(true);
             field.set(fixture, new EvolutionState());
+            var manual = DigimonEntity.class.getDeclaredField("manualAttacks");
+            manual.setAccessible(true);
+            manual.set(fixture, new java.util.LinkedHashSet<net.minecraft.resources.Identifier>());
+            var grudge = DigimonEntity.class.getDeclaredField("grudge");
+            grudge.setAccessible(true);
+            grudge.set(fixture, new WildGrudge());
         }
         return fixture;
     }

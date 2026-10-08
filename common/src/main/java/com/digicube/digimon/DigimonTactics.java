@@ -35,18 +35,35 @@ import java.util.Map;
  * @param dashEngage     charge an Exposed or impaired target within this many blocks with that move, running it down
  *                       and bucking it (0 = never)
  * @param dashEscape     a brawler that has closed inside {@code holdMin} is left behind with a jet burst away
+ * @param duckChance     chance to duck (standing or walking) or slide (running) under an inbound shot or a blow that the
+ *                       body's lowered box ({@code body.crouch}) lets pass over it, held through the threat; failing it,
+ *                       or with no such answer, the sidestep's own roll follows
+ * @param leapDodge      a ground wave is leapt clear of (aside, out of its line) instead of sidestepped, by a body that leaps
+ * @param rollDodge      chance to roll out of the way (aside and back, out of the blow's reach or the shot's line) of a blow
+ *                       or a shot that no duck escapes, by a body whose roll has a speed of its own; failing it, the
+ *                       sidestep's own roll follows
+ * @param footwork       the band is kept as a fighter keeps it: backing off and circling face the target (backward and side
+ *                       steps), and any target that can hurt us is circled, not only a shooter
+ * @param stalk          share of the circling in the band done crouched, low and slow, before springing back in
+ * @param spacing        chance, as a combo of blows up close ends, to get out of reach for a beat (a hop back where the body
+ *                       leaps, else backing steps) and keep the band before going back in (with {@code footwork})
  */
 public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, int reactionTicks, boolean strafe,
                              int leadTicks, boolean pressImpaired, boolean preferClose, double chargeDistance, double chargeSpeed,
                              double fightSpeed, boolean gallop, boolean shootMoving, boolean dashDodge, double dashEngage,
-                             boolean dashEscape) {
+                             boolean dashEscape, float duckChance, boolean leapDodge, float rollDodge, boolean footwork,
+                             float stalk, float spacing) {
     /** The old behaviour: close in, never dodge, no prediction, list order. */
     public static final DigimonTactics DEFAULT = new DigimonTactics(0, 0, 0, 0, false, 0, false, false, 0, 0, 0,
-            false, false, false, 0, false);
+            false, false, false, 0, false, 0, false, 0, false, 0, 0);
 
     public DigimonTactics {
         if (holdMin < 0 || holdMax < holdMin) throw new IllegalArgumentException("hold range " + holdMin + ".." + holdMax);
         if (dodgeChance < 0 || dodgeChance > 1) throw new IllegalArgumentException("dodge chance " + dodgeChance);
+        if (duckChance < 0 || duckChance > 1) throw new IllegalArgumentException("duck chance " + duckChance);
+        if (rollDodge < 0 || rollDodge > 1) throw new IllegalArgumentException("roll dodge " + rollDodge);
+        if (stalk < 0 || stalk > 1) throw new IllegalArgumentException("stalk " + stalk);
+        if (spacing < 0 || spacing > 1) throw new IllegalArgumentException("spacing " + spacing);
         if (reactionTicks < 0 || leadTicks < 0 || chargeDistance < 0 || chargeSpeed < 0 || fightSpeed < 0 || dashEngage < 0)
             throw new IllegalArgumentException("negative ticks");
     }
@@ -70,7 +87,9 @@ public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, 
                 (int) number(knobs, "reaction_ticks"), flag(knobs, "strafe"), (int) number(knobs, "lead_ticks"),
                 flag(knobs, "press_impaired"), flag(knobs, "prefer_close"), number(knobs, "charge_distance"),
                 number(knobs, "charge_speed"), number(knobs, "fight_speed"), flag(knobs, "gallop"), flag(knobs, "shoot_moving"),
-                flag(knobs, "dash_dodge"), number(knobs, "dash_engage"), flag(knobs, "dash_escape"));
+                flag(knobs, "dash_dodge"), number(knobs, "dash_engage"), flag(knobs, "dash_escape"),
+                (float) number(knobs, "duck_chance"), flag(knobs, "leap_dodge"), (float) number(knobs, "roll_dodge"),
+                flag(knobs, "footwork"), (float) number(knobs, "stalk"), (float) number(knobs, "spacing"));
     }
 
     private static double number(Map<String, ?> knobs, String key) {
@@ -113,6 +132,8 @@ public record DigimonTactics(double holdMin, double holdMax, float dodgeChance, 
         knobs.put("charge_distance", chargeDistance); knobs.put("charge_speed", chargeSpeed); knobs.put("fight_speed", fightSpeed);
         knobs.put("gallop", gallop); knobs.put("shoot_moving", shootMoving); knobs.put("dash_dodge", dashDodge);
         knobs.put("dash_engage", dashEngage); knobs.put("dash_escape", dashEscape);
+        knobs.put("duck_chance", duckChance); knobs.put("leap_dodge", leapDodge);
+        knobs.put("roll_dodge", rollDodge); knobs.put("footwork", footwork); knobs.put("stalk", stalk); knobs.put("spacing", spacing);
         return knobs;
     }
 }

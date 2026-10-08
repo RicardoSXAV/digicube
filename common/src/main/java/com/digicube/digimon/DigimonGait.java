@@ -8,19 +8,30 @@ package com.digicube.digimon;
  * A gait with {@code runFrom} breaks into its run as an animal changes gait, all at once: the run takes over from that
  * pace up and hands back to the walk under {@code runUntil}, so no pace between plays half of each (their feet land on
  * different beats, and a paw mixed from one standing and one swinging never touches the ground). Without it the run
- * blends in over the paces between the walk's authored speed and the run's. A directional gait with {@code pivotReach}
- * (blocks from the body's centre to its farthest paws, the forepaws' toe line) steps round on the spot as the body turns:
- * the model's {@code pivot_left} and {@code pivot_right} go round the centre as far a cycle as that reach sweeps
- * {@code pivotStride} at full amplitude, one paw at a time, each standing still on the ground while the body turns over
- * it; the turn is paid on the phase at that stride. Standing, such a body turns no faster than its pivot steps round at
- * {@code pivotCadence} times the walk's cadence ({@link #pivotTurnRate}); without a pivot a body turning on the spot slides
- * its feet round.
+ * blends in over the paces between the walk's authored speed and the run's. A gait with {@code pivotReach} (blocks from
+ * the body's centre to its farthest standing paws: a quadruped's fore toe line, a biped's ankles) steps round on the spot
+ * as the body turns: the model's {@code pivot_left} and {@code pivot_right} (lattice blends, or plain looping clips) go
+ * round the centre as far a cycle as that reach sweeps {@code pivotStride} at full amplitude, one paw at a time, each
+ * standing still on the ground while the body turns over it; the turn is paid on the phase at that stride. Standing, such
+ * a body turns no faster than its pivot steps round at {@code pivotCadence} times the walk's cadence
+ * ({@link #pivotTurnRate}); without a pivot a body turning on the spot slides its feet round. A pivot with
+ * {@code pivotWalk} steps on the walk's own beats (a biped's: each foot down when the walk puts it down), so a body that
+ * turns as it walks mixes the two by their shares and goes round in an arc on planted feet, at any pace of the walk.
+ * A run with {@code runLattice} is a lattice over its pace ({@link #runShare}): each column planted on its own stride, the
+ * run's stride times its share, so a jog and a sprint keep the run's cadence instead of one stride sped up or slowed down.
  */
 public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
                           double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach,
-                          double pivotStride, float pivotCadence) {
+                          double pivotStride, float pivotCadence, boolean pivotWalk, boolean runLattice) {
     /** The pivot's cadence, times the walk's, when the sheet names none. */
     public static final float PIVOT_CADENCE = 1.5F;
+
+    public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
+                       double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach,
+                       double pivotStride, float pivotCadence) {
+        this(cycleTicks, stride, maxPlaybackRate, runCycleTicks, runStride, sideStride, backStride, footfalls, runFrom, runUntil, pivotReach,
+                pivotStride, pivotCadence, false, false);
+    }
 
     public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
                        double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach) {
@@ -106,7 +117,7 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
      * turns in an arc).
      */
     public double pivotTravel(float degrees, float run) {
-        if (pivotReach <= 0 || !directional()) return 0;
+        if (pivotReach <= 0) return 0;
         return Math.abs(degrees) * Math.PI / 180 * pivotReach / pivotStride * stride * (1 - Math.clamp(run, 0, 1));
     }
 
@@ -116,7 +127,7 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
      * that does not pivot).
      */
     public float pivotTurnRate(float modelScale) {
-        if (pivotReach <= 0 || !directional()) return 0;
+        if (pivotReach <= 0) return 0;
         return (float) Math.toDegrees(Math.min(maxPlaybackRate, pivotCadence) * pivotStride * modelScale / cycleTicks / pivotReach);
     }
 
@@ -133,6 +144,18 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
     public float advance(double travel, float amount, float modelScale, float run) {
         double blendedStride = stride + (runStride - stride) * run;
         return (float) Math.min(maxPlaybackRate, travel * cycleTicks / (blendedStride * modelScale * Math.max(.001F, amount)));
+    }
+
+    /** The run lattice's column for a pace ({@link #runLattice}): the ground covered against the run's own pace, at most 1. */
+    public float runShare(double travel, float modelScale) {
+        return runLattice ? (float) Math.clamp(travel / runSpeed(modelScale), 0, 1) : 1;
+    }
+
+    /** As {@link #advance(double, float, float, float)}, a run lattice paying the run's share of its stride ({@code share}). */
+    public float advance(double travel, float amount, float modelScale, float run, float share) {
+        if (!runLattice) return advance(travel, amount, modelScale, run);
+        double paid = stride * Math.max(.001F, amount) * (1 - run) + runStride * Math.max(.001F, share) * run;
+        return (float) Math.min(maxPlaybackRate, travel * cycleTicks / (paid * modelScale));
     }
 
     /** Native animation ticks per game tick. The cap affects presentation, never travel. */

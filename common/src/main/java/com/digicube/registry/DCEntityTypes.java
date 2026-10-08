@@ -3,7 +3,6 @@ package com.digicube.registry;
 import com.digicube.Constants;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.BubbleBlowEntity;
-import com.digicube.entity.MegaFlameEntity;
 import com.digicube.entity.MarchingFishesEntity;
 import com.digicube.entity.PepperBreathEntity;
 import net.minecraft.core.Registry;
@@ -84,11 +83,6 @@ public final class DCEntityTypes {
                     .eyeHeight(0.15F)
                     .clientTrackingRange(8)
                     .updateInterval(1));
-
-    /** Greymon's broad flame core; trailing sheets are visual follow-through. */
-    public static final EntityType<MegaFlameEntity> MEGA_FLAME = register(key("mega_flame"),
-            EntityType.Builder.<MegaFlameEntity>of(MegaFlameEntity::new, MobCategory.MISC)
-                    .sized(1.2F, 1.2F).eyeHeight(0.6F).clientTrackingRange(10).updateInterval(1));
 
     /** The water crest's complete volume, including fish, is used for swept collision. */
     public static final EntityType<MarchingFishesEntity> MARCHING_FISHES = register(key("marching_fishes"),

@@ -33,6 +33,9 @@ public class MixinEntityRenderer {
         extra.setData(com.digicube.fabric.client.render.BurnedVisuals.BURNING, burn <= 0 ? null : new com.digicube.fabric.client.render.BurnedVisuals.Burning(
                 com.digicube.fabric.client.render.BurnedVisuals.heat(burn, entity.tickCount + partialTick, entity.getId()), burn, entity.getId()));
         if (burn > 0) state.displayFireAnimation = false;
+        // A body an electric shot shocked crackles with lightning for a moment (ShockedBodies, MixinEntityRenderDispatcher).
+        extra.setData(com.digicube.fabric.client.render.ShockedBodies.SHOCKED,
+                entity instanceof LivingEntity living ? com.digicube.fabric.client.render.ShockedBodies.shocked(living, partialTick) : null);
         // The partner under the crosshair is outlined in blue, where a soft target keeps the white of vanilla.
         if (entity == com.digicube.fabric.client.party.PartyClient.aimedPartner()) state.outlineColor = com.digicube.fabric.client.party.PartyClient.AIM_OUTLINE;
         // So is the prey a press of the hold would take, in the colour of its tile.

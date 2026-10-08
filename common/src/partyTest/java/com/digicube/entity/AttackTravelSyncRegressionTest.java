@@ -19,7 +19,7 @@ public final class AttackTravelSyncRegressionTest {
     public static void run() {
         double worstLag = 0, worstJudder = 0;
         check(AttackTravelSync.steps(null, 5) == AttackTravelSync.VANILLA_STEPS, "No attack keeps vanilla smoothing");
-        check(AttackTravelSync.steps(DigimonSpeciesBootstrap.MEGA_FLAME, 16) == AttackTravelSync.VANILLA_STEPS,
+        check(AttackTravelSync.steps(com.digicube.digimon.KineticAttacks.get(com.digicube.Constants.id("mega_flame")).attack(), 16) == AttackTravelSync.VANILLA_STEPS,
                 "An attack that stands still keeps vanilla smoothing");
         var fang = DigimonSpeciesBootstrap.attacks().get(com.digicube.Constants.id("freeze_fang"));
         var pounce = com.digicube.digimon.PounceAttacks.get(fang);
@@ -28,7 +28,7 @@ public final class AttackTravelSyncRegressionTest {
                         && AttackTravelSync.steps(fang, pounce.gather() + pounce.burst() + 2) == AttackTravelSync.LUNGE_STEPS
                         && AttackTravelSync.steps(fang, pounce.gather() + pounce.burst() + 3) == AttackTravelSync.VANILLA_STEPS,
                 "a pounce chases harder exactly while its burst drives the body");
-        for (DigimonAttack attack : List.of(DigimonSpeciesBootstrap.GREAT_ANTLER, DigimonSpeciesBootstrap.HORN_ATTACK)) {
+        for (DigimonAttack attack : List.of(DigimonSpeciesBootstrap.HORN_ATTACK)) {
             var window = AttackTravelSync.window(attack.motion());
             String name = attack.id().getPath();
             check(window.from() > 0 && window.until() < attack.durationTicks(), name + " lunges inside its clip");

@@ -18,9 +18,13 @@ import java.util.Optional;
  *                 the whole body comes round to what it looks at.
  * @param serpent  a long body that lies along the path its head took ({@code serpent}), or null
  * @param fireproof a body of fire ({@code fireproof}: Meramon): fire and lava never burn it, so it is never Burned
+ * @param stepHeight blocks the body steps up without a mount ({@code step_height}; 0 leaves vanilla's 0.6). A mount's own
+ *                   {@code step_height} wins
+ * @param leap     the body's own leap ({@code leap}), or null; a mount that leaps ({@code mount.jump}) uses its own
+ * @param crouch   how the body crouches and rolls ({@code crouch}), or null for one that never does
  */
 public record DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn,
-                          Serpent serpent, boolean fireproof) {
+                          Serpent serpent, boolean fireproof, float stepHeight, Leap leap, Crouch crouch) {
     /** Vanilla's {@code Mob.getMaxHeadYRot}. */
     public static final float HEAD_TURN = 75;
 
@@ -36,6 +40,71 @@ public record DigimonBody(float modelScale, EntityDimensions dimensions, Optiona
         Objects.requireNonNull(mount, "mount");
         hitParts = List.copyOf(Objects.requireNonNull(hitParts, "hitParts"));
         if (!Float.isFinite(headTurn) || headTurn < 5 || headTurn > 180) throw new IllegalArgumentException("Invalid head turn");
+        if (!(stepHeight >= 0 && stepHeight <= 4)) throw new IllegalArgumentException("Invalid step height");
+        if (crouch != null && !(crouch.height() < dimensions.height() && crouch.eyeHeight() <= crouch.height()))
+            throw new IllegalArgumentException("A crouch is lower than the standing body, its eye within it");
+    }
+
+    public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn,
+                       Serpent serpent, boolean fireproof) {
+        this(modelScale, dimensions, mount, hitParts, headTurn, serpent, fireproof, 0, null, null);
+    }
+
+    /**
+     * A leap of the body's own ({@code body.leap}), as a mount's {@code jump} and {@code leap_carry} are under a rider: the AI
+     * (and any controller) leaps with it standing and at a run, and lands six blocks of fall unhurt.
+     * @param jump  upward speed of a standing leap, blocks a tick (0.62 clears two blocks); a run throws it a little higher
+     *              and forward by its pace
+     * @param carry share of its speed along the ground the leaping body keeps each tick in the air; 0 leaves it to vanilla
+     *              (0.91 a tick)
+     */
+    public record Leap(float jump, float carry) {
+        public Leap {
+            if (!(jump > 0 && jump <= 2 && carry >= 0 && carry < 1)) throw new IllegalArgumentException("Invalid leap");
+        }
+    }
+
+    /**
+     * A body that crouches ({@code body.crouch}): a lowered box (its hit parts lowered with it) that blows over it miss, a tuck
+     * in the air, and a combat roll a crouch at a run throws it into ({@code roll}). The width stays the standing body's.
+     * @param height    the crouched box's height, blocks
+     * @param eyeHeight the crouched eye, blocks
+     * @param pace      share of its pace a crouched body walks at
+     * @param roll      the roll a crouch at a run becomes, or null for a body that only crouches
+     */
+    public record Crouch(float height, float eyeHeight, float pace, Roll roll) {
+        public Crouch {
+            if (!(height > 0 && eyeHeight >= 0 && pace > 0 && pace <= 1)) throw new IllegalArgumentException("Invalid crouch");
+            if (roll != null && !(roll.height() <= height)) throw new IllegalArgumentException("A roll tucks no higher than the crouch");
+        }
+    }
+
+    /**
+     * A forward combat roll ({@code body.crouch.roll}): a crouch from a run throws the body into it. It keeps the run's
+     * momentum (a little push forward at the start, or the roll's own {@code speed} if that is faster, eased off by
+     * {@code keep} a tick), lies on its lowest box only through the tucked window ({@code low_from} to {@code low_until},
+     * ticks into the roll; the standing box, or the crouch's while it is held, outside it), cannot start again until it
+     * ends, and comes up into the run (or the crouch, held). The {@code roll} clip is that many ticks long.
+     * @param ticks     how long the roll lasts, ticks
+     * @param height    the tucked box's height, blocks
+     * @param eyeHeight the tucked eye, blocks
+     * @param lowFrom   the tick into the roll the tucked box starts
+     * @param lowUntil  the tick into the roll it ends
+     * @param push      blocks a tick added along the run as it starts
+     * @param keep      share of its pace the roll keeps each tick
+     * @param from      blocks a tick from which a crouch on the ground becomes a roll; 0 takes the gait's {@code run_from},
+     *                  else 0.2
+     * @param speed     blocks a tick the roll goes at least (the speed at which its clip's body rolls without slipping); 0
+     *                  for the run's own
+     */
+    public record Roll(int ticks, float height, float eyeHeight, int lowFrom, int lowUntil, float push, float keep, float from, float speed) {
+        public Roll {
+            if (!(ticks >= 4 && ticks <= 60 && height > 0 && eyeHeight >= 0 && eyeHeight <= height && lowFrom >= 0 && lowUntil > lowFrom
+                    && lowUntil <= ticks && push >= 0 && push <= 1 && keep > .5F && keep <= 1 && from >= 0 && from < 2 && speed >= 0 && speed <= 2))
+                throw new IllegalArgumentException("Invalid roll");
+        }
+        /** Whether {@code tick} into the roll is in its tucked window. */
+        public boolean tucked(int tick) { return tick >= lowFrom && tick < lowUntil; }
     }
 
     public DigimonBody(float modelScale, EntityDimensions dimensions, Optional<Mount> mount, List<HitPart> hitParts, float headTurn,

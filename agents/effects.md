@@ -1,6 +1,6 @@
 # Effects: glows, particles and sounds
 
-Read this before adding a glow, a particle, an attack sound or a species voice.
+Read this before adding a glow, a particle, a texture expression, an attack sound or a species voice.
 
 ## Glows over water
 
@@ -22,7 +22,11 @@ flew. The particles are `DCParticles`, flat pixel planes that tumble in 3D, draw
 `fabric/.../render/PixelPlaneParticle` (two quads, since particles cull back faces); the sounds are original
 cues in `DCSounds`. The `water` style (Crabmon's Water Shot) is in
 [species/ganimon.md](species/ganimon.md), the `magma` style (Monochromon's Volcano Strike) in
-[species/monochromon.md](species/monochromon.md#volcano-strike).
+[species/monochromon.md](species/monochromon.md#volcano-strike), the `fire` style (Greymon's Mega Flame, which bursts in a
+blast) in [species/greymon.md](species/greymon.md#mega-flame), the `electric` style (Kabuterimon's Mega Blaster: its
+shocks are `ArcRenderer` bolts in its own colours, a bolt's `State` carrying its `core`, `edge` and `fork`; the ball's own
+lightning is `ShockBall`, a shocked body's crackle `ShockedBodies`, its hum `ShotAudio`, all on the client) in
+[species/kabuterimon.md](species/kabuterimon.md#mega-blaster).
 
 ## Breaths and pounces
 
@@ -59,10 +63,17 @@ fire instead (`fireParticles`: flames on its skin, smoke off its end, flames, sm
 start as the mouth begins shedding, the loop from the mouth while it sheds (fading in under the start between ticks 2
 and 9), and the end as it stops, the loop fading out under it over three ticks.
 
+A breath drawn as `water` (Hydro Pressure) is `fabric/.../render/WaterJetRenderer`: one translucent tube through its
+puffs, sorted back to front; the faces it strikes stay wet for a while on every client (`WetSurfaces`, the sheet's
+`wet`). Both are described in [species/shellmon.md](species/shellmon.md#hydro-pressure).
+
 ## Bodies of fire
 
 `glow` in `ground_models.json` draws a body full-bright (`DigimonRenderer` sets its light), so a creature made of fire
-(Meramon) is its own light at night and in caves, and so are the flames its clips show as membranes.
+(Meramon) is its own light at night and in caves, and so are the flames its clips show as membranes. `glow_parts` (part
+names, each with all it carries) lights those alone: the renderer's layer draws them full-bright in a pass of their own
+with the body's render type (opaque, depth-written: water keeps off them) and the body's pass leaves them out
+(`NativeGroundModel.submitGlow`; Leomon's fist aura and sword streaks; `:fabric:nativeGlowPartsTest`).
 
 ## Burning bodies
 
@@ -85,7 +96,8 @@ top), the band and the glow.
 ## Discharges
 
 A discharge's bolts ([authored-attacks.md](authored-attacks.md#discharges)) are drawn by each client from the strike
-synced on the caster (`fabric/.../render/ArcRenderer`), with `SolidGlow` like a breath's flame: a zigzag of square rods
+synced on the caster (`fabric/.../render/ArcRenderer`), as `GlowRods` (the glowing rods every electric effect is made of,
+`SolidGlow` like a breath's flame): a zigzag of square rods
 from the fin's tip (or a struck body, or the caster's body) to each body struck, following it as it moves, a pale core
 with a thinner amber strand winding about it and short forks off the main bolt, a cube at every bend, dealt again about
 every two thirds of a tick so it flickers, thinning over its last two ticks; a star of rods bursts where each bolt
@@ -98,11 +110,30 @@ charge and off the struck bodies while the bolts live.
 Authored moves name a `"particles"` style (`StrikeParticles`) for their trail, release, contact and landing
 effects and sounds; see [authored-attacks.md](authored-attacks.md#strike-particle-styles).
 
+## Expressions
+
+`expressions` in `ground_models.json` swaps a body's texture for a window of a clip's ticks (`clip`, `from`, `until`,
+`texture`, a name under `textures/entity/digimon`): an attack's clip on the attack's clock (Bukamon's cheeks as it blows
+bubbles), or `idle` on the idle's own clock while no attack plays, even under the gait (Elecmon's blinks;
+`NativeGroundModel.texture`).
+
+## Mouths
+
+`mouth` in `ground_models.json` opens and shuts a jaw in a body's own time (`NativeGroundModel.mouth`): `part` (the jaw,
+resting open) turns `shut` radians about x to close, in spells of `spell` [from, to] ticks, a share `open` of them open
+(wide or ajar, breathing a little) and the rest shut, moving between them over `move` ticks. The spells fall on a grid
+of their mean length with each boundary jittered by a hash of the entity's id (`DigimonRenderState.seed`), so no two
+bodies are in step and nothing is kept between frames. It is added over the clips (their own jaw keys still play) and
+let go while an attack plays. `folds` (optional) are parts hidden whenever the jaw, by any clip or layer, is more than
+half shut (cheek skin fixed to the head would hang out under a closed jaw). Shellmon's:
+[species/shellmon.md](species/shellmon.md#body-shell-and-seat).
+
 ## Voices
 
 A species' own voice (ambient, hurt, death, pitch) is `data/digicube/voices.json` (`DigimonVoices`); without
 an entry a Digimon keeps vanilla's. Its `cry` is called as each of its moves starts (`DigimonEntity.battleCry`), in
-place of the ravager growl an authored move opens with; a move style with a wind-up of its own
+place of the ravager growl an authored move opens with (a pounce without one opens with a shake of the body, which its
+sheet's `shake: false` leaves out, as Beet Horn's does, and every pounce with a whoosh); a move style with a wind-up of its own
 (`StrikeParticles.windUp`) keeps that, and a move's own `wind_up` sound cue
 ([authored-attacks.md](authored-attacks.md#sound-cues)) replaces both. Sounds of the mod's own are registered in `DCSounds` and defined in
 `assets/digicube/sounds.json`. An event may reuse another's files at its own `pitch` and `volume`: Ikkakumon's three

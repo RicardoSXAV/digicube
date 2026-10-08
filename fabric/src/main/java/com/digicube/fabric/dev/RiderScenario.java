@@ -57,6 +57,8 @@ public final class RiderScenario {
     private static final int STEERED = 1, HELD = 2;
     /** Ticks a whip is held back before it is let go, and how far its steering dummies stand, degrees off ahead and blocks out. */
     private static final int WHIP_HOLD = 12;
+    /** Ticks a spin in the shell is held (withdrawn, then spun up part of the way) before it is let go at the dummy. */
+    private static final int SPIN_HOLD = 30;
     private static final double WHIP_SIDE = 70, WHIP_OUT = 3.1;
     /** Degrees a tick the view sweeps across while a steered whip lashes. */
     private static final float WHIP_SWEEP = 22;
@@ -324,6 +326,8 @@ public final class RiderScenario {
         if (started && !released && (attack.fuel() != null || drawn) && caseTick == 25 + STREAM_HOLD) { mount.stopRiderAttack(rider); released = true; }
         // A whip is held back a moment and let go at what the crosshair is on.
         if (started && !released && held.aim() == RiderAttack.Aim.WHIP && caseTick == 25 + WHIP_HOLD) { mount.stopRiderAttack(rider); released = true; }
+        // A spin withdraws, spins up while it is held and sets off along the view once let go.
+        if (started && !released && held.aim() == RiderAttack.Aim.SPIN && caseTick == 25 + SPIN_HOLD) { mount.stopRiderAttack(rider); released = true; }
         if (test.air()) {
             if (caseTick == 25) airStart = mount.position();
             if (started && !mount.riderCharging() && caseTick > 27 || caseTick > TIMEOUT) {

@@ -37,10 +37,11 @@ final class PounceSession {
     private Vec3 lastBase, lastTip;
     private LivingEntity bitten;
 
-    PounceSession(DigimonEntity body, DigimonAttack attack, LivingEntity prey, Vec3 direction, boolean rider, boolean air) {
+    /** {@code spec} is the form cast: the move itself, or its wing form on the wing (its own timing, motion and burst). */
+    PounceSession(DigimonEntity body, PounceAttacks.Spec spec, LivingEntity prey, Vec3 direction, boolean rider, boolean air) {
         this.body = body;
-        this.attack = attack;
-        this.spec = PounceAttacks.get(attack);
+        this.attack = spec.attack();
+        this.spec = spec;
         this.prey = prey;
         this.direction = direction.normalize();
         this.rider = rider;
@@ -122,10 +123,13 @@ final class PounceSession {
         direction = new Vec3(horizontal.x, Math.sin(Math.toRadians(pitch)), horizontal.z).normalize();
     }
 
-    /** The jaws' reach ahead of the feet at the burst's middle, so the homing brings the mouth, not the feet, to the prey. */
+    /**
+     * The jaws' reach ahead of the feet at the burst's middle, so the homing brings the mouth, not the feet, to the prey;
+     * a wing form drives tipped along its line, its horn's tip where that tipping puts it.
+     */
     private Vec3 jawReach() {
         AttackMotion.Frame frame = attack.motion().sample(spec.gather() + spec.burst() * .5);
-        return new Vec3(0, frame.mouth().y, 0);
+        return spec.airborne() ? PounceLines.tipped(body, spec, frame.hornTip(), yaw(), pitch()) : new Vec3(0, frame.mouth().y, 0);
     }
 
     private void face() {
@@ -135,20 +139,16 @@ final class PounceSession {
         body.syncAttackYaw(yaw);
     }
 
-    /** The jaws' muzzle segment at clip tick {@code tick}, from where the body stands. */
+    /**
+     * The jaws' muzzle segment at clip tick {@code tick}, from where the body stands, posed by the dash's pitch as the
+     * body is drawn ({@link PounceLines#posed}: tipped about the middle of the body, a wing form about the seat, the neck
+     * taking a form's share that the body does not).
+     */
     private Vec3[] jaws(double tick) {
         AttackMotion.Frame frame = attack.motion().sample(tick);
-        float yaw = body.getYRot() * Mth.DEG_TO_RAD, pitch = pitch() * Mth.DEG_TO_RAD;
-        return new Vec3[]{place(frame.hornBase(), yaw, pitch), place(frame.hornTip(), yaw, pitch)};
-    }
-
-    /** A point of the body's frame (x left, y up, z forward) turned by the dash's pitch about the chest, then the heading. */
-    private Vec3 place(Vec3 local, float yaw, float pitch) {
-        double pivotY = body.getBbHeight() * .5;
-        double y = local.y - pivotY, z = local.z;
-        // up is +pitch: the front rises
-        double ry = y * Math.cos(pitch) + z * Math.sin(pitch), rz = -y * Math.sin(pitch) + z * Math.cos(pitch);
-        return body.position().add(new Vec3(local.x, ry + pivotY, rz).yRot(-yaw));
+        float yaw = body.getYRot(), pitch = pitch();
+        return new Vec3[]{body.position().add(PounceLines.posed(body, spec, frame, frame.hornBase(), yaw, pitch)),
+                body.position().add(PounceLines.posed(body, spec, frame, frame.hornTip(), yaw, pitch))};
     }
 
     private void bite(ServerLevel level, int tick) {
@@ -161,7 +161,7 @@ final class PounceSession {
             Vec3 base = fromBase.lerp(now[0], u), tip = fromTip.lerp(now[1], u);
             AABB region = new AABB(base, tip).inflate(radius);
             for (Entity entity : level.getEntities(body, region,
-                    e -> DigimonPart.livingOf(e) instanceof LivingEntity living && living.isAlive() && body.canAttack(living) && !body.isAllyOf(living))) {
+                    e -> DigimonPart.livingOf(e) instanceof LivingEntity living && living != body && living.isAlive() && body.canAttack(living) && !body.isAllyOf(living))) {
                 AABB box = entity.getBoundingBox().inflate(radius);
                 var contact = box.clip(base, tip);
                 if (!box.contains(base) && !box.contains(tip) && contact.isEmpty()) continue;
@@ -179,19 +179,26 @@ final class PounceSession {
         boolean shatter = FreezeMark.frozen(victim);
         float damage = body.pounceDamage(attack, victim) * (shatter ? spec.shatter() : 1);
         var source = DCDamageTypes.partnerAttack(body);
+        Vec3 before = victim.getDeltaMovement();
         boolean hurt = victim.hurtServer(level, source, damage);
         if (hurt) {
             body.setLastHurtMob(victim);
             if (shatter) FreezeMark.shatter(level, victim, at);
             else FreezeMark.freeze(level, victim, spec.freeze(), body);
-            if (spec.knockback() > 0) victim.knockback(spec.knockback(), -direction.x, -direction.z, source, damage);
+            // A blow that throws its victim sends it on along the dash in place of the push.
+            if (spec.launch() != null) spec.launch().apply(victim, direction, 1, before);
+            else if (spec.knockback() > 0) victim.knockback(spec.knockback(), -direction.x, -direction.z, source, damage);
+            body.attackLanded(attack, victim);
         }
-        // Everyone sees the bite: the jaws shut on it, the ice bursts where they met (the client draws it at its own jaws).
+        // Everyone sees the bite: the jaws shut on it, and a frost bite's ice bursts where they met (the client draws it at
+        // its own jaws); a bite without frost (a horn, a blade, a fist) strikes clean.
         level.broadcastEntityEvent(body, DigimonAnimationEvents.IMPACT);
-        level.sendParticles(ParticleTypes.ITEM_SNOWBALL, true, true, at.x, at.y, at.z, 14, .25, .25, .25, .18);
-        level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, at.x, at.y, at.z, 18, .3, .3, .3, .06);
+        if (spec.freeze() > 0 || shatter) {
+            level.sendParticles(ParticleTypes.ITEM_SNOWBALL, true, true, at.x, at.y, at.z, 14, .25, .25, .25, .18);
+            level.sendParticles(ParticleTypes.SNOWFLAKE, true, true, at.x, at.y, at.z, 18, .3, .3, .3, .06);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.GLASS_HIT, SoundSource.NEUTRAL, 1F, 1.3F);
+        } else level.sendParticles(ParticleTypes.CRIT, true, true, at.x, at.y, at.z, 12, .2, .2, .2, .08);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.NEUTRAL, 1F, .7F);
-        level.playSound(null, at.x, at.y, at.z, SoundEvents.GLASS_HIT, SoundSource.NEUTRAL, 1F, 1.3F);
         if (!rider) {
             // The dash ends against its prey with a little of its weight still on it.
             Vec3 settle = direction.scale(.08);

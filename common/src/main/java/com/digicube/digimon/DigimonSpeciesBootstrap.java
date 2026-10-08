@@ -23,16 +23,6 @@ public final class DigimonSpeciesBootstrap {
             Constants.id("bubble_blow"), DigimonAttack.Kind.BUBBLES,
             1.0F, 40, 24, 10, 8.0, false);
 
-    /** Greymon's priority flame shot: a two-second performance, eight-second cooldown. */
-    public static final DigimonAttack MEGA_FLAME = new DigimonAttack(
-            Constants.id("mega_flame"), DigimonAttack.Kind.FLAME_SHOT,
-            2.4F, 160, 40, 16, 16.0, false, AttackMotion.load(Constants.id("mega_flame")));
-
-    /** A committed horn drive with shorter recovery between uses. */
-    public static final DigimonAttack GREAT_ANTLER = new DigimonAttack(
-            Constants.id("great_antler"), DigimonAttack.Kind.HORN_RAM,
-            1.15F, 50, 36, 11, 6.2, false, AttackMotion.load(Constants.id("great_antler")));
-
     /** Four seconds of continuous blue flame, then six seconds to refill an empty tank. */
     public static final DigimonAttack BLUE_BLASTER = new DigimonAttack(
             Constants.id("blue_blaster"), DigimonAttack.Kind.FLAME_STREAM,
@@ -74,8 +64,9 @@ public final class DigimonSpeciesBootstrap {
     public static Map<Identifier, DigimonAttack> attacks() {
         var data = java.util.stream.Stream.of(AuthoredAttacks.all().stream().map(AuthoredAttacks.Definition::attack),
                 KineticAttacks.all().stream().map(KineticAttacks.Definition::attack), ThrownAttacks.attacks().stream(),
-                WhipAttacks.attacks().stream(), PounceAttacks.attacks().stream(), BreathAttacks.attacks().stream()).flatMap(s -> s);
-        return java.util.stream.Stream.concat(data, java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW, MEGA_FLAME, GREAT_ANTLER,
+                WhipAttacks.attacks().stream(), PounceAttacks.attacks().stream(), BreathAttacks.attacks().stream(),
+                SpinAttacks.attacks().stream(), CompoundAttacks.attacks().stream()).flatMap(s -> s);
+        return java.util.stream.Stream.concat(data, java.util.stream.Stream.of(PEPPER_BREATH, BUBBLE_BLOW,
                 BLUE_BLASTER, HORN_ATTACK, MARCHING_FISHES, CLAW_ATTACK, ROCK_PUNCH, TECTONIC_FIST,
                 CONSTRICTION))
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(DigimonAttack::id, attack -> attack));

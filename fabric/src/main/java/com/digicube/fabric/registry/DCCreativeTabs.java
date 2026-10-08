@@ -1,7 +1,9 @@
 package com.digicube.fabric.registry;
 
 import com.digicube.Constants;
+import com.digicube.digimon.DigimonFamilies;
 import com.digicube.registry.DCItems;
+import com.digicube.scan.DigitamaItem;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.core.Registry;
@@ -21,7 +23,13 @@ public final class DCCreativeTabs {
             FabricCreativeModeTab.builder()
                     .title(Component.translatable("creative_tab.digicube.main"))
                     .icon(() -> new ItemStack(DCItems.DIGIVICE))
-                    .displayItems((parameters, output) -> { output.accept(DCItems.DIGIVICE); output.accept(DCItems.RECALL_CHIP); })
+                    .displayItems((parameters, output) -> {
+                        output.accept(DCItems.DIGIVICE);
+                        output.accept(DCItems.RECALL_CHIP);
+                        // One Digitama of each family, in the order the SCAN page shows them.
+                        for (var family : DigimonFamilies.all()) output.accept(DigitamaItem.of(family));
+                        output.accept(DCItems.DIGIMEAT);
+                    })
                     .build());
 
     private DCCreativeTabs() {}
@@ -30,5 +38,11 @@ public final class DCCreativeTabs {
     public static void init() {
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
                 .register(output -> output.insertAfter(Items.COMPASS, DCItems.DIGIVICE, DCItems.RECALL_CHIP));
+        // A Digitama hatches into a Digimon: beside the spawn eggs.
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS)
+                .register(output -> { for (var family : DigimonFamilies.all()) output.accept(DigitamaItem.of(family)); });
+        // Digimeat eats like cooked chicken: beside it.
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FOOD_AND_DRINKS)
+                .register(output -> output.insertAfter(Items.COOKED_CHICKEN, DCItems.DIGIMEAT));
     }
 }

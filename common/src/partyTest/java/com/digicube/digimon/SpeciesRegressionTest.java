@@ -19,7 +19,8 @@ public final class SpeciesRegressionTest {
             net.minecraft.server.Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             com.digicube.entity.ConstrictionRegressionTest.run();
-            check(DigimonSpeciesRegistry.size() == 25, "all bundled species loaded");
+            CompoundAttacksRegressionTest.run();
+            check(DigimonSpeciesRegistry.size() == 28, "all bundled species loaded");
             var monochromon = DigimonSpeciesRegistry.getOrThrow(Constants.id("monochromon"));
             var monochromonGait = monochromon.locomotion().groundGait();
             var monochromonRiding = monochromon.body().mount().orElseThrow().riderAttacks();
@@ -90,6 +91,7 @@ public final class SpeciesRegressionTest {
             com.digicube.entity.AuthoredAttackRegressionTest.run();
             com.digicube.entity.GolemonRegressionTest.run();
             com.digicube.entity.KineticRegressionTest.run();
+            AgilityRegressionTest.run();
             var centalmon = DigimonSpeciesRegistry.getOrThrow(Constants.id("centalmon"));
             check(DigimonSpeciesRegistry.resolve("centarumon").orElseThrow() == centalmon
                             && DigimonSpeciesRegistry.resolve("digicube:centarumon").orElseThrow() == centalmon
@@ -170,6 +172,9 @@ public final class SpeciesRegressionTest {
             check(garurumon.attacks().stream().map(a -> a.id().getPath()).toList().equals(List.of("freeze_fang", "howling_blaster"))
                             && PounceAttacks.handles(garurumon.attacks().get(0)) && BreathAttacks.handles(garurumon.attacks().get(1)),
                     "Garurumon pounces with Freeze Fang and breathes Howling Blaster");
+            var beetHorn = PounceAttacks.get(DigimonSpeciesBootstrap.attacks().get(Constants.id("beet_horn")));
+            check(PounceAttacks.get(garurumon.attacks().get(0)).shake() && beetHorn != null && !beetHorn.shake() && !beetHorn.forAir(true).shake(),
+                    "a wolf shakes itself into its pounce; Beet Horn starts with the lunge's whoosh alone (no wing-like shake)");
             check(garurumonMount.riderAttacks().size() == 2 && garurumonMount.riderAttacks().get(0).aim() == RiderAttack.Aim.POUNCE
                             && garurumonMount.riderAttacks().get(0).input() == RiderAttack.Input.TAP
                             && garurumonMount.riderAttacks().get(1).aim() == RiderAttack.Aim.STREAM
@@ -179,7 +184,7 @@ public final class SpeciesRegressionTest {
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
             check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
-                            && gabumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("garurumon"),20))), "Gabumon prioritizes fueled breath, then horn contact, with its level-20 route");
+                            && gabumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("garurumon"),20), Evolution.atLevel(Constants.id("centalmon"),20))), "Gabumon prioritizes fueled breath, then horn contact, with its level-20 routes");
             check(DigimonSpeciesBootstrap.BLUE_BLASTER.cooldownTicks() == 0
                     && DigimonSpeciesBootstrap.BLUE_BLASTER.fuel().capacityTicks() == 80
                     && DigimonSpeciesBootstrap.HORN_ATTACK.knockback() == 0,
@@ -231,14 +236,14 @@ public final class SpeciesRegressionTest {
                     && CrackMark.charges(slap) == 0 && blownBubbles.id().equals(bubble.id()) && blownBubbles.motion() != null
                     && blownBubbles.motion() != inflatedBubbles.motion(),
                     "Flipper Slap alternates flippers once per cast; Bubbles leaves Bukamon's own mouth");
-            check(pukamon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("gomamon"), 5))),
-                    "Bukamon digivolves to Gomamon");
+            check(pukamon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("gomamon"), 10), Evolution.atLevel(Constants.id("ganimon"), 10))),
+                    "Bukamon grows into Gomamon or Crabmon at level 10");
             check(tsunomon.body().equals(koromon.body()) && tsunomon.baseSpeed() == koromon.baseSpeed(),
                     "shared model scale and follow speed");
-            check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 5))),
-                    "Koromon evolution preserved");
+            check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 10), Evolution.atLevel(Constants.id("betamon"), 10))),
+                    "Koromon grows into Agumon or Betamon at level 10");
             var agumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon"));
-            for (String other : List.of("greymon", "koromon", "tsunomon")) {
+            for (String other : List.of("koromon", "tsunomon")) {
                 var unchanged = DigimonSpeciesRegistry.getOrThrow(Constants.id(other)).locomotion();
                 check(unchanged.equals(DigimonLocomotion.DEFAULT) && !unchanged.canRun()
                                 && unchanged.followSpeed(true) == unchanged.followSpeed(false),
@@ -264,18 +269,29 @@ public final class SpeciesRegressionTest {
                     && leapingClaw.hitWindows().getFirst()[0] >= leapingClaw.leap().land() - 1
                     && leapingClaw.particles() == com.digicube.entity.StrikeParticles.CLAW,
                     "Agumon's claw is a leap that strikes as it lands, with either hand");
-            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20))), "Champion prototype has one level-20 route");
+            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20), Evolution.atLevel(Constants.id("meramon"), 20))),
+                    "Agumon's two level-20 routes, Greymon first");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10
                     && greymon.baseSpeed() == .32F, "Greymon stats preserved");
-            check(greymon.attacks().equals(List.of(DigimonSpeciesBootstrap.MEGA_FLAME, DigimonSpeciesBootstrap.GREAT_ANTLER)),
-                    "Greymon attack priority and motion profiles preserved");
+            var greymonMoves = DigimonSpeciesBootstrap.attacks();
+            check(greymon.attacks().equals(List.of(greymonMoves.get(Constants.id("mega_flame")), greymonMoves.get(Constants.id("great_antler"))))
+                            && KineticAttacks.handles(greymon.attacks().get(0)) && PounceAttacks.handles(greymon.attacks().get(1)),
+                    "Greymon's Mega Flame (a fireball) first, then Great Antler (a horn charge)");
             var body = greymon.body();
             var mount = body.mount().orElseThrow();
-            check(body.modelScale() == 1.5F && body.dimensions().width() == 2.5F && body.dimensions().height() == 4.6F
-                    && body.dimensions().eyeHeight() == 4.1F && mount.seat().y == 4.540426
-                    && mount.seat().z == .507345 && mount.speed() == .32F && mount.stepHeight() == 1,
-                    "approved Greymon dimensions and rider seat preserved");
+            check(Math.abs(body.modelScale() - .45F) < 1e-6 && body.dimensions().width() == 2.3F && body.dimensions().height() == 4.0F
+                    && body.dimensions().eyeHeight() == 3.6F && mount.seat().y > 2 && mount.seat().z < 0 && mount.stepHeight() == 1
+                    && mount.jump() > 0 && mount.leapCarry() > .9F && mount.turnToTravel() && mount.sprint() > 1,
+                    "Greymon's native body: its size, a seat on its back behind the neck, a leap that keeps a run's pace");
+            var greymonGait = greymon.locomotion().groundGait();
+            check(greymon.locomotion().canRun() && greymonGait != null && greymonGait.pivotWalk() && greymonGait.runLattice()
+                            && greymonGait.footfalls() && greymonGait.pivotReach() > 0 && greymonGait.runFrom() > greymonGait.runUntil(),
+                    "Greymon turns on planted feet as it walks and runs on a lattice over its pace");
+            var flame = mount.riderAttacks().stream().filter(r -> r.attack().getPath().equals("mega_flame")).findFirst().orElseThrow();
+            var antler = mount.riderAttacks().stream().filter(r -> r.attack().getPath().equals("great_antler")).findFirst().orElseThrow();
+            check(flame.move() && flame.air() && antler.aim() == RiderAttack.Aim.POUNCE,
+                    "a rider looses Mega Flame on the run and from a leap, and charges with Great Antler");
             var data = GsonHelper.parse("""
                     {"stage":"baby_ii","attribute":"free","base_health":12,"base_attack":2,
                      "base_defence":2,"base_speed":0.25,"attacks":["bubble_blow"],"evolutions":[]}

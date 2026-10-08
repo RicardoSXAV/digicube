@@ -10,8 +10,6 @@ import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
-import com.digicube.fabric.client.model.GreymonModel;
-import com.digicube.fabric.client.model.MegaFlameModel;
 import com.digicube.digimon.DigimonAttack;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.EntityModel;
@@ -37,8 +35,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("ikkakumon"), Constants.id("textures/entity/digimon/ikkakumon.png"),
             Constants.id("tentomon"), Constants.id("textures/entity/digimon/tentomon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
-            Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"),
-            Constants.id("greymon"), Constants.id("textures/entity/digimon/greymon.png"));
+            Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"));
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
     /** Agumon's presentation scale, for a species drawn with Agumon's model because it has none of its own. */
     private final float fallbackScale;
@@ -49,7 +46,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     private final Map<DigimonEntity,com.digicube.fabric.client.model.RopeChains.State> ropes=new java.util.WeakHashMap<>();
     private final Map<DigimonEntity,com.digicube.fabric.client.model.TailChains.State> tails=new java.util.WeakHashMap<>();
     private final Map<DigimonEntity,com.digicube.fabric.client.model.SerpentSpine.State> serpents=new java.util.WeakHashMap<>();
-    private final MegaFlameModel mouthFlame;
     private final BlueBlasterModel blueBlaster;
     /** A breath of puffs is drawn with its own effect model's boxes; a pounce's bite bursts its impact model at the jaws. */
     private final Map<String, BreathArt> breaths = new java.util.HashMap<>();
@@ -73,12 +69,11 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         // A move's forms share one effect model, each playing its own clip.
         for(var d:com.digicube.digimon.AuthoredAttacks.all()) if(d.effect()!=null) authoredEffects.computeIfAbsent(d.effect(),
                 effect->new com.digicube.fabric.client.model.NativeEffectModel(context.bakeLayer(com.digicube.fabric.client.model.NativeEffectModel.layer(effect)),effect));
-        mouthFlame = new MegaFlameModel(context.bakeLayer(MegaFlameModel.LAYER));
         blueBlaster = new BlueBlasterModel(context.bakeLayer(BlueBlasterModel.LAYER));
         for (var attack : com.digicube.digimon.BreathAttacks.attacks()) {
             var spec = com.digicube.digimon.BreathAttacks.get(attack);
             breaths.computeIfAbsent(spec.effect(), effect -> spec.art().equals("shards") ? new IceShardBreathRenderer(effect)
-                    : new FrostBreathRenderer(effect, spec.pixel(), spec.cooling()));
+                    : spec.art().equals("water") ? new WaterJetRenderer(effect) : new FrostBreathRenderer(effect, spec.pixel(), spec.cooling()));
         }
         for (var attack : com.digicube.digimon.PounceAttacks.attacks()) {
             String effect = com.digicube.digimon.PounceAttacks.get(attack).impact();
@@ -95,8 +90,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
                 Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
-                Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER)),
-                Constants.id("greymon"), new GreymonModel(context.bakeLayer(GreymonModel.LAYER))));
+                Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER))));
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {
             if (!models.containsKey(definition.species())) models.put(definition.species(), new com.digicube.fabric.client.model.NativeGroundModel(
                     context.bakeLayer(definition.layer()), definition));
@@ -107,13 +101,38 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             }
         }
         for (var species:com.digicube.digimon.DigimonSpeciesRegistry.all()) {
-            if (species.body().mount().map(m->m.flight()!=null).orElse(false)) {
+            // A flyer with a model of its own in the catalog flies on it (its flight block); others on the shared flying model.
+            if (species.body().mount().map(m->m.flight()!=null).orElse(false)
+                    && !com.digicube.fabric.client.model.NativeGroundModel.definitions().containsKey(species.id())) {
                 var id=species.id();
                 models.put(id,new com.digicube.fabric.client.model.NativeFlyingMountModel(
                         context.bakeLayer(new net.minecraft.client.model.geom.ModelLayerLocation(id,"main")),id));
             }
         }
         evolution=new com.digicube.fabric.client.evolution.EvolutionPresentation(models);
+        // A body's glow parts, full-bright in a pass of their own over the body's (NativeGroundModel.submitGlow).
+        addLayer(new net.minecraft.client.renderer.entity.layers.RenderLayer<DigimonRenderState, EntityModel<DigimonRenderState>>(this) {
+            @Override
+            public void submit(PoseStack pose, SubmitNodeCollector collector, int light, DigimonRenderState state, float yRot, float xRot) {
+                submitGlowParts(state, pose, collector);
+            }
+        });
+    }
+
+    /** Layers only for a body with glow parts (the glow's pass is the only layer): posing a body again for nothing costs. */
+    @Override
+    protected boolean shouldRenderLayers(DigimonRenderState state) {
+        return state.glowSplit && super.shouldRenderLayers(state);
+    }
+
+    /** The glow parts' pass with the body's render type, overlay, tint and outline, as the body itself is submitted. */
+    private void submitGlowParts(DigimonRenderState state, PoseStack pose, SubmitNodeCollector collector) {
+        if (!state.glowSplit || !(this.model instanceof com.digicube.fabric.client.model.NativeGroundModel ground)) return;
+        boolean visible = isBodyVisible(state), translucent = !visible && !state.isInvisibleToPlayer;
+        var type = getRenderType(state, visible, translucent, state.appearsGlowing());
+        if (type == null) return;
+        int tint = net.minecraft.util.ARGB.multiply(translucent ? 0x26FFFFFF : -1, getModelTint(state));
+        ground.submitGlow(state, pose, collector, type, getOverlayCoords(state, getWhiteOverlayProgress(state)), tint, state.outlineColor);
     }
 
     /** Agumon's native model: the default species, and the body drawn for any species without a model of its own. */
@@ -145,6 +164,30 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
     }
 
+    /**
+     * A drawn weapon's stance (AttackStance) and a chained strike's cut into the clip before it, from what this client
+     * has seen: the stance's move, phase and ticks (partial included) and whether the weapon is out; the clip cut into.
+     */
+    static void stance(DigimonEntity entity, DigimonRenderState state, float partial) {
+        int code = entity.stanceCode();
+        var move = code == 0 ? null : entity.stanceMove();
+        var compound = com.digicube.digimon.CompoundAttacks.get(move);
+        if (compound == null || compound.stance() == null) {
+            state.stanceMove = null; state.stancePhase = null; state.stanceCompound = null; state.stanceDrawn = false; state.stanceTicks = 0;
+        } else {
+            state.stanceMove = move.id().getPath();
+            state.stancePhase = com.digicube.entity.AttackStance.phase(code);
+            state.stanceCompound = compound;
+            state.stanceTicks = com.digicube.entity.AttackStance.ticks(code) + partial;
+            state.stanceDrawn = com.digicube.entity.AttackStance.drawn(compound.stance(), state.stancePhase, state.stanceTicks);
+        }
+        state.chainFrom = entity.chainFrom();
+        state.chainFromTime = entity.chainFromTime();
+        state.chainFromAir = entity.chainFromAir();
+        state.chainFromRun = entity.chainFromRun();
+        state.sinceChain = entity.sinceChain(partial);
+    }
+
     @Override
     public void submit(DigimonRenderState state, PoseStack poseStack,
                        SubmitNodeCollector collector, CameraRenderState cameraState) {
@@ -153,6 +196,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             return;
         }
         this.model = this.models.getOrDefault(state.species, this.models.get(DigimonEntity.DEFAULT_SPECIES));
+        state.glowSplit = this.model instanceof com.digicube.fabric.client.model.NativeGroundModel ground && ground.glowPass() != null;
         super.submit(state, poseStack, collector, cameraState);
         SerpentShadow.submit(state, state.shadowLevel, poseStack, collector);
         if (!state.isInvisible && state.attackDefinition != null && state.attackDefinition.kind() == DigimonAttack.Kind.FIST
@@ -184,29 +228,13 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         if (state.arc.count > 0) arcs.submit(state.arc, poseStack, collector);
         if (!state.isInvisible && state.breath.count > 0 && state.breathEffect != null && breaths.containsKey(state.breathEffect)) {
-            breaths.get(state.breathEffect).submit(state.breath, poseStack, collector, state.ageInTicks);
+            var art = breaths.get(state.breathEffect);
+            // water is lit as the world is where it flows; fire and frost glow
+            if (art instanceof WaterJetRenderer water) water.light(state.lightCoords);
+            art.submit(state.breath, poseStack, collector, state.ageInTicks);
         }
         if (!state.isInvisible && state.biteEffect != null && impacts.containsKey(state.biteEffect)) {
             TectonicWaveRenderer.submitEffect(impacts.get(state.biteEffect), state.biteEffect, state.bite, poseStack, collector);
-        }
-        if (!state.isBeingRidden && state.attackAnimation.isStarted() && state.attackDefinition != null
-                && state.attackDefinition.kind() == DigimonAttack.Kind.FLAME_SHOT) {
-            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
-            if (tick >= 7 && tick < 22) {
-                var frame = state.attackDefinition.motion().sample(tick);
-                var mouth = frame.aimedMouth(state.attackAimPitch).yRot(-state.bodyRot * Mth.DEG_TO_RAD);
-                var flame = state.mouthFlame;
-                flame.ageInTicks = tick;
-                flame.charging = true;
-                flame.burst = false;
-                flame.yRot = state.bodyRot;
-                flame.xRot = -(frame.headPitch() + state.attackAimPitch * frame.aimWeight());
-                flame.outlineColor = state.outlineColor;
-                poseStack.pushPose();
-                poseStack.translate(mouth.x, mouth.y, mouth.z);
-                MegaFlameRenderer.submitFlame(mouthFlame, flame, poseStack, collector);
-                poseStack.popPose();
-            }
         }
     }
 
@@ -239,6 +267,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.groundAnimationPhase = entity.getGroundAnimationPhase(partialTick);
         state.groundAnimationAmount = entity.getGroundAnimationAmount(partialTick);
         state.groundRunAmount = entity.getGroundRunAmount(partialTick);
+        state.groundRunShare = entity.getRunShare(partialTick);
         state.gaitShares = entity.getGaitShares(partialTick);
         state.pivotTurn = entity.getPivotTurn(partialTick);
         state.groundedMove = entity.groundedMove();
@@ -264,6 +293,13 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.flightGroundDistance=entity.aerialMount()!=null && state.flightPhase==com.digicube.entity.ai.FlightPhase.APPROACH
                 ? (float)entity.aerialRiding().groundDistance(3) : 3;
         state.flightLandingProgress=entity.landingProgress(partialTick);
+        var look=entity.flightLook();
+        state.flightCruise=look.cruise(partialTick);state.flightDash=look.dash(partialTick);state.flightDive=look.dive(partialTick);
+        state.flightBrake=look.brake(partialTick);state.flightBank=look.bank(partialTick);state.flightPitch=look.pitch(partialTick);
+        state.flightPower=look.power(partialTick);state.wingClock=look.wing(partialTick);
+        state.attackAir=entity.attackAir();
+        state.attackRun=entity.attackRun();
+        stance(entity, state, partialTick);
         state.swimBank = entity.getSwimBank(partialTick);
         state.turnBank = entity.getTurnBank(partialTick);
         state.swimDash = entity.getSwimDash(partialTick);
@@ -308,9 +344,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel ground && ground.definition().attackEffects() != null
                 && state.attackAnimation.isStarted() && state.attackAnimationName != null) {
             var effects = ground.definition().attackEffects();
-            String clip = effects.clips().get(state.attackAnimationName);
+            // a cast on the wing plays its wing form's effect clip, when the catalog names one
+            String clip = state.attackAir && effects.clips().containsKey(state.attackAnimationName + "_air")
+                    ? effects.clips().get(state.attackAnimationName + "_air") : effects.clips().get(state.attackAnimationName);
             if (clip != null) {
                 var fx = state.attackEffect;
+                fx.root = effects.follow() != null ? state.drawnFollow : effects.followRoot() ? state.drawnRoot : null;
                 fx.clip = clip; fx.tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
                 fx.scale = state.modelScale; fx.offset = net.minecraft.world.phys.Vec3.ZERO;
                 // Fire and claw light are their own light. The facing is the body's, taken when drawn.
@@ -351,11 +390,25 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.rushStanding = com.digicube.entity.BullRush.standing(rush);
         state.rushTicks = rush == 0 ? -1 : com.digicube.entity.BullRush.ticks(rush) + (state.rushBlow ? 0 : partialTick);
         state.rushBuild = entity.rushBuildTicks();
+        int spin = entity.spinCode();
+        state.spinPhase = spin == 0 ? null : com.digicube.entity.ShellSpin.phase(spin);
+        state.spinTicks = spin == 0 ? 0 : com.digicube.entity.ShellSpin.ticks(spin) + partialTick;
+        state.spinAngle = entity.getSpinAngle(partialTick);
+        state.spinRate = entity.getSpinRate();
+        state.spinSpeed = entity.spinSpeed();
+        state.spinCharge = Math.max(0, entity.spinCharge());
+        state.spinLean = entity.getSpinLean(partialTick);
+        state.spinWobble = entity.getSpinWobble(partialTick);
+        state.seed = entity.getId();
         state.pouncePitch = entity.getPouncePitch(partialTick);
         breathAndBite(entity, state, partialTick);
         ArcRenderer.extract(entity, state.arc, state.x, state.y, state.z, partialTick);
         state.leapTick = entity.getLeapTick(partialTick);
         state.leapWeight = state.leapTick < 0 ? 0 : entity.getLeapWeight(partialTick);
+        var agility = entity.agility();
+        state.crouchWeight = agility.crouchWeight(partialTick);
+        state.rollWeight = agility.rollWeight(partialTick);
+        state.rollTick = agility.rollTick(partialTick);
         if (entity.isAlive() && state.attackAnimation.isStarted() && state.attackDefinition != null
                 && state.attackDefinition.fuel() != null && !com.digicube.digimon.BreathAttacks.handles(state.attackDefinition)) {
             float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50.0F;
@@ -445,12 +498,15 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         state.biteEffect = null;
         int since = entity.ticksSincePounceBite();
         var pounce = com.digicube.digimon.PounceAttacks.get(entity.getAnimatingAttack());
+        if (pounce != null) pounce = pounce.forAir(entity.attackAir()).forRun(entity.attackRun());
         Bite bite = bites.get(entity);
         if (pounce != null && !pounce.impact().isEmpty() && since <= 1 && (bite == null || bite.tick() != entity.tickCount - since)) {
             var frame = pounce.attack().motion().sample(pounce.snap());
             double pitch = Math.toRadians(entity.getPouncePitch(partialTick)), pivot = entity.getBbHeight() * .5;
             double y = frame.mouth().y - pivot, z = frame.mouth().z;
-            var local = new net.minecraft.world.phys.Vec3(frame.mouth().x, y * Math.cos(pitch) + z * Math.sin(pitch) + pivot, -y * Math.sin(pitch) + z * Math.cos(pitch));
+            // a form that shares its pitch with the neck is posed as the server poses its horns
+            var local = pounce.tip() < 1 ? com.digicube.entity.PounceLines.posed(entity, pounce, frame, frame.mouth(), 0, entity.getPouncePitch(partialTick))
+                    : new net.minecraft.world.phys.Vec3(frame.mouth().x, y * Math.cos(pitch) + z * Math.sin(pitch) + pivot, -y * Math.sin(pitch) + z * Math.cos(pitch));
             bite = new Bite(entity.tickCount - since, entity.getPosition(partialTick).add(local.yRot(-state.bodyRot * Mth.DEG_TO_RAD)),
                     state.bodyRot, pounce.impact());
             bites.put(entity, bite);
@@ -493,8 +549,7 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
     @Override
     public Identifier getTextureLocation(DigimonRenderState state) {
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel) {
-            return nativeModel.definition().texture(state.attackAnimation.isStarted() ? state.attackAnimationName : null,
-                    state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F);
+            return nativeModel.texture(state);
         }
         if (models.get(state.species) instanceof com.digicube.fabric.client.model.NativeFlyingMountModel) {
             return state.species.withPath("textures/entity/digimon/"+state.species.getPath()+".png");

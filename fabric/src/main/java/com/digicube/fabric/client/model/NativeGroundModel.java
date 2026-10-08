@@ -56,10 +56,11 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     /**
      * Paws heard where they land (PawFalls). {@code sound} is the species' own step: under the ground's step on every
      * block, or, when {@code replaces} names grounds by their step sound, in place of the ground's step on those and
-     * nowhere else (a wolf's paws swishing through grass, the stone's own step on stone).
+     * nowhere else (a wolf's paws swishing through grass, the stone's own step on stone). {@code floor}: the paws' faces
+     * never sink under the ground (the body is raised by as much, {@code footFloor}).
      */
     public record Paws(java.util.List<Foot> feet, net.minecraft.sounds.SoundEvent sound, float volume, float pitch,
-                       java.util.Set<Identifier> replaces) {
+                       java.util.Set<Identifier> replaces, boolean floor) {
         /** Whether the species' step plays on ground whose own step is {@code step}, and whether it takes its place. */
         public boolean padsOn(net.minecraft.sounds.SoundEvent step) { return sound != null && (replaces.isEmpty() || replaces.contains(step.location())); }
         public boolean replacesStep(net.minecraft.sounds.SoundEvent step) { return sound != null && replaces.contains(step.location()); }
@@ -93,13 +94,40 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
      * Caster-anchored clips of one effect model ({@code attack_effects}), drawn in the caster's frame while the attack
      * animation of the same name plays and on its clock: a charge in the mouth, a streak behind a claw.
      */
-    public record AttackEffects(String effect, Map<String, String> clips) {}
+    public record AttackEffects(String effect, Map<String, String> clips, boolean followRoot, java.util.List<String> follow) {
+        public AttackEffects(String effect, Map<String, String> clips, boolean followRoot) { this(effect, clips, followRoot, null); }
+        public AttackEffects(String effect, Map<String, String> clips) { this(effect, clips, false); }
+    }
     /**
      * A held rush's look ({@code rush} in the catalog; BullRush): {@code brace} is the whole body's clip as a standing brace
      * stops and paws the ground (played over the rush's build, its end held), and {@code charge} a loop on the subtree at
      * {@code path} (the head), added over the gait while it rushes and lowered in over a running brace.
      */
     public record Rush(String brace, String charge, java.util.List<String> path) {}
+    /**
+     * A spin in the shell's look ({@code spin} in the catalog; ShellSpin): {@code withdraw} played as the body pulls in
+     * (blended in from the gait over its first ticks), {@code hold} looped while it is in (spinning up, spinning, winding
+     * down), {@code emerge} as it comes back out (handing back to the gait over its last ticks); the part at {@code path}
+     * turns about its own vertical by the spin, and the part at {@code tilt} wobbles as a top does, more the faster it
+     * goes and most as it winds down.
+     */
+    public record Spin(String withdraw, String hold, String emerge, java.util.List<String> path, java.util.List<String> tilt) {}
+    /**
+     * A mouth that opens and shuts in its own time ({@code mouth} in the catalog): the part at {@code part} (the jaw,
+     * resting open) turns {@code shut} radians about x to close. Its life runs in spells of {@code spell[0]} to
+     * {@code spell[1]} ticks, each body its own (seeded by the entity), a share {@code open} of them open (wide or ajar)
+     * and the rest shut, moving between them over {@code move} ticks; open, it breathes a little. Added over the clips
+     * (whose own jaw keys still play: a lip smack, a bite) and let go while an attack plays. The parts in {@code folds}
+     * (the cheeks' skin between the jaws) are hidden whenever the jaw, by any clip or layer, is more than half shut:
+     * fixed to the head, they would hang out under a closed jaw.
+     */
+    public record Mouth(String part, float shut, float open, float[] spell, float move, java.util.List<String> folds) {}
+    /**
+     * A drawn weapon's look ({@code stances} in the catalog, by the move's id path): the parts shown while its weapon is out
+     * ({@code drawn}: the hand prop) and while it is stowed ({@code stowed}: the hilt on the back), each a part name prefix.
+     * The stance's state shows and hides them every frame, over any clip's visibility keys.
+     */
+    public record StanceLook(java.util.List<String> drawn, java.util.List<String> stowed) {}
     public record Definition(Identifier species, double cullingMargin, boolean amphibious, boolean walkBlend, java.util.List<String> aimPath,
                              float attackBlendIn, float attackBlendOut, boolean gallop, boolean supportFloor, Rider rider,
                              java.util.List<String> pitchPath, float riddenPitch, java.util.List<TextureWindow> expressions,
@@ -107,7 +135,9 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                              HoofTimes hoofBeats, Look look, AttackEffects attackEffects, java.util.List<RopeChains.Rope> ropes,
                              String carried, float swimPitch, boolean pitchAtRider, Stomps stomps, boolean bank,
                              java.util.List<SleeveBends.Bend> bends, float swimBank, SwimWakeSpec swimWake,
-                             java.util.List<TailChains.Tail> tails, Paws paws, SerpentSpine.Spine spine, boolean glow, Rush rush) {
+                             java.util.List<TailChains.Tail> tails, Paws paws, SerpentSpine.Spine spine, boolean glow, Rush rush,
+                             FlightPose.Spec flight, Spin spin, Mouth mouth, float[] pouncePivot, float[] pounceAirPivot,
+                             Map<String, StanceLook> stances, java.util.List<String> glowParts) {
         public ModelLayerLocation layer() { return new ModelLayerLocation(species, "main"); }
         public Identifier geometry() { return species.withPath("models/entity/" + species.getPath() + ".mesh.json"); }
         public Identifier animation() { return species.withPath("models/entity/" + species.getPath() + ".animation.json"); }
@@ -143,9 +173,30 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private final java.util.Set<ModelPart> rushParts;
     /** A serpent's chain, laid along its trail each frame after the pose. */
     private final SerpentSpine.Rig spine;
+    /** A flyer's body off the ground (the catalog's {@code flight}), or null. */
+    private final FlightPose flightPose;
+    /** A spin's turning part and the part that wobbles, or null without a spin. */
+    private final ModelPart spinPart, spinTilt;
+    /** The part a mouth of its own opens and shuts ({@link Mouth}), or null; and the folds hidden as it shuts. */
+    private final ModelPart mouthPart;
+    private final ModelPart[] mouthFolds;
+    /** The mesh's own top part (the one every clip's root track moves). */
+    private final ModelPart topPart;
     /** Paws: each looping clip's toe positions through its cycle ({@link #toes}); null without paws. */
     private final java.util.Map<String, float[][][]> toeTracks;
     private final float[][] toeRest;
+    /** Paws kept on the floor ({@code paws.floor}): each paw part's own face corners (model units), for {@link #footFloor}; else null. */
+    private final float[][][] footFaces;
+    /**
+     * Glow parts ({@code glow_parts}, each with all it carries), drawn full-bright in a pass of their own ({@link #glowPass})
+     * while the rest of the body keeps its light; the parts above them (passed through in that pass, their own faces left
+     * out) and every other part (left out of it). Empty without glow parts.
+     */
+    private final ModelPart[] glowRoots, glowAbove, glowElse;
+    private final GlowParts glowPass;
+    /** Which pass last changed the shared parts (0 none, 1 the body's, 2 the glow's), and what they were before it. */
+    private int split;
+    private final boolean[] glowShown, aboveSkipped, elseShown;
     /** The models whose paws are heard, by species (the renderer builds one per species at each resource load). */
     private static final java.util.Map<Identifier, NativeGroundModel> PAWED = new java.util.concurrent.ConcurrentHashMap<>();
     /** Samples a looping clip's toe tracks are taken at, over one cycle. */
@@ -176,6 +227,15 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         riderHidden=definition.rider()==null?new ModelPart[0]:definition.rider().hide().stream().map(animations::part).toArray(ModelPart[]::new);
         bends=SleeveBends.rig(root,definition.bends());
         spine=SerpentSpine.rig(root,definition.spine());
+        String top=java.util.Arrays.stream(NativeModelGeometry.mesh(definition.geometry()).parts()).filter(p->p.path().length==1)
+                .findFirst().orElseThrow().name();
+        topPart=root.getChild(top);
+        flightPose=definition.flight()==null?null:new FlightPose(definition.flight(),animations,topPart);
+        mouthPart=definition.mouth()==null?null:animations.part(definition.mouth().part());
+        mouthFolds=definition.mouth()==null?new ModelPart[0]:definition.mouth().folds().stream().map(animations::part).toArray(ModelPart[]::new);
+        if(definition.spin()==null){spinPart=spinTilt=null;}
+        else{ModelPart s=root;for(String name:definition.spin().path())s=s.getChild(name);spinPart=s;
+            ModelPart t=root;for(String name:definition.spin().tilt())t=t.getChild(name);spinTilt=t;}
         if(definition.rush()==null)rushParts=null;
         else{ModelPart r=root;for(String name:definition.rush().path())r=r.getChild(name);
             rushParts=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());rushParts.addAll(r.getAllParts());}
@@ -200,15 +260,122 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             all.forEach(ModelPart::resetPose);
             PAWED.put(definition.species(),this);
         }
-
+        if(definition.paws()==null||!definition.paws().floor())footFaces=null;
+        else{
+            var mesh=NativeModelGeometry.mesh(definition.geometry()).parts();
+            footFaces=new float[definition.paws().feet().size()][][];
+            for(int f=0;f<footFaces.length;f++){
+                var path=definition.paws().feet().get(f).path();
+                var faces=new java.util.ArrayList<float[]>();
+                for(var p:mesh)if(java.util.Arrays.asList(p.path()).equals(path))
+                    for(var quad:p.quads())for(float[] v:quad.vertices())faces.add(new float[]{v[0]/16,v[1]/16,v[2]/16});
+                footFaces[f]=faces.toArray(float[][]::new);
+            }
+        }
+        // Glow parts: each named part with all it carries, the parts above them, and every other part.
+        var glowing=parts();var above=parts();var roots=new java.util.ArrayList<ModelPart>();
+        for(String name:definition.glowParts()){
+            var p=java.util.Arrays.stream(NativeModelGeometry.mesh(definition.geometry()).parts()).filter(q->q.name().equals(name)).findFirst()
+                    .orElseThrow(()->new IllegalArgumentException("No glow part "+name+" in "+definition.species()));
+            ModelPart part=rootPart;above.add(part);
+            for(String child:p.path()){part=part.getChild(child);above.add(part);}
+            roots.add(part);glowing.addAll(part.getAllParts());
+        }
+        above.removeAll(glowing);
+        var rest=parts();rest.addAll(rootPart.getAllParts());rest.removeAll(glowing);rest.removeAll(above);
+        glowRoots=roots.toArray(ModelPart[]::new);glowAbove=above.toArray(ModelPart[]::new);glowElse=rest.toArray(ModelPart[]::new);
+        glowShown=new boolean[glowRoots.length];aboveSkipped=new boolean[glowAbove.length];elseShown=new boolean[glowElse.length];
+        glowPass=glowRoots.length==0?null:new GlowParts(root());
     }
 
     public static Map<Identifier, Definition> definitions() { return DEFINITIONS; }
     public Definition definition() { return definition; }
 
-    /** Whether this model steps round on the spot: it has pivots both ways. */
+    /**
+     * The texture the body is drawn with: an attack's expression window while one plays, otherwise the idle's on the
+     * idle's own clock (Elecmon's blinks), otherwise the species' texture.
+     */
+    public Identifier texture(DigimonRenderState state) {
+        if (state.attackAnimation.isStarted())
+            return definition.texture(state.attackAnimationName, state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F);
+        return animations.has("idle") ? definition.texture("idle", state.ageInTicks % animations.length("idle")) : definition.texture();
+    }
+
+    /** Whether this model steps round on the spot: it has pivots both ways, as lattice blends or as plain looping clips. */
     private boolean pivots() {
-        return animations.blendNames().contains("pivot_left") && animations.blendNames().contains("pivot_right");
+        return animations.blendNames().contains("pivot_left") && animations.blendNames().contains("pivot_right")
+                || animations.has("pivot_left") && animations.has("pivot_right");
+    }
+
+    /** The pivot's pose by its share of the gait: a lattice blend at the gait's amplitude, or a plain clip weighted by it. */
+    private void pivotPose(DigimonRenderState state, float pivot, float amount, float weight) {
+        if (pivot == 0 || weight <= 0) return;
+        String name = pivot > 0 ? "pivot_right" : "pivot_left";
+        float crouch = crouch(state);
+        if (animations.blendNames().contains(name)) gaitBlend(name, amount, state.groundAnimationPhase, Math.abs(pivot) * weight, crouch);
+        else gaitClip(name, state.groundAnimationPhase, Math.abs(pivot) * weight, crouch);
+    }
+
+    /** The suffix of a gait clip's crouched twin, and of a lattice's crouched twin lattice. */
+    private static final String CROUCH = "_crouch";
+
+    /** How far into its crouch the body is drawn (Agility), for a model with any crouched twin; 0 otherwise. */
+    private static float crouch(DigimonRenderState state) { return Math.clamp(state.crouchWeight, 0, 1); }
+
+    /**
+     * Paws kept on the floor ({@code paws.floor}): gait clips mixed by their weights (a walk and its pivot as the body turns
+     * walking, a gait and its {@code _crouch} twin part way into a crouch) mix their joints' turns, and legs mixed so reach
+     * further down than either pose. On the ground (no leap, roll, swim, flight or attack clip on the legs; a stance's draw,
+     * hold and sheathe over the gait are kept) the whole body is raised by as much as the paws' own faces sink under the
+     * ground (the toes' height at rest), never lowered, so the feet stand on the floor and not in it.
+     */
+    private void footFloor(DigimonRenderState state) {
+        if (footFaces == null || leap(state) > 0 || state.rollWeight > 0 || state.swimAnimationAmount > .01F
+                || flightPose != null && FlightPose.applies(state) || state.spinPhase != null
+                || state.attackAnimationName != null && state.attackAnimation.isStarted() && animations.has(state.attackAnimationName)
+                && !state.attackUpperBody) return;
+        float sink = 0;
+        var at = new org.joml.Vector3f();
+        for (int f = 0; f < footFaces.length; f++) {
+            var stack = new com.mojang.blaze3d.vertex.PoseStack();
+            ModelPart part = rootPart; part.translateAndRotate(stack);
+            for (String name : definition.paws().feet().get(f).path()) { part = part.getChild(name); part.translateAndRotate(stack); }
+            var pose = stack.last().pose();
+            for (float[] v : footFaces[f]) sink = Math.max(sink, pose.transformPosition(v[0], v[1], v[2], at).y - toeRest[f][1]);
+        }
+        if (sink > 0) rootPart.y -= sink * 16;
+    }
+
+    /**
+     * A gait clip by {@code weight}, shared with its crouched twin ({@code <clip>_crouch}, on the same clock) by the crouch
+     * weight: a clip without a twin keeps the crouch's share (the body is drawn standing in it).
+     */
+    private void gaitClip(String clip, float tick, float weight, float crouch) {
+        if (weight <= 0) return;
+        String twin = crouch > 0 ? clip + CROUCH : null;
+        if (twin == null || !animations.has(twin)) { animations.apply(clip, tick, weight); return; }
+        animations.apply(clip, tick, weight * (1 - crouch));
+        animations.apply(twin, tick, weight * crouch);
+    }
+
+    /**
+     * A gait lattice by {@code weight} at {@code value}, shared with its crouched twin lattice ({@code <blend>_crouch}, the same
+     * amplitude and phase: its columns planted on the same strides) by the crouch weight; without a twin it keeps the share.
+     */
+    private void gaitBlend(String blend, float value, float tick, float weight, float crouch) {
+        if (weight <= 0) return;
+        String twin = crouch > 0 ? blend + CROUCH : null;
+        if (twin == null || !animations.blendNames().contains(twin)) { animations.blend(blend, value, tick, weight); return; }
+        animations.blend(blend, value, tick, weight * (1 - crouch));
+        animations.blend(twin, value, tick, weight * crouch);
+    }
+
+    /** The clips the pivot's pose is made of, for {@link #toes}: a lattice's at the amplitude, or the plain clip itself. */
+    private void pivotWeights(float pivot, float amount, float weight, java.util.function.BiConsumer<String, Float> into) {
+        if (pivot == 0 || weight <= 0) return;
+        String name = pivot > 0 ? "pivot_right" : "pivot_left";
+        if (animations.blendNames().contains(name)) animations.weights(name, amount, Math.abs(pivot) * weight, into);
+        else into.accept(name, Math.abs(pivot) * weight);
     }
 
     /** The model whose paws are heard for this species, or null. */
@@ -253,31 +420,63 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         // a skid takes its share from every clip under it
         java.util.function.BiConsumer<String,Float> add=(clip,weight)->pose.accept(clip,weight*(1-braced));
         if(braced>0)pose.accept("skid",braced);
+        float pivot=pivots()?Math.clamp(pivotTurn,-1,1):0,keep=1-Math.abs(pivot);
         if(definition.walkBlend()&&animations.blendNames().contains("walk_back")){
-            float pivot=pivots()?Math.clamp(pivotTurn,-1,1):0,keep=1-Math.abs(pivot);
             for(int i=0;i<DIRECTIONS.length;i++)animations.weights(DIRECTIONS[i],a,shares[i]*(1-r)*keep,add);
             if(r>0&&animations.blendNames().contains("run"))animations.weights("run",a,r,add);
-            if(pivot!=0)animations.weights(pivot>0?"pivot_right":"pivot_left",a,Math.abs(pivot)*(1-r),add);
+            pivotWeights(pivot,a,1-r,add);
         }else if(definition.walkBlend()){
-            animations.weights("walk",a,1-r,add);
+            animations.weights("walk",a,(1-r)*keep,add);
             if(r>0)animations.weights("run",a,r,add);
+            pivotWeights(pivot,a,1-r,add);
         }else{
-            add.accept("walk",(1-r)*a);
+            add.accept("walk",(1-r)*a*keep);
             if(r>0)add.accept("run",r*a);
+            pivotWeights(pivot,a,(1-r)*a,add);
         }
         return true;
     }
 
     @Override
     public void setupAnim(DigimonRenderState state) {
+        posed(state);
+        // the renderer draws the glow parts in a pass of their own, full-bright: this one leaves them out
+        if (state.glowSplit && glowPass != null) bodyOnly();
+    }
+
+    /** The body as posed for this frame, each part shown as its clips and looks have it: where both passes start. */
+    private void posed(DigimonRenderState state) {
+        unsplit();
         super.setupAnim(state);
         pose(state);
+        footFloor(state);
+        stanceLook(state);
+        if (mouthPart != null) {
+            float shut = (mouthPart.xRot - mouthPart.getInitialPose().xRot()) / definition.mouth().shut();
+            for (ModelPart fold : mouthFolds) fold.visible = shut < .5F;
+        }
         whip(state);
         SerpentSpine.apply(rootPart, state, definition.spine(), spine);
         ClothChains.apply(rootPart, state, definition.cloth(), state.cloth);
         RopeChains.apply(rootPart, state, definition.ropes(), state.ropes);
         TailChains.apply(rootPart, state, definition.tails(), state.tails);
         SleeveBends.apply(bends);
+        // The root as drawn, for effects drawn in its frame (attack_effects with follow_root).
+        var r=topPart;
+        state.drawnRoot[0]=r.x;state.drawnRoot[1]=r.y;state.drawnRoot[2]=r.z;
+        state.drawnRoot[3]=r.xRot;state.drawnRoot[4]=r.yRot;state.drawnRoot[5]=r.zRot;
+        // The part an attack effect follows (attack_effects.follow), as one pose in the model's frame: px and ZYX angles.
+        var follow=definition.attackEffects()==null?null:definition.attackEffects().follow();
+        if(follow!=null) {
+            var stack=new com.mojang.blaze3d.vertex.PoseStack();
+            ModelPart part=rootPart;part.translateAndRotate(stack);
+            for(String name:follow){part=part.getChild(name);part.translateAndRotate(stack);}
+            var m=stack.last().pose();
+            var at=m.getTranslation(new org.joml.Vector3f());
+            var angles=m.getNormalizedRotation(new org.joml.Quaternionf()).getEulerAnglesZYX(new org.joml.Vector3f());
+            state.drawnFollow[0]=at.x*16;state.drawnFollow[1]=at.y*16;state.drawnFollow[2]=at.z*16;
+            state.drawnFollow[3]=angles.x;state.drawnFollow[4]=angles.y;state.drawnFollow[5]=angles.z;
+        }
     }
 
     /** The authored pose for this frame: idle, gait, swim and the attack in progress. Cloth hangs from it afterwards. */
@@ -285,16 +484,37 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         animations.hideMembranes();
         if (carriedPart != null) carriedPart.visible = state.boneCarried;
         for (ModelPart part : riderHidden) part.visible = !state.isBeingRidden;
+        // In its shell the body plays its spin's performance, and the shell turns and wobbles.
+        if (spinPart != null && state.spinPhase != null) {
+            spinPose(state);
+            return;
+        }
+        // Off the ground a flyer's flight pose takes the whole body, its attacks on the wing included.
+        if (flightPose != null && FlightPose.applies(state)) {
+            flightPose.pose(state, definition.attackBlendIn(), definition.attackBlendOut());
+            // a shot cast on the wing aims its upper body up or down at the target, as it does standing
+            var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
+            if (kinetic != null && state.attackAnimation.isStarted())
+                NativeArmAim.apply(rootPart, kinetic, state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F, state.attackAimPitch);
+            return;
+        }
         if (state.attackAnimationName != null && state.attackAnimation.isStarted() && upperParts != null
                 && com.digicube.digimon.ThrownAttacks.handles(state.attackDefinition)) {
             thrownPerformance(state);
             return;
         }
-        // Also under a rider: mounted combat casts from the saddle, and a mount that does not fight never starts one.
-        if (state.attackAnimationName != null && state.attackAnimation.isStarted()) {
+        // Also under a rider: mounted combat casts from the saddle, and a mount that does not fight never starts one. A move
+        // the model has no clip for yet is drawn in the gait (a body still waiting for its clips).
+        if (state.attackAnimationName != null && state.attackAnimation.isStarted() && animations.has(state.attackAnimationName)) {
             String attackClip=state.attackInWater && animations.has(state.attackAnimationName+"_water")
                     ? state.attackAnimationName+"_water" : state.attackAnimationName;
+            // a move cast from a leap plays its air form's own clip when the model has one (a pounce's dive from the air)
+            if(state.attackAir && animations.has(state.attackAnimationName+"_air")) attackClip=state.attackAnimationName+"_air";
+            // a pounce cast from a run plays its run clip when the model has one, on the move's own clock (from its gather)
+            if(state.attackRun && animations.has(state.attackAnimationName+"_run")) attackClip=state.attackAnimationName+"_run";
             float tick=state.attackAnimation.getTimeInMillis(state.ageInTicks)/50F;
+            // Another move's strike while a weapon is out leaves the weapon arm in its guard (the fist fires, the sword stays up).
+            boolean guard=guarding(state);
             // A wrap's clip (head, jaw and fins; the body is laid on the coil) holds its lunge while the strike flies,
             // then runs on the capture's clock.
             if(state.attackDefinition!=null && state.attackDefinition.kind()==com.digicube.digimon.DigimonAttack.Kind.CONSTRICTION)
@@ -309,13 +529,16 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 float blend=Math.clamp(Math.min(tick/UPPER_BLEND,(animations.length(attackClip)-tick)/UPPER_BLEND),0,1);
                 blend=blend*blend*(3-2*blend);
                 applyGround(state,1);
+                stanceOverlay(state,1);
+                var upper=guard?stanceRig(state.stanceMove).upperOthers():upperParts;
                 // A serpent's head rides its swimming (or slithering) neck: the attack adds to the gait's head
                 // rather than replacing it, which would tip the head as it was posed on the reared land neck.
-                if(definition.spine()==null)fromRest(upperParts,1-blend);
-                animations.apply(attackClip,tick,blend,upperParts);
+                if(definition.spine()==null)fromRest(upper,1-blend);
+                animations.apply(attackClip,tick,blend,upper);
                 var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
                 if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch*blend);
                 upperBase.yRot+=state.attackTwist*blend*((float)Math.PI/180);
+                mouth(state,1-blend);
                 // A breath on the run aims its head up and down too, as it does standing.
                 if (kinetic == null && aimPart != null && state.attackDefinition != null && state.attackDefinition.motion() != null
                         && (com.digicube.digimon.BreathAttacks.handles(state.attackDefinition) || state.attackDefinition.fuel() != null))
@@ -324,11 +547,19 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 supportFloor(state);
                 return;
             }
-            // The blow a rush ends in takes over from the rush's own pose (its brace, its lowered head), not the bare gait.
-            float braced = state.rushBlow ? braceWeight(state) : 0;
-            applyGround(state,(1-weight)*(1-braced));
-            if (state.rushBlow) rushPose(state, braced*(1-weight), 1-weight);
-            if(definition.supportFloor()) {
+            // A start that cut into another clip (a compound's chain) blends in from the pose that clip stopped in, not the
+            // gait; a weapon's stance holds its arm under the strike as the strike blends in and out.
+            String chained = chainClip(state);
+            if (chained != null) animations.apply(chained, state.chainFromTime, 1 - weight);
+            else {
+                // The blow a rush ends in takes over from the rush's own pose (its brace, its lowered head), not the bare gait.
+                float braced = state.rushBlow ? braceWeight(state) : 0;
+                applyGround(state,(1-weight)*(1-braced));
+                if (state.rushBlow) rushPose(state, braced*(1-weight), 1-weight);
+                stanceOverlay(state, guard ? 1 : 1-weight);
+            }
+            if(guard) animations.apply(attackClip,tick,weight,stanceRig(state.stanceMove).others());
+            else if(definition.supportFloor()) {
                 // Blend complete poses with shortest-arc quaternions. Segmented
                 // tentacles can cross Euler's wrap boundary during a pad strike.
                 rootPart.getAllParts().forEach(ModelPart::resetPose);
@@ -352,9 +583,13 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
             if (kinetic != null) NativeArmAim.apply(rootPart, kinetic, tick, state.attackAimPitch);
             else if(aimPart!=null && state.attackDefinition!=null && state.attackDefinition.motion()!=null) {
-                aimPart.xRot+=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
+                float aim=state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*weight*((float)Math.PI/180);
+                // an aimed sweep leans its swing about the body's own axis, as the server leans its volumes (AttackBox.aimed)
+                if(state.attackDefinition.kind()==com.digicube.digimon.DigimonAttack.Kind.BOX_SWEEP)aimAboutBody(aim);
+                else aimPart.xRot+=aim;
             }
             look(state,1-weight);
+            mouth(state,1-weight);
             divePitch(state,1-weight);
             pouncePitch(state);
             supportFloor(state);
@@ -364,7 +599,10 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         float braced = braceWeight(state);
         applyGround(state,1-braced);
         float lowered = rushPose(state, braced, 1);
+        // A drawn weapon's draw, hold and sheathe over the gait.
+        stanceOverlay(state,1);
         look(state,1-Math.max(braced, lowered));
+        mouth(state,1-Math.max(braced, lowered));
         if (state.riderCharge >= 0 && flameParts != null) {
             // The jets burn through a rider's charge, flickering on the flame clip's own pose.
             var f=definition.flames();
@@ -374,6 +612,40 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         bank(state);
         divePitch(state,1);
         supportFloor(state);
+    }
+
+    /** Ticks over which a spin's withdrawal takes over from the gait, and its emergence hands back to it. */
+    private static final float SPIN_BLEND = 3;
+
+    /**
+     * A spin in the shell (ShellSpin): the withdrawal, held in while it spins up, spins and winds down, then the emergence;
+     * the shell turns by the spin and wobbles about its base as a top does: a little as it spins up, with its speed while
+     * it spins, wide and slowing as it winds down (the entity eases both, so no phase change jumps them).
+     */
+    private void spinPose(DigimonRenderState state) {
+        var s = definition.spin();
+        float t = state.spinTicks;
+        switch (state.spinPhase) {
+            case WITHDRAW -> {
+                float w = Math.clamp(t / SPIN_BLEND, 0, 1); w = w * w * (3 - 2 * w);
+                applyGround(state, 1 - w);
+                animations.apply(s.withdraw(), t, w);
+            }
+            case EMERGE -> {
+                float length = animations.length(s.emerge());
+                float back = Math.clamp((t - (length - SPIN_BLEND)) / SPIN_BLEND, 0, 1); back = back * back * (3 - 2 * back);
+                animations.apply(s.emerge(), t, 1 - back);
+                applyGround(state, back);
+            }
+            default -> animations.apply(s.hold(), state.ageInTicks, 1);
+        }
+        if (state.spinPhase == com.digicube.entity.ShellSpin.Phase.WITHDRAW) return;
+        float toRad = (float) Math.PI / 180;
+        spinPart.yRot -= state.spinAngle * toRad;
+        // the wobble: its lean (degrees) and the way it leans, going round with the spin
+        float round = state.spinWobble * toRad;
+        spinTilt.xRot += state.spinLean * (float) Math.cos(round) * toRad;
+        spinTilt.zRot += state.spinLean * (float) Math.sin(round) * toRad;
     }
 
     /**
@@ -523,6 +795,40 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         lookPart.xRot+=Math.clamp(state.xRot*share,-l.pitch(),l.pitch())*amount*toRad;
     }
 
+    /**
+     * Opens and shuts a mouth of its own ({@link Mouth}) over whatever the clips did, by {@code amount}: its spells fall
+     * on a grid of their mean length, each boundary moved by up to a quarter of the spread, so a body's open and shut
+     * spells are found from the time alone and every body keeps its own.
+     */
+    private void mouth(DigimonRenderState state, float amount) {
+        var m=definition.mouth();
+        if(mouthPart==null||amount<=0)return;
+        float mean=(m.spell()[0]+m.spell()[1])*.5F,jitter=(m.spell()[1]-m.spell()[0])*.25F,t=state.ageInTicks;
+        int k=(int)Math.floor(t/mean);
+        // the spell t falls in: k's, or a neighbour's when a boundary's jitter moved it past t
+        float start=spellStart(state.seed,k,mean,jitter);
+        if(t<start){k--;start=spellStart(state.seed,k,mean,jitter);}
+        else{float next=spellStart(state.seed,k+1,mean,jitter);if(t>=next){k++;start=next;}}
+        float now=shutness(state.seed,k,m.open()),before=shutness(state.seed,k-1,m.open());
+        float u=Math.clamp((t-start)/m.move(),0,1);u=u*u*(3-2*u);
+        float shut=before+(now-before)*u;
+        // open, it breathes a little
+        shut+=.07F*(1-shut)*(float)Math.sin(t*(Math.PI*2/43)+(state.seed&63));
+        mouthPart.xRot+=m.shut()*Math.clamp(shut,0,1)*amount;
+    }
+    private static float spellStart(int seed,int k,float mean,float jitter){return k*mean+(noise(seed,k,1)-.5F)*2*jitter;}
+    /** How shut spell {@code k} keeps the mouth: 1 shut; open, wide (0) or ajar. */
+    private static float shutness(int seed,int k,float open){
+        if(noise(seed,k,2)>=open)return 1;
+        return noise(seed,k,3)<.5F?0:.45F;
+    }
+    /** A hash of (seed, k, salt) to 0..1. */
+    private static float noise(int seed,int k,int salt){
+        int h=seed*0x9E3779B1+k*0x85EBCA77+salt*0xC2B2AE3D;
+        h^=h>>>15;h*=0x2C1B3C6D;h^=h>>>12;h*=0x297A2D39;h^=h>>>15;
+        return (h>>>8)/(float)(1<<24);
+    }
+
     /** The rider is attached to the look part, a part that carries its look, or something they carry. */
     private boolean ridesLook() {
         var rider=definition.rider();var look=definition.look();
@@ -546,6 +852,158 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             p.xRot = rest.xRot() + (p.xRot - rest.xRot()) * keep; p.yRot = rest.yRot() + (p.yRot - rest.yRot()) * keep;
             p.zRot = rest.zRot() + (p.zRot - rest.zRot()) * keep;
         }
+    }
+
+    // --- glow parts: their own light, in a pass of their own over the body's ------------------------------------------
+
+    /** The glow parts' pass: the body's parts posed as the body, only the glow parts drawn. Null without glow parts. */
+    public EntityModel<DigimonRenderState> glowPass() { return glowPass; }
+
+    /**
+     * Submits the glow parts' pass over the body's (the renderer's layer, {@code glowSplit}): posed as the body, drawn
+     * full-bright with the body's render type, overlay, tint and outline, so they light themselves in the dark while the
+     * rest of the body takes the world's light. Opaque and depth-written like the body: water drawn later keeps off them.
+     */
+    public void submitGlow(DigimonRenderState state, com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector collector,
+                           net.minecraft.client.renderer.rendertype.RenderType type, int overlay, int tint, int outline) {
+        if (glowPass != null) collector.submitModel(glowPass, state, pose, type, net.minecraft.util.LightCoordsUtil.FULL_BRIGHT, overlay, tint, null, outline, null);
+    }
+
+    /** The body's pass: its glow parts left out. */
+    private void bodyOnly() {
+        for (int i = 0; i < glowRoots.length; i++) { glowShown[i] = glowRoots[i].visible; glowRoots[i].visible = false; }
+        split = 1;
+    }
+
+    /** The glow's pass: the parts above the glow parts passed through without their own faces, every other part left out. */
+    private void glowOnly() {
+        for (int i = 0; i < glowAbove.length; i++) { aboveSkipped[i] = glowAbove[i].skipDraw; glowAbove[i].skipDraw = true; }
+        for (int i = 0; i < glowElse.length; i++) { elseShown[i] = glowElse[i].visible; glowElse[i].visible = false; }
+        split = 2;
+    }
+
+    /** Puts back what the last pass changed: the parts are shared by both passes and by every body of the species. */
+    private void unsplit() {
+        if (split == 1) for (int i = 0; i < glowRoots.length; i++) glowRoots[i].visible = glowShown[i];
+        else if (split == 2) {
+            for (int i = 0; i < glowAbove.length; i++) glowAbove[i].skipDraw = aboveSkipped[i];
+            for (int i = 0; i < glowElse.length; i++) glowElse[i].visible = elseShown[i];
+        }
+        split = 0;
+    }
+
+    /** The glow parts' pass, posed again as the body is when it is drawn (each submit is posed just before it draws). */
+    private final class GlowParts extends EntityModel<DigimonRenderState> {
+        private GlowParts(ModelPart root) { super(root); }
+
+        @Override
+        public void setupAnim(DigimonRenderState state) { posed(state); glowOnly(); }
+    }
+
+    // --- a drawn weapon's stance (AttackStance) and strikes chained without the gait between them -------------------
+
+    /**
+     * A stance's parts, by its move: those its look shows while the weapon is out and while it is stowed, those its hold
+     * clips key (the weapon arm), everything else, and the upper body without the weapon arm.
+     */
+    private record StanceRig(java.util.Set<ModelPart> drawn, java.util.Set<ModelPart> stowed, java.util.Set<ModelPart> hold,
+                             java.util.Set<ModelPart> others, java.util.Set<ModelPart> upperOthers) {}
+    private final Map<String, StanceRig> stanceRigs = new java.util.HashMap<>();
+
+    private static java.util.Set<ModelPart> parts() { return java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()); }
+
+    private StanceRig stanceRig(String move) {
+        return stanceRigs.computeIfAbsent(move, m -> {
+            var look = definition.stances().get(m);
+            var drawn = parts(); var stowed = parts(); var hold = parts();
+            // every part of the mesh by its name, keyed by a clip or not
+            if (look != null) for (var p : NativeModelGeometry.mesh(definition.geometry()).parts()) {
+                boolean out = look.drawn().stream().anyMatch(p.name()::startsWith), away = look.stowed().stream().anyMatch(p.name()::startsWith);
+                if (!out && !away) continue;
+                ModelPart part = rootPart;
+                for (String child : p.path()) part = part.getChild(child);
+                (out ? drawn : stowed).add(part);
+            }
+            if (animations.has(m + "_hold")) hold.addAll(animations.keyed(m + "_hold"));
+            if (animations.has(m + "_hold_run")) hold.addAll(animations.keyed(m + "_hold_run"));
+            var others = parts(); others.addAll(rootPart.getAllParts()); others.removeAll(hold);
+            var upperOthers = parts(); if (upperParts != null) upperOthers.addAll(upperParts); upperOthers.removeAll(hold);
+            return new StanceRig(drawn, stowed, hold, others, upperOthers);
+        });
+    }
+
+    private static float smooth(float x) { x = Math.clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+
+    /**
+     * The weapon's parts every frame (model instances are shared between bodies): for each stance in the catalog, its
+     * drawn parts shown and its stowed parts hidden while that move's weapon is out (from the draw's swap to the sheathe's),
+     * the other way round otherwise, over any clip's visibility keys.
+     */
+    private void stanceLook(DigimonRenderState state) {
+        for (String move : definition.stances().keySet()) {
+            var rig = stanceRig(move);
+            boolean out = state.stanceDrawn && move.equals(state.stanceMove);
+            for (ModelPart part : rig.drawn()) part.visible = out;
+            for (ModelPart part : rig.stowed()) part.visible = !out;
+        }
+    }
+
+    /** Another move's strike plays while a weapon is out: the weapon arm keeps its hold under it. */
+    private boolean guarding(DigimonRenderState state) {
+        return state.stanceMove != null && state.stanceDrawn && state.stancePhase == com.digicube.entity.AttackStance.Phase.HOLD
+                && !state.stanceCompound.owns(state.attackDefinition) && !stanceRig(state.stanceMove).hold().isEmpty();
+    }
+
+    /**
+     * A drawn weapon's stance over the pose so far, {@code keep} of its hold (a strike of its own blending in takes the
+     * rest): the draw and the sheathe on the upper body over the gait, blended in and out over UPPER_BLEND ticks, and the
+     * hold on the parts its clips key (the weapon arm), its run clip mixed in by the gait's run share. The hold takes the
+     * arm over through the draw's last ticks and gives it back through the sheathe's first. Clips the model lacks are left
+     * out: a body without them stands in its gait.
+     */
+    private void stanceOverlay(DigimonRenderState state, float keep) {
+        if (state.stanceMove == null || state.stancePhase == null) return;
+        var spec = state.stanceCompound.stance();
+        float t = state.stanceTicks, hold, clip = 0;
+        String body = null;
+        switch (state.stancePhase) {
+            case DRAW -> {
+                hold = smooth((t - (spec.draw() - UPPER_BLEND)) / UPPER_BLEND);
+                clip = smooth(t / UPPER_BLEND) * (1 - hold);
+                body = state.stanceMove + "_draw";
+            }
+            case HOLD -> hold = 1;
+            default -> {
+                hold = 1 - smooth(t / UPPER_BLEND);
+                clip = smooth(t / UPPER_BLEND) * smooth((spec.sheathe() - t) / UPPER_BLEND);
+                body = state.stanceMove + "_sheathe";
+            }
+        }
+        if (body != null && clip > 0 && upperParts != null && animations.has(body)) {
+            fromRest(upperParts, 1 - clip);
+            animations.apply(body, t, clip, upperParts);
+        }
+        String guard = state.stanceMove + "_hold", run = state.stanceMove + "_hold_run";
+        if (hold <= 0 || !animations.has(guard)) return;
+        var parts = stanceRig(state.stanceMove).hold();
+        // the hold loops on its own clock from the hold's start (not the stride)
+        float clock = switch (state.stancePhase) { case DRAW -> 0; case HOLD -> t; default -> spec.hold() + t; };
+        float running = animations.has(run) ? Math.clamp(state.groundRunAmount, 0, 1) : 0;
+        fromRest(parts, 1 - hold);
+        animations.apply(guard, clock, hold * keep * (1 - running), parts);
+        if (running > 0) animations.apply(run, clock, hold * keep * running, parts);
+    }
+
+    /**
+     * The clip a chained start cut into (a compound's chain), as the variant that was playing, while the new clip still
+     * blends in from it; null otherwise (a start from the gait).
+     */
+    private String chainClip(DigimonRenderState state) {
+        if (state.chainFrom == null || state.sinceChain >= Math.max(1, definition.attackBlendIn())) return null;
+        String clip = state.chainFrom;
+        if (state.chainFromAir && animations.has(clip + "_air")) clip = clip + "_air";
+        if (state.chainFromRun && animations.has(clip + "_run")) clip = clip + "_run";
+        return animations.has(clip) ? clip : null;
     }
 
     /**
@@ -642,17 +1100,45 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private static final float POUNCE_PIVOT_Y = -55, POUNCE_PIVOT_Z = -30;
 
     /**
-     * A pounce's burst tips the whole body along its line (nose down diving onto prey below, up rising to one above),
-     * about the middle of the back so the jaws lead and the seat stays near the rider's eye.
+     * A pounce's burst tips the body along its line (nose down diving onto prey below, up rising to one above), about the
+     * catalog's {@code pounce_pivot} (the middle of the back by default, so the jaws lead and the seat stays near the rider's
+     * eye; {@code pounce_air_pivot} for a form cast in a leap). A form with a {@code tip} under 1 tips the body that share of
+     * the line and turns the aim part (the neck) the rest of the way, as its clip's aim weight lets it: the server's
+     * contact points are posed the same way (PounceLines.posed).
      */
     private void pouncePitch(DigimonRenderState state) {
         if (Math.abs(state.pouncePitch) < .01F) return;
-        float a = -state.pouncePitch * ((float) Math.PI / 180);
+        var spec = com.digicube.digimon.PounceAttacks.get(state.attackDefinition);
+        if (spec != null) spec = spec.forAir(state.attackAir).forRun(state.attackRun);
+        float tip = spec == null ? 1 : spec.tip();
+        float[] pivot = spec != null && spec.airborne() && definition.pounceAirPivot() != null ? definition.pounceAirPivot()
+                : definition.pouncePivot() != null ? definition.pouncePivot() : new float[]{POUNCE_PIVOT_Y, POUNCE_PIVOT_Z};
+        float a = -state.pouncePitch * tip * ((float) Math.PI / 180);
         float c = (float) Math.cos(a), s = (float) Math.sin(a);
-        float y = POUNCE_PIVOT_Y, z = POUNCE_PIVOT_Z;
+        float y = pivot[0], z = pivot[1];
         rootPart.y += y - (y * c - z * s);
         rootPart.z += z - (y * s + z * c);
         rootPart.xRot += a;
+        if (tip < 1 && aimPart != null && spec != null && state.attackAnimation.isStarted()) {
+            float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
+            aimAboutBody(-state.pouncePitch * (1 - tip) * spec.attack().motion().sample(tick).aimWeight() * ((float) Math.PI / 180));
+        }
+    }
+
+    /**
+     * Turns the aim part by {@code angle} radians about the body's own x axis through the part's pivot, as the server aims a
+     * pounce's contact points ({@code PounceLines.posed}) and an aimed sweep's volumes: a part its clip twists (a lunge
+     * that turns the shoulders) still pitches along the line instead of rolling about its own axis.
+     */
+    private void aimAboutBody(float angle) {
+        if (Math.abs(angle) < 1.0E-6F) return;
+        var parent = new org.joml.Matrix3f();
+        ModelPart part = rootPart;
+        var path = definition.aimPath();
+        for (int i = 0; i < path.size() - 1; i++) { part = part.getChild(path.get(i)); parent.mul(rotation(part)); }
+        var axis = new org.joml.Matrix3f(parent).transpose().transform(new org.joml.Vector3f(1, 0, 0));
+        var angles = new org.joml.Matrix3f().rotation(angle, axis).mul(rotation(aimPart)).getEulerAnglesZYX(new org.joml.Vector3f());
+        aimPart.setRotation(angles.x, angles.y, angles.z);
     }
 
     /** A galloper (or a body with {@code bank} in the catalog, a running dinosaur) under a rider leans into its turns, more the faster it runs. */
@@ -729,6 +1215,10 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     }
 
     private static final String[] DIRECTIONS={"walk","walk_back","strafe_left","strafe_right"};
+    /** The run's lattice column: a run lattice's pace share (DigimonGait.runShare), else the walk's amplitude (1 at a run). */
+    private static float runColumn(DigimonRenderState state, float amount) {
+        return state.groundRunShare >= 0 ? Math.clamp(state.groundRunShare, 0, 1) : amount;
+    }
     private void applyGround(DigimonRenderState state,float weight) {
         if(weight<=0)return;
         if(definition.supportFloor()) { mixGround(state, weight); return; }
@@ -736,26 +1226,33 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         float water=definition.amphibious()?Math.clamp(state.swimAnimationAmount,0,1):0;
         // A leap takes over from the gait: takeoff, flight and landing (DigimonEntity.tickLeapPose), and hands back.
         float leap = leap(state);
+        // Crouched, every gait clip and lattice gives the crouch's share to its _crouch twin (a tuck in the air: jump_crouch).
+        float crouch = crouch(state);
         if (definition.gallop()) {
             float gait = weight * (1 - leap);
-            if (amount == 0) animations.apply("idle", state.ageInTicks, gait);
+            if (amount == 0) gaitClip("idle", state.ageInTicks, gait, crouch);
             else {
                 float column = Math.clamp(state.groundRunAmount, 0, 1) * 8;
                 int low = (int) column, high = Math.min(8, low + 1);
-                animations.blend("gait_" + low, amount, state.groundAnimationPhase, gait * (1 - (column - low)));
-                if (high != low) animations.blend("gait_" + high, amount, state.groundAnimationPhase, gait * (column - low));
+                gaitBlend("gait_" + low, amount, state.groundAnimationPhase, gait * (1 - (column - low)), crouch);
+                if (high != low) gaitBlend("gait_" + high, amount, state.groundAnimationPhase, gait * (column - low), crouch);
             }
-            if (leap > 0) animations.apply("jump", state.leapTick, weight * leap);
+            if (leap > 0) gaitClip("jump", state.leapTick, weight * leap, crouch);
             return;
         }
-        if (leap > 0) animations.apply("jump", state.leapTick, weight * leap * (1 - water));
+        if (leap > 0) gaitClip("jump", state.leapTick, weight * leap * (1 - water), crouch);
         weight *= 1 - leap;
+        // A combat roll (Agility) takes over from the gait: its one-shot clip on the roll's own clock, handed back to the run (or
+        // the crouch) as it comes up.
+        float roll = animations.has("roll") ? Math.clamp(state.rollWeight, 0, 1) * (1 - water) : 0;
+        if (roll > 0) animations.apply("roll", Math.max(0, state.rollTick), weight * roll);
+        weight *= 1 - roll;
         // Skidding on ice the body is braced on its paws as it slides ahead of them (DigimonEntity.getSkid): the skid pose
         // takes its share from the stance and the gait under it.
         float skid = animations.has("skid") ? Math.clamp(state.skid, 0, 1) * (1 - water) : 0;
-        if (skid > 0) animations.apply("skid", state.ageInTicks, weight * skid);
+        if (skid > 0) gaitClip("skid", state.ageInTicks, weight * skid, crouch);
         weight *= 1 - skid;
-        animations.apply("idle", state.ageInTicks, (1 - amount)*(1-water)*weight);
+        gaitClip("idle", state.ageInTicks, (1 - amount)*(1-water)*weight, crouch);
         // The lattice excludes the idle-at-zero contribution. Its amplitude zero
         // is rest, so the independent idle clock never doubles body or tail motion.
         // A species with a run clip mixes it in as the pace passes the walk's authored speed; both share the gait phase.
@@ -767,15 +1264,20 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
             // Turning on the spot the body plays its pivot (pivot_left / pivot_right: the forepaws step toward the turn and
             // the hind paws away from it), by the share of the gait the turn takes.
             float pivot=pivots()?Math.clamp(state.pivotTurn,-1,1):0,keep=1-Math.abs(pivot);
-            for(int i=0;i<DIRECTIONS.length;i++) animations.blend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight*(1-run)*keep);
-            if(run>0 && animations.blendNames().contains("run")) animations.blend("run", amount, state.groundAnimationPhase, run*(1-water)*weight);
-            if(pivot!=0) animations.blend(pivot>0?"pivot_right":"pivot_left", amount, state.groundAnimationPhase, Math.abs(pivot)*(1-water)*weight*(1-run));
+            for(int i=0;i<DIRECTIONS.length;i++) gaitBlend(DIRECTIONS[i], amount, state.groundAnimationPhase, state.gaitShares[i]*(1-water)*weight*(1-run)*keep, crouch);
+            if(run>0 && animations.blendNames().contains("run")) gaitBlend("run", runColumn(state, amount), state.groundAnimationPhase, run*(1-water)*weight, crouch);
+            pivotPose(state, pivot, amount, (1-water)*weight*(1-run));
         } else if(definition.walkBlend()) {
-            animations.blend("walk", amount, state.groundAnimationPhase, (1-run)*(1-water)*weight);
-            if(run>0) animations.blend("run", amount, state.groundAnimationPhase, run*(1-water)*weight);
+            // A plain walk steps round on the spot the same way, its pivot clips (or lattices) taking the turn's share.
+            float pivot=pivots()?Math.clamp(state.pivotTurn,-1,1):0,keep=1-Math.abs(pivot);
+            gaitBlend("walk", amount, state.groundAnimationPhase, (1-run)*(1-water)*weight*keep, crouch);
+            if(run>0) gaitBlend("run", runColumn(state, amount), state.groundAnimationPhase, run*(1-water)*weight, crouch);
+            pivotPose(state, pivot, amount, (1-water)*weight*(1-run));
         } else {
-            animations.apply("walk",state.groundAnimationPhase,(1-run)*amount*(1-water)*weight);
-            if(run>0) animations.apply("run",state.groundAnimationPhase,run*amount*(1-water)*weight);
+            float pivot=pivots()?Math.clamp(state.pivotTurn,-1,1):0,keep=1-Math.abs(pivot);
+            gaitClip("walk",state.groundAnimationPhase,(1-run)*amount*(1-water)*weight*keep, crouch);
+            if(run>0) gaitClip("run",state.groundAnimationPhase,run*amount*(1-water)*weight, crouch);
+            pivotPose(state, pivot, amount, amount*(1-water)*weight*(1-run));
         }
         if(definition.amphibious()) {
             float power=Math.clamp(state.swimMotionAmount,0,1);
@@ -892,6 +1394,65 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         return look;
     }
 
+    private static FlightPose.Spec flight(com.google.gson.JsonObject config) {
+        if(!config.has("flight"))return null;
+        var f=config.getAsJsonObject("flight");var p=f.getAsJsonArray("pivot");
+        if(p.size()!=3)throw new IllegalArgumentException("A flight pivot needs three coordinates");
+        var l=f.getAsJsonArray("leans");float[] leans=new float[l.size()];
+        for(int i=0;i<leans.length;i++)leans[i]=l.get(i).getAsFloat();
+        if(leans.length!=6)throw new IllegalArgumentException("A flight needs a lean for each of its six postures");
+        return new FlightPose.Spec(new org.joml.Vector3f(p.get(0).getAsFloat(),p.get(1).getAsFloat(),p.get(2).getAsFloat()),
+                f.get("landing_contact").getAsFloat(),GsonHelper.getAsString(f,"wings","wing_"),leans);
+    }
+
+    private static Spin spin(com.google.gson.JsonObject config) {
+        if(!config.has("spin"))return null;
+        var s=config.getAsJsonObject("spin");var path=new java.util.ArrayList<String>();var tilt=new java.util.ArrayList<String>();
+        s.getAsJsonArray("path").forEach(n->path.add(n.getAsString()));
+        s.getAsJsonArray("tilt").forEach(n->tilt.add(n.getAsString()));
+        if(path.isEmpty()||tilt.isEmpty())throw new IllegalArgumentException("A spin needs the paths to its turning and wobbling parts");
+        return new Spin(s.get("withdraw").getAsString(),s.get("hold").getAsString(),s.get("emerge").getAsString(),
+                java.util.List.copyOf(path),java.util.List.copyOf(tilt));
+    }
+
+    private static Mouth mouth(com.google.gson.JsonObject config) {
+        if(!config.has("mouth"))return null;
+        var m=config.getAsJsonObject("mouth");var spell=m.getAsJsonArray("spell");var folds=new java.util.ArrayList<String>();
+        if(m.has("folds"))m.getAsJsonArray("folds").forEach(n->folds.add(n.getAsString()));
+        var mouth=new Mouth(m.get("part").getAsString(),m.get("shut").getAsFloat(),m.get("open").getAsFloat(),
+                new float[]{spell.get(0).getAsFloat(),spell.get(1).getAsFloat()},m.get("move").getAsFloat(),java.util.List.copyOf(folds));
+        if(!(mouth.open()>=0&&mouth.open()<=1&&mouth.spell()[0]>=mouth.move()&&mouth.spell()[1]>=mouth.spell()[0]&&mouth.move()>0))
+            throw new IllegalArgumentException("A mouth opens a share 0 to 1 of spells no shorter than its move");
+        return mouth;
+    }
+
+    private static Map<String, StanceLook> stances(com.google.gson.JsonObject config) {
+        if(!config.has("stances"))return Map.of();
+        var result=new LinkedHashMap<String,StanceLook>();
+        for(var entry:config.getAsJsonObject("stances").entrySet()){
+            var s=entry.getValue().getAsJsonObject();var drawn=new java.util.ArrayList<String>();var stowed=new java.util.ArrayList<String>();
+            if(s.has("drawn"))s.getAsJsonArray("drawn").forEach(n->drawn.add(n.getAsString()));
+            if(s.has("stowed"))s.getAsJsonArray("stowed").forEach(n->stowed.add(n.getAsString()));
+            if(drawn.isEmpty()&&stowed.isEmpty())throw new IllegalArgumentException("A stance shows or hides some part "+entry.getKey());
+            result.put(entry.getKey(),new StanceLook(java.util.List.copyOf(drawn),java.util.List.copyOf(stowed)));
+        }
+        return Map.copyOf(result);
+    }
+
+    private static java.util.List<String> glowParts(com.google.gson.JsonObject config) {
+        if(!config.has("glow_parts"))return java.util.List.of();
+        var names=new java.util.ArrayList<String>();config.getAsJsonArray("glow_parts").forEach(n->names.add(n.getAsString()));
+        if(names.isEmpty()||new java.util.HashSet<>(names).size()!=names.size())throw new IllegalArgumentException("Glow parts name each part once");
+        return java.util.List.copyOf(names);
+    }
+
+    private static float[] pair(com.google.gson.JsonObject config,String key) {
+        if(!config.has(key))return null;
+        var a=config.getAsJsonArray(key);
+        if(a.size()!=2)throw new IllegalArgumentException(key+" needs y and z");
+        return new float[]{a.get(0).getAsFloat(),a.get(1).getAsFloat()};
+    }
+
     private static Rush rush(com.google.gson.JsonObject config) {
         if(!config.has("rush"))return null;
         var r=config.getAsJsonObject("rush");var path=new java.util.ArrayList<String>();
@@ -928,7 +1489,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         if(p.has("replaces"))p.getAsJsonArray("replaces").forEach(n->replaces.add(Identifier.parse(n.getAsString())));
         if(!replaces.isEmpty()&&!p.has("sound"))throw new IllegalArgumentException("Paws replace grounds' steps with no sound of their own");
         var paws=new Paws(java.util.List.copyOf(feet),p.has("sound")?sound(p,"sound"):null,GsonHelper.getAsFloat(p,"volume",1),GsonHelper.getAsFloat(p,"pitch",1),
-                java.util.Set.copyOf(replaces));
+                java.util.Set.copyOf(replaces),GsonHelper.getAsBoolean(p,"floor",false));
         if(!(paws.volume()>0&&paws.volume()<=4&&paws.pitch()>0&&paws.pitch()<=2))throw new IllegalArgumentException("Invalid paw sound");
         return paws;
     }
@@ -965,7 +1526,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         var e=config.getAsJsonObject("attack_effects");var clips=new LinkedHashMap<String,String>();
         e.getAsJsonObject("clips").entrySet().forEach(c->clips.put(c.getKey(),c.getValue().getAsString()));
         if(clips.isEmpty())throw new IllegalArgumentException("Attack effects without clips");
-        return new AttackEffects(e.get("effect").getAsString(),Map.copyOf(clips));
+        // follow_root: drawn in the body's root frame as drawn (a flyer's turns, a pounce's pitch), not the caster's;
+        // follow: drawn in the frame of the part at that path as drawn (fire in the jaws rides the head through any blend).
+        java.util.List<String> follow=null;
+        if(e.has("follow")){var names=new java.util.ArrayList<String>();e.getAsJsonArray("follow").forEach(n->names.add(n.getAsString()));
+            if(names.isEmpty())throw new IllegalArgumentException("Attack effects follow no part");follow=java.util.List.copyOf(names);}
+        return new AttackEffects(e.get("effect").getAsString(),Map.copyOf(clips),GsonHelper.getAsBoolean(e,"follow_root",false),follow);
     }
 
     private static Map<Identifier, Definition> readDefinitions() {
@@ -1041,7 +1607,19 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                         // A body of fire is its own light (Meramon): drawn full-bright, day or night.
                         GsonHelper.getAsBoolean(config,"glow",false),
                         // A held rush's brace and the head it charges with (Monochromon's Guardy Tusk).
-                        rush(config)));
+                        rush(config),
+                        // A flyer's body off the ground (FlightPose): the point it turns about, the land clip's touchdown.
+                        flight(config),
+                        // A spin in the shell (Shellmon's Drill Shell): its clips, the part it turns and the part that wobbles.
+                        spin(config),
+                        // A mouth that opens and shuts in its own time (Shellmon's).
+                        mouth(config),
+                        // Where a pounce tips the body (model px from the root, y down, front -z), on the ground and from a leap.
+                        pair(config,"pounce_pivot"),pair(config,"pounce_air_pivot"),
+                        // A drawn weapon's parts, out and stowed, by its move (Leomon's Lion Sword).
+                        stances(config),
+                        // Parts that are their own light (an aura, speed lines): full-bright, the body at its own light.
+                        glowParts(config)));
             }
             return Map.copyOf(definitions);
         } catch (IOException e) {

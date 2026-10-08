@@ -2,7 +2,8 @@
 
 Read this before setting a species' speeds or strides, adding a gait or travel clip, or changing how a body
 steps, changes gait, turns, grips the ground, hovers, faces, climbs or paths while it moves. Measure any pace change with `gait_checks`
-([testing.md](testing.md#gait-checks)). Swimming and everything under a rider is in [mounts.md](mounts.md).
+([testing.md](testing.md#gait-checks)). Swimming and everything under a rider is in [mounts.md](mounts.md); a body's own
+leaps, crouches and rolls in [agility.md](agility.md).
 
 ## Stride and planted gaits
 
@@ -18,7 +19,8 @@ into shares (`DigimonGait.directions`) and `NativeGroundModel` mixes the lattice
 the script and the species sheet together.
 
 A species with a `run` clip blends it over `walk` by `groundRunAmount`, both on the shared gait phase
-(`run_cycle_ticks` / `run_stride` on the sheet). A run lattice is a blend named `run` whose full-amplitude clip is
+(`run_cycle_ticks` / `run_stride` on the sheet). The phase counts the walk's `cycle_ticks` a stride, run or walk, so a
+run clip is that long whatever `run_cycle_ticks` says (one of any other length slides its feet). A run lattice is a blend named `run` whose full-amplitude clip is
 itself called `run`; without that clip no run plays. A gait with no back clip plays its walk backwards when the
 body backs up (planted too). The run is along the body (`DigimonGait.drive`): all of it while the travel is within
 25 degrees of ahead, none from 60, and it takes the whole stride, so a directional galloper drifting through a bend
@@ -28,14 +30,24 @@ because half a trot over half a gallop leaves paws that never touch the ground. 
 the paces between the walk's authored speed and the run's. Any pace turns the legs over; only a move past
 `GAIT_SNAP` (3 blocks, a teleport) skips the phase (a sprint on ice past a block a tick once froze the gallop).
 
-A directional gait with `pivot_reach` (blocks from the body's centre to the forepaws' toe line), `pivot_stride` (what
-that toe line sweeps round the centre a cycle at full amplitude) and `pivot_left` / `pivot_right` blends in the model
+The model mixes gait clips (a lattice's columns, the walk into the run, the pivot into the walk) by adding their weighted
+angles, so a part's angles must lie on one branch in every clip it is mixed from: within half a turn of its rest angles,
+never wrapped a whole turn round a loop or written as the other Euler triple of the same turn (the mix of two equal turns
+written differently is a turn nobody authored). A leg solved by IK bends its knee toward a pole, so its hip never twists
+free ([species/greymon.md](species/greymon.md#gaits)).
+
+A gait with `pivot_reach` (blocks from the body's centre to its farthest standing paws: a quadruped's fore toe line, a
+biped's ankles), `pivot_stride` (what that line sweeps round the centre a cycle at full amplitude) and `pivot_left` /
+`pivot_right` in the model (lattice blends on a directional gait, or plain looping clips on a plain walk: DarkTyrannomon)
 steps round on the spot as the body turns: the turn is paid on the phase at that stride (`DigimonGait.pivotTravel`)
-and its share goes to `pivotTurn`, which plays the pivot. The pivot goes round the body's centre one paw at a time,
-each standing paw still on the ground and turned with it (it lands turned into the turn and leaves turned out of it):
-the forepaw on the side the shoulders swing to, the other forepaw closing up to it (never across), then the hind paws
-the same way; the spine bends into the turn, head first. Only a body all but standing pivots: from half the walk's full
-pace it turns along its stride (the pivot and the walk land on different beats), and a run turns in an arc.
+and its share goes to `pivotTurn`, which plays the pivot in the walk's place. The pivot goes round the body's centre one
+paw at a time, each standing paw still on the ground and turned with it (it lands turned into the turn and leaves turned
+out of it): the forepaw on the side the shoulders swing to, the other forepaw closing up to it (never across), then the
+hind paws the same way, the spine bent into the turn, head first; a biped shuffles, one foot after the other. Only a body
+all but standing pivots: from half the walk's full pace it turns along its stride (the pivot and the walk land on
+different beats), and a run turns in an arc. A gait with `pivot_walk` steps its pivot on the walk's own beats, so it turns
+on planted feet as it walks at any pace; one with `run_lattice` plants each column of its run on that column's own
+stride (both Greymon's: [species/greymon.md](species/greymon.md#gaits)).
 
 ## Steady turning
 

@@ -173,8 +173,14 @@ public final class FrostBreathRenderer implements BreathArt {
         public float[] surfaceX = new float[48], surfaceY = new float[48], surfaceZ = new float[48];
         public int[] seed = new int[48];
         public boolean[] struck = new boolean[48];
+        /** A liquid jet's own: when each puff first struck (age, -1 if not yet) and whether it flies under water. */
+        public float[] struckAt = new float[48];
+        public boolean[] under = new boolean[48];
         public int life = 16;
         public float drag = .9F;
+        /** The breath's own: blocks a tick its puffs leave at, and how many it sheds a tick. */
+        public float speed = 1;
+        public int perTick = 1;
         /** Quads built at submit: four vertices of x, y, z, u, v, then the normal and the colour's bits (24 numbers each). */
         private float[] quads = new float[0];
         int quadCount;
@@ -187,6 +193,7 @@ public final class FrostBreathRenderer implements BreathArt {
             radius = Arrays.copyOf(radius, n); lookX = Arrays.copyOf(lookX, n); lookY = Arrays.copyOf(lookY, n); lookZ = Arrays.copyOf(lookZ, n);
             surfaceX = Arrays.copyOf(surfaceX, n); surfaceY = Arrays.copyOf(surfaceY, n); surfaceZ = Arrays.copyOf(surfaceZ, n);
             seed = Arrays.copyOf(seed, n); struck = Arrays.copyOf(struck, n);
+            struckAt = Arrays.copyOf(struckAt, n); under = Arrays.copyOf(under, n);
         }
 
         /** Adds a puff at (px, py, pz) of radius r and age a, its flame pointing along look, lying on surface once it has struck. */
@@ -253,7 +260,11 @@ public final class FrostBreathRenderer implements BreathArt {
             double px = Mth.lerp(partial, p.px, p.x), py = Mth.lerp(partial, p.py, p.y), pz = Mth.lerp(partial, p.pz, p.z);
             state.add(px - ox, py - oy, pz - oz, breath.radius(p, partial), p.age + partial, p.seed, p.struck,
                     p.lookX, p.lookY, p.lookZ, p.surfaceX, p.surfaceY, p.surfaceZ);
+            state.struckAt[state.count - 1] = p.struckAt;
+            state.under[state.count - 1] = p.underwater;
         }
+        state.speed = breath.spec().speed();
+        state.perTick = breath.spec().perTick();
     }
 
     @Override

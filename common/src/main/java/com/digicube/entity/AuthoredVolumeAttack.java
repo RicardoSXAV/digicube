@@ -24,13 +24,30 @@ public final class AuthoredVolumeAttack {
     /** Whether this cast has struck anything yet: a travelling blow stops its drive once it has. */
     public boolean struck() { return !counts.isEmpty(); }
     public static AttackBox aimed(AttackBox box,DigimonAttack attack,double tick,float pitch) {
-        if(attack.kind()!=DigimonAttack.Kind.BOX_BURST)return box;
+        if(!aims(attack))return box;
         var f=attack.motion().sample(tick);
         return box.aimed(f.head(),pitch*f.aimWeight());
     }
+    /** Whether the volumes lean up and down at the target: a burst always, a sweep when its entry says so ({@code aimed}). */
+    public static boolean aims(DigimonAttack attack) {
+        if(attack==null)return false;
+        if(attack.kind()==DigimonAttack.Kind.BOX_BURST)return true;
+        var d=attack.kind()==DigimonAttack.Kind.BOX_SWEEP?AuthoredAttacks.get(attack):null;
+        return d!=null && d.aimed();
+    }
+    /** Degrees an aimed sweep leans at most up and down (a blade cuts at a short foe's height, never into the floor). */
+    public static final float SWEEP_UP=20, SWEEP_DOWN=40;
+    /**
+     * The cast's aim pitch, degrees down: a burst aims its mouth at the target ({@link FlameStream#aimPitch}); an aimed
+     * sweep leans its swing about the motion's {@code head} at the hit tick toward the target's middle, within
+     * {@link #SWEEP_UP} and {@link #SWEEP_DOWN}; anything else 0.
+     */
     public static float pitch(DigimonAttack attack,Vec3 feet,Vec3 target,float yaw) {
-        return attack.kind()==DigimonAttack.Kind.BOX_BURST
-                ? FlameStream.aimPitch(attack.motion().sample(attack.hitTick()),feet,target,yaw,0) : 0;
+        if(attack.kind()==DigimonAttack.Kind.BOX_BURST)return FlameStream.aimPitch(attack.motion().sample(attack.hitTick()),feet,target,yaw,0);
+        if(!aims(attack))return 0;
+        Vec3 to=target.subtract(feet.add(attack.motion().sample(attack.hitTick()).head().yRot(-yaw*net.minecraft.util.Mth.DEG_TO_RAD)));
+        double forward=Math.max(.5,to.dot(Vec3.directionFromRotation(0,yaw)));
+        return net.minecraft.util.Mth.clamp((float)Math.toDegrees(Math.atan2(-to.y,forward)),-SWEEP_UP,SWEEP_DOWN);
     }
     public static float yaw(DigimonAttack attack,Vec3 feet,Vec3 target) {
         return yaw(attack,feet,target,false);

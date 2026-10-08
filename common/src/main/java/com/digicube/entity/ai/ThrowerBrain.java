@@ -136,10 +136,12 @@ public final class ThrowerBrain {
         catchStand = null;
         // 4. Sidestep a wind-up or a shot (not with a spear held high: that one is thrown at it instead).
         if (!thrower.charging() && !thrower.windingUp() && thrower.stage() != ThrowerState.Stage.BONE_RELEASE && dodge.getAsBoolean()) { walk.clear(); doing = "dodge"; return; }
-        // 5. The bone in hand: throw when a flight pays.
-        if (thrower.boneReady()) {
+        // 5. The bone in hand: throw when a flight pays, unless it waits for an order. An order throws the first flight
+        // that would hit at all.
+        if (thrower.boneReady() && mob.aiMayUse(thrower.returning().attack())) {
             if (plan == null || mob.tickCount >= planAt) { plan = planThrow(target, enemies, walkSpeed, runSpeed); planAt = mob.tickCount + PLAN_EVERY; }
-            if (plan != null && plan.worth >= THROW_SCORE && thrower.startThrow(target, plan.yaw, plan.range, plan.side, plan.lift)) {
+            double needed = mob.hasStandingOrder() ? Double.MIN_VALUE : THROW_SCORE;
+            if (plan != null && plan.worth >= needed && thrower.startThrow(target, plan.yaw, plan.range, plan.side, plan.lift)) {
                 throwYaw = plan.yaw;
                 if (plan.charge > 0) thrower.wantCharge(plan.charge);
                 leapBone = plan.leap;
@@ -510,7 +512,7 @@ public final class ThrowerBrain {
     private void maybeIcicle(LivingEntity target, List<LivingEntity> enemies, DigimonTactics tactics, BoomerangEntity inFlight) {
         var thrower = mob.thrower();
         var spec = thrower.charged();
-        if (spec == null || !thrower.icicleReady()) return;
+        if (spec == null || !thrower.icicleReady() || !mob.aiMayUse(spec.attack())) return;
         double distance = mob.position().distanceTo(target.position());
         if (distance > spec.attack().range() || !mob.hasLineOfSight(target)) return;
         float best = -1; double bestRate = 0;

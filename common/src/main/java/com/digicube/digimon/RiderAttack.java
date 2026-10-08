@@ -15,8 +15,13 @@ import java.util.Objects;
  * @param cone   half-angle in degrees, around the rider's view, in which the attack turns to a nearby enemy; 0 for none
  * @param reach  how far that enemy may be, in blocks beyond the mount's body; 0 uses the attack's own range
  * @param move   whether the mount keeps walking while it casts
+ * @param air    whether a shot cast on the move may also leave from a leap (the upper body plays it over the leap's pose)
  */
-public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, float reach, boolean move) {
+public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, float reach, boolean move, boolean air) {
+    public RiderAttack(Identifier attack, Aim aim, Input input, float cone, float reach, boolean move) {
+        this(attack, aim, input, cone, reach, move, false);
+    }
+
     public enum Aim {
         /** A strike at what stands before the mount: it turns to the soft target, or swings along the view. */
         SWEEP,
@@ -51,7 +56,12 @@ public record RiderAttack(Identifier attack, Aim aim, Input input, float cone, f
          * A held charge that ends in a blow ({@link RushAttacks}): held, the mount braces (the tile fills) and then rushes
          * along the view; let go, or meeting an enemy close ahead, it strikes with the attack of the same id.
          */
-        RUSH
+        RUSH,
+        /**
+         * A spin in the shell ({@link SpinAttacks}): held, the mount withdraws into its shell and spins up (the tile fills);
+         * let go, it spins off along the view, steered after it, striking whatever it runs into.
+         */
+        SPIN
     }
 
     public enum Input {

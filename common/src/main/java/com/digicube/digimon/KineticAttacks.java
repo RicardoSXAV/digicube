@@ -53,9 +53,16 @@ public final class KineticAttacks {
                              float modelScale, double maxLead, float maxPitch, List<AttackBox> projectileBoxes,
                              List<String> aimPath, ProjectileMotion projectileMotion, int impairmentTicks, boolean emissive,
                              boolean blendAim, boolean aimAtTop, int riderDrawTick, RiderKick riderKick,
-                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks, float projectileScale, int burn) {
+                             com.digicube.entity.ShotStyle shotStyle, int exposeTicks, float projectileScale, int burn,
+                             int charges, Proximity proximity, Blast blast, Falloff falloff, Launch launch) {
         /** A shot that lands sets its victim alight for {@code burn} ticks, a Burn ({@code burn}, 0 for none). */
         public boolean burns() { return burn > 0; }
+        /** The same shot weakening with its flight by {@code falloff} and throwing its victim by {@code launch} (either may be null). */
+        public Definition withImpact(Falloff falloff, Launch launch) {
+            return new Definition(attack, motion, kickMotion, kickAnimation, decisionTick, projectile, projectileSpeed, projectileLife,
+                    modelScale, maxLead, maxPitch, projectileBoxes, aimPath, projectileMotion, impairmentTicks, emissive, blendAim, aimAtTop,
+                    riderDrawTick, riderKick, shotStyle, exposeTicks, projectileScale, burn, charges, proximity, blast, falloff, launch);
+        }
         public Motion motion(boolean kick) { return kick && kickMotion != null ? kickMotion : motion; }
         public String animation(boolean kick) { return kick && kickAnimation != null ? kickAnimation : attack.id().getPath(); }
         public int duration(boolean kick) { return Math.round(motion(kick).duration()); }
@@ -88,6 +95,39 @@ public final class KineticAttacks {
         }
     }
 
+    /**
+     * A shot that shocks what it passes ({@code proximity}; Kabuterimon's Mega Blaster): a body within {@code radius} blocks
+     * of the ball (measured to the nearest point of its box) is struck once a shot as the ball passes it, at its nearest,
+     * for {@code near} of the shot's damage at no distance falling to {@code far} at the radius; a direct hit is the whole
+     * shot, and where the ball bursts, every body within the radius not yet struck takes its share too. Each strike is a
+     * bolt from the ball (synced to the clients, which draw it for {@code bolt_ticks}).
+     */
+    public record Proximity(double radius, float near, float far, int boltTicks) {
+        public Proximity {
+            if (!(radius > 0 && radius <= 8 && near > 0 && near <= 1 && far >= 0 && far <= near && boltTicks > 0 && boltTicks <= 40))
+                throw new IllegalArgumentException("Invalid shot proximity");
+        }
+        /** The share of the shot's damage a body takes at {@code distance} blocks from the ball. */
+        public float share(double distance) {
+            double u = Math.clamp(distance / radius, 0, 1);
+            return (float) (near + (far - near) * u);
+        }
+    }
+
+    /**
+     * A shot that bursts where it strikes ({@code blast}; Greymon's Mega Flame): on a block or a body, every other body
+     * within {@code radius} blocks of the burst (measured to the nearest point of its box, in sight of it) takes the shot's
+     * damage times {@code 1 - falloff} at the radius up to the whole of it at the burst, and its {@code burn}. A shot that
+     * flies its full range without striking anything fizzles out without one.
+     */
+    public record Blast(double radius, float falloff) {
+        public Blast {
+            if (!(radius > 0 && radius <= 6 && falloff >= 0 && falloff < 1)) throw new IllegalArgumentException("Invalid shot blast");
+        }
+        /** The share of the shot's damage a body takes at {@code distance} blocks from the burst. */
+        public float share(double distance) { return (float) (1 - falloff * Math.clamp(distance / radius, 0, 1)); }
+    }
+
     /** Animated projectile cuboids use the same phase clock as the native effect. */
     public record ProjectileMotion(int samplesPerTick, float holdTick, int impactTicks, List<List<AttackBox>> frames) {
         public float flightTick(float age) { return Math.clamp(age, 0, holdTick); }
@@ -109,6 +149,12 @@ public final class KineticAttacks {
     public static Definition get(Identifier id) { return DEFINITIONS.get(id); }
     public static boolean handles(DigimonAttack attack) {
         return attack != null && (attack.kind() == DigimonAttack.Kind.KINETIC_SHOT || attack.kind() == DigimonAttack.Kind.RETREAT_KICK);
+    }
+
+    /** Development scenarios only: serves {@code definition} in place of its catalog entry from now on (the catalog's to restore it). */
+    public static void replace(Definition definition) {
+        if (!com.digicube.platform.Services.PLATFORM.isDevelopmentEnvironment()) throw new IllegalStateException("A development scenario's change");
+        DEFINITIONS.put(definition.attack().id(), definition);
     }
 
     private static JsonObject read(String path) {
@@ -168,6 +214,49 @@ public final class KineticAttacks {
         return new RiderKick(data.get("animation").getAsString(), clock);
     }
 
+    private static int charges(JsonObject c, Identifier id) {
+        int charges = GsonHelper.getAsInt(c, "charges", 1);
+        if (charges < 1 || charges > 5) throw new IllegalArgumentException("A shot holds 1 to 5 uses " + id);
+        return charges;
+    }
+
+    private static Proximity proximity(JsonObject c) {
+        if (!c.has("proximity")) return null;
+        var p = GsonHelper.getAsJsonObject(c, "proximity");
+        return new Proximity(GsonHelper.getAsDouble(p, "radius"), GsonHelper.getAsFloat(p, "near"), GsonHelper.getAsFloat(p, "far"),
+                GsonHelper.getAsInt(p, "bolt_ticks", 6));
+    }
+
+    private static Blast blast(JsonObject c) {
+        if (!c.has("blast")) return null;
+        var b = GsonHelper.getAsJsonObject(c, "blast");
+        return new Blast(GsonHelper.getAsDouble(b, "radius"), GsonHelper.getAsFloat(b, "falloff", .5F));
+    }
+
+    /**
+     * A shot that weakens with its flight ({@code falloff}; the far form of Beast King Fist): its damage and its push (a
+     * {@link Launch} too) are whole up to {@code near} blocks from the muzzle and fall in a straight line to {@code power}
+     * and {@code knockback} of themselves at {@code far}, held past it. Measured from where the shot left to where it strikes.
+     */
+    public record Falloff(double near, double far, float power, float knockback) {
+        public Falloff {
+            if (!(near >= 0 && far > near && far <= 64 && power >= 0 && power <= 1 && knockback >= 0 && knockback <= 1))
+                throw new IllegalArgumentException("Invalid shot falloff");
+        }
+        /** The share of the shot's damage that lands {@code distance} blocks from the muzzle. */
+        public float power(double distance) { return 1 + (power - 1) * along(distance); }
+        /** The share of the shot's push (knockback or launch) that lands {@code distance} blocks from the muzzle. */
+        public float knockback(double distance) { return 1 + (knockback - 1) * along(distance); }
+        private float along(double distance) { return (float) Math.clamp((distance - near) / (far - near), 0, 1); }
+    }
+
+    static Falloff falloff(JsonObject c) {
+        if (!c.has("falloff")) return null;
+        var f = GsonHelper.getAsJsonObject(c, "falloff");
+        return new Falloff(GsonHelper.getAsDouble(f, "near"), GsonHelper.getAsDouble(f, "far"), GsonHelper.getAsFloat(f, "power"),
+                GsonHelper.getAsFloat(f, "knockback", GsonHelper.getAsFloat(f, "power")));
+    }
+
     /** Ticks a landed shot sets its victim alight for (0 to 400; 0: none). */
     private static int burn(JsonObject c, Identifier id) {
         int ticks = GsonHelper.getAsInt(c, "burn", 0);
@@ -223,8 +312,15 @@ public final class KineticAttacks {
                     riderKick(c, alternate, id),
                     com.digicube.entity.ShotStyle.byId(GsonHelper.getAsString(c, "shot_style", null)),
                     // A shot that lands leaves its victim Exposed (ExposedMark) for this long.
-                    GsonHelper.getAsInt(c, "expose_ticks", 0), shrink, burn(c, id)));
+                    GsonHelper.getAsInt(c, "expose_ticks", 0), shrink, burn(c, id),
+                    // Uses held at once (AttackCharges), and the shocks a ball gives what it passes.
+                    charges(c, id), proximity(c),
+                    // A shot that bursts where it strikes, and how much of it the bodies about the burst take.
+                    blast(c),
+                    // A shot that weakens with its flight, and one that throws its victim.
+                    falloff(c), Launch.parse(c)));
         }
-        return Collections.unmodifiableMap(result);
+        // Mutable only for development scenarios (replace).
+        return Collections.synchronizedMap(result);
     }
 }

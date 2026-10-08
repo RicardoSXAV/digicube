@@ -101,6 +101,10 @@ public final class BundledSpeciesLoader {
             }
             moves.add(move);
         }
+        // The moves and the forms their compounds cast share the start events' attack indices.
+        if (CompoundAttacks.castableCount(moves) > com.digicube.entity.DigimonAnimationEvents.MAX_ATTACKS)
+            throw new IllegalArgumentException(id + ": its moves and their compounds' forms exceed "
+                    + com.digicube.entity.DigimonAnimationEvents.MAX_ATTACKS + " attacks");
         var evolutions = new ArrayList<Evolution>();
         for (var entry : GsonHelper.getAsJsonArray(json, "evolutions")) {
             JsonObject e = GsonHelper.convertToJsonObject(entry, "evolution");
@@ -158,7 +162,9 @@ public final class BundledSpeciesLoader {
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "pivot_reach", 0),
                         GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "pivot_stride",
                                 GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))),
-                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "pivot_cadence", DigimonGait.PIVOT_CADENCE)) : null,
+                        GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "pivot_cadence", DigimonGait.PIVOT_CADENCE),
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "pivot_walk", false),
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "run_lattice", false)) : null,
                 json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0,
                 json.has("jet") ? jet(json.getAsJsonObject("jet")) : null,
                 json.has("travel_facing") ? travelFacing(json.getAsJsonObject("travel_facing")) : null,
@@ -183,7 +189,17 @@ public final class BundledSpeciesLoader {
                 GsonHelper.getAsInt(json, "landing_reserve_ticks"), GsonHelper.getAsInt(json, "minimum_flight_ticks"),
                 GsonHelper.getAsDouble(json, "start_distance"), GsonHelper.getAsDouble(json, "stop_distance"),
                 GsonHelper.getAsDouble(json, "cruise_height"), GsonHelper.getAsFloat(json, "clearance_width"),
-                GsonHelper.getAsFloat(json, "clearance_height"));
+                GsonHelper.getAsFloat(json, "clearance_height"),
+                json.has("costs") ? flightCosts(GsonHelper.getAsJsonObject(json, "costs")) : DigimonFlight.Costs.STEADY);
+    }
+
+    /** What flying hard and fighting on the wing take from the flight reserve (DigimonFlight.Costs). */
+    private static DigimonFlight.Costs flightCosts(JsonObject json) {
+        var steady = DigimonFlight.Costs.STEADY;
+        return new DigimonFlight.Costs(GsonHelper.getAsFloat(json, "boost", steady.boost()), GsonHelper.getAsFloat(json, "climb", steady.climb()),
+                GsonHelper.getAsFloat(json, "glide", steady.glide()), GsonHelper.getAsFloat(json, "roll", steady.roll()),
+                GsonHelper.getAsFloat(json, "takeoff", steady.takeoff()), GsonHelper.getAsFloat(json, "attack", steady.attack()),
+                GsonHelper.getAsFloat(json, "combat_recharge", steady.combatRecharge()), GsonHelper.getAsInt(json, "combat_ticks", steady.combatTicks()));
     }
 
     private static DigimonBody body(JsonObject json) {
@@ -242,7 +258,32 @@ public final class BundledSpeciesLoader {
         }
         return new DigimonBody(GsonHelper.getAsFloat(json, "model_scale"),
                 EntityDimensions.scalable(width, height).withEyeHeight(eye), mount, hitParts,
-                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN), serpent, GsonHelper.getAsBoolean(json, "fireproof", false));
+                GsonHelper.getAsFloat(json, "head_turn", DigimonBody.HEAD_TURN), serpent, GsonHelper.getAsBoolean(json, "fireproof", false),
+                GsonHelper.getAsFloat(json, "step_height", 0), json.has("leap") ? leap(GsonHelper.getAsJsonObject(json, "leap")) : null,
+                json.has("crouch") ? crouch(GsonHelper.getAsJsonObject(json, "crouch"), height, eye) : null);
+    }
+
+    /** {@code body.leap}: the body's own leap, for a body with no mount that leaps. */
+    static DigimonBody.Leap leap(JsonObject json) {
+        return new DigimonBody.Leap(GsonHelper.getAsFloat(json, "jump"), GsonHelper.getAsFloat(json, "carry", 0));
+    }
+
+    /** {@code body.crouch}: the crouched box (its eye lowered with it by default), the crouched walk and the roll at a run. */
+    static DigimonBody.Crouch crouch(JsonObject json, float standingHeight, float standingEye) {
+        float height = GsonHelper.getAsFloat(json, "height");
+        float eye = GsonHelper.getAsFloat(json, "eye_height", standingEye * height / standingHeight);
+        return new DigimonBody.Crouch(height, eye, GsonHelper.getAsFloat(json, "pace", .45F),
+                json.has("roll") ? roll(GsonHelper.getAsJsonObject(json, "roll"), height, eye) : null);
+    }
+
+    /** {@code body.crouch.roll}: the combat roll a crouch at a run becomes, its tucked box and window, and its momentum. */
+    static DigimonBody.Roll roll(JsonObject json, float crouchHeight, float crouchEye) {
+        int ticks = GsonHelper.getAsInt(json, "ticks", 16);
+        float height = GsonHelper.getAsFloat(json, "height");
+        return new DigimonBody.Roll(ticks, height, GsonHelper.getAsFloat(json, "eye_height", crouchEye * height / crouchHeight),
+                GsonHelper.getAsInt(json, "low_from", Math.round(ticks * .2F)), GsonHelper.getAsInt(json, "low_until", Math.round(ticks * .75F)),
+                GsonHelper.getAsFloat(json, "push", .05F), GsonHelper.getAsFloat(json, "keep", .97F), GsonHelper.getAsFloat(json, "from", 0),
+                GsonHelper.getAsFloat(json, "speed", 0));
     }
 
     private static AerialMount aerialMount(JsonObject j) {
@@ -252,7 +293,16 @@ public final class BundledSpeciesLoader {
                 GsonHelper.getAsFloat(j,"turn_degrees"), GsonHelper.getAsInt(j,"takeoff_ticks"),
                 GsonHelper.getAsInt(j,"lift_tick"), GsonHelper.getAsInt(j,"landing_ticks"),
                 GsonHelper.getAsInt(j,"wing_loop_ticks"),
-                j.has("dive") ? aerialDive(GsonHelper.getAsJsonObject(j,"dive")) : null);
+                j.has("dive") ? aerialDive(GsonHelper.getAsJsonObject(j,"dive")) : null,
+                j.has("agility") ? agility(GsonHelper.getAsJsonObject(j,"agility")) : null);
+    }
+
+    /** Agile flight: the view-led dive, the boost, the banked slide, the barrel roll (AerialMount.Agility). */
+    private static AerialMount.Agility agility(JsonObject j) {
+        return new AerialMount.Agility(GsonHelper.getAsFloat(j, "boost"), GsonHelper.getAsFloat(j, "strafe"),
+                GsonHelper.getAsDouble(j, "gravity"), GsonHelper.getAsDouble(j, "drag"), GsonHelper.getAsDouble(j, "max_speed"),
+                GsonHelper.getAsFloat(j, "fast_turn"), GsonHelper.getAsFloat(j, "bank"), GsonHelper.getAsFloat(j, "roll_speed"),
+                GsonHelper.getAsInt(j, "roll_ticks"), GsonHelper.getAsDouble(j, "hard_landing"));
     }
 
     private static AerialMount.Dive aerialDive(JsonObject j) {
@@ -289,7 +339,7 @@ public final class BundledSpeciesLoader {
                     RiderAttack.parse(RiderAttack.Aim.class, GsonHelper.getAsString(entry, "aim")),
                     RiderAttack.parse(RiderAttack.Input.class, GsonHelper.getAsString(entry, "input", "tap")),
                     GsonHelper.getAsFloat(entry, "cone", 0), GsonHelper.getAsFloat(entry, "reach", 0),
-                    GsonHelper.getAsBoolean(entry, "move", false)));
+                    GsonHelper.getAsBoolean(entry, "move", false), GsonHelper.getAsBoolean(entry, "air", false)));
         }
         return list;
     }

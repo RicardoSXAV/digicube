@@ -22,7 +22,7 @@ public final class AuthoredAttacks {
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
                              com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley,
                              List<String> formNames, FormChoice formChoice, String effectClip, String key,
-                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds, int burn) {
+                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds, int burn, boolean aimed) {
         /**
          * Plays the move's own sound for {@code cue} at {@code at}, if its sheet names one ({@code sounds} in
          * {@code authored_attacks.json}: {@code wind_up} as it starts, {@code release} as a dash sets off or a discharge
@@ -226,7 +226,7 @@ public final class AuthoredAttacks {
                     forms(c),FormChoice.valueOf(GsonHelper.getAsString(c,"form_choice","combo").toUpperCase(Locale.ROOT)),
                     GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null),
                     impact(c,attack,rootTravel),c.has("arc")?com.digicube.entity.ArcDischarge.Spec.load(c.getAsJsonObject("arc")):null,
-                    sounds(c),burn(c,id)));
+                    sounds(c),burn(c,id),aimed(c,attack)));
         }
         return Collections.unmodifiableMap(result);
     }
@@ -242,6 +242,15 @@ public final class AuthoredAttacks {
                     GsonHelper.getAsFloat(v.getAsJsonObject(), "volume", 1), GsonHelper.getAsFloat(v.getAsJsonObject(), "pitch", 1)));
         }
         return Map.copyOf(out);
+    }
+    /**
+     * A sweep aimed up and down at its target as a burst is ({@code aimed}, off by default): its volumes and its drawn
+     * swing lean about the motion's {@code head} by the cast's aim pitch, as far as the motion's aim weight lets them.
+     */
+    private static boolean aimed(JsonObject c, DigimonAttack attack) {
+        boolean aimed = GsonHelper.getAsBoolean(c, "aimed", false);
+        if (aimed && attack.kind() != DigimonAttack.Kind.BOX_SWEEP) throw new IllegalArgumentException("Only a sweep is aimed by its entry (a burst always is) " + attack.id());
+        return aimed;
     }
     /** Ticks a landed blow sets its victim alight for (0 to 400; 0: none). */
     private static int burn(JsonObject c, Identifier id) {

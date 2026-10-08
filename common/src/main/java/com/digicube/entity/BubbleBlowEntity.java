@@ -126,6 +126,7 @@ public final class BubbleBlowEntity extends ThrowableProjectile {
                 return;
             }
         }
+        PepperBreathEntity.holdPaceInWater(this);
         super.tick();
     }
 

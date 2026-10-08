@@ -1,7 +1,6 @@
 package com.digicube.digimon;
 
 import com.digicube.entity.CombatMarkState;
-import com.digicube.entity.MegaFlameEntity;
 import com.digicube.entity.PepperBreathEntity;
 
 import java.util.ArrayList;
@@ -80,7 +79,16 @@ public enum CombatMark {
                 return breath == null || breath.chills() ? COLD : breath.burns() ? BURN : breath.freeze() > 0 ? FREEZE : null;
             }
             case CONSTRICTION -> { return HELD; }
-            case FIREBALL, FLAME_SHOT -> { return BURN; }
+            case FIREBALL -> { return BURN; }
+            case COMPOUND -> {
+                // a move cast as forms of other families leaves what its first marking form leaves
+                CompoundAttacks.Definition compound = CompoundAttacks.get(attack);
+                if (compound != null) for (CompoundAttacks.Form form : compound.forms()) {
+                    CombatMark mark = of(form.attack());
+                    if (mark != null) return mark;
+                }
+                return null;
+            }
             default -> { }
         }
         AuthoredAttacks.Definition authored = AuthoredAttacks.handles(attack) ? AuthoredAttacks.get(attack) : null;
@@ -92,7 +100,7 @@ public enum CombatMark {
         return CrackMark.charges(attack) > 0 ? CRACK : null;
     }
 
-    /** How long a body {@code attack} lights burns: a fire breath's or a burning blow's own, a fireball's or Mega Flame's. */
+    /** How long a body {@code attack} lights burns: a fire breath's, a burning blow's or a burning shot's own, or a fireball's. */
     private static int burnTicks(DigimonAttack attack) {
         BreathAttacks.Spec breath = BreathAttacks.get(attack);
         if (breath != null && breath.burns()) return breath.burn();
@@ -100,7 +108,7 @@ public enum CombatMark {
         if (authored != null && authored.burn() > 0) return authored.burn();
         KineticAttacks.Definition shot = KineticAttacks.get(attack);
         if (shot != null && shot.burns()) return shot.burn();
-        return attack.kind() == DigimonAttack.Kind.FLAME_SHOT ? MegaFlameEntity.BURN_TICKS : PepperBreathEntity.BURN_TICKS;
+        return PepperBreathEntity.BURN_TICKS;
     }
 
     /** How long the mark {@code attack} leaves lasts, in ticks; 0 for no mark, and for Held, which lasts as long as the hold. */

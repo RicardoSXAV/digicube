@@ -15,4 +15,10 @@ public final class NativeEffectState extends EntityRenderState {
     /** Where the effect stands relative to the entity drawing it; a summoned strike is drawn at its landing point. */
     public net.minecraft.world.phys.Vec3 offset=net.minecraft.world.phys.Vec3.ZERO;
     public boolean emissive=true;
+    /** The caster's root as drawn (x, y, z, xRot, yRot, zRot), for an effect that follows it; null for one that does not. */
+    public float[] root;
+    /** A shocking shot's bolts to the bodies it struck (KineticAttacks.Proximity), relative to the shot. */
+    public final ArcRenderer.State arc = new ArcRenderer.State();
+    /** An electric shot's own lightning about its ball (ShotStyle.ELECTRIC). */
+    public final ShockBall.State ball = new ShockBall.State();
 }

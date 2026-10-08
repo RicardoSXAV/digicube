@@ -24,7 +24,9 @@ import java.util.List;
  * that meets a block or the water keeps its speed along the surface, a little of the rest thrown back and some splashing
  * out over the surface, and spreads wider, so the frost washes along floors and walls instead of passing through them. A
  * puff already under water flies on through it (breathed by a swimmer, it meets only blocks and the surface from below).
- * A swept aim bends the train like water from a hose; the oldest puffs fade out at the end of their life.
+ * A swept aim bends the train like water from a hose; the oldest puffs fade out at the end of their life. A liquid jet
+ * ({@link BreathAttacks.Spec#liquid}) plunges into water instead of striking its surface, and under it loses its speed
+ * fast ({@code under_drag}) and falls no more.
  */
 public final class FrostBreath {
     /** One puff: position and velocity (blocks, a tick), age (ticks), whether it has struck a surface, and a seed for its look. */
@@ -42,6 +44,13 @@ public final class FrostBreath {
         public float lookX, lookY, lookZ;
         /** The face of the last surface it struck (unit; zero until it strikes): its flame lies flat on it. */
         public float surfaceX, surfaceY, surfaceZ;
+        /** Its age when it first struck a surface (-1 until it does): a splash is drawn from then. */
+        public float struckAt = -1;
+        /** It flies through water (a liquid jet's puff is drawn as a swirl of bubbles there). */
+        public boolean underwater;
+        /** Where it was as this tick began (where it left the mouth, on the tick it was shed): what it swept through. */
+        public double sx, sy, sz;
+        private boolean shed;
 
         Puff(int seed) { this.seed = seed; }
         public Vec3 position() { return new Vec3(x, y, z); }
@@ -87,6 +96,7 @@ public final class FrostBreath {
             double lived = 1 - u;
             puff.x = at.x + v.x * lived; puff.y = at.y + v.y * lived; puff.z = at.z + v.z * lived;
             puff.px = at.x; puff.py = at.y; puff.pz = at.z;
+            puff.sx = at.x; puff.sy = at.y; puff.sz = at.z; puff.shed = true;
             puff.vx = v.x; puff.vy = v.y; puff.vz = v.z;
             puff.age = (float) lived;
             puffs.add(puff);
@@ -103,11 +113,14 @@ public final class FrostBreath {
             p.age += 1;
             if (p.age >= spec.life()) { puffs.remove(i); continue; }
             p.px = p.x; p.py = p.y; p.pz = p.z;
+            if (!p.shed) { p.sx = p.x; p.sy = p.y; p.sz = p.z; }
+            p.shed = false;
             Vec3 from = p.position(), to = from.add(p.vx, p.vy, p.vz);
+            boolean wet = level != null && !level.getFluidState(BlockPos.containing(from)).isEmpty();
+            p.underwater = wet;
             if (level != null && to.distanceToSqr(from) > 1.0E-8) {
-                boolean wet = !level.getFluidState(BlockPos.containing(from)).isEmpty();
-                BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, wet ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY,
-                        CollisionContext.empty()));
+                BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER,
+                        wet || spec.liquid() ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY, CollisionContext.empty()));
                 if (hit.getType() != HitResult.Type.MISS) {
                     Direction face = hit.getDirection();
                     Vec3 n = new Vec3(face.getStepX(), face.getStepY(), face.getStepZ());
@@ -123,6 +136,7 @@ public final class FrostBreath {
                     Vec3 out = along.scale(.8).add(back).add(splash);
                     p.x = hit.getLocation().x + n.x * .05; p.y = hit.getLocation().y + n.y * .05; p.z = hit.getLocation().z + n.z * .05;
                     p.vx = out.x; p.vy = out.y; p.vz = out.z;
+                    if (!p.struck) p.struckAt = p.age;
                     p.struck = true;
                     p.hit = hit.getLocation();
                     p.normal = n;
@@ -133,6 +147,11 @@ public final class FrostBreath {
                 }
             }
             p.x = to.x; p.y = to.y; p.z = to.z;
+            if (wet && spec.liquid()) {
+                // water through water: the jet's own pressure spends itself in a few blocks, and nothing falls
+                p.vx *= spec.underDrag(); p.vy *= spec.underDrag(); p.vz *= spec.underDrag();
+                continue;
+            }
             p.vx *= spec.drag(); p.vy = p.vy * spec.drag() + spec.rise(); p.vz *= spec.drag();
         }
     }
@@ -156,14 +175,32 @@ public final class FrostBreath {
 
     /** Whether any puff's sphere meets {@code box}. */
     public boolean touches(AABB box) {
-        for (Puff p : puffs) {
-            double r = radius(p);
-            double dx = Math.max(0, Math.max(box.minX - p.x, p.x - box.maxX));
-            double dy = Math.max(0, Math.max(box.minY - p.y, p.y - box.maxY));
-            double dz = Math.max(0, Math.max(box.minZ - p.z, p.z - box.maxZ));
-            if (dx * dx + dy * dy + dz * dz <= r * r) return true;
+        for (Puff p : puffs) if (touches(p, box)) return true;
+        return false;
+    }
+
+    /**
+     * Whether one puff touches {@code box}: where it is now, or for a liquid jet anywhere along what it swept this tick
+     * (a fast jet's newest puffs are already well past the mouth when it strikes, and would pass through a body pressed
+     * against it).
+     */
+    public boolean touches(Puff p, AABB box) {
+        double r = radius(p);
+        if (!spec.liquid()) return near(box, p.x, p.y, p.z, r);
+        double lx = p.x - p.sx, ly = p.y - p.sy, lz = p.z - p.sz;
+        int steps = Math.max(1, (int) Math.ceil(Math.sqrt(lx * lx + ly * ly + lz * lz) / Math.max(.15, r)));
+        for (int i = 0; i <= steps; i++) {
+            double u = i / (double) steps;
+            if (near(box, p.sx + lx * u, p.sy + ly * u, p.sz + lz * u, r)) return true;
         }
         return false;
+    }
+
+    private static boolean near(AABB box, double x, double y, double z, double r) {
+        double dx = Math.max(0, Math.max(box.minX - x, x - box.maxX));
+        double dy = Math.max(0, Math.max(box.minY - y, y - box.maxY));
+        double dz = Math.max(0, Math.max(box.minZ - z, z - box.maxZ));
+        return dx * dx + dy * dy + dz * dz <= r * r;
     }
 
     /** The box around every puff, or null when there are none. */
@@ -174,6 +211,11 @@ public final class FrostBreath {
             double r = radius(p);
             minX = Math.min(minX, p.x - r); minY = Math.min(minY, p.y - r); minZ = Math.min(minZ, p.z - r);
             maxX = Math.max(maxX, p.x + r); maxY = Math.max(maxY, p.y + r); maxZ = Math.max(maxZ, p.z + r);
+            if (spec.liquid()) {
+                // and what it swept this tick (touches(Puff, AABB)), the stretch from the mouth included
+                minX = Math.min(minX, p.sx - r); minY = Math.min(minY, p.sy - r); minZ = Math.min(minZ, p.sz - r);
+                maxX = Math.max(maxX, p.sx + r); maxY = Math.max(maxY, p.sy + r); maxZ = Math.max(maxZ, p.sz + r);
+            }
         }
         return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }

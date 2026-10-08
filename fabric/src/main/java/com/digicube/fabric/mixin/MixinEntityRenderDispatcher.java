@@ -15,7 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * A Burned body burns in its own flames ({@link BurningFlames}), drawn where vanilla draws its sheet of fire: about the
- * body's feet, right after the body, facing the camera ({@code MixinEntityRenderer} turns vanilla's off for it).
+ * body's feet, right after the body, facing the camera ({@code MixinEntityRenderer} turns vanilla's off for it). A body
+ * an electric shot shocked crackles there too ({@code ShockedBodies}).
  */
 @Mixin(EntityRenderDispatcher.class)
 public class MixinEntityRenderDispatcher {
@@ -25,5 +26,7 @@ public class MixinEntityRenderDispatcher {
                                         SubmitNodeCollector collector, CallbackInfo ci) {
         BurnedVisuals.Burning burning = ((FabricRenderState) state).getData(BurnedVisuals.BURNING);
         if (burning != null && !state.isInvisible) BurningFlames.submit(state, burning, pose, collector, camera.orientation);
+        var shocked = ((FabricRenderState) state).getData(com.digicube.fabric.client.render.ShockedBodies.SHOCKED);
+        if (shocked != null && !state.isInvisible) com.digicube.fabric.client.render.ShockedBodies.submit(state, shocked, pose, collector);
     }
 }

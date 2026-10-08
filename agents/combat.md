@@ -58,6 +58,10 @@ the target, see [authored-attacks.md](authored-attacks.md#forms)). Timing, power
 `DigimonEntity` runs the timeline and `DigimonAttackGoal` picks the move. Each attack plays the clip named
 after its id; see [animation.md](animation.md#attack-clips).
 
+The AI picks only from `DigimonEntity.aiAttacks()`: the moves left on AUTO, or the one move a tamer's order stands
+on. A new planner (a combo, a stance, a special approach) reads that list, never `attacks()`, so a move on manual
+stays the tamer's; the command wheel sets AUTO and gives the orders ([command-wheel.md](command-wheel.md#universal-control)).
+
 Two kinds carry their own data file (Garurumon's; see [species/garurumon.md](species/garurumon.md)):
 
 - A **pounce** (`pounce_attacks.json`, `PounceAttacks`, kind `POUNCE`): a gather, then a burst along a line that eases
@@ -76,10 +80,11 @@ Two kinds carry their own data file (Garurumon's; see [species/garurumon.md](spe
   `start`, `loop` and `end` sound events, which every client plays itself (without, the server bubbles on every damage
   pulse). Contact pays into the Freeze gauge (`mark` `freeze`, the default) or charges Cold (`mark` `cold`) and pulses
   damage every `fuel` interval per victim; `mark` `burn` sets it alight for `burn` ticks instead (a fire breath, with `melt`
-  melting snow and ice: [species/meramon.md](species/meramon.md)); `art` picks how it is drawn (`flame` or `shards`,
+  melting snow and ice: [species/meramon.md](species/meramon.md)); `art` picks how it is drawn (`flame`, `shards` or `water`,
   [effects.md](effects.md#breaths-and-pounces)). A puff under water flies on through it. Still water it strikes turns to
   frosted ice in a floe that grows round the spot as it plays there (`frostTheWorld`: two neighbours a block, six blocks a
-  tick, never within two blocks of the mouth or where the body lies) and fire it crosses goes out (with `mobGriefing`).
+  tick, never within two blocks of the mouth or where the body lies) and fire it crosses goes out (with `mobGriefing`). Water
+jets: [species/shellmon.md](species/shellmon.md#hydro-pressure).
 
 A pouncer's AI (`choosePounce`) breathes on prey from `BREATH_FROM` blocks out while its gauge can fill and the tank
 holds a share, pounces up close, on Frozen prey (the shatter) and on prey that resists frost, and leaps at prey on a
@@ -162,8 +167,8 @@ Slow projectiles must earn their hits: vanilla `ThrowableProjectile` collides as
 (`ProjectileUtil.computeMargin`: 0 for two ticks, at most 0.3 blocks after), so a big fireball drawn one block
 wide would miss like a needle. `PepperBreathEntity` is the pattern: the shooter aims at where the target will
 be (`TargetMotion.intercept`) and faces it, and the projectile sweeps its own box for hits before
-`super.tick()`. It does not steer: the design wants a straight shot a player can dodge, and an AI that is good
-at leading. Tune those before touching speed or hitbox size.
+`super.tick()`. In water a shot keeps its land pace (`PepperBreathEntity.holdPaceInWater`): vanilla takes a fifth of
+it a tick there. Tune those before touching speed or hitbox size.
 
 A FIREBALL move charges and fires from `attack_motion/<attack>_muzzle.json` (`FireballMuzzles`: mouth and head
 per sub-tick), kept apart from `motion()` so the fireball keeps its own positioning rules; the ball's box
@@ -182,4 +187,5 @@ a juker is shot from closer).
 A kinetic shot reloads from the moment it leaves (`cooldownUntil` is set again at the hit tick, the tile's
 clock in `noticeShot`), so a rider may hold a drawn shot on the aim as long as they like, its tile lit until
 the shot; the Hunting Cannon's is 6 s. Shot styles (the report, trail and burst of a shot) are in
-[effects.md](effects.md#shot-styles).
+[effects.md](effects.md#shot-styles); stacked shots and shots that shock what they pass in
+[species/kabuterimon.md](species/kabuterimon.md#mega-blaster).

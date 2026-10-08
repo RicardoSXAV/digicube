@@ -59,6 +59,8 @@ public final class PepperBreathEntity extends ThrowableProjectile {
     private static final double TAIL_LENGTH = 0.7;
     /** Ticks the flare lasts after a hit: the length of the effect's {@code fireball_impact} clip. */
     public static final int IMPACT_TICKS = 7;
+    /** What vanilla's {@code ThrowableProjectile} keeps of its speed each tick in water (its {@code applyInertia}). */
+    private static final double VANILLA_WATER_INERTIA = 0.8;
     /** Ticks since the ball struck something, or -1 while it flies. */
     private static final EntityDataAccessor<Integer> IMPACT = SynchedEntityData.defineId(PepperBreathEntity.class, EntityDataSerializers.INT);
 
@@ -150,12 +152,22 @@ public final class PepperBreathEntity extends ThrowableProjectile {
         if (level() instanceof ServerLevel && sweepForHit()) {
             return;
         }
+        holdPaceInWater(this);
         super.tick();
         if (level().isClientSide()) {
             spawnTrail();
         } else if (tickCount > MAX_AGE_TICKS) {
             discard();
         }
+    }
+
+    /**
+     * Call right before {@code super.tick()}: vanilla takes a fifth of a thrown thing's speed every tick it is in water,
+     * so a shot loosed in a lake stopped about two blocks out and never reached anyone. Lifting the speed by what the
+     * drag is about to take keeps the flight exactly as on land, so the shooter's lead stays right.
+     */
+    static void holdPaceInWater(ThrowableProjectile shot) {
+        if (shot.isInWater()) shot.setDeltaMovement(shot.getDeltaMovement().scale(1.0 / VANILLA_WATER_INERTIA));
     }
 
     /**

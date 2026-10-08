@@ -14,14 +14,14 @@ The client animation is looked up by the attack id path, so an attack named `dig
 Animations ship as data, never as Java: `assets/digicube/models/entity/<name>.animation.json`, read by
 `NativeAnimationSet` (linear keys, or `"interpolation":"catmullrom"` for Minecraft's own spline); no
 `*Animations.java` keyframe class is committed. The `assetTest` build check fails on dense or unrounded tables
-(keys that interpolating their neighbours reproduces, motion values with more decimals than they need), because
-they multiply the jar size for no visible gain. A mesh's baked layer (`NativeModelGeometry.createLayer`) holds only a
-placeholder face per quad, which samples empty texels; `NativeModelGeometry.apply` installs the real faces, so anything
-that draws a baked native root passes it through `apply` first, as the model classes do (without it the model draws
-invisible); `FrostBreathRenderer` reads its boxes from the mesh instead. `assetTest` also fails on z-fighting: a species mesh (one with an
-`idle` clip) may have no same-facing faces on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they
-flicker in game). All nine species are clean since 2026-09-18 and `AssetRegressionTest.KNOWN_COPLANAR_PAIRS`
-stays empty; the failure names each pair.
+(keys their neighbours' interpolation reproduces, needlessly precise motion values: they bloat the jar), and on a
+clip `visibility` not shaped `{part: [[time, shown], ...]}` (the client rejects the model). A mesh's
+baked layer (`NativeModelGeometry.createLayer`) holds only a placeholder face per quad (empty texels);
+`NativeModelGeometry.apply` installs the real faces, so anything drawing a baked native root passes it through `apply`
+first, as the model classes do (else it is invisible); `FrostBreathRenderer` reads its boxes from the mesh instead.
+`assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no same-facing faces on one
+plane that overlap in the rest pose (`MeshSurfaceCheck`; they flicker in game). All species are clean since 2026-09-18
+and `AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty; the failure names each pair.
 
 ## Generic catalog keys
 

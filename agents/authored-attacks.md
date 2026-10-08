@@ -1,8 +1,8 @@
 # Authored attacks: volumes, bursts, leaps and volleys
 
 Read this before adding or changing an authored move (`authored_attacks.json` with its volumes, effects and
-motion): bursts summoned at the target, travelling sweeps and dashes, leaps, discharges, contact parts, strike
-particle styles, sound cues, stacked uses, forms and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and the asset
+motion): bursts summoned at the target, travelling sweeps and dashes, leaps, discharges, whole turns, contact parts,
+strike particle styles, sound cues, stacked uses, forms and volleys. Rules shared by every attack are in [combat.md](combat.md); clip naming and the asset
 gates are in [animation.md](animation.md).
 
 ## Bursts summoned at the target
@@ -50,6 +50,12 @@ over ground. When the blow lands before the clip reaches its impact pose (a targ
 there on the contact event, as a pounce's bite does, so the squash and the burst meet the real contact. A struck volume
 reaching a little past the body's own box keeps a corner met on the diagonal in reach.
 
+A burst always leans its volumes up or down at its target; a sweep does when its entry says `aimed: true` (Leomon's
+slashes, cut at a short foe's height). Its aim pitch leans the swing about the motion's `head` toward the target's middle
+(at most 20 degrees up and 40 down, `AuthoredVolumeAttack.pitch`), times the motion's `aim_weight` at each tick: the
+volumes as `canReach` rehearses them and as they strike, the effect, and the drawn aim part, turned about the body's own
+axis (`NativeGroundModel`), so the cut is drawn where it hits. Without the key a sweep is cut as authored.
+
 ## Discharges
 
 An `arc` on a burst makes it a **discharge** (`ArcDischarge`, Betamon's Electric Shock): no struck volumes; at the hit
@@ -61,6 +67,13 @@ the target, a monster, a Digimon fighting the caster, its tamer or its side, nev
 synced on the caster as text (`DATA_ARC`) and each client draws its bolts for `life` ticks
 ([effects.md](effects.md#discharges)). `canAttackFrom` asks `ArcDischarge.canReach` (a block short of the reach, in
 sight of the emitter, or through shared water) instead of rehearsing volumes.
+
+## Whole turns
+
+A clip that turns the body a whole turn (Elecmon's whirl, a spin of the root) ends that turn with a key at the whole
+turn and one a thousandth of a tick later back at zero: the two poses are the same, no frame lands between them, and
+the game's blends (an attack blending out mixes its last keys with the gait by weight) never wind the body back round.
+Keys must rise strictly in time, so the step needs that thousandth.
 
 ## Strike particle styles
 
@@ -107,7 +120,8 @@ chance falls with `TargetMotion.miss` over its flight); below `MIN_LEAP_CHANCE` 
 is impaired or Exposed. `canAttackFrom` on a move with forms asks whether the form it would cast can strike;
 `canStrikeFrom` rehearses exactly one form. A rider (`startRiderAttack`) casts the form whose `key` (`forward`, `left`,
 `right`) is the movement key held, a strafe key before forward, and the first form without one. Dinohyumon's two moves
-are the examples: [species/dinohyumon.md](species/dinohyumon.md).
+are the examples: [species/dinohyumon.md](species/dinohyumon.md). Forms of other families behind one slot (a pounce, a
+shot), a weapon's stance or a gauge make a compound move: [compound-attacks.md](compound-attacks.md).
 
 ## Volleys
 

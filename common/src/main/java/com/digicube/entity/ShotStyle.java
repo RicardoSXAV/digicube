@@ -32,7 +32,19 @@ public enum ShotStyle {
      * Monochromon's Volcano Strike: a roaring cough of fire and smoke at the jaws, a ball of magma that drips lava and
      * trails flame, smoke and ash, and an eruption of fire, lava and smoke where it bursts.
      */
-    MAGMA;
+    MAGMA,
+    /**
+     * Kabuterimon's Mega Blaster: a charging crackle as the cast begins, a crack of thunder as the ball leaves the hands,
+     * a sizzle and crackle of sparks on every body it shocks, and a thunderclap where it bursts. Its look is the client's
+     * own lightning about the ball ({@code ShockBall}): only a few vanilla sparks fly.
+     */
+    ELECTRIC,
+    /**
+     * Greymon's Mega Flame: a breath drawn in over a crackle of fire as the cast begins, a roar of fire at the jaws as the
+     * ball leaves, a ball that streams flame, embers and smoke behind it, and an explosion where it bursts: a ring of fire
+     * thrown out along the ground, embers, a column of smoke and a deep boom. A fire with no magma: nothing drips.
+     */
+    FIRE;
 
     public static ShotStyle byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -43,6 +55,23 @@ public enum ShotStyle {
 
     /** The shot leaves the muzzle; {@code charge} is a rider's draw (1 for an unridden shot). */
     public void fire(ServerLevel level, Vec3 muzzle, Vec3 direction, float charge) {
+        if (this == FIRE) {
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.5F, .5F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 1.2F, .6F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.RAVAGER_ROAR, SoundSource.NEUTRAL, .7F, 1.1F);
+            Vec3 ahead = muzzle.add(direction.scale(.4));
+            level.sendParticles(ParticleTypes.FLAME, true, true, ahead.x, ahead.y, ahead.z, 24, .25, .2, .25, .09);
+            level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, ahead.x, ahead.y, ahead.z, 12, .3, .25, .3, .05);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, muzzle.x, muzzle.y, muzzle.z, 8, .2, .12, .2, .03);
+            return;
+        }
+        if (this == ELECTRIC) {
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.TRIDENT_THUNDER, SoundSource.NEUTRAL, .7F, 1.9F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .6F, 1.6F);
+            Vec3 ahead = muzzle.add(direction.scale(.3));
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, true, true, ahead.x, ahead.y, ahead.z, 6, .25, .25, .25, .3);
+            return;
+        }
         if (this == MAGMA) {
             level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.2F, .55F);
             level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 1F, .7F);
@@ -69,6 +98,28 @@ public enum ShotStyle {
 
     /** Client, every tick of flight: sparks along the stretch from {@code from} to {@code to}. */
     public void trail(Level level, Vec3 from, Vec3 to, RandomSource random) {
+        if (this == FIRE) {
+            // Flame streams off the ball and hangs where it passed, embers spark away from it, smoke rolls up behind.
+            Vec3 step = to.subtract(from);
+            int puffs = Math.max(2, (int) Math.round(step.length() * 4));
+            for (int i = 0; i < puffs; i++) {
+                Vec3 at = from.add(step.scale((i + random.nextDouble()) / puffs));
+                level.addParticle(ParticleTypes.FLAME, at.x + random.nextGaussian() * .16, at.y + random.nextGaussian() * .16,
+                        at.z + random.nextGaussian() * .16, step.x * .06, step.y * .06 + .012, step.z * .06);
+                if (random.nextInt(3) == 0) level.addParticle(ParticleTypes.SMALL_FLAME, at.x + random.nextGaussian() * .25, at.y + random.nextGaussian() * .25,
+                        at.z + random.nextGaussian() * .25, random.nextGaussian() * .03, .03, random.nextGaussian() * .03);
+                if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.SMOKE, at.x, at.y + .15, at.z, 0, .035, 0);
+            }
+            if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.LAVA, from.x, from.y, from.z, 0, 0, 0);
+            if (random.nextInt(3) == 0) level.addParticle(ParticleTypes.LARGE_SMOKE, from.x, from.y + .1, from.z, 0, .05, 0);
+            return;
+        }
+        if (this == ELECTRIC) {
+            // Now and then a spark flies off the ball (its lightning is drawn by the client: ShockBall).
+            if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.ELECTRIC_SPARK, from.x + random.nextGaussian() * .2, from.y + random.nextGaussian() * .2,
+                    from.z + random.nextGaussian() * .2, random.nextGaussian() * .1, random.nextGaussian() * .1, random.nextGaussian() * .1);
+            return;
+        }
         if (this == MAGMA) {
             // Flame licks off the ball and hangs where it passed; smoke and ash drift up behind; lava drips off it.
             Vec3 step = to.subtract(from);
@@ -109,6 +160,27 @@ public enum ShotStyle {
 
     /** The bolt strikes a block or a body at {@code at}. */
     public void impact(ServerLevel level, Vec3 at) {
+        if (this == FIRE) {
+            RandomSource random = level.getRandom();
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.NEUTRAL, 1.1F, .8F + random.nextFloat() * .1F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.DRAGON_FIREBALL_EXPLODE, SoundSource.NEUTRAL, 1.3F, .7F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRECHARGE_USE, SoundSource.NEUTRAL, 1.2F, .5F);
+            level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y, at.z, 60, .3, .3, .3, .22);
+            level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, at.x, at.y, at.z, 30, .6, .4, .6, .08);
+            level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y, at.z, 10, .4, .3, .4, 0);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y + .3, at.z, 16, .45, .4, .45, .05);
+            level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, true, at.x, at.y + .3, at.z, 5, .35, .25, .35, .015);
+            level.sendParticles(ParticleTypes.EXPLOSION, true, true, at.x, at.y, at.z, 2, .3, .3, .3, 0);
+            return;
+        }
+        if (this == ELECTRIC) {
+            RandomSource random = level.getRandom();
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_THUNDER, SoundSource.NEUTRAL, 1.1F, 1.35F + random.nextFloat() * .15F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, 1F, 1.3F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, 1F, 1.5F);
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, true, true, at.x, at.y, at.z, 14, .45, .45, .45, .6);
+            return;
+        }
         if (this == MAGMA) {
             RandomSource random = level.getRandom();
             level.playSound(null, at.x, at.y, at.z, SoundEvents.DRAGON_FIREBALL_EXPLODE, SoundSource.NEUTRAL, 1.1F, .75F + random.nextFloat() * .1F);
@@ -141,8 +213,45 @@ public enum ShotStyle {
         level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y, at.z, 4, .25, .25, .25, .02);
     }
 
+    /**
+     * The shot shocks {@code victim} (a direct hit, or a shocking ball's spark at {@code share} of its damage): an electric
+     * ball sizzles and crackles on it, louder the harder it struck. Other styles have nothing to add to their burst.
+     */
+    public void shock(ServerLevel level, net.minecraft.world.entity.LivingEntity victim, float share) {
+        if (this != ELECTRIC) return;
+        RandomSource random = level.getRandom();
+        Vec3 chest = victim.getBoundingBox().getCenter();
+        float loud = Math.clamp(.55F + share * .6F, .55F, 1.15F);
+        level.playSound(null, chest.x, chest.y, chest.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, loud, 1.5F + random.nextFloat() * .25F);
+        level.playSound(null, chest.x, chest.y, chest.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, loud, 1.75F + random.nextFloat() * .2F);
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, chest.x, chest.y, chest.z, 6, victim.getBbWidth() * .35, victim.getBbHeight() * .3,
+                victim.getBbWidth() * .35, .25);
+    }
+
+    /** The caster begins the move: an electric ball's charge crackles in its hands. */
+    public void charge(ServerLevel level, Vec3 at) {
+        if (this == FIRE) {
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.BLAZE_AMBIENT, SoundSource.NEUTRAL, 1F, .55F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_AMBIENT, SoundSource.NEUTRAL, 1.4F, .7F);
+            return;
+        }
+        if (this != ELECTRIC) return;
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.RESPAWN_ANCHOR_CHARGE, SoundSource.NEUTRAL, 1F, 1.45F);
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, .6F, 1.25F);
+    }
+
     /** A bolt that flew its full range without striking anything fizzles out where it is. */
     public void fizzle(ServerLevel level, Vec3 at) {
+        if (this == FIRE) {
+            level.sendParticles(ParticleTypes.FLAME, true, true, at.x, at.y, at.z, 16, .3, .3, .3, .05);
+            level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y, at.z, 10, .3, .3, .3, .03);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .8F, .6F);
+            return;
+        }
+        if (this == ELECTRIC) {
+            impact(level, at);
+            return;
+        }
         if (this == MAGMA) {
             level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, at.x, at.y, at.z, 8, .2, .2, .2, .02);
             level.sendParticles(ParticleTypes.LAVA, true, true, at.x, at.y, at.z, 3, .15, .1, .15, 0);

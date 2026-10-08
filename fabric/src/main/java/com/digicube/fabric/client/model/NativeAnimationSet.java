@@ -342,6 +342,15 @@ public final class NativeAnimationSet {
     /** The part of this name, or null. */
     public ModelPart part(String name) { return named.get(name); }
 
+    /** The parts a clip keys (its tracks' parts), in no order. */
+    public java.util.Set<ModelPart> keyed(String name) {
+        Clip clip = clips.get(name);
+        if (clip == null) throw new IllegalArgumentException("Missing native clip " + name);
+        var result = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ModelPart, Boolean>());
+        for (Track track : clip.tracks) result.add(track.part);
+        return result;
+    }
+
     /** @return the parts whose names start with {@code prefix}, in no order */
     public java.util.Set<ModelPart> partsNamed(String prefix) {
         var result = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<ModelPart, Boolean>());

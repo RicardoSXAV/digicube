@@ -15,9 +15,18 @@ public final class HitParts {
 
     /** The world box of one part for a body standing at {@code feet} with the given body yaw. */
     public static AABB place(DigimonBody.HitPart part, Vec3 feet, float bodyYaw) {
-        Vec3 bottom = feet.add(part.offset().yRot(-bodyYaw * Mth.DEG_TO_RAD));
+        return place(part, feet, bodyYaw, 1);
+    }
+
+    /**
+     * As {@link #place(DigimonBody.HitPart, Vec3, float)} for a body lowered to {@code squash} of its height about its feet (a
+     * crouch or a slide, {@code Agility.partSquash}): the part's height above the feet and its own height shrink by it.
+     */
+    public static AABB place(DigimonBody.HitPart part, Vec3 feet, float bodyYaw, float squash) {
+        Vec3 offset = part.offset();
+        Vec3 bottom = feet.add(new Vec3(offset.x, offset.y * squash, offset.z).yRot(-bodyYaw * Mth.DEG_TO_RAD));
         double half = part.width() / 2.0;
-        return new AABB(bottom.x - half, bottom.y, bottom.z - half, bottom.x + half, bottom.y + part.height(), bottom.z + half);
+        return new AABB(bottom.x - half, bottom.y, bottom.z - half, bottom.x + half, bottom.y + part.height() * squash, bottom.z + half);
     }
 
     /**

@@ -20,7 +20,10 @@ import java.util.Map;
  * other. Instead of a straight jet it is a train of puffs ({@code com.digicube.entity.FrostBreath}): each tick the mouth
  * sheds some along the aim with the body's own motion added, they fly on slowed by the air, widen as they age, slide
  * along what they hit and die away, so a swept aim bends the stream like water from a hose and a running breather trails
- * it. The server strikes with the same puffs every client draws.
+ * it. The server strikes with the same puffs every client draws. A liquid jet (Shellmon's Hydro Pressure, {@code art}
+ * {@code water}) is the same train under real gravity: it arcs, runs down walls and pools on floors, slows hard under
+ * water, shoves back what it plays on and drives it on harder the longer it plays there ({@code push}) and wets the
+ * surfaces it strikes.
  */
 public final class BreathAttacks {
     /**
@@ -51,12 +54,21 @@ public final class BreathAttacks {
      * @param pixel     blocks one pixel of the effect model's art is drawn at (the flame's breadth scales with it)
      * @param cooling   the colour a puff's blocks are tinted toward as it dies (red, green, blue shares; Howling Blaster's
      *                  frost cools a little bluer, Heat Wave's fire deeper red)
+     * @param marks     contact leaves its mark ({@code freeze}, {@code cold} or {@code burn}); a water jet ({@code none})
+     *                  leaves none and puts out a fire on the body it plays on
+     * @param push      a jet's push ({@link Push}), or null
+     * @param wet       the surfaces it strikes are wetted for a while on every client
+     * @param pitchUp   the most it is aimed up (degrees, negative), and {@code pitchDown} down
+     * @param underDrag share of its speed a puff keeps each tick under water (no gravity there), else the air's drag
      */
     public record Spec(DigimonAttack attack, float speed, float drag, int life, float[][] radius, int perTick, float spread, float rise,
                        float bounce, float freeze, boolean chills, int burn, boolean melt, boolean waterIce, boolean douse, float turn,
-                       float pitchTurn, float twist, String effect, String art, Sounds sounds, float pixel, float[] cooling) {
+                       float pitchTurn, float twist, String effect, String art, Sounds sounds, float pixel, float[] cooling,
+                       boolean marks, Push push, boolean wet, float pitchUp, float pitchDown, float underDrag) {
         /** A fire breath: contact sets bodies alight instead of chilling them. */
         public boolean burns() { return burn > 0; }
+        /** A jet of water: a liquid under gravity that pushes and wets (drawn as {@code water}). */
+        public boolean liquid() { return art.equals("water"); }
         /** Blocks a puff flies over its whole life in still air (the stream's reach). */
         public float reach() {
             float d = 0, v = speed;
@@ -72,6 +84,33 @@ public final class BreathAttacks {
                 }
             }
             return radius[radius.length - 1][1];
+        }
+    }
+
+    /**
+     * What a jet does to a body it plays on, all along the level way its water flows (never up off the ground: a jet
+     * angled up into a tall body drives it back, it does not lift it). The water's first blow throws the body back by
+     * {@code impact} (blocks a tick); while it stays in the jet it is driven on to a slide that builds from
+     * {@code speed[0]} to {@code speed[1]} blocks a tick (a share {@code 1 - e^(-contact / build)} of the way after that
+     * many ticks of contact; out of it, the build drains twice as fast), at most {@code accel} blocks a tick faster each
+     * tick. All of it is whole within {@code near} blocks of the mouth and falls off to nothing at {@code far}, so a body
+     * is not hosed across the map, and it shrinks with the water's own speed there (a dribble barely pushes). A bulky
+     * body moves less ({@link #bulk}); knockback resistance takes up to 80 % off.
+     */
+    public record Push(float impact, float[] speed, float build, float accel, float near, float far) {
+        /** Cubic blocks of body a push moves as written: a smaller one more, a bigger one less (by the cube root). */
+        public static final double BULK = 2;
+        /** The slide (blocks a tick) after {@code contact} ticks in the jet, before the distance, the water and the body. */
+        public double slide(float contact) {
+            return speed[0] + (speed[1] - speed[0]) * (1 - Math.exp(-Math.max(0, contact) / build));
+        }
+        /** Share of the push left {@code distance} blocks from the mouth. */
+        public double reach(double distance) {
+            return Math.clamp((far - distance) / (far - near), 0, 1);
+        }
+        /** How much a body of this size is moved: 1 for {@link #BULK} cubic blocks, a player 1.25, Golemon about .55. */
+        public static double bulk(float width, float height) {
+            return Math.clamp(Math.cbrt(BULK / Math.max(.05, width * width * height)), .45, 1.25);
         }
     }
 
@@ -131,25 +170,43 @@ public final class BreathAttacks {
                         GsonHelper.getAsInt(c, "duration"), GsonHelper.getAsInt(c, "hit_tick"), GsonHelper.getAsDouble(c, "range"), false,
                         AttackMotion.load(id), new AttackFuel((int) fuel[0], (int) fuel[1], (int) fuel[2]), 0);
                 String mark = GsonHelper.getAsString(c, "mark", "freeze");
-                if (!mark.equals("freeze") && !mark.equals("cold") && !mark.equals("burn"))
-                    throw new IllegalArgumentException("Breath " + id + " marks freeze, cold or burn");
+                if (!mark.equals("freeze") && !mark.equals("cold") && !mark.equals("burn") && !mark.equals("none"))
+                    throw new IllegalArgumentException("Breath " + id + " marks freeze, cold, burn or none");
                 int burn = mark.equals("burn") ? GsonHelper.getAsInt(c, "burn") : 0;
                 if (mark.equals("burn") && (burn < 1 || burn > 400)) throw new IllegalArgumentException("Breath " + id + " burns 1 to 400 ticks");
                 float[] cooling = c.has("cooling") ? floats(c, "cooling", 3) : new float[]{.88F, .92F, 1};
                 String art = GsonHelper.getAsString(c, "art", "flame");
-                if (!art.equals("flame") && !art.equals("shards")) throw new IllegalArgumentException("Breath " + id + " is drawn as flame or shards");
+                if (!art.equals("flame") && !art.equals("shards") && !art.equals("water"))
+                    throw new IllegalArgumentException("Breath " + id + " is drawn as flame, shards or water");
+                Push push = null;
+                if (c.has("push")) {
+                    JsonObject o = GsonHelper.getAsJsonObject(c, "push");
+                    push = new Push(GsonHelper.getAsFloat(o, "impact"), floats(o, "speed", 2), GsonHelper.getAsFloat(o, "build"),
+                            GsonHelper.getAsFloat(o, "accel"), GsonHelper.getAsFloat(o, "near"), GsonHelper.getAsFloat(o, "far"));
+                    if (!(push.impact() >= 0 && push.impact() < 2 && push.speed()[0] >= 0 && push.speed()[1] >= push.speed()[0]
+                            && push.speed()[1] < 1 && push.build() >= 1 && push.accel() > 0 && push.accel() < 1
+                            && push.near() >= 0 && push.far() > push.near()))
+                        throw new IllegalArgumentException("Breath " + id + " pushes with impact, speed [from, to] under 1, build,"
+                                + " accel and near < far");
+                }
+                float[] pitch = c.has("pitch") ? floats(c, "pitch", 2) : new float[]{-55, 70};
+                if (!(pitch[0] >= -90 && pitch[0] <= 0 && pitch[1] >= 0 && pitch[1] <= 90))
+                    throw new IllegalArgumentException("Breath " + id + " aims [up, down] within 90 degrees");
                 var spec = new Spec(attack, GsonHelper.getAsFloat(c, "speed"), GsonHelper.getAsFloat(c, "drag"), GsonHelper.getAsInt(c, "life"),
                         profile(c, "radius"), GsonHelper.getAsInt(c, "per_tick"), GsonHelper.getAsFloat(c, "spread"), GsonHelper.getAsFloat(c, "rise"),
                         GsonHelper.getAsFloat(c, "bounce"), GsonHelper.getAsFloat(c, "freeze"), mark.equals("cold"), burn,
                         GsonHelper.getAsBoolean(c, "melt", false), GsonHelper.getAsBoolean(c, "water_ice", false), GsonHelper.getAsBoolean(c, "douse", false),
                         GsonHelper.getAsFloat(c, "turn"), GsonHelper.getAsFloat(c, "pitch_turn"), GsonHelper.getAsFloat(c, "twist"),
-                        GsonHelper.getAsString(c, "effect"), art, sounds(c), GsonHelper.getAsFloat(c, "pixel", .025F), cooling);
+                        GsonHelper.getAsString(c, "effect"), art, sounds(c), GsonHelper.getAsFloat(c, "pixel", .025F), cooling,
+                        !mark.equals("none"), push, GsonHelper.getAsBoolean(c, "wet", false), pitch[0], pitch[1],
+                        GsonHelper.getAsFloat(c, "under_drag", GsonHelper.getAsFloat(c, "drag")));
                 if (!(spec.speed() > 0 && spec.speed() < 4) || !(spec.drag() > 0 && spec.drag() <= 1) || spec.life() < 2 || spec.life() > 80
                         || spec.perTick() < 1 || spec.perTick() > 6
                         || !(spec.spread() >= 0 && spec.spread() < 1) || !(spec.bounce() >= 0 && spec.bounce() <= 1)
                         || !(spec.freeze() >= 0 && spec.freeze() <= FreezeMark.FULL) || !(spec.turn() > 0) || !(spec.pitchTurn() > 0)
                         || !(spec.twist() >= 0 && spec.twist() <= 110) || !(spec.pixel() > .005F && spec.pixel() < .1F)
                         || spec.burns() && (spec.freeze() > 0 || spec.waterIce())
+                        || !spec.marks() && (spec.freeze() > 0 || spec.burns()) || !(spec.underDrag() > 0 && spec.underDrag() <= 1)
                         || !(cooling[0] >= 0 && cooling[0] <= 1 && cooling[1] >= 0 && cooling[1] <= 1 && cooling[2] >= 0 && cooling[2] <= 1))
                     throw new IllegalArgumentException("Invalid breath " + id);
                 result.put(id, spec);

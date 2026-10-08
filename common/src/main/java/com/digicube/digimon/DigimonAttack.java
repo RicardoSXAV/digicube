@@ -51,7 +51,7 @@ public record DigimonAttack(
                 || !Double.isFinite(knockback) || knockback < 0) {
             throw new IllegalArgumentException(id + ": invalid power, cooldown or range");
         }
-        if ((kind == Kind.FLAME_SHOT || kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
+        if ((kind == Kind.HORN_RAM || kind == Kind.FLAME_STREAM || kind == Kind.WATER_WAVE
                 || kind == Kind.POUNCE || kind == Kind.FROST_STREAM || kind == Kind.GROUND_WAVE || kind == Kind.FIST || kind == Kind.BOX_SWEEP || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT || kind == Kind.RETREAT_KICK)
                 && (motion == null || motion.frames().size() != durationTicks * motion.samplesPerTick() + 1)) {
             throw new IllegalArgumentException(id + ": missing or mismatched attack motion");
@@ -85,8 +85,6 @@ public record DigimonAttack(
         FIREBALL,
         /** A non-burning bubble volley launched on the hit tick. */
         BUBBLES,
-        /** A large animated flame shot with an impact burst. */
-        FLAME_SHOT,
         /** Collision-safe forward movement and swept contact along the authored horn. */
         HORN_RAM,
         /** Continuous non-burning flame, paid for with a per-entity fuel reserve. */
@@ -116,7 +114,11 @@ public record DigimonAttack(
         /** A projectile formed in the hands and held to grow heavier before a ballistic throw ({@link ThrownAttacks}). */
         CHARGED_THROW,
         /** A long arm drawn back, coiled and lashed out on a spring; the swept arm strikes what it meets ({@link WhipAttacks}). */
-        WHIP
+        WHIP,
+        /** Withdrawn into the shell, spun up while held and let go: the spinning shell strikes what it runs into ({@link SpinAttacks}). */
+        SPIN,
+        /** Casts forms of other families by reach and the air, behind a drawn weapon's stance or a filled gauge ({@link CompoundAttacks}). */
+        COMPOUND
     }
 
     /** Clip name for this attack, e.g. {@code claw} or {@code claw_mirrored}. */
@@ -125,9 +127,11 @@ public record DigimonAttack(
     }
 
     public boolean isRanged() {
-        return kind == Kind.FIREBALL || kind == Kind.BUBBLES || kind == Kind.FLAME_SHOT
+        return kind == Kind.FIREBALL || kind == Kind.BUBBLES
                 || kind == Kind.FLAME_STREAM || kind == Kind.FROST_STREAM || kind == Kind.WATER_WAVE || kind == Kind.GROUND_WAVE || kind == Kind.BOX_BURST || kind == Kind.KINETIC_SHOT
-                || kind == Kind.RETURNING_THROW || kind == Kind.CHARGED_THROW;
+                || kind == Kind.RETURNING_THROW || kind == Kind.CHARGED_THROW
+                // a compound reaches as far as its furthest form: a sword's with a shot beside it is ranged
+                || kind == Kind.COMPOUND && CompoundAttacks.ranged(id);
     }
 
     /** Whole-body attacks hold a common visual and physical facing. */

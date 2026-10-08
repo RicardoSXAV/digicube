@@ -185,15 +185,20 @@ final class BalanceScenario {
 
     /**
      * A species whose tactics call for a skill must be seen using it: a jet charge for {@code dash_engage}, a jet dodge
-     * for {@code dash_dodge}, a shot on the run for {@code shoot_moving}. Uses are reported per round.
+     * for {@code dash_dodge}, a shot on the run for {@code shoot_moving}, a dodge roll for {@code roll_dodge}, a crouched
+     * stalk for {@code stalk} (with {@code footwork}). Uses are reported per round.
      */
     private static void skillVerdict(Side side) {
         var tactics = side.species.tactics();
-        if (!tactics.dashes() && !tactics.shootMoving()) return;
+        boolean stalks = tactics.footwork() && tactics.stalk() > 0 && tactics.strafe() && tactics.holdsRange();
+        if (!tactics.dashes() && !tactics.shootMoving() && tactics.rollDodge() <= 0 && !stalks) return;
         var missing = new ArrayList<String>();
         if (tactics.dashEngage() > 0 && side.skills.getOrDefault("jet_charge", 0) == 0) missing.add("jet_charge");
         if (tactics.dashDodge() && side.skills.getOrDefault("jet_dodge", 0) == 0) missing.add("jet_dodge");
         if (tactics.shootMoving() && side.skills.getOrDefault("shot_on_the_run", 0) == 0) missing.add("shot_on_the_run");
+        if (tactics.rollDodge() > 0 && side.skills.getOrDefault("roll_dodge", 0) == 0) missing.add("roll_dodge");
+        if (stalks && side.skills.getOrDefault("stalk", 0) == 0) missing.add("stalk");
+        if (stalks && tactics.spacing() > 0 && side.skills.getOrDefault("spacing", 0) == 0) missing.add("spacing");
         var perRound = new TreeMap<String, String>();
         side.skills.forEach((skill, uses) -> perRound.put(skill, String.format(Locale.ROOT, "%.2f", (double) uses / rounds.size())));
         Constants.LOG.info("[balance] SKILLS {} {}: per round {}{}", missing.isEmpty() ? "PASS" : "FAIL", side.name(), perRound,
