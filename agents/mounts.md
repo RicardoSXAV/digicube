@@ -2,15 +2,15 @@
 
 Read this before touching anything a rider does: rider attacks and their tiles, controls, getting on, the
 rider's pose, water and sea mounts, the wrap as a rider move, mount pace, sprinting and leaps, four-legged
-mounts, charges and drawn shots, and flying mounts. Check with `rider_checks` and `sea_mount_checks`
+mounts, charges and drawn shots, and flying mounts (flight itself: [flight.md](flight.md)). Check with `rider_checks` and `sea_mount_checks`
 ([testing.md](testing.md#index-of-checks)).
 
 ## Rider attacks
 
 Mounted combat is opt-in per species: `body.mount.rider_attacks` lists the attacks in slot order with `aim`
-(`sweep`/`line`/`shot`/`stream`/`grab`/`charge`/`whip`/`pounce`/`rush`: [monochromon](species/monochromon.md)), `input` (`tap`/`hold`), soft-target `cone`/`reach`
-and `move` (`RiderAttack`; Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon,
-Gesomon, DarkTyrannomon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
+(`sweep`/`line`/`shot`/`stream`/`grab`/`charge`/`whip`/`pounce`/`rush`: [monochromon](species/monochromon.md)/`spin`: [shellmon](species/shellmon.md)), `input` (`tap`/`hold`), soft-target `cone`/`reach`
+and `move`/`air` (`RiderAttack`; Golemon, Garurumon, Greymon, Ikkakumon, Digmon, Seadramon, Centarumon, Mojyamon,
+Gesomon, DarkTyrannomon, Shellmon). A rider has no target: `startRiderAttack` shares `beginAttack` with the AI, aims at the soft target
 or at `riderAim` (the ray from the rider's eye, which is the crosshair's ray in third person too), and commits
 every yaw through `DATA_ATTACK_YAW` because the rider's client owns the facing. A move with forms casts the form
 whose `key` is the movement key held ([authored-attacks.md](authored-attacks.md#forms)). Check with
@@ -205,5 +205,5 @@ optional `rider_leg_roll`, `rider_leg_hips`); keep `body.mount.seat` at the rest
 first-person eye sits apart from the body. The model plays a rider's casts (the seat follows the brace). An
 approach draws its landing clip on `DigimonEntity.landingProgress` (rendered height against the height the
 approach began at, so it starts from the flight pose and meets the ground with the feet), and `AerialRiding`
-settles in at `.035 + .07 x height` a tick on the exact `groundDistance`. Kabuterimon's flight controls are
-described in `README.md`.
+settles in at `.035 + .07 x height` a tick on the exact `groundDistance`. Agile flight (Kabuterimon), the flight
+reserve's costs and attacks on the wing are in [flight.md](flight.md).

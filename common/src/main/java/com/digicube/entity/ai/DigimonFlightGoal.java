@@ -42,7 +42,9 @@ public final class DigimonFlightGoal extends Goal {
         if (mob.needsFlightLanding()) return true;
         if (mob.tickCount < nextAttempt || !mob.onGround() || !mob.flightReserve().ready()) return false;
         LivingEntity owner = owner();
-        escaping = danger() != null || mob.isOnFire();
+        // Burning, an armed flyer with prey still fights it (the sky puts no fire out); an unarmed one takes off.
+        LivingEntity prey = mob.getTarget();
+        escaping = danger() != null || mob.isOnFire() && !(mob.hasAttacks() && prey != null && prey.isAlive());
         if (owner != null && mob.distanceToSqr(owner) > 36 && mob.getNavigation().isDone()) blockedFollowTicks++;
         else blockedFollowTicks = 0;
         var data = mob.getLocomotion().flight();

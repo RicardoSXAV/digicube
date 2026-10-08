@@ -4,13 +4,21 @@ import com.digicube.Constants;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import net.minecraft.world.phys.Vec3;
 
-/** Handling bounds: acceleration, braking, diagonals, pitch and stamina. */
+/**
+ * Handling bounds: acceleration, braking, diagonals, pitch and stamina, for the steady handling with its dive (a sheet
+ * of the old Kabuterimon's numbers) and for agile flight (Kabuterimon's sheet): the view-led dive and its momentum,
+ * the boost, the slide, wide fast turns, the ground's skim, and what flying hard and fighting on the wing cost.
+ */
 public final class AerialRidingRegressionTest {
     private AerialRidingRegressionTest() {}
+    /** Steady handling with a dive (the numbers Kabuterimon flew on before agile flight). */
+    private static final com.digicube.digimon.AerialMount STEADY = new com.digicube.digimon.AerialMount(.65, .045, .13, .42, .36,
+            7, 28, 10, 10, 24, new com.digicube.digimon.AerialMount.Dive(1.2, .022, .006, .03, .06));
     public static void run() {
         var species=DigimonSpeciesRegistry.getOrThrow(Constants.id("kabuterimon"));
-        var p=species.body().mount().orElseThrow().flight();
-        check(species.locomotion().canFly() && p!=null,"species explicitly grants aerial riding");
+        check(species.locomotion().canFly() && species.body().mount().orElseThrow().flight()!=null,"species explicitly grants aerial riding");
+        agile(species.body().mount().orElseThrow().flight(), species.locomotion().flight());
+        var p=STEADY;
         var forward=AerialHandling.target(p,1,0,0,0,AerialInput.NONE);
         var diagonal=AerialHandling.target(p,1,1,0,0,AerialInput.NONE);
         check(forward.length()<=p.cruiseSpeed()+1e-8 && diagonal.length()<=p.cruiseSpeed()+1e-8,"diagonals cannot exceed cruise");
@@ -31,10 +39,77 @@ public final class AerialRidingRegressionTest {
         check(AerialHandling.target(p,1,0,0,-70,AerialInput.NONE).y>0,"look-forward climb");
         check(AerialHandling.target(p,1,0,90,0,AerialInput.NONE).x<0,"yaw transforms control direction");
         momentum(p);
-        for(int bits=0;bits<4;bits++)check(AerialInput.fromBits(bits).bits()==bits,"button codec roundtrip");
+        for(int bits=0;bits<=AerialInput.MAX_BITS;bits++)check(AerialInput.fromBits(bits).bits()==bits,"button codec roundtrip");
         var tank=new com.digicube.digimon.FlightReserve(species.locomotion().flight());
         for(int i=0;i<2400;i++)tank.consume();
         check(tank.exhausted() && !tank.ready(),"empty reserve cannot authorize launch");
+    }
+
+    /** Agile flight: speed is energy, the faster the wider the turn, the ground levels a dive, the wing costs. */
+    private static void agile(com.digicube.digimon.AerialMount p, com.digicube.digimon.DigimonFlight flight) {
+        var a = p.agility();
+        check(a != null, "Kabuterimon flies agile");
+        Vec3 v = Vec3.ZERO;
+        for (int i = 0; i < 60; i++) v = AerialHandling.agile(p, v, 1, 0, 0, 0, false, false, false);
+        check(Math.abs(v.length() - p.cruiseSpeed()) < 1e-6 && Math.abs(v.y) < 1e-6, "level flight settles at cruise");
+        Vec3 boost = v;
+        for (int i = 0; i < 80; i++) boost = AerialHandling.agile(p, boost, 1, 0, 0, 0, false, false, true);
+        check(Math.abs(boost.length() - p.cruiseSpeed() * a.boost()) < 1e-3, "the sprint key beats the wings to the boost's speed");
+        Vec3 dive = v;
+        for (int i = 0; i < 60; i++) dive = AerialHandling.agile(p, dive, 1, 0, 0, 70, false, false, false);
+        check(dive.length() > p.cruiseSpeed() * 2 && dive.length() <= a.maxSpeed() + 1e-9, "a steep dive gathers speed up to its terminal speed");
+        check(-dive.y > dive.horizontalDistance(), "the dive follows the view down");
+        Vec3 shallow = v;
+        for (int i = 0; i < 60; i++) shallow = AerialHandling.agile(p, shallow, 1, 0, 0, 20, false, false, false);
+        check(dive.length() > shallow.length() + .2, "steep dives earn more than shallow ones");
+        Vec3 carried = dive, climbed = dive;
+        for (int i = 0; i < 20; i++) {
+            carried = AerialHandling.agile(p, carried, 1, 0, 0, 0, false, false, false);
+            climbed = AerialHandling.agile(p, climbed, 1, 0, 0, -50, false, false, false);
+        }
+        check(carried.length() > p.cruiseSpeed() + .3 && Math.abs(carried.y) < .05, "pulled out level, the dive's speed carries on ahead");
+        check(climbed.length() < carried.length(), "a climb spends the dive's speed faster than level flight");
+        for (int i = 0; i < 300; i++) carried = AerialHandling.agile(p, carried, 1, 0, 0, 0, false, false, false);
+        check(Math.abs(carried.length() - p.cruiseSpeed()) < .01, "the carried speed bleeds back to cruise");
+        // the faster, the wider the turn
+        Vec3 fast = dive.multiply(1, 0, 1).normalize().scale(a.maxSpeed()), slow = v;
+        Vec3 fastNext = AerialHandling.agile(p, fast, 1, 0, 90, 0, false, false, false);
+        Vec3 slowNext = AerialHandling.agile(p, slow, 1, 0, 90, 0, false, false, false);
+        double fastTurn = Math.toDegrees(Math.acos(Math.clamp(fast.normalize().dot(fastNext.normalize()), -1, 1)));
+        double slowTurn = Math.toDegrees(Math.acos(Math.clamp(slow.normalize().dot(slowNext.normalize()), -1, 1)));
+        check(fastTurn < slowTurn * .6 && slowTurn > 9, "a fast body turns wider than a slow one");
+        // the strafe keys slide it aside, nothing held hovers
+        Vec3 slide = Vec3.ZERO;
+        for (int i = 0; i < 30; i++) slide = AerialHandling.agile(p, slide, 0, 1, 0, 0, false, false, false);
+        check(slide.x > p.cruiseSpeed() * a.strafe() * .95 && Math.abs(slide.z) < 1e-6, "the strafe keys slide it to its left");
+        Vec3 hover = dive;
+        double flare = 0;
+        for (int i = 0; i < 40; i++) { hover = AerialHandling.agile(p, hover, 0, 0, 0, 0, false, false, false); flare += hover.length(); }
+        check(hover.equals(Vec3.ZERO) && flare < 18, "letting go flares even a terminal dive to a hover");
+        // the ground levels a dive into a skim at the speed it had
+        Vec3 skim = AerialHandling.skim(dive, 3);
+        check(skim.y > dive.y && Math.abs(skim.length() - dive.length()) < 1e-6 && skim.y >= -(3 - AerialHandling.SKIM) * AerialHandling.SKIM_DROP - 1e-9,
+                "over the ground a dive levels out without losing speed");
+        check(AerialHandling.skim(new Vec3(.3, .2, 0), 1).equals(new Vec3(.3, .2, 0)), "a climb is never touched by the ground");
+        // at the skim's height a fast body holds it, a slow one settles on down to land
+        Vec3 skimming = AerialHandling.skim(new Vec3(0, -.5, 1.2), AerialHandling.SKIM - .2), settling = AerialHandling.skim(new Vec3(0, -.3, .1), AerialHandling.SKIM - .2);
+        check(skimming.y == 0 && Math.abs(skimming.length() - new Vec3(0, -.5, 1.2).length()) < 1e-6 && settling.y < 0 && settling.y >= -.04 - 1e-9,
+                "a skim at speed holds its height and a slow one settles");
+        // costs: about two minutes of plain flight, about three casts on the wing, a slow refill in a fight
+        var costs = flight.costs();
+        var tank = new com.digicube.digimon.FlightReserve(flight);
+        int ticks = 0;
+        while (!tank.exhausted()) { tank.consume(); ticks++; }
+        check(ticks >= 1200 && ticks <= 2400, "plain flight lasts one to two minutes");
+        tank = new com.digicube.digimon.FlightReserve(flight);
+        int casts = 0;
+        while (!tank.mustLand()) { tank.spendAttack(); casts++; }
+        check(casts >= 3 && casts <= 4, "about three casts on the wing drain the reserve");
+        var calm = new com.digicube.digimon.FlightReserve(flight); var fighting = new com.digicube.digimon.FlightReserve(flight);
+        calm.restore(0, 0); fighting.restore(0, 0);
+        for (int i = 0; i < 200; i++) { calm.rest(1); fighting.rest(costs.combatRecharge()); }
+        check(fighting.charge() < calm.charge() * .5, "the reserve refills slower in a fight");
+        check(costs.boost() > 1 && costs.glide() < 1 && costs.roll() > 0, "boosting costs more and gliding less than plain flight");
     }
 
     private static void momentum(com.digicube.digimon.AerialMount p) {

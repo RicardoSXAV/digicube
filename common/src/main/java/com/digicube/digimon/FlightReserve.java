@@ -24,14 +24,24 @@ public final class FlightReserve {
     public int restRemaining() { return restRemaining; }
     /** @return bounded reserve fraction for the client meter */
     public float fraction() { return (float) (charge / definition.capacityTicks()); }
+    /** The species' flight costs. */
+    public DigimonFlight.Costs costs() { return definition.costs(); }
     /** Spend one active server tick without allowing negative charge. */
-    public void consume() { charge = Math.max(0, charge - 1); }
+    public void consume() { consume(1); }
+    /** Spend {@code rate} ticks of plain flight this tick (a boost or a climb more, a glide less). */
+    public void consume(double rate) { charge = Math.max(0, charge - Math.max(0, rate)); }
+    /** Spend a one-off cost: {@code ticks} of the reserve at once (a barrel roll, a takeoff). */
+    public void spend(double ticks) { consume(ticks); }
+    /** Spend an attack cast on the wing: the costs' {@code attack} share of the whole reserve. */
+    public void spendAttack() { consume(definition.costs().attack() * definition.capacityTicks()); }
     /** Begin mandatory recovery after ending a flight. */
     public void landed() { restRemaining = definition.restTicks(); }
     /** Advance one eligible grounded tick of recovery. */
-    public void rest() {
+    public void rest() { rest(1); }
+    /** Advance one grounded tick of recovery at {@code rate} of the usual refill (slower while fighting). */
+    public void rest(double rate) {
         if (restRemaining > 0) restRemaining--;
-        charge = Math.min(definition.capacityTicks(), charge + (double) definition.capacityTicks() / definition.rechargeTicks());
+        charge = Math.min(definition.capacityTicks(), charge + rate * definition.capacityTicks() / definition.rechargeTicks());
     }
     /** @param savedCharge stored remaining charge; nonfinite data becomes empty
      * @param savedRest stored mandatory rest, clamped to the species definition */

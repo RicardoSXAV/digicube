@@ -11,7 +11,8 @@ public final class NativeFlightRegressionTest {
     public static void main(String[] args) {
         net.minecraft.SharedConstants.tryDetectVersion();
         net.minecraft.server.Bootstrap.bootStrap();
-        for (String species : new String[]{"digmon", "kabuterimon"}) {
+        // Kabuterimon flies on its catalog model (NativeKabuterimonRegressionTest); Digmon on the shared flying one.
+        for (String species : new String[]{"digmon"}) {
             var id = Constants.id(species);
             var root = NativeFlyingMountModel.createLayer(id).bakeRoot();
             var model = new NativeFlyingMountModel(root, id);

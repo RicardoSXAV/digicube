@@ -14,7 +14,7 @@ public final class FabricAerialNetworking {
         PayloadTypeRegistry.serverboundPlay().register(AerialInputPayload.TYPE,AerialInputPayload.STREAM_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(AerialInputPayload.TYPE,(payload,context)->context.server().execute(()->{
             var player=context.player();
-            if (payload.buttons()<0 || payload.buttons()>3) return;
+            if (payload.buttons()<0 || payload.buttons()>AerialInput.MAX_BITS) return;
             if (player.getVehicle() instanceof DigimonEntity mount && mount.getId()==payload.entityId()
                     && mount.getControllingPassenger()==player && mount.aerialMount()!=null) {
                 mount.aerialRiding().accept(AerialInput.fromBits(payload.buttons()));

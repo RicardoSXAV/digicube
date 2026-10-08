@@ -60,6 +60,78 @@ public final class AerialHandling {
         return direction.scale(Math.min(dive.maxSpeed(), nextSpeed));
     }
 
+    /** Share of cruise the back key flies backward at, and of the turn rate the path turns at against the sheet's yaw rate. */
+    private static final double BACK = .3, TURN_SCALE = 1.6;
+    /** Speed a hard turn costs: a share of the speed per radian turned. */
+    private static final double TURN_LOSS = .06;
+    /** Blocks over the ground a dive levels out into a skim, and the share of the height left a tick it may still drop. */
+    public static final double SKIM = 1.1, SKIM_DROP = .3;
+    /** Blocks a tick over the ground above which a skim holds its height instead of settling to land. */
+    public static final double SKIM_PACE = .3;
+
+    /**
+     * Agile flight ({@link AerialMount.Agility}), one tick: the wings push where the rider looks while forward is held
+     * (back a little on the back key, aside on the strafe keys, up and down on the jump and dive keys); the sprint key
+     * beats them on full ({@code boost}). Speed is energy: going down a dive gathers it ({@code gravity} a tick straight
+     * down), going up spends it, and whatever is over the wings' own speed bleeds off at {@code drag} a tick, more through
+     * hard turns. The path turns toward the push no faster than the sheet's turn rate allows at that speed, so a fast
+     * body carves a wide arc. With nothing held the body brakes to a hover.
+     * @param velocity current motion
+     * @param forward vanilla forward axis, strafe its strafe axis (+ left)
+     * @param yaw the rider's view yaw, pitch the view pitch (+ down), degrees
+     * @return the next motion, before the ground is taken into account ({@link #skim})
+     */
+    public static Vec3 agile(AerialMount p, Vec3 velocity, float forward, float strafe, float yaw, float pitch,
+                             boolean ascend, boolean descend, boolean boost) {
+        var a = p.agility();
+        double cruise = p.cruiseSpeed();
+        double r = Math.toRadians(Mth.clamp(pitch, -85, 85)), y = Math.toRadians(yaw);
+        Vec3 look = new Vec3(-Math.sin(y) * Math.cos(r), -Math.sin(r), Math.cos(y) * Math.cos(r));
+        Vec3 flat = new Vec3(-Math.sin(y), 0, Math.cos(y)), left = new Vec3(Math.cos(y), 0, Math.sin(y));
+        double f = Mth.clamp(forward, -1, 1), s = Mth.clamp(strafe, -1, 1);
+        double powered = cruise * (boost && f > 0 ? a.boost() : 1);
+        Vec3 wish = f > 0 ? look.scale(f * powered) : f < 0 ? flat.scale(f * cruise * BACK) : Vec3.ZERO;
+        wish = wish.add(left.scale(s * a.strafe() * cruise));
+        if (ascend) wish = wish.add(0, p.climbSpeed(), 0);
+        if (descend) wish = wish.add(0, -p.descendSpeed(), 0);
+        double wishSpeed = wish.length(), speed = velocity.length();
+        if (wishSpeed < 1.0E-4) {
+            // Nothing held: a flare to a hover, the faster the harder.
+            double brake = Math.max(p.braking(), speed * .1);
+            return speed <= brake ? Vec3.ZERO : velocity.scale((speed - brake) / speed);
+        }
+        Vec3 wishDir = wish.scale(1 / wishSpeed);
+        Vec3 dir = speed < 1.0E-4 ? wishDir : velocity.scale(1 / speed);
+        double share = Mth.clamp(cruise / Math.max(cruise, speed), a.fastTurn(), 1);
+        double limit = Math.toRadians(p.turnDegrees() * TURN_SCALE * share);
+        double angle = Math.acos(Mth.clamp(dir.dot(wishDir), -1, 1));
+        Vec3 path = turnTowards(dir, wishDir, angle, limit);
+        double turned = Math.min(angle, limit);
+        // Height and speed trade along the path; the wings drive toward their own speed, and the rest bleeds off.
+        double next = speed + a.gravity() * -path.y;
+        if (next < wishSpeed) next = Math.min(wishSpeed, next + p.acceleration());
+        else next -= (next - wishSpeed) * a.drag();
+        next = Math.max(0, next - turned * speed * TURN_LOSS);
+        return path.scale(Math.min(a.maxSpeed(), next));
+    }
+
+    /**
+     * Over the ground a dive levels out instead of striking it: the drop a tick is held to a share of the height left
+     * above {@link #SKIM}, and the speed that takes off the descent goes on along the ground, so a dive becomes a skim at
+     * the speed it had. Faster than {@link #SKIM_PACE} over the ground it holds the skim's height; slower, it settles
+     * on down to land. Only the descent is touched.
+     * @param height blocks from the feet down to the ground (or the probe's limit)
+     */
+    public static Vec3 skim(Vec3 velocity, double height) {
+        if (velocity.y >= 0) return velocity;
+        double speed = velocity.length(), flat = velocity.horizontalDistance();
+        double floor = -Math.max(flat > SKIM_PACE ? 0 : .04, (height - SKIM) * SKIM_DROP);
+        if (velocity.y >= floor) return velocity;
+        double along = Math.sqrt(Math.max(0, speed * speed - floor * floor));
+        if (flat < 1.0E-4) return new Vec3(0, floor, 0);
+        return new Vec3(velocity.x / flat * along, floor, velocity.z / flat * along);
+    }
+
     private static Vec3 turnTowards(Vec3 from, Vec3 to, double angle, double limit) {
         if (angle <= limit) return to;
         Vec3 tangent = to.subtract(from.scale(from.dot(to)));

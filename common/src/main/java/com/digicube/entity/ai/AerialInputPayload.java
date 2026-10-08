@@ -8,7 +8,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 /** Extra jump/menu state; vanilla transports axes and view direction.
  * @param entityId controlling player's mounted entity
- * @param buttons two validated control bits
+ * @param buttons validated control bits (AerialInput.bits)
  */
 public record AerialInputPayload(int entityId, int buttons) implements CustomPacketPayload {
     /** Serverbound aerial input channel. */
