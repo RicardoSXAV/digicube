@@ -40,9 +40,15 @@ public class DigiCubeFabric implements ModInitializer {
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.GarurumonScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.MeramonScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.MonochromonScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.GreymonScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.ShellmonScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.DarkTyrannomonScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.KabuterimonScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.SeadramonScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.WrapScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.BattleScenario::tick);
         ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.AnalyzerScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.OrderScenario::tick);
+        ServerTickEvents.END_LEVEL_TICK.register(com.digicube.fabric.dev.LeomonScenario::tick);
     }
 }

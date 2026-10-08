@@ -211,6 +211,24 @@ tasks.register('nativeMeramonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeMeramonTest') }
+tasks.register('nativeElecmonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeElecmonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-elecmon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeElecmonTest') }
+tasks.register('nativeKabuterimonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeKabuterimonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-kabuterimon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeKabuterimonTest') }
 tasks.register('nativeDarkTyrannomonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath
@@ -238,6 +256,51 @@ tasks.register('nativeMonochromonTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeMonochromonTest') }
+tasks.register('nativeGreymonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeGreymonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-greymon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeGreymonTest') }
+tasks.register('nativeShellmonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeShellmonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-shellmon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeShellmonTest') }
+tasks.register('nativeStanceTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeStanceRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-stance-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeStanceTest') }
+tasks.register('nativeGlowPartsTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeGlowPartsRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-glow-parts-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeGlowPartsTest') }
+tasks.register('nativeLeomonTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeLeomonRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-leomon-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeLeomonTest') }
 tasks.register('nativeSeadramonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath

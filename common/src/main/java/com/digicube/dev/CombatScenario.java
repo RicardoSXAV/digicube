@@ -73,8 +73,14 @@ public final class CombatScenario {
         if (NAME.equals("garurumon_checks")) return; // Garurumon ridden and wild, staged by the Fabric module with its fake rider
         if (NAME.equals("meramon_checks")) return; // Meramon's two moves on its own AI, staged by the Fabric module
         if (NAME.equals("monochromon_checks")) return; // Monochromon ridden and wild, staged by the Fabric module with its fake rider
+        if (NAME.equals("greymon_checks")) return; // Greymon ridden and wild, staged by the Fabric module with its fake rider
+        if (NAME.equals("shellmon_checks")) return; // Shellmon ridden (crawl, swim, jet, spin) and wild, staged by the Fabric module
+        if (NAME.equals("darktyrannomon_checks")) return; // DarkTyrannomon ridden, staged by the Fabric module with its fake rider
+        if (NAME.equals("kabuterimon_checks")) return; // Kabuterimon flown and fighting on the wing, staged by the Fabric module with its fake rider
         if (NAME.equals("seadramon_checks")) return; // Seadramon wild and ridden, staged by the Fabric module
         if (NAME.equals("wrap_checks")) return; // a serpent's wrap, wild and ridden, staged by the Fabric module
+        if (NAME.equals("order_checks")) return; // universal control: AUTO and attack orders, staged by the Fabric module
+        if (NAME.equals("leomon_checks")) return; // Leomon's stance, forms and gauge on its own AI and orders, staged by the Fabric module
         if (NAME.startsWith("digivice_checks")) return;
         if (NAME.startsWith("recall_checks")) return;
         if (NAME.equals("centalmon_checks")) { KineticScenario.tick(level); return; }
@@ -82,10 +88,15 @@ public final class CombatScenario {
         if (NAME.equals("gesomon_checks")) { GesomonScenario.tick(level); return; }
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
+        if (NAME.equals("elecmon_checks")) { ElecmonScenario.tick(level); return; }
         if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
         if (NAME.equals("agumon_checks")) { AgumonScenario.tick(level); return; }
+        if (NAME.startsWith("agility_checks")) { AgilityScenario.tick(level, NAME.startsWith("agility_checks:") ? NAME.substring(15) : ""); return; }
         if (NAME.startsWith("gait_checks")) { GaitScenario.tick(level, NAME.startsWith("gait_checks:") ? NAME.substring(12) : ""); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
+        if (NAME.equals("scan_checks")) { com.digicube.scan.ScanScenario.tick(level); return; }
+        if (NAME.equals("tamer_checks")) { com.digicube.party.TamerScenario.tick(level); return; }
+        if (NAME.equals("spawn_checks")) { com.digicube.spawn.SpawnScenario.tick(level); return; }
         if (NAME.startsWith("balance:")) { BalanceScenario.tick(level, NAME.substring(8)); return; }
         try {
             if (!started) start(level);

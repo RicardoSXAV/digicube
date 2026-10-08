@@ -527,6 +527,35 @@ channel's corner, land, its land pace, its neck, climbing (head on, from a stand
 a wall of logs), a pit, lowering itself down a face, out of the sea onto beaches and banks, a
 ridden turn, Ice Blast on the move and the floes.
 
+### Shellmon: a shell that crawls, swims and spins
+
+`/digicube give shellmon` adds the pink Digimon in its spiral shell, about as big as a Greymon; `/digicube spawn
+shellmon` a wild one. Aim at your partner and choose Ride on the command wheel: you sit on the flat top of its spire.
+Its mouth opens and shuts in its own time.
+
+On land it drags its shell along on its hands, one after the other (**W**), and turns on the spot by stepping round on
+them as you look aside; **A**/**D** turn it into the way it goes. Holding **sprint** heaves with both hands together,
+faster. It does not jump.
+
+In water it is a slow, steady swimmer: at the surface it floats like a buoy and paddles, the shell rocking with each
+stroke; **sprint** paddles harder. Looking down past 30 degrees, or **C**, dives; under water it swims a breaststroke
+where you look, and **Space** rises.
+
+Its attacks (left and right mouse with an empty hand, or R and G):
+
+- **Hydro Pressure** (hold the left): it bows its head and a jet of water blasts from its crown wherever you aim, even
+  while it crawls. The water's first blow shoves back whatever it strikes, and while the jet plays on it it is driven
+  back along the ground, harder the longer it stays in, but only so far: the jet loses its force with distance, and big
+  Digimon budge less. Burning targets and fires go out, and what the jet strikes stays wet for a while (puddled on
+  floors, dripping from walls) before it dries.
+- **Drill Shell** (hold the right): it withdraws into its shell (a short cast), then spins up while you hold (the tile
+  fills); let go and it spins off where you look, striking everything it runs into. A short hold gives a slow spin that
+  is easy to steer; a full one is fast and hits far harder, but turns slowly and skids wide. Walls throw it back. While
+  it is in its shell it takes only a third of the damage. When it stops it slows to a halt with its opening ahead and
+  comes back out, a little dizzy.
+
+`DIGICUBE_SCENARIO=shellmon_checks` rides it headless and checks its paces, the swim and both attacks.
+
 ### Tentomon: biped walking and short flights
 
 Use `/digicube give tentomon` and deploy him from the Digivice. He walks on his two
@@ -555,59 +584,63 @@ in the starter or natural spawn tables.
 
 ### Greymon and riding
 
-Greymon's model has a three-horned skull mask, inset red eyes, painted orange shading,
-navy tiger stripes, and three-digit hands with flat claws. The 256×256 atlas avoids
-helmet flicker. Its 40-tick walk has planted foot placements, weight shifts and delayed
-arm/tail motion. Animation speed tracks distance traveled; a full cycle covers 2.4
-blocks at the model's scale.
-
-Try this in a large open area:
+Greymon is a native model at 0.45 scale (about 4 blocks tall, a 2.3 x 4.0 box; horns and tail reach out of it) with a
+skull helmet, a jaw that opens wide and a six-link tail. Every gait is planted: its walk strikes heel first and turns
+on its feet as it goes, round a bend or on the spot; its run is a dinosaur's, the trunk level and leaning into its
+pace, the tail out behind, the arms tucked, and it keeps its cadence from a jog to a sprint. Heavy footfalls shake the
+ground and the rider's view, and a ridden Greymon roars as it breaks into its run.
 
 ```
 /digicube give greymon
 ```
 
-Right-click your Greymon to sit on the rear of its skull. Use **WASD** to steer and
-**Shift** to dismount. It automatically steps up one-block rises; it has no charged
-jump. Only the owner can mount, and there is one passenger seat. Walk away while
-unmounted to see it follow with the walk animation. Use `/digicube spawn greymon`
-for a wild one, or `/digicube give agumon` to compare scale.
-
-Physical size and riding settings live on `DigimonSpecies.body`: Greymon's model is
-scaled by 1.5, with a 2.5×4.6-block collision box. The crown seat is 4.540426 blocks
-above its feet and 0.507345 blocks forward, measured through the new neck/head pose.
-Horns reach about 5.44 blocks; horns and tail extend beyond the main collision box.
-While mounted, the rendered crown stays beneath the fixed rider attachment as the
-body walks, and body yaw follows the ridden yaw. Existing ownership, movement speed,
-one-block stepping, and safe dismount behavior are retained. Check riding, ownership,
-save/reload, and dismounting on a dedicated server too; that startup requires accepting
-its EULA manually.
+Right-click your Greymon to sit on its back behind the neck. **W** walks at about 0.29 blocks a tick; holding
+**sprint** builds into the run over almost two seconds, up to about 0.44. **Space** leaps: at a run about 3 blocks up
+and 4.6 long, keeping the run's pace through the air. **A/D** turn it into the way it goes (it steps round on its feet,
+walking or standing), **S** reins it back, **Shift** dismounts. Use `/digicube spawn greymon` for a wild one.
 
 #### Greymon's attacks
 
-Greymon prioritizes **Mega Flame** whenever it is ready and has a clear shot. It
-inhales, opens its jaw, fires on tick 16, recoils, then settles over a 40-tick clip.
-The flame has a mouth flare, flickering sheets, a hot core and a ten-tick impact
-breakup. Its cooldown is **160 ticks (8 seconds)** and range is
-**3.4–16 blocks**. The shot leads moving targets, collides as a 1.2-block volume,
-damages visible opponents within 1.8 blocks of impact and burns them for 6 seconds.
-It protects the tamer and allies and does not destroy terrain or place fire blocks.
+**Great Antler** (the quick button) is a horn charge: Greymon coils, swings its head down until the helmet's
+horns level ahead and drives along the crosshair, bending toward an enemy near it. Aim up to gore a flyer or down at
+small prey: the body tips a little and the neck does the rest. Pressed at a run it charges at once, keeping its pace;
+pressed in a leap it lances down (or up) from the air. The ram bursts where the horns strike.
 
-**Great Antler** fills the shorter gaps: a braced crouch, lowered front horn,
-2.4-block drive, impact and recovery. Its cooldown is **50 ticks (2.5 seconds)**,
-clip length is 36 ticks, and starting range is **2.4–6.2 blocks**. The actual horn
-segment is checked on ticks 11–19, with one damaging hit and knockback per use.
-Movement respects walls and stops before an unsupported drop. Greymon backs up if
-the target is too close to bring its horn to bear.
+**Mega Flame** (the special button) is a fireball: Greymon rears back while the ball forms in its jaws, then spits it
+where you look. It can be loosed while walking, running or in a leap (the legs keep going while the neck aims). The
+ball bursts where it strikes, catching bodies within 1.8 blocks, and sets them alight (a Burn). Wild, Greymon holds
+its range, circles and fires on the move, and charges what comes close.
 
-The contact profiles, `data/digicube/attack_motion/mega_flame.json` and
-`great_antler.json`, are bundled data; datapack reload support is not implemented.
+To check the headless side: `DIGICUBE_SCENARIO=greymon_checks` (see `agents/testing.md`).
 
-To test, give yourself a Greymon and hit a nearby hostile mob in an open area.
-Watch Mega Flame first, followed by Great Antler while the flame is cooling down.
-Mounting cancels an attack and reserves control for the rider; dismount before
-testing autonomous combat. Also check allies near an impact, walls, moving targets,
-and mounting during the windup. Dedicated-server combat still needs a manual test.
+### Leomon: a swordsman on foot
+
+Leomon is a native model at 0.32 scale (about 2.9 blocks to the crown, a 1.2 x 2.75 box): a lion-headed fighter with a
+mane of locks, a six-link tail, a fang necklace and the Lion Sword sheathed across the back of his belt. He is not a
+mount: he fights on his own and on your orders. Every gait is planted and he turns on his feet as he walks; his run is a
+long driving stride; he leaps at a run, crouches under blows and, running, dives into a forward roll under a shot.
+
+```
+/digicube give leomon
+```
+
+An Elecmon digivolves into Leomon at level 20 (choose him on its tree; DarkTyrannomon is the other route).
+`/digicube spawn leomon` makes a wild one, and the developer panel's Battle Testing stages him against any species.
+
+#### Leomon's attacks
+
+**Lion Sword** draws the sword from his back with the left hand and holds it for five seconds: up close he steps in with
+a three-blow combo (a diagonal cut, a rising backhand, a heavy finisher that cuts twice), leaning each cut down at a small
+foe; from four to eight blocks at a run he leaps into a lunge, and from a leap he plunges. Then he sheathes it, and the
+move rests for four seconds.
+
+**Beast King Fist** has no cooldown: each sword hit fills its gauge (a slash 25, the stab 35 of 100: the amber bar under
+his health). Full, he punches with a flaming lion's head round his right fist and throws the target far (up close, from
+a run or from a leap), or, farther off, sends the lion's head flying: whole within 4 blocks, under half its strength at
+18. Until the gauge is full an order on it is refused (CHARGING n %).
+
+Order either move from the command wheel (Q and E); turn its AUTO off to keep it for your orders. To check the headless
+side: `DIGICUBE_SCENARIO=leomon_checks` and `agility_checks` (see `agents/testing.md`).
 
 ### Wild Digimon, levels and XP
 
@@ -619,23 +652,34 @@ balance constant lives in `Progression`, and `:common:progressionTest` pins the 
 
 XP comes only from defeating wild (unowned) Digimon. A wild Digimon keeps a ledger
 of the health it lost to each partner. When it dies, its yield
-(`stageYield × (level + 4) / 2`, times a level-gap multiplier between 0.25 and 1.5
+(`stageYield × (level + 4) × 0.75`, times a level-gap multiplier between 0.5 and 1.5
 for each partner) is split in proportion to the damage each partner dealt, never
 below 1 XP per contributor. Contributors must be alive, within 64 blocks and have
-hit within the last 60 seconds. The tamer's own hits earn no XP. A level-up plays
+hit within the last 60 seconds; a partner that fell loses its share. The tamer's own
+hits earn no XP.
+
+A defeated partner rests 30 seconds in the Digivice, then comes back to its party
+slot with 1 health point. Partners heal on their own, full in two minutes, in the
+Digivice or out in the world from five seconds after their last fight; right-click
+one with any food to heal it faster (bread heals a quarter of its health). A Digivice left behind, on the ground after a death for
+example, takes the party in, and picking it up brings the same party back out. A level-up plays
 the vanilla level-up sound and a burst of green particles, heals the health gained
 and tells the owner in chat. Wild Digimon also drop a few vanilla orbs for the
 tamer whose partner hit them.
 
-Wild Digimon spawn on their own: once every 20 seconds per dimension, 24 to 48
-blocks from a random player, from `data/digicube/spawn_table/overworld.json`. Each
-entry names a species, a weight, a level range, a pack size, biomes (ids or
-`#tags`), `land` or `water` placement and `any`, `day` or `night`. Tables are listed
-in `data/digicube/spawn_tables.json` and validated at startup. At most 4 wild Digimon
-per player and 24 per dimension exist at once; spawning respects the `spawn_mobs`
-game rule and wild Digimon despawn like animals. They are neutral: they never start
-a fight, a species with attacks retaliates when hurt, and a species without attacks
-flees. Garurumon is not in the bundled spawn table yet. Wild Digimon carry a
+Wild Digimon spawn on their own: once every 10 seconds per dimension, up to three
+spots 24 to 48 blocks from a random player, from
+`data/digicube/spawn_table/overworld.json`. Each entry names a species, a weight, a
+level range, a pack size, regions or biomes, `land` or `water` placement and `any`,
+`day` or `night`; each Digimon of a pack rolls its own level, and a species already
+near the spot is rarer there. Tables are listed in `data/digicube/spawn_tables.json`
+and validated at startup. At most 8 wild Digimon within 96 blocks of a player and 48
+per dimension exist at once; spawning respects the `spawn_mobs` game rule. A wild
+Digimon stays for about five minutes after the last player walked away, and goes at
+once past 128 blocks. They are neutral: they never start a fight, a species with
+attacks retaliates when hurt (on the tamer's partners first, and on the tamer only
+when the tamer struck it and no partner is left), and a species without attacks
+flees. Wild Digimon carry a
 `Lv 7 Koromon` nameplate; the party HUD shows `Lv7` beside each icon and the
 Digivice card and tooltip show level and XP progress.
 
@@ -649,7 +693,7 @@ Operator commands:
 /digicube wild status              settings, wild count, cap and the last attempt's outcome
 /digicube wild on|off              toggle spawning; saved per world
 /digicube wild interval 200        one attempt every 200 ticks (minimum 20)
-/digicube wild cap 4 24            per player, per dimension
+/digicube wild cap 8 48            around each player, per dimension
 /digicube wild distance 24 48      the spawn ring around the anchor player
 /digicube wild try                 force one attempt and report why it did or did not spawn
 /digicube wild clear               remove every wild Digimon in this dimension
@@ -765,23 +809,30 @@ Not built yet, roughly in the order it should be tackled:
 3. **The evolution engine** — evaluating `Evolution` branches (`min_level` is now meaningful) and swapping species at runtime.
 4. **Taming and DigiEggs**, beyond the existing spawn/give commands and wild spawns.
 
-### Kabuterimon: flying partner
+### Kabuterimon: the flying mount
 
-`/digicube give kabuterimon` adds the blue adult partner with its native
-model. Right-click your partner to ride. Space launches/climbs; normal movement
-and mouse look steer. Hold forward and look down to dive: sustained steep descents
-build speed, which carries through a smooth pull-up. Climbs and hard turns spend
-that momentum. Approaching the ground brakes and lands automatically, with more
-braking distance at higher descent speeds. Releasing movement hovers. Shift dismounts as usual.
-A single stamina bar shows the available flight reserve. There are no additional
-flight keys or potion effects.
+`/digicube give kabuterimon` adds the four-armed, four-winged beetle; `/digicube spawn kabuterimon` a wild one. Aim at
+your partner and choose Ride on the command wheel: you sit on his helmet behind the horn's hook.
 
-The rider is centered behind the horn. Flying uses a forward body lean, tucked
-legs, swept arms, turn banking and a dive angle that follows actual movement, with continuous native takeoff/flight/landing
-clips. The reusable flight profile lives in the species sheet; future aerial
-species supply the same native clip/presentation contract without new physics.
+On the ground he walks with planted feet and steps round on the spot as he turns; **W** walks, **A**/**D** turn him.
+**Space** takes off. In the air:
 
-The dive revision has passed deterministic handling and compiled pose checks;
-its in-game feel awaits manual review. Try gaining altitude, diving with W, then
-leveling the view while holding W to carry speed. `body.mount.flight.dive` supplies
-the reusable terminal speed, dive acceleration and momentum-loss settings.
+- **W** flies where you look: look down to dive (he folds his wings into an arrow and gathers speed), then level out and
+  the speed carries you on ahead; looking up trades it for height.
+- **Sprint** beats the wings on full (a boost); **A**/**D** slide aside, banking (the view tilts with him).
+- **Space** climbs, **C** sinks (down to the ground to land); letting go of everything flares him to a hover.
+- A double tap of **Space** is a barrel roll toward the side you hold, a dodge.
+- Diving at the ground he levels out into a skim, throwing up dust or spray; past top speed the air bursts round him.
+
+Flying costs stamina (the gauge on the experience bar): about two minutes of plain flight, more boosting and climbing,
+less diving. Each attack cast in the air takes a third of it (the notches), so three or so and he must come down; in a
+fight it refills slowly.
+
+His attacks, on the ground and in the air (left and right mouse with an empty hand, or R and G):
+
+- **Beet Horn**: on the ground a lunge that gores with the horn (easy to land); in the air a ram along the crosshair, only
+  the horn's tip striking, so it takes timing.
+- **Mega Blaster** (two in stock): a slow ball of lightning between his four hands; a direct hit deals the whole blow, and
+  anything it passes close to is shocked, harder the closer.
+
+`DIGICUBE_SCENARIO=kabuterimon_checks` flies him headless and checks the flight and both attacks on the wing.
