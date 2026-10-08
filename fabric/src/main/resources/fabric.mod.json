@@ -7,11 +7,6 @@
     "authors": [
         "${mod_author}"
     ],
-    "contact": {
-        "homepage": "https://github.com/your-name/digicube",
-        "sources": "https://github.com/your-name/digicube",
-        "issues": "https://github.com/your-name/digicube/issues"
-    },
     "license": "${license}",
     "icon": "${mod_id}.png",
     "environment": "*",

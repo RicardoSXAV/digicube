@@ -46,8 +46,9 @@ fix, set the next number, build and tag there, then merge the branch back into `
 
 ## What players see
 
-- `mod_name`, `description` and `mod_author` in `gradle.properties`, and the `contact` links in
-  `fabric/src/main/resources/fabric.mod.json`, fill the mod's entry in the in-game mod list.
+- `mod_name`, `description` and `mod_author` in `gradle.properties` fill the mod's entry in the in-game mod list.
+  `fabric/src/main/resources/fabric.mod.json` has no `contact` block: a link there must name no person (golden
+  rule 1), so a repository URL under a personal account cannot go in.
 - The icon is `common/src/main/resources/digicube.png`: square, a power of two on each side.
 - Players need Fabric Loader at `fabric_loader_version` or newer and Fabric API: the `depends` block of
   `fabric.mod.json`, filled from `gradle.properties` at build time.
