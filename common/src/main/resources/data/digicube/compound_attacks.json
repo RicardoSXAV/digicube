@@ -1,0 +1,30 @@
+{
+  "lion_sword": {
+    "range": 10,
+    "chain": 4,
+    "forms": [
+      {"attack": "lion_sword_stab", "air": true},
+      {"attack": "lion_sword_slash", "air": false},
+      {"attack": "lion_sword_stab", "air": false, "min_reach": 1.5}
+    ],
+    "stance": {
+      "draw": 15,
+      "draw_swap": 4,
+      "hold": 100,
+      "sheathe": 15,
+      "sheathe_swap": 10,
+      "cooldown": 80,
+      "sounds": {"draw": "minecraft:item.armor.equip_iron", "sheathe": "minecraft:item.armor.equip_chain"}
+    }
+  },
+  "beast_king_fist": {
+    "forms": [
+      {"attack": "beast_king_fist_punch", "max_reach": 4},
+      {"attack": "beast_king_fist_shot", "move": true}
+    ],
+    "gauge": {
+      "capacity": 100,
+      "fill": {"lion_sword_slash": 25, "lion_sword_stab": 35}
+    }
+  }
+}

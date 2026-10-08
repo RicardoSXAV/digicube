@@ -79,5 +79,50 @@
       "loop": "minecraft:block.fire.ambient",
       "end": "minecraft:block.fire.ambient"
     }
+  },
+  "hydro_pressure": {
+    "power": 0.4,
+    "duration": 120,
+    "hit_tick": 11,
+    "range": 15,
+    "fuel": [90, 120, 10],
+    "speed": 1.8,
+    "drag": 0.985,
+    "life": 24,
+    "radius": [
+      [0, 0.22],
+      [3, 0.3],
+      [8, 0.42],
+      [14, 0.54],
+      [22, 0.66]
+    ],
+    "per_tick": 3,
+    "spread": 0.018,
+    "rise": -0.045,
+    "bounce": 0.12,
+    "freeze": 0,
+    "mark": "none",
+    "douse": true,
+    "turn": 20,
+    "pitch_turn": 15,
+    "twist": 70,
+    "effect": "hydro_pressure_fx",
+    "art": "water",
+    "push": {
+      "impact": 0.4,
+      "speed": [0.08, 0.22],
+      "build": 25,
+      "accel": 0.12,
+      "near": 4,
+      "far": 15
+    },
+    "wet": true,
+    "pitch": [-60, 50],
+    "under_drag": 0.78,
+    "sounds": {
+      "start": "minecraft:entity.player.splash.high_speed",
+      "loop": "minecraft:block.bubble_column.whirlpool_inside",
+      "end": "minecraft:entity.generic.splash"
+    }
   }
 }

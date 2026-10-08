@@ -38,6 +38,9 @@
       "run_cycle_ticks": 12,
       "run_stride": 7.495,
       "max_playback_rate": 2.4,
+      "pivot_reach": 1.016,
+      "pivot_stride": 1.636,
+      "pivot_cadence": 1.5,
       "footfalls": true
     },
     "follow_start_distance": 5,

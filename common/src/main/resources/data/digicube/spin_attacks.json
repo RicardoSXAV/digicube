@@ -1,0 +1,47 @@
+{
+  "drill_shell": {
+    "power": 1.6,
+    "cooldown": 90,
+    "range": 15,
+    "withdraw": 14,
+    "charge": 40,
+    "ai_charge": [
+      12,
+      34
+    ],
+    "max_hold": 140,
+    "speed": [
+      0.6,
+      1.45
+    ],
+    "friction": 0.986,
+    "stop_below": 0.2,
+    "max_ticks": 90,
+    "turn": [
+      7.0,
+      1.6
+    ],
+    "grip": [
+      0.9,
+      0.35
+    ],
+    "power_share": [
+      0.45,
+      1.0
+    ],
+    "knockback": [
+      0.7,
+      1.9
+    ],
+    "toss": [
+      0.18,
+      0.45
+    ],
+    "bounce": 0.6,
+    "rebound": 0.62,
+    "hit_cooldown": 12,
+    "wind_down": 14,
+    "emerge": 22,
+    "shell_guard": 0.35
+  }
+}

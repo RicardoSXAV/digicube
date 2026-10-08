@@ -1,0 +1,56 @@
+{
+  "stage": "child",
+  "attribute": "data",
+  "base_health": 20,
+  "base_attack": 6,
+  "base_defence": 4,
+  "base_speed": 0.19,
+  "attacks": [
+    "sparkling_thunder",
+    "nine_tails"
+  ],
+  "evolutions": [
+    {
+      "target": "digicube:leomon",
+      "min_level": 20
+    },
+    {
+      "target": "digicube:darktyrannomon",
+      "min_level": 20
+    }
+  ],
+  "body": {
+    "model_scale": 0.3,
+    "width": 0.9,
+    "height": 1.05,
+    "eye_height": 0.66
+  },
+  "locomotion": {
+    "follow_start_distance": 3.5,
+    "follow_stop_distance": 1.75,
+    "walk_speed": 1.35,
+    "run_speed": 1.85,
+    "ground_gait": {
+      "cycle_ticks": 10,
+      "stride": 2.75,
+      "run_cycle_ticks": 6,
+      "run_stride": 5.25,
+      "side_stride": 1.25,
+      "back_stride": 1.375,
+      "max_playback_rate": 2.4,
+      "run_from": 0.17,
+      "run_until": 0.14,
+      "pivot_reach": 0.6103,
+      "pivot_stride": 1.4203,
+      "pivot_cadence": 1.6,
+      "footfalls": true
+    }
+  },
+  "tactics": {
+    "prefer_close": true,
+    "fight_speed": 1.6,
+    "dodge_chance": 0.4,
+    "reaction_ticks": 4,
+    "lead_ticks": 4
+  }
+}

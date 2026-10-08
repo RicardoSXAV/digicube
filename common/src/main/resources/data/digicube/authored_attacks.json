@@ -1,4 +1,62 @@
 {
+  "lion_sword_slash": {
+    "kind": "BOX_SWEEP",
+    "power": 0.5,
+    "cooldown": 20,
+    "duration": 15,
+    "hit_tick": 3,
+    "range": 3.0,
+    "knockback": 0.0,
+    "hit_interval": 1,
+    "max_hits": 1,
+    "effect": "lion_sword_fx",
+    "emissive": true,
+    "hit_windows": [[3.8, 6.0]],
+    "particles": "steel",
+    "root_travel": true,
+    "contact_parts": ["effect_star_0", "effect_star_1", "effect_hit_spark_0", "effect_hit_spark_1", "effect_hit_spark_2", "effect_hit_spark_3"],
+    "aimed": true,
+    "forms": ["lion_sword_slash_rising", "lion_sword_slash_cleave"],
+    "form_choice": "combo"
+  },
+  "lion_sword_slash_rising": {
+    "kind": "BOX_SWEEP",
+    "power": 0.55,
+    "cooldown": 20,
+    "duration": 15,
+    "hit_tick": 3,
+    "range": 2.9,
+    "knockback": 0.0,
+    "hit_interval": 1,
+    "max_hits": 1,
+    "effect": "lion_sword_fx",
+    "effect_clip": "rising",
+    "emissive": true,
+    "hit_windows": [[3.2, 5.2]],
+    "particles": "steel",
+    "root_travel": true,
+    "contact_parts": ["rising_star_0", "rising_star_1", "rising_hit_spark_0", "rising_hit_spark_1", "rising_hit_spark_2", "rising_hit_spark_3"],
+    "aimed": true
+  },
+  "lion_sword_slash_cleave": {
+    "kind": "BOX_SWEEP",
+    "power": 0.45,
+    "cooldown": 22,
+    "duration": 22,
+    "hit_tick": 3,
+    "range": 3.6,
+    "knockback": 0.0,
+    "hit_interval": 6,
+    "max_hits": 2,
+    "effect": "lion_sword_fx",
+    "effect_clip": "cleave",
+    "emissive": true,
+    "hit_windows": [[3.4, 5.2], [11.0, 12.6]],
+    "particles": "steel",
+    "root_travel": true,
+    "contact_parts": ["cleave_star_0", "cleave_star_1", "cleave_hit_spark_0", "cleave_hit_spark_1", "cleave_hit_spark_2", "cleave_hit_spark_3"],
+    "aimed": true
+  },
   "fire_blast": {
     "kind": "BOX_BURST",
     "power": 1.1,
@@ -506,6 +564,75 @@
         "sound": "minecraft:entity.ravager.attack",
         "volume": 1.4,
         "pitch": 0.75
+      }
+    }
+  },
+  "sparkling_thunder": {
+    "kind": "BOX_BURST",
+    "power": 1.7,
+    "cooldown": 74,
+    "duration": 30,
+    "hit_tick": 14,
+    "range": 9.5,
+    "knockback": 0.3,
+    "hit_interval": 30,
+    "max_hits": 1,
+    "effect": "sparkling_thunder_fx",
+    "emissive": true,
+    "particles": "spark",
+    "arc": {
+      "reach": 9.0,
+      "cone": 75,
+      "burst": 1.6,
+      "chain": 3,
+      "chain_reach": 4.5,
+      "chain_power": 0.55,
+      "water_reach": 5.0,
+      "water_power": 0.6,
+      "life": 8
+    },
+    "sounds": {
+      "wind_up": {
+        "sound": "minecraft:block.respawn_anchor.charge",
+        "volume": 0.7,
+        "pitch": 1.6
+      },
+      "release": {
+        "sound": "minecraft:entity.lightning_bolt.impact",
+        "volume": 0.6,
+        "pitch": 1.7
+      },
+      "struck": {
+        "sound": "minecraft:entity.lightning_bolt.impact",
+        "volume": 0.45,
+        "pitch": 2.0
+      }
+    }
+  },
+  "nine_tails": {
+    "kind": "BOX_SWEEP",
+    "power": 1.15,
+    "cooldown": 40,
+    "duration": 16,
+    "hit_tick": 6,
+    "range": 2.6,
+    "knockback": 0.6,
+    "hit_interval": 16,
+    "max_hits": 1,
+    "effect": "nine_tails_fx",
+    "emissive": true,
+    "hit_windows": [[4.0, 9.0]],
+    "particles": "spark",
+    "sounds": {
+      "wind_up": {
+        "sound": "minecraft:entity.breeze.whirl",
+        "volume": 0.8,
+        "pitch": 1.5
+      },
+      "contact": {
+        "sound": "minecraft:entity.player.attack.knockback",
+        "volume": 0.9,
+        "pitch": 1.2
       }
     }
   }

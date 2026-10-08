@@ -1,0 +1,74 @@
+{
+  "stage": "adult",
+  "attribute": "data",
+  "base_health": 48,
+  "base_attack": 13,
+  "base_defence": 16,
+  "base_speed": 0.071,
+  "attacks": ["drill_shell", "hydro_pressure"],
+  "evolutions": [],
+  "tactics": {
+    "hold_range": [6, 12],
+    "dodge_chance": 0.1,
+    "reaction_ticks": 8,
+    "strafe": false,
+    "lead_ticks": 8,
+    "press_impaired": true,
+    "fight_speed": 1.25
+  },
+  "locomotion": {
+    "follow_start_distance": 9.0,
+    "follow_stop_distance": 5.0,
+    "walk_speed": 1,
+    "run_speed": 1,
+    "swim_speed": 0.34,
+    "ground_gait": {
+      "cycle_ticks": 14,
+      "stride": 5.25,
+      "run_cycle_ticks": 14,
+      "run_stride": 7.8125,
+      "max_playback_rate": 1.8,
+      "run_from": 0.21,
+      "run_until": 0.18,
+      "pivot_reach": 3.354,
+      "pivot_stride": 4.29,
+      "pivot_cadence": 1.8,
+      "footfalls": true
+    }
+  },
+  "body": {
+    "model_scale": 0.43,
+    "width": 3.3,
+    "height": 4.3,
+    "eye_height": 2.98,
+    "hit_parts": [
+      [0, 0, 3.01, 2.41, 3.27]
+    ],
+    "mount": {
+      "seat": [0.0, 4.219, 0.0],
+      "step_height": 1.0,
+      "turn_rate": 8.0,
+      "sprint": 2.0,
+      "sprint_build": 24,
+      "turn_to_travel": true,
+      "camera_distance": 10.5,
+      "water_turn_rate": 6.0,
+      "water_sprint": 1.35,
+      "float_line": 0.45,
+      "surface_dive": 30,
+      "rider_attacks": [
+        {
+          "attack": "hydro_pressure",
+          "aim": "stream",
+          "input": "hold",
+          "move": true
+        },
+        {
+          "attack": "drill_shell",
+          "aim": "spin",
+          "input": "hold"
+        }
+      ]
+    }
+  }
+}

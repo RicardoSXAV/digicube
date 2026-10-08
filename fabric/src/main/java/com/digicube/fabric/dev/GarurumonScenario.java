@@ -31,8 +31,9 @@ import java.util.function.Supplier;
  * that the body runs through along its own length (its travel never more than a few degrees off its heading) and the
  * same bend on ice, a drift it gallops through along its heading, a turn on the spot no faster than its pivot
  * plants its paws (gathering into the turn and braking out of it), a standing leap and a leap at the gallop (which
- * must carry far and land unhurt), Freeze Fang dashed at a dummy ahead, at one off to the side (the dash follows the
- * crosshair, not the body) and from the top of a leap (diving onto the dummy), Howling Blaster steered across two
+ * must carry far and land unhurt, the air keeping {@code leap_carry} of its run a tick), Freeze Fang dashed at a dummy
+ * ahead, at one off to the side (the dash follows the crosshair, not the body) and from the top of a leap (diving onto
+ * the dummy), Howling Blaster steered across two
  * dummies, breathed from the top of a leap, held on one until its Freeze gauge fills, and the pounce that shatters it;
  * frost putting out fire and freezing water. Then Garurumon wild: its body coming round after its head no faster than its
  * pivot, and onto a path behind it (stepping round on the spot first, never walking sideways), at a walk and hurried;
@@ -243,8 +244,19 @@ public final class GarurumonScenario {
                     if (off < 0 || on < 0) return verdict(false, "no leap (left the ground at %d, landed at %d)", off, on);
                     double length = track.get(on).subtract(track.get(off)).horizontalDistance(), top = peak(off, on) - FLOOR;
                     boolean hurt = mount.getHealth() < mountHealth - 1e-3;
-                    return verdict(length > 9 && top > 2.2 && !hurt, "%.1f blocks long, %.2f up, %d ticks in the air, hurt %s",
-                            length, top, on - off, hurt);
+                    return verdict(length > 9 && top > 2.2 && !hurt, "%.1f blocks long, %.2f up, %d ticks in the air, kept %.3f a tick, hurt %s",
+                            length, top, on - off, kept(off, on), hurt);
+                }));
+        // The air keeps leap_carry of a ridden leap's run a tick (vanilla's 0.91 without one), the keys let go once it is up.
+        plan.add(new Step("leap carry", 100, () -> place(0, -38, 0),
+                t -> keys(t <= 55 ? 1 : 0, t <= 55, t == 55, 0, 0),
+                () -> {
+                    int off = firstAir(55), on = off < 0 ? -1 : firstGround(off + 1);
+                    if (off < 0 || on < 0) return verdict(false, "no leap (left the ground at %d, landed at %d)", off, on);
+                    float carry = mount.getBody().mount().orElseThrow().leapCarry();
+                    double kept = kept(off, on);
+                    return verdict(Math.abs(kept - carry) < .01, "kept %.3f of its ground speed a tick in the air (leap_carry %.2f), %.1f blocks long in %d ticks",
+                            kept, carry, flat(off, on), on - off);
                 }));
         plan.add(new Step("pounce ahead", 40, () -> { place(0, -10, 0); dummy(new Vec3(.5, FLOOR, -10 + 5.5)); },
                 t -> { look(dummies.get(0)); if (t == 5) cast(0); },
@@ -503,6 +515,21 @@ public final class GarurumonScenario {
 
     private static float gauge(DigimonEntity dummy) {
         return CombatMarkState.freezeGauge(((CombatMarkState) dummy).digicube$marks2());
+    }
+
+    /**
+     * The share of its ground speed the body kept each tick of a flight from {@code off} (its first tick off the ground) to
+     * {@code on} (back on it): the median of each move against the one before, the takeoff and the landing left out.
+     */
+    private static double kept(int off, int on) {
+        var ratios = new ArrayList<Double>();
+        for (int i = off + 2; i < on; i++) {
+            double before = track.get(i - 1).subtract(track.get(i - 2)).horizontalDistance(), now = track.get(i).subtract(track.get(i - 1)).horizontalDistance();
+            if (before > 1.0E-3) ratios.add(now / before);
+        }
+        if (ratios.isEmpty()) return 0;
+        java.util.Collections.sort(ratios);
+        return ratios.get(ratios.size() / 2);
     }
 
     /** The move the mount made over tick {@code i} of the check (from where it stood before it). */

@@ -867,6 +867,334 @@
           "head"
         ]
       }
+    },
+    "elecmon": {
+      "culling_margin": 2,
+      "walk_blend": true,
+      "attack_blend_in": 2,
+      "attack_blend_out": 3,
+      "look": {
+        "path": [
+          "root",
+          "pelvis",
+          "abdomen",
+          "chest",
+          "neck_turn",
+          "neck",
+          "head_turn",
+          "head"
+        ],
+        "yaw": 40,
+        "pitch": 25,
+        "carry": [
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "abdomen",
+              "chest",
+              "neck_turn"
+            ],
+            "share": 0.3,
+            "yaw": 15,
+            "pitch": 10
+          }
+        ]
+      },
+      "paws": {
+        "feet": [
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "abdomen",
+              "chest",
+              "shoulder_L",
+              "fore_upper_L",
+              "fore_lower_L",
+              "forepaw_L"
+            ],
+            "toe": [0, 3.5, -9.66]
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "abdomen",
+              "chest",
+              "shoulder_R",
+              "fore_upper_R",
+              "fore_lower_R",
+              "forepaw_R"
+            ],
+            "toe": [0, 3.5, -9.66]
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "hip_L",
+              "hind_upper_L",
+              "hind_lower_L",
+              "hindpaw_L"
+            ],
+            "toe": [0, 3.5, -9.66],
+            "hind": true
+          },
+          {
+            "path": [
+              "root",
+              "pelvis",
+              "hip_R",
+              "hind_upper_R",
+              "hind_lower_R",
+              "hindpaw_R"
+            ],
+            "toe": [0, 3.5, -9.66],
+            "hind": true
+          }
+        ]
+      },
+      "expressions": [
+        {
+          "clip": "idle",
+          "from": 24.0,
+          "until": 26.5,
+          "texture": "elecmon_blink"
+        },
+        {
+          "clip": "idle",
+          "from": 72.0,
+          "until": 74.5,
+          "texture": "elecmon_blink"
+        },
+        {
+          "clip": "idle",
+          "from": 128.0,
+          "until": 130.5,
+          "texture": "elecmon_blink"
+        },
+        {
+          "clip": "nine_tails",
+          "from": 4.2,
+          "until": 9.0,
+          "texture": "elecmon_blink"
+        },
+        {
+          "clip": "sparkling_thunder",
+          "from": 13.2,
+          "until": 14.6,
+          "texture": "elecmon_blink"
+        }
+      ]
+    },
+    "kabuterimon": {
+      "culling_margin": 7,
+      "walk_blend": true,
+      "aim_path": ["root", "pelvis", "thorax"],
+      "attack_blend_in": 2,
+      "attack_blend_out": 4,
+      "rider": {
+        "path": ["root", "pelvis", "thorax", "neck", "head"],
+        "point": [0.0, 0.6713, 1.2488],
+        "pose": [-0.7, 0.7, 0.35, 1.5],
+        "lean": [0.75, 0.9]
+      },
+      "pitch_path": ["root", "pelvis", "thorax"],
+      "look": {
+        "path": ["root", "pelvis", "thorax", "neck", "head"],
+        "yaw": 35,
+        "pitch": 25,
+        "carry": [
+          {
+            "path": ["root", "pelvis", "thorax", "neck"],
+            "share": 0.3,
+            "yaw": 12,
+            "pitch": 10
+          }
+        ]
+      },
+      "paws": {
+        "feet": [
+          {
+            "path": ["root", "pelvis", "thigh_l", "shin_l", "foot_l"],
+            "toe": [0, 5.0, -20]
+          },
+          {
+            "path": ["root", "pelvis", "thigh_r", "shin_r", "foot_r"],
+            "toe": [0, 5.0, -20]
+          }
+        ]
+      },
+      "attack_effects": {
+        "effect": "kabuterimon_fx",
+        "follow_root": true,
+        "clips": {
+          "beet_horn": "beet_horn",
+          "beet_horn_air": "beet_horn_air",
+          "mega_blaster": "mega_blaster",
+          "mega_blaster_air": "mega_blaster_air"
+        }
+      },
+      "flight": {
+        "pivot": [0.0, -113.5, -2.0],
+        "landing_contact": 9,
+        "wings": "wing_",
+        "leans": [10.0, 42.0, 68.0, 88.0, -14.0, 55.0]
+      }
+    },
+    "shellmon": {
+      "culling_margin": 4,
+      "amphibious": true,
+      "walk_blend": true,
+      "aim_path": ["root", "shell", "shell_spin", "body", "neck"],
+      "attack_blend_in": 3,
+      "attack_blend_out": 6,
+      "upper_body": ["root", "shell", "shell_spin", "body", "neck"],
+      "rider": {
+        "path": ["root", "shell"],
+        "point": [0.0, 0.0, 9.8125],
+        "pose": [-0.55, 0.42, 0.5, 2.5],
+        "hide": ["shell_apex_frame", "shell_apex_tip_frame"],
+        "lean": [0.5, 0.5]
+      },
+      "pitch_path": ["root", "shell"],
+      "pitch_at_rider": true,
+      "ridden_pitch": 35,
+      "swim_pitch": 40,
+      "swim_bank": 14,
+      "swim_wake": {
+        "stroke": 20,
+        "paddle": 18,
+        "surge_paddle": 12
+      },
+      "look": {
+        "path": ["root", "shell", "shell_spin", "body", "neck", "head"],
+        "yaw": 30,
+        "pitch": 20,
+        "carry": [
+          {
+            "path": ["root", "shell", "shell_spin", "body", "neck"],
+            "share": 0.35,
+            "yaw": 15,
+            "pitch": 10
+          }
+        ]
+      },
+      "paws": {
+        "feet": [
+          {
+            "path": ["root", "shell", "shell_spin", "body", "shoulder_l", "elbow_l", "wrist_l"],
+            "toe": [1.6, 21.0, -32.0]
+          },
+          {
+            "path": ["root", "shell", "shell_spin", "body", "shoulder_r", "elbow_r", "wrist_r"],
+            "toe": [-1.6, 21.0, -32.0]
+          }
+        ]
+      },
+      "mouth": {
+        "part": "jaw",
+        "shut": -0.56,
+        "open": 0.45,
+        "spell": [36, 150],
+        "move": 8,
+        "folds": ["mouth_membrane_l", "mouth_membrane_r"]
+      },
+      "spin": {
+        "withdraw": "drill_shell_withdraw",
+        "hold": "drill_shell_spin",
+        "emerge": "drill_shell_emerge",
+        "path": ["root", "shell", "shell_spin"],
+        "tilt": ["root", "shell"]
+      }
+    },
+    "greymon": {
+      "culling_margin": 6,
+      "walk_blend": true,
+      "aim_path": ["root", "pelvis", "torso", "neck"],
+      "attack_blend_in": 3,
+      "attack_blend_out": 5,
+      "upper_body": ["root", "pelvis", "torso", "neck"],
+      "rider": {
+        "path": ["root", "pelvis", "torso"],
+        "point": [0.0, 1.35, 1.85],
+        "pose": [-1.1, 0.8, 1.1, 1.0],
+        "lean": [0.6, 0.6]
+      },
+      "bank": true,
+      "look": {
+        "path": ["root", "pelvis", "torso", "neck", "head"],
+        "yaw": 35,
+        "pitch": 22,
+        "carry": [
+          {
+            "path": ["root", "pelvis", "torso", "neck"],
+            "share": 0.4,
+            "yaw": 20,
+            "pitch": 10
+          }
+        ]
+      },
+      "stomps": {
+        "down": [0.98, 0.48],
+        "feet": [[0.62, 0.83], [-0.62, 0.83]],
+        "roar_pitch": 0.86
+      },
+      "attack_effects": {
+        "effect": "greymon_fx",
+        "clips": {
+          "mega_flame": "mega_flame",
+          "great_antler": "great_antler",
+          "great_antler_air": "great_antler_air"
+        },
+        "follow": ["root", "pelvis", "torso", "neck", "head"]
+      },
+      "pounce_pivot": [-47.11, 0.0],
+      "pounce_air_pivot": [-65.6, 22.6]
+    },
+    "leomon": {
+      "culling_margin": 8,
+      "walk_blend": true,
+      "aim_path": ["root", "pelvis", "torso"],
+      "attack_blend_in": 2.5,
+      "attack_blend_out": 4,
+      "upper_body": ["root", "pelvis", "torso"],
+      "look": {
+        "path": ["root", "pelvis", "torso", "neck", "head"],
+        "yaw": 40,
+        "pitch": 25,
+        "carry": [
+          {
+            "path": ["root", "pelvis", "torso", "neck"],
+            "share": 0.4,
+            "yaw": 20,
+            "pitch": 12
+          }
+        ]
+      },
+      "paws": {
+        "feet": [
+          {
+            "path": ["root", "pelvis", "left_thigh", "left_shin", "left_foot"],
+            "toe": [0, 15.5, -20]
+          },
+          {
+            "path": ["root", "pelvis", "right_thigh", "right_shin", "right_foot"],
+            "toe": [0, 15.5, -20]
+          }
+        ],
+        "floor": true
+      },
+      "stances": {
+        "lion_sword": {
+          "drawn": ["ls_root"],
+          "stowed": ["stowed_sword_hilt"]
+        }
+      },
+      "pounce_pivot": [-44.75, 0.0],
+      "pounce_air_pivot": [-44.75, 0.0],
+      "glow_parts": ["bkf_root", "bkf_flash_0", "bkf_flash_1", "bkf_flash_2", "ls_streak_0", "ls_streak_1", "ls_streak_2"]
     }
   }
 }

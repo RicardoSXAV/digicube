@@ -36,7 +36,7 @@ All clips are planted by leg IK on one shared phase (`cycle_ticks` 14):
   than on stone, skids about 3.6 blocks from a gallop and drifts through a hard bend. `skid`: the forepaws braced 30 px
   ahead, the hind paws 24 px under, 3 px wider, the haunches 9 px down, a 10-degree lean back, the head up.
 - `jump` (22 ticks, `tickLeapPose`'s clock): a gather, the hind drive, the forelegs tucked then reaching, forefeet
-  first on landing. `body.mount.jump` 0.6 with `leap_carry` 0.96, so a leap at the gallop flies far (the checks below).
+  first on landing. `body.mount.jump` 0.6 with `leap_carry` 0.94, so a leap at the gallop flies far (the checks below).
 - Sheet: `base_speed` 0.31, `run_speed` 1.34 (the AI's run and the ridden cruise, about 0.38 blocks a tick), `sprint`
   2.2 built over 30 ticks (about 0.82), `turn_rate` 18, `turn_to_travel`, `camera_distance` 6; tactics `hold_range`
   4-9, `fight_speed` 1.6, `gallop`, `press_impaired`, dodge 0.5.

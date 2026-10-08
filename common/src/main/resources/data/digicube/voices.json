@@ -44,5 +44,29 @@
     "cry": "minecraft:entity.hoglin.angry",
     "pitch": 0.62,
     "ambient_interval": 380
+  },
+  "shellmon": {
+    "ambient": "minecraft:entity.turtle.ambient_land",
+    "hurt": "minecraft:entity.turtle.hurt",
+    "death": "minecraft:entity.turtle.death",
+    "cry": "minecraft:entity.sniffer.scenting",
+    "pitch": 0.52,
+    "ambient_interval": 420
+  },
+  "greymon": {
+    "ambient": "minecraft:entity.ravager.ambient",
+    "hurt": "minecraft:entity.ravager.hurt",
+    "death": "minecraft:entity.ravager.death",
+    "cry": "minecraft:entity.ravager.roar",
+    "pitch": 0.9,
+    "ambient_interval": 380
+  },
+  "leomon": {
+    "ambient": "minecraft:entity.polar_bear.ambient",
+    "hurt": "minecraft:entity.polar_bear.hurt",
+    "death": "minecraft:entity.polar_bear.death",
+    "cry": "minecraft:entity.polar_bear.warning",
+    "pitch": 0.85,
+    "ambient_interval": 400
   }
 }

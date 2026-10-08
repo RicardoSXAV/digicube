@@ -1,0 +1,61 @@
+{
+  "stage": "adult",
+  "attribute": "vaccine",
+  "base_health": 40,
+  "base_attack": 14,
+  "base_defence": 10,
+  "base_speed": 0.22,
+  "attacks": ["lion_sword", "beast_king_fist"],
+  "evolutions": [],
+  "body": {
+    "model_scale": 0.32,
+    "width": 1.2,
+    "height": 2.75,
+    "eye_height": 2.45,
+    "step_height": 1.0,
+    "leap": {"jump": 0.62, "carry": 0.94},
+    "crouch": {"height": 2.0, "eye_height": 1.7, "pace": 0.45,
+               "roll": {"ticks": 16, "height": 1.8, "low_from": 3, "low_until": 9, "push": 0, "keep": 1.0, "speed": 0.44}}
+  },
+  "locomotion": {
+    "follow_start_distance": 5.0,
+    "follow_stop_distance": 2.5,
+    "walk_speed": 1.0,
+    "run_speed": 1.82,
+    "swim_speed": 0,
+    "ground_gait": {
+      "cycle_ticks": 20,
+      "stride": 5.875,
+      "back_stride": 4.0,
+      "side_stride": 2.75,
+      "run_cycle_ticks": 13.0,
+      "run_stride": 13.8125,
+      "max_playback_rate": 2.5,
+      "run_from": 0.19,
+      "run_until": 0.16,
+      "pivot_reach": 0.2955,
+      "pivot_stride": 0.9669,
+      "pivot_cadence": 1.6,
+      "pivot_walk": true,
+      "run_lattice": true,
+      "footfalls": true
+    }
+  },
+  "tactics": {
+    "prefer_close": true,
+    "press_impaired": true,
+    "fight_speed": 1.6,
+    "hold_min": 3.5,
+    "hold_max": 6.5,
+    "strafe": true,
+    "footwork": true,
+    "stalk": 0.45,
+    "spacing": 0.6,
+    "dodge_chance": 0.3,
+    "roll_dodge": 0.35,
+    "duck_chance": 0.6,
+    "leap_dodge": true,
+    "reaction_ticks": 4,
+    "lead_ticks": 4
+  }
+}

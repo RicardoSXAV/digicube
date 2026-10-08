@@ -54,7 +54,7 @@
       "sprint": 2.2,
       "sprint_build": 30,
       "jump": 0.6,
-      "leap_carry": 0.96,
+      "leap_carry": 0.94,
       "turn_to_travel": true,
       "camera_distance": 6,
       "rider_attacks": [

@@ -16,7 +16,8 @@ import java.util.stream.Stream;
 /**
  * Keeps the bundled animation and motion tables lean. Exports arrive as dense sub-tick samples
  * with full double precision; they ship reduced within tolerances no eye can see. A dense or
- * unrounded table fails the build here, before it multiplies the jar size.
+ * unrounded table fails the build here, before it multiplies the jar size. A clip's visibility
+ * must have the shape the game's loader reads, or the whole model fails to load in the client.
  */
 public final class AssetRegressionTest {
     private AssetRegressionTest() {}
@@ -82,7 +83,20 @@ public final class AssetRegressionTest {
         try (var reader = Files.newBufferedReader(file)) { root = JsonParser.parseReader(reader).getAsJsonObject(); }
         long keys = 0, redundant = 0;
         for (var clip : root.getAsJsonObject("clips").entrySet()) {
-            for (var element : clip.getValue().getAsJsonObject().getAsJsonArray("tracks")) {
+            // The game reads visibility as {part: [[time, shown], ...]} (NativeAnimationSet); any other shape fails the
+            // whole model's load.
+            var body = clip.getValue().getAsJsonObject();
+            if (body.has("visibility")) {
+                String where = file.getFileName() + " clip " + clip.getKey();
+                check(body.get("visibility").isJsonObject(), where + ": visibility must be an object of part -> [[time, shown], ...]");
+                for (var steps : body.getAsJsonObject("visibility").entrySet())
+                    for (var step : steps.getValue().getAsJsonArray()) {
+                        JsonArray pair = step.getAsJsonArray();
+                        check(pair.size() == 2 && pair.get(0).getAsJsonPrimitive().isNumber() && pair.get(1).getAsJsonPrimitive().isBoolean(),
+                                where + ": " + steps.getKey() + "'s visibility steps are [time, shown] pairs");
+                    }
+            }
+            for (var element : body.getAsJsonArray("tracks")) {
                 JsonObject track = element.getAsJsonObject();
                 if (track.has("interpolation") && track.get("interpolation").getAsString().equals("catmullrom")) continue;
                 JsonArray rows = track.getAsJsonArray("keys");

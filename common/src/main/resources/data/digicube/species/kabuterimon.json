@@ -4,34 +4,103 @@
   "base_health": 40,
   "base_attack": 14,
   "base_defence": 12,
-  "base_speed": 0.10,
-  "attacks": [],
+  "base_speed": 0.2,
+  "attacks": ["beet_horn", "mega_blaster"],
   "evolutions": [],
+  "tactics": {
+    "dodge_chance": 0.35,
+    "reaction_ticks": 4,
+    "lead_ticks": 6,
+    "fight_speed": 1.6
+  },
   "locomotion": {
     "follow_start_distance": 6,
     "follow_stop_distance": 3,
-    "walk_speed": 1.15,
+    "walk_speed": 1.0,
     "run_speed": 1.15,
-    "ground_gait": { "cycle_ticks": 36, "stride": 1.10887, "max_playback_rate": 1.5 },
+    "ground_gait": {
+      "cycle_ticks": 20,
+      "stride": 4.5,
+      "max_playback_rate": 1.9,
+      "pivot_reach": 0.8,
+      "pivot_stride": 1.5513,
+      "pivot_cadence": 1.4,
+      "footfalls": true
+    },
     "flight": {
-      "speed": 0.55, "capacity_ticks": 2400, "recharge_ticks": 500,
-      "rest_ticks": 30, "restart_fraction": 0.15, "landing_reserve_ticks": 120,
-      "minimum_flight_ticks": 80, "start_distance": 14, "stop_distance": 5,
-      "cruise_height": 2, "clearance_width": 2.6, "clearance_height": 4.8
+      "speed": 0.55,
+      "capacity_ticks": 2400,
+      "recharge_ticks": 600,
+      "rest_ticks": 30,
+      "restart_fraction": 0.15,
+      "landing_reserve_ticks": 100,
+      "minimum_flight_ticks": 80,
+      "start_distance": 14,
+      "stop_distance": 5,
+      "cruise_height": 2,
+      "clearance_width": 2.6,
+      "clearance_height": 4.6,
+      "costs": {
+        "boost": 2.4,
+        "climb": 1.6,
+        "glide": 0.35,
+        "roll": 60,
+        "takeoff": 30,
+        "attack": 0.32,
+        "combat_recharge": 0.35,
+        "combat_ticks": 140
+      }
     }
   },
   "body": {
-    "model_scale": 1.35, "width": 2.6, "height": 4.8, "eye_height": 4.2,
+    "model_scale": 0.45,
+    "width": 2.2,
+    "height": 3.9,
+    "eye_height": 3.3,
     "mount": {
-      "seat": [0, 4.968, -0.324], "speed": 0.12, "step_height": 1,
+      "seat": [0.0, 3.867, 0.056],
+      "step_height": 1,
+      "turn_rate": 8,
+      "sprint": 1.4,
+      "sprint_build": 20,
+      "turn_to_travel": true,
+      "camera_distance": 9,
+      "rider_attacks": [
+        {
+          "attack": "beet_horn",
+          "aim": "pounce",
+          "input": "tap",
+          "cone": 18
+        },
+        {
+          "attack": "mega_blaster",
+          "aim": "shot",
+          "input": "tap",
+          "cone": 12
+        }
+      ],
       "flight": {
-        "cruise_speed": 0.65, "acceleration": 0.045,
-        "braking": 0.13, "climb_speed": 0.42, "descend_speed": 0.36,
-        "turn_degrees": 7, "takeoff_ticks": 28, "lift_tick": 10,
-        "landing_ticks": 10, "wing_loop_ticks": 24,
-        "dive": {
-          "max_speed": 1.2, "acceleration": 0.022, "drag": 0.006,
-          "climb_drag": 0.03, "turn_drag": 0.06
+        "cruise_speed": 0.62,
+        "acceleration": 0.05,
+        "braking": 0.1,
+        "climb_speed": 0.42,
+        "descend_speed": 0.45,
+        "turn_degrees": 8,
+        "takeoff_ticks": 14,
+        "lift_tick": 4,
+        "landing_ticks": 13,
+        "wing_loop_ticks": 4,
+        "agility": {
+          "boost": 1.6,
+          "strafe": 0.6,
+          "gravity": 0.055,
+          "drag": 0.045,
+          "max_speed": 1.75,
+          "fast_turn": 0.38,
+          "bank": 55,
+          "roll_speed": 0.75,
+          "roll_ticks": 12,
+          "hard_landing": 0.7
         }
       }
     }
