@@ -774,8 +774,9 @@ architectural constraints. People can read them the same way.
 ./gradlew build
 ```
 
-The player-facing jar is `fabric/build/libs/digicube-fabric-26.2.jar`. Ignore the
-`-sources` and `-javadoc` jars.
+The player-facing jar is `fabric/build/libs/digicube-fabric-26.2-<version>.jar`, with
+`version` from `gradle.properties`. Ignore the `-sources` and `-javadoc` jars. Version
+numbers, tags and the release steps are in [agents/releasing.md](agents/releasing.md).
 
 To try it in your real Minecraft: install Fabric Loader for 26.2, drop that jar plus
 [Fabric API](https://modrinth.com/mod/fabric-api) into your `mods/` folder.

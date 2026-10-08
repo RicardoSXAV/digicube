@@ -82,6 +82,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/architecture.md](agents/architecture.md) | a new class, loader hook, mixin, platform service (`IPlatformHelper`) or resource file; the layout; client vs server; `assets/` vs `data/` |
 | [agents/conventions.md](agents/conventions.md) | a new identifier (`Constants.id`), registry entry (`DC*`), item (checklist), translation key or Creative tab entry; formatting |
 | [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
+| [agents/releasing.md](agents/releasing.md) | a release: the version number and what each kind bumps, tags, the jar players get |
 | [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, the index of every check |
 | [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution and growth, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), defeat, healing and food, drops (`DigimonDrops`, Digimeat), creative play, the scan and Digitama (`Scan`, `DigitamaItem`), spawning and its regions, whom wild Digimon fight (`WildGrudge`) |
 | [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`, `FreezeMark`), attacks as data (`DigimonAttack`, `IceCombo`, `PounceAttacks`, `BreathAttacks`), tactics (`DigimonTactics`) and matchup balance, wraps (`ConstrictionCoil`), ink, projectiles |
