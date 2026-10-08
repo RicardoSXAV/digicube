@@ -17,11 +17,14 @@ import java.util.UUID;
  * <p>Levels run from {@link #MIN_LEVEL} to {@link #LEVEL_CAP}. XP is stored as progress
  * within the current level. The only XP source is the defeat of a wild Digimon; its yield
  * is split among the partners that damaged it, in proportion to the damage they dealt.
+ * The same defeat feeds the scan: its family's bar fills by the same split ({@link #scanSplit}).
  */
 public final class Progression {
 
     public static final int MIN_LEVEL = 1;
     public static final int LEVEL_CAP = 50;
+    /** A Baby II grows into a Rookie of its family from this level, for good and without DigiSoul. */
+    public static final int GROWTH_LEVEL = 10;
     public static final int CHAMPION_LEVEL = 20;
     public static final int DIGISOUL_CAPACITY = 3600;
     public static final int DIGISOUL_FEE = 360;
@@ -38,18 +41,54 @@ public final class Progression {
 
     /** A partner resting in the Digivice regains health once every this many ticks. */
     public static final int RESERVE_REGEN_INTERVAL_TICKS = 100;
-    /** Ticks a resting partner needs to go from empty to full: 6000 is five minutes. */
-    public static final int RESERVE_FULL_HEAL_TICKS = 6000;
-    /** A defeated partner rests in the Digivice for this long before its first pulse: five minutes, so a defeat costs about twice a bad fight. */
-    public static final int DEFEAT_REST_TICKS = 6000;
+    /**
+     * Ticks a partner needs to go from empty to full health on its own, resting in the Digivice or calm out in the
+     * world: 2400 is two minutes.
+     */
+    public static final int FULL_HEAL_TICKS = 2400;
+    /** Out in the world a calm partner mends once every this many ticks: a second. */
+    public static final int FIELD_REGEN_INTERVAL_TICKS = 20;
+    /** A partner out in the world mends only after this long with nothing hurting it and no fight of its own: five seconds. */
+    public static final int FIELD_REGEN_DELAY_TICKS = 100;
+    /** A defeated partner rests in the Digivice for this long: thirty seconds, then it is back on its feet at {@link #REVIVE_HEALTH}. */
+    public static final int DEFEAT_REST_TICKS = 600;
+    /** Health a defeated partner has when its rest is over: one point, so time, food or the Digivice bring the rest back. */
+    public static final float REVIVE_HEALTH = 1.0F;
+    /** Fed by its tamer, a partner regains this percentage of its maximum health per point of the food's nutrition. */
+    private static final int FEED_HEAL_PERCENT_PER_NUTRITION = 5;
+    /** A calm partner takes one bite of food every this many ticks: 1.6 seconds, the time a player takes to eat. */
+    public static final int FEED_INTERVAL_TICKS = 32;
+    /**
+     * In a fight a partner takes one bite every this many ticks: fifteen seconds, about one a duel (duels are tuned to
+     * about fifteen). Food heals between fights; in one it is an emergency bite, not a stack of extra lives. The wait ends
+     * with the fight: calm again, the partner eats at {@link #FEED_INTERVAL_TICKS}.
+     */
+    public static final int FEED_FIGHT_INTERVAL_TICKS = 300;
+    /** Digimeat, the food wild Digimon drop: cooked chicken's hunger and saturation, so 30 % of a partner a piece. */
+    public static final int DIGIMEAT_NUTRITION = 6;
+    public static final float DIGIMEAT_SATURATION_MODIFIER = 0.6F;
+
+    /** Scan data one Digitama costs: CONVERT opens at this much in a family's bar. */
+    public static final int DIGITAMA_DATA = 100;
+    /** Data the first sighting of a family puts in its bar. */
+    public static final int FIRST_SIGHTING_DATA = 30;
+    /** Most data a bar holds, one conversion saved; past it a defeat's data is lost. */
+    public static final int SCAN_CAPACITY = 200;
+    /** A Digitama hatches after this much of its tamer's time online: ten minutes. */
+    public static final int DIGITAMA_HATCH_TICKS = 12000;
+    /** How many of the tamer's last defeats the scan's pace (defeats left) is the mean of. */
+    public static final int SCAN_PACE_DEFEATS = 20;
 
     /** Max health grows by this percentage of the base value per level above 1. */
     private static final int HEALTH_GROWTH_PERCENT = 4;
     /** Attack grows by this percentage of the base value per level above 1. */
     private static final int ATTACK_GROWTH_PERCENT = 3;
+    /** Every wild Digimon's XP yield, as a percentage of the base yield {@code stageYield × (level + 4) / 2}. */
+    private static final int XP_RATE_PERCENT = 150;
     /** The level-gap multiplier moves by this percentage per level of difference. */
     private static final int GAP_STEP_PERCENT = 10;
-    private static final int GAP_MIN_PERCENT = 25;
+    /** Far weaker wilds still pay half: a partner that outgrew its home is not left with nothing to fight. */
+    private static final int GAP_MIN_PERCENT = 50;
     private static final int GAP_MAX_PERCENT = 150;
 
     private Progression() {}
@@ -91,9 +130,9 @@ public final class Progression {
         };
     }
 
-    /** Total XP a wild Digimon of this stage and level is worth, before any split. */
+    /** Total XP a wild Digimon of this stage and level is worth, before any split: the base yield at {@link #XP_RATE_PERCENT}. */
     public static int xpYield(DigimonStage stage, int wildLevel) {
-        return stageYield(stage) * (wildLevel + 4) / 2;
+        return stageYield(stage) * (wildLevel + 4) * XP_RATE_PERCENT / 200;
     }
 
     /**
@@ -126,14 +165,42 @@ public final class Progression {
 
     /**
      * Health of a partner resting in the Digivice after one regeneration pulse: a fixed
-     * fraction of its maximum, {@code RESERVE_REGEN_INTERVAL_TICKS / RESERVE_FULL_HEAL_TICKS},
-     * never past full. A partner at zero heals from zero once its rest is over; the rest
-     * gate itself belongs to the party ({@code PartyMember.resting}).
+     * fraction of its maximum, {@code RESERVE_REGEN_INTERVAL_TICKS / FULL_HEAL_TICKS},
+     * never past full. A defeated partner is set to {@link #REVIVE_HEALTH} when its rest is over
+     * and heals on from there; the rest gate itself belongs to the party ({@code PartyMember.resting}).
      */
     public static float reserveHealth(float health, float maxHealth) {
         if (health < 0.0F || maxHealth <= 0.0F || health >= maxHealth) return health;
-        float pulse = maxHealth * RESERVE_REGEN_INTERVAL_TICKS / RESERVE_FULL_HEAL_TICKS;
+        float pulse = maxHealth * RESERVE_REGEN_INTERVAL_TICKS / FULL_HEAL_TICKS;
         return Math.min(maxHealth, health + pulse);
+    }
+
+    /**
+     * Health a calm partner out in the world regains in one mending pulse ({@link #FIELD_REGEN_INTERVAL_TICKS}): the same
+     * pace as the Digivice's, full in {@link #FULL_HEAL_TICKS}.
+     */
+    public static float fieldHeal(float maxHealth) {
+        return maxHealth * FIELD_REGEN_INTERVAL_TICKS / FULL_HEAL_TICKS;
+    }
+
+    /**
+     * Health a partner regains from one food item its tamer feeds it: {@link #FEED_HEAL_PERCENT_PER_NUTRITION} of its
+     * maximum per point of nutrition (bread, 5, gives a quarter), at least one point's worth.
+     */
+    public static float feedHeal(float maxHealth, int nutrition) {
+        return maxHealth * Math.max(1, nutrition) * FEED_HEAL_PERCENT_PER_NUTRITION / 100.0F;
+    }
+
+    /**
+     * Ticks a partner still waits for its next bite if nothing new happens, {@code sinceLastBite} ticks after the last one
+     * and {@code calmIn} ticks before it is calm (0: calm now; -1: it fights on, so nobody can tell when). Calm, it eats
+     * every {@link #FEED_INTERVAL_TICKS}; fighting, every {@link #FEED_FIGHT_INTERVAL_TICKS}; winding down from a fight,
+     * at whichever comes first: the fight's spacing, or calm with the calm spacing. 0: it eats now.
+     */
+    public static int feedWait(int sinceLastBite, int calmIn) {
+        int fight = Math.max(0, FEED_FIGHT_INTERVAL_TICKS - sinceLastBite);
+        if (calmIn < 0) return fight;
+        return Math.min(fight, Math.max(calmIn, FEED_INTERVAL_TICKS - sinceLastBite));
     }
 
     /**
@@ -154,13 +221,25 @@ public final class Progression {
      * @return share per contributor id, in the order given; empty when nobody dealt damage
      */
     public static Map<UUID, Integer> split(DigimonStage stage, int wildLevel, List<Contributor> contributors) {
+        return shares(xpYield(stage, wildLevel), wildLevel, contributors);
+    }
+
+    /**
+     * Scan data shares for a defeated wild Digimon, by the same rule as XP ({@link #split}): the pie is the stage's
+     * yield ({@link #stageYield}, the wild's level plays no part), each partner's slice is its damage share times its own
+     * level-gap multiplier, and a tap earns 1. A tamer's data is the sum of its partners' shares.
+     */
+    public static Map<UUID, Integer> scanSplit(DigimonStage stage, int wildLevel, List<Contributor> contributors) {
+        return shares(stageYield(stage), wildLevel, contributors);
+    }
+
+    private static Map<UUID, Integer> shares(int yield, int wildLevel, List<Contributor> contributors) {
         double total = 0;
         for (Contributor contributor : contributors) {
             if (contributor.damage() > 0) total += contributor.damage();
         }
         Map<UUID, Integer> shares = new LinkedHashMap<>();
         if (!(total > 0)) return shares;
-        int yield = xpYield(stage, wildLevel);
         for (Contributor contributor : contributors) {
             if (!(contributor.damage() > 0)) continue;
             double share = (double) yield * gapPercent(wildLevel, contributor.level()) * contributor.damage()

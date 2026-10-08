@@ -9,7 +9,16 @@
     "scissors_execution",
     "water_shot"
   ],
-  "evolutions": [],
+  "evolutions": [
+    {
+      "target": "digicube:gesomon",
+      "min_level": 20
+    },
+    {
+      "target": "digicube:shellmon",
+      "min_level": 20
+    }
+  ],
   "body": {
     "model_scale": 0.2,
     "width": 1.2,

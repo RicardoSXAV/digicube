@@ -27,8 +27,10 @@ public final class ProgressionRegressionTest {
             checkGain();
             checkStats();
             checkReserveRegen();
+            checkFeeding();
+            checkDrops();
             checkLedger();
-            Constants.LOG.info("Progression regression checks passed: curve, yield, gap, damage split, level-ups, stats, reserve regeneration and ledger.");
+            Constants.LOG.info("Progression regression checks passed: curve, yield, gap, damage split, level-ups, stats, reserve regeneration, feeding, drops and ledger.");
         } finally {
             Util.shutdownExecutors();
         }
@@ -55,13 +57,13 @@ public final class ProgressionRegressionTest {
                 && Progression.stageYield(DigimonStage.PERFECT) == 28 && Progression.stageYield(DigimonStage.ULTIMATE) == 40
                 && Progression.stageYield(DigimonStage.SUPER_ULTIMATE) == 52 && Progression.stageYield(DigimonStage.ARMOR) == 18
                 && Progression.stageYield(DigimonStage.HYBRID) == 18, "stage yields");
-        int[][] babyII = {{1, 15}, {5, 27}, {10, 42}, {20, 72}, {30, 102}, {40, 132}, {50, 162}};
+        int[][] babyII = {{1, 22}, {5, 40}, {10, 63}, {20, 108}, {30, 153}, {40, 198}, {50, 243}};
         for (int[] row : babyII) check(Progression.xpYield(DigimonStage.BABY_II, row[0]) == row[1], "baby_ii yield at " + row[0]);
-        int[][] child = {{1, 25}, {5, 45}, {10, 70}, {20, 120}, {30, 170}, {40, 220}, {50, 270}};
+        int[][] child = {{1, 37}, {5, 67}, {10, 105}, {20, 180}, {30, 255}, {40, 330}, {50, 405}};
         for (int[] row : child) check(Progression.xpYield(DigimonStage.CHILD, row[0]) == row[1], "child yield at " + row[0]);
-        int[][] adult = {{1, 45}, {5, 81}, {10, 126}, {20, 216}, {50, 486}};
+        int[][] adult = {{1, 67}, {5, 121}, {10, 189}, {20, 324}, {50, 729}};
         for (int[] row : adult) check(Progression.xpYield(DigimonStage.ADULT, row[0]) == row[1], "adult yield at " + row[0]);
-        int[][] perfect = {{1, 70}, {5, 126}, {20, 336}, {50, 756}};
+        int[][] perfect = {{1, 105}, {5, 189}, {20, 504}, {50, 1134}};
         for (int[] row : perfect) check(Progression.xpYield(DigimonStage.PERFECT, row[0]) == row[1], "perfect yield at " + row[0]);
     }
 
@@ -69,9 +71,10 @@ public final class ProgressionRegressionTest {
         check(Progression.gapMultiplier(10, 10) == 1.0, "same level is neutral");
         check(Progression.gapMultiplier(13, 10) == 1.3 && Progression.gapMultiplier(15, 10) == 1.5, "punching up is rewarded");
         check(Progression.gapMultiplier(17, 10) == 1.5 && Progression.gapMultiplier(50, 1) == 1.5, "reward clamps at 150 %");
-        check(Progression.gapMultiplier(7, 10) == 0.7 && Progression.gapMultiplier(5, 10) == 0.5
-                && Progression.gapMultiplier(3, 10) == 0.3, "farming down decays");
-        check(Progression.gapMultiplier(0, 10) == 0.25 && Progression.gapMultiplier(1, 50) == 0.25, "decay clamps at 25 %");
+        check(Progression.gapMultiplier(7, 10) == 0.7 && Progression.gapMultiplier(6, 10) == 0.6
+                && Progression.gapMultiplier(5, 10) == 0.5, "farming down decays");
+        check(Progression.gapMultiplier(3, 10) == 0.5 && Progression.gapMultiplier(0, 10) == 0.5
+                && Progression.gapMultiplier(1, 50) == 0.5, "decay clamps at 50 %");
     }
 
     private static void checkSplit() {
@@ -80,32 +83,32 @@ public final class ProgressionRegressionTest {
         UUID koromon = UUID.randomUUID();
         Map<UUID, Integer> shares = Progression.split(DigimonStage.CHILD, 14, List.of(
                 new Progression.Contributor(agumon, 12, 70), new Progression.Contributor(gabumon, 10, 30)));
-        check(shares.get(agumon) == 75 && shares.get(gabumon) == 37, "70/30 split against a level-14 wild Agumon gives 75 and 37");
+        check(shares.get(agumon) == 113 && shares.get(gabumon) == 56, "70/30 split against a level-14 wild Agumon gives 113 and 56");
         check(List.copyOf(shares.keySet()).equals(List.of(agumon, gabumon)), "shares keep contributor order");
 
         shares = Progression.split(DigimonStage.BABY_II, 6, List.of(
                 new Progression.Contributor(agumon, 8, 90), new Progression.Contributor(gabumon, 8, 30)));
-        check(shares.get(agumon) == 18 && shares.get(gabumon) == 6, "two players at 90 and 30 damage get 18 and 6");
+        check(shares.get(agumon) == 27 && shares.get(gabumon) == 9, "two players at 90 and 30 damage get 27 and 9");
 
         shares = Progression.split(DigimonStage.BABY_II, 6, List.of(
                 new Progression.Contributor(agumon, 8, 90), new Progression.Contributor(gabumon, 8, 30),
                 new Progression.Contributor(koromon, 8, 2)));
         check(shares.get(koromon) == 1, "a 2-of-122 tap floors to 1 XP");
-        check(shares.get(agumon) == 17 && shares.get(gabumon) == 5, "the tap only nibbles at the real contributors");
+        check(shares.get(agumon) == 26 && shares.get(gabumon) == 8, "the tap only nibbles at the real contributors");
 
         shares = Progression.split(DigimonStage.BABY_II, 3, List.of(new Progression.Contributor(agumon, 5, 21)));
-        check(shares.get(agumon) == 16, "level-5 Agumon alone against a level-3 Koromon earns 16");
+        check(shares.get(agumon) == 24, "level-5 Agumon alone against a level-3 Koromon earns 24");
         shares = Progression.split(DigimonStage.BABY_II, 8, List.of(new Progression.Contributor(agumon, 30, 100)));
-        check(shares.get(agumon) == 9, "level-30 Greymon farming a level-8 Koromon earns 9");
+        check(shares.get(agumon) == 27, "level-30 Greymon farming a level-8 Koromon earns 27, the floor's half");
         shares = Progression.split(DigimonStage.CHILD, 14, List.of(new Progression.Contributor(agumon, 12, 37.5F)));
-        check(shares.get(agumon) == 108, "a lone contributor takes the whole pie whatever its damage");
+        check(shares.get(agumon) == 162, "a lone contributor takes the whole pie whatever its damage");
 
         check(Progression.split(DigimonStage.CHILD, 10, List.of()).isEmpty(), "no contributors, no XP");
         check(Progression.split(DigimonStage.CHILD, 10, List.of(new Progression.Contributor(agumon, 10, 0))).isEmpty(),
                 "zero damage is not a contribution");
         shares = Progression.split(DigimonStage.CHILD, 10, List.of(
                 new Progression.Contributor(agumon, 10, -5), new Progression.Contributor(gabumon, 10, 10)));
-        check(!shares.containsKey(agumon) && shares.get(gabumon) == 70, "negative damage is ignored and does not dilute others");
+        check(!shares.containsKey(agumon) && shares.get(gabumon) == 105, "negative damage is ignored and does not dilute others");
 
         Random random = new Random(7);
         for (int round = 0; round < 2000; round++) {
@@ -176,22 +179,60 @@ public final class ProgressionRegressionTest {
         List<DamageLedger.Entry> recent = ledger.recent(2000, 1200);
         check(recent.size() == 1 && recent.getFirst().attacker().equals(first), "a hit exactly at the window edge counts, one tick older does not");
         check(ledger.recent(800, 1200).size() == 2, "both recent when the window covers them");
+        check(ledger.damageBy(first) == 12 && ledger.damageBy(UUID.randomUUID()) == 0, "damage reads per attacker");
+        ledger.forget(first);
+        check(ledger.damageBy(first) == 0 && ledger.entries().size() == 1 && ledger.damageBy(second) == 3, "a fallen partner's total is forgotten, alone");
         ledger.clear();
         check(ledger.isEmpty(), "clear empties the ledger");
     }
 
     private static void checkReserveRegen() {
-        check(Progression.RESERVE_REGEN_INTERVAL_TICKS == 100 && Progression.RESERVE_FULL_HEAL_TICKS == 6000,
-                "a pulse every five seconds, full in five minutes");
-        check(nearFloat(Progression.reserveHealth(7.5F, 20), 7.5F + 20.0F / 60), "Agumon regains a sixtieth of its health per pulse");
+        check(Progression.RESERVE_REGEN_INTERVAL_TICKS == 100 && Progression.FULL_HEAL_TICKS == 2400,
+                "a pulse every five seconds, full in two minutes");
+        check(nearFloat(Progression.reserveHealth(7.5F, 20), 7.5F + 20.0F / 24), "Agumon regains a twenty-fourth of its health per pulse");
         check(Progression.reserveHealth(19.9F, 20) == 20 && Progression.reserveHealth(20, 20) == 20, "regeneration clamps at full");
-        check(nearFloat(Progression.reserveHealth(0, 20), 20.0F / 60) && Progression.reserveHealth(-1, 20) == -1,
+        check(nearFloat(Progression.reserveHealth(0, 20), 20.0F / 24) && Progression.reserveHealth(-1, 20) == -1,
                 "a rested partner heals from zero; negative health is left alone");
-        check(Progression.DEFEAT_REST_TICKS == 6000, "a defeat costs five minutes of rest before the first pulse");
+        check(Progression.DEFEAT_REST_TICKS == 600 && Progression.REVIVE_HEALTH == 1, "a defeat costs thirty seconds of rest, then one point of health");
+        check(nearFloat(Progression.feedHeal(20, 5), 5) && nearFloat(Progression.feedHeal(20, 8), 8) && nearFloat(Progression.feedHeal(118, 5), 29.5F),
+                "food heals 5 % of the maximum per point of nutrition: bread a quarter");
+        check(nearFloat(Progression.feedHeal(20, 0), 1), "even food with no nutrition is worth one point's share");
         float health = 0.5F;
-        for (int i = 0; i < 60; i++) health = Progression.reserveHealth(health, 20);
-        check(health == 20, "sixty pulses fill any partner");
-        check(nearFloat(Progression.reserveHealth(50, 118), 50 + 118.0F / 60), "regeneration scales with max health");
+        for (int i = 0; i < 24; i++) health = Progression.reserveHealth(health, 20);
+        check(health == 20, "twenty-four pulses fill any partner");
+        check(Progression.FIELD_REGEN_INTERVAL_TICKS == 20 && Progression.FIELD_REGEN_DELAY_TICKS == 100 && nearFloat(Progression.fieldHeal(20), 20.0F / 120),
+                "out in the world a calm partner mends a hundred-and-twentieth a second, five seconds after its fight");
+        check(nearFloat(Progression.fieldHeal(20) * (Progression.FULL_HEAL_TICKS / Progression.FIELD_REGEN_INTERVAL_TICKS), 20),
+                "two minutes of calm fill it, as the Digivice does");
+        check(nearFloat(Progression.reserveHealth(50, 118), 50 + 118.0F / 24), "regeneration scales with max health");
+    }
+
+    private static void checkFeeding() {
+        check(Progression.FEED_INTERVAL_TICKS == 32 && Progression.FEED_FIGHT_INTERVAL_TICKS == 300,
+                "a calm partner bites every 1.6 seconds, one in a fight every fifteen");
+        check(Progression.feedWait(0, 0) == 32 && Progression.feedWait(31, 0) == 1 && Progression.feedWait(32, 0) == 0,
+                "calm: the next bite 32 ticks after the last");
+        check(Progression.feedWait(0, -1) == 300 && Progression.feedWait(299, -1) == 1 && Progression.feedWait(300, -1) == 0,
+                "fighting: the next bite 300 ticks after the last");
+        check(Progression.feedWait(100, 0) == 0 && Progression.feedWait(100, -1) == 200,
+                "the same gap since the last bite is enough when calm, not in a fight");
+        check(Progression.feedWait(0, 100) == 100 && Progression.feedWait(10, 10) == 22 && Progression.feedWait(250, 100) == 50,
+                "winding down from a fight: calm, then the calm spacing, unless the fight's spacing ends first");
+        check(Progression.DIGIMEAT_NUTRITION == 6 && nearFloat(Progression.DIGIMEAT_SATURATION_MODIFIER, 0.6F),
+                "Digimeat eats like cooked chicken: 6 hunger, 0.6 saturation modifier");
+        check(nearFloat(Progression.feedHeal(20, Progression.DIGIMEAT_NUTRITION), 6) && nearFloat(Progression.feedHeal(118, Progression.DIGIMEAT_NUTRITION), 35.4F),
+                "a Digimeat gives a partner 30 % of its maximum");
+    }
+
+    private static void checkDrops() {
+        check(DigimonDrops.stageTable(DigimonStage.CHILD).identifier().equals(Constants.id("entities/digimon/child")),
+                "a Rookie drops from digicube:entities/digimon/child");
+        check(DigimonDrops.speciesTable(Constants.id("agumon")).identifier().equals(Constants.id("entities/digimon/species/agumon")),
+                "a species' own table sits under entities/digimon/species/");
+        for (DigimonStage stage : DigimonStage.values()) {
+            String path = "/data/digicube/loot_table/entities/digimon/" + stage.getId() + ".json";
+            check(ProgressionRegressionTest.class.getResource(path) != null, "every stage has a drop table: " + path);
+        }
     }
 
     /** Health is a float on the entity, so regeneration is compared at float precision. */

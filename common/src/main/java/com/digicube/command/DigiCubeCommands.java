@@ -1,5 +1,6 @@
 package com.digicube.command;
 
+import com.digicube.digimon.DigimonFamilies;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.EvolutionRules;
@@ -7,7 +8,9 @@ import com.digicube.digimon.Progression;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.party.PartyManager;
 import com.digicube.party.PartyMember;
+import com.digicube.party.PartySavedData;
 import com.digicube.registry.DCEntityTypes;
+import com.digicube.scan.Scan;
 import com.digicube.spawn.SpawnAttempt;
 import com.digicube.spawn.WildSpawnSettings;
 import com.digicube.spawn.WildSpawner;
@@ -51,6 +54,8 @@ import java.util.function.Predicate;
  * /digicube xp &lt;targets&gt; &lt;amount&gt;           grant XP through the normal path, level-ups included
  * /digicube heal [player]                    full health for every Digimon the player owns, reserve included
  * /digicube wild status|on|off|interval|cap|distance|try|clear|debug
+ * /digicube scan set &lt;species&gt; &lt;data&gt; [player]   put data in the bar of the species' family, sighting it
+ * /digicube scan hatch [player]              every Digitama of the player hatches now
  * </pre>
  */
 public final class DigiCubeCommands {
@@ -94,6 +99,7 @@ public final class DigiCubeCommands {
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> heal(context.getSource(), EntityArgument.getPlayer(context, "player")))))
                 .then(wild())
+                .then(scan())
                 .then(starter()));
     }
 
@@ -206,6 +212,51 @@ public final class DigiCubeCommands {
         return species.orElse(null);
     }
 
+    // --- the scan --------------------------------------------------------------------------
+
+    private static LiteralArgumentBuilder<CommandSourceStack> scan() {
+        return Commands.literal("scan")
+                .requires(operator())
+                .then(Commands.literal("set")
+                        .then(speciesArgument()
+                                .then(Commands.argument("data", IntegerArgumentType.integer(0, Progression.SCAN_CAPACITY))
+                                        .executes(context -> scanSet(context, context.getSource().getPlayerOrException()))
+                                        .then(Commands.argument("player", EntityArgument.player())
+                                                .executes(context -> scanSet(context, EntityArgument.getPlayer(context, "player")))))))
+                .then(Commands.literal("hatch")
+                        .executes(context -> scanHatch(context.getSource(), context.getSource().getPlayerOrException()))
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(context -> scanHatch(context.getSource(), EntityArgument.getPlayer(context, "player")))));
+    }
+
+    /** Operator: the bar of the species' family holds exactly {@code data}, and the family counts as sighted. */
+    private static int scanSet(CommandContext<CommandSourceStack> context, ServerPlayer player) {
+        CommandSourceStack source = context.getSource();
+        DigimonSpecies species = resolveSpecies(source, IdentifierArgument.getId(context, "species"));
+        if (species == null) return 0;
+        Identifier family = DigimonFamilies.of(species.id());
+        if (family == null) {
+            source.sendFailure(Component.translatable("commands.digicube.scan.no_family", Component.translatable(species.translationKey())));
+            return 0;
+        }
+        int data = IntegerArgumentType.getInteger(context, "data");
+        Scan.set(player, family, data);
+        source.sendSuccess(() -> Component.translatable("commands.digicube.scan.set", player.getDisplayName(),
+                Component.translatable(DigimonSpeciesRegistry.getOrThrow(family).translationKey()), data), true);
+        return 1;
+    }
+
+    /** Operator: the player's Digitama hatch at once, as if their ten minutes were up. */
+    private static int scanHatch(CommandSourceStack source, ServerPlayer player) {
+        int hatched = PartyManager.incubate(PartySavedData.get(source.getServer()), player, Progression.DIGITAMA_HATCH_TICKS);
+        if (hatched == 0) {
+            source.sendFailure(Component.translatable("commands.digicube.scan.no_egg", player.getDisplayName()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("commands.digicube.scan.hatched", hatched, player.getDisplayName()), true);
+        return hatched;
+    }
+
     // --- healing -----------------------------------------------------------------------
 
     private static int heal(CommandSourceStack source, ServerPlayer player) {
@@ -304,7 +355,7 @@ public final class DigiCubeCommands {
         WildSpawnSettings settings = settings(source);
         ServerLevel level = source.getLevel();
         int wild = WildSpawner.wild(level).size();
-        int cap = settings.cap(level.players().size());
+        int cap = settings.maxPerLevel();
         Component last = settings.lastAttempt(level.dimension()).map(SpawnAttempt::describe)
                 .orElseGet(() -> Component.translatable("commands.digicube.wild.no_attempt"));
         source.sendSuccess(() -> Component.translatable("commands.digicube.wild.status.settings",

@@ -52,6 +52,49 @@ public final class PartyManager {
         return member;
     }
 
+    /**
+     * A Digitama of {@code family} for {@code player}, from the scan: a level-1 individual of the family's first form
+     * that waits {@link Progression#DIGITAMA_HATCH_TICKS} of its tamer's time online in the Digivice before it hatches,
+     * and never takes a party slot until then.
+     * @return the new member, or null when the species is missing
+     */
+    public static PartyMember giveDigitama(ServerPlayer player, net.minecraft.resources.Identifier family) {
+        var species = DigimonSpeciesRegistry.get(family).orElse(null);
+        DigimonEntity entity = species == null ? null : DCEntityTypes.DIGIMON.create(player.level(), EntitySpawnReason.COMMAND);
+        if (entity == null) return null;
+        entity.initializeAs(species, Progression.MIN_LEVEL);
+        entity.setOwner(player);
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = new PartyMember(entity.getUUID(), player.getUUID(), species.id(), "", entity.getHealth(), entity.getMaxHealth(),
+                entity.getLevel(), 0, -1, entity.getPartyGeneration(), save(entity), 0, false, Progression.DIGITAMA_HATCH_TICKS);
+        data.roster().add(member);
+        data.session(player.getUUID()).sync.invalidate();
+        data.setDirty();
+        return member;
+    }
+
+    /**
+     * {@code ticks} of incubation for every Digitama of {@code owner}, run while the tamer is online; a Digitama whose
+     * time is up hatches into its first form and the tamer hears of it.
+     * @return how many hatched
+     */
+    public static int incubate(PartySavedData data, ServerPlayer owner, int ticks) {
+        int hatched = 0;
+        boolean changed = false;
+        for (PartyMember member : data.roster().owned(owner.getUUID())) {
+            if (!member.egg()) continue;
+            changed = true;
+            if (!member.incubate(ticks)) continue;
+            hatched++;
+            com.digicube.scan.Scan.hatched(owner, member.species());
+        }
+        if (changed) {
+            data.session(owner.getUUID()).sync.invalidate();
+            data.setDirty();
+        }
+        return hatched;
+    }
+
     private static CompoundTag save(DigimonEntity digimon) {
         try (var problems = new ProblemReporter.ScopedCollector(Constants.LOG)) {
             TagValueOutput output = TagValueOutput.createWithContext(problems, digimon.registryAccess());
@@ -87,8 +130,8 @@ public final class PartyManager {
 
     /**
      * Restores every Digimon a player owns to full health: deployed ones on the entity,
-     * reserve ones in their saved data. A defeated partner comes back to life this way and
-     * waits in reserve until it is selected again.
+     * reserve ones in their saved data. A defeated partner comes back to life this way, skips
+     * its rest and goes back to the party slot it fell from ({@link #regroup}).
      * @return how many partners were healed
      */
     public static int healAll(ServerPlayer owner) {
@@ -118,10 +161,11 @@ public final class PartyManager {
     /**
      * One regeneration pulse for every partner of {@code owner} resting in the Digivice:
      * stored and below full health. A defeated partner first spends its rest
-     * ({@link Progression#DEFEAT_REST_TICKS}) and then heals from zero like any other;
-     * {@link #healAll} skips the rest. Deployed partners heal only through play. The pulse
-     * runs while the tamer is online, every {@link Progression#RESERVE_REGEN_INTERVAL_TICKS}
-     * ticks, and rest is spent at the same cadence.
+     * ({@link Progression#DEFEAT_REST_TICKS}), is then back on its feet at
+     * {@link Progression#REVIVE_HEALTH} (and on its way back to its slot, {@link #regroup}) and
+     * heals on like any other; {@link #healAll} skips the rest. Deployed partners mend on their own
+     * out of a fight at the same pace ({@link DigimonEntity#mend}) and eat. The pulse runs while the tamer is online, every
+     * {@link Progression#RESERVE_REGEN_INTERVAL_TICKS} ticks, and rest is spent at the same cadence.
      * @return how many partners regained health; resting ones are not counted
      */
     static int regenerateReserve(PartySavedData data, UUID owner) {
@@ -131,6 +175,7 @@ public final class PartyManager {
             if (data.live.containsKey(member.id())) continue;
             if (member.resting()) {
                 member.rest(Progression.RESERVE_REGEN_INTERVAL_TICKS);
+                if (!member.resting()) member.setHealth(Progression.REVIVE_HEALTH);
                 // The Digivice shows the countdown, and a rest that just ended reads as a fresh snapshot.
                 data.session(owner).sync.invalidate();
                 changed = true;
@@ -188,10 +233,7 @@ public final class PartyManager {
         EvolutionController.normalize(digimon);
         capture(data, member, digimon);
         member.nextGeneration();
-        if (digimon.getHealth() <= 0) {
-            member.setSlot(-1);
-            member.defeat(Progression.DEFEAT_REST_TICKS);
-        }
+        if (digimon.getHealth() <= 0) defeated(member, digimon);
         data.session(member.owner()).sync.invalidate();
         data.setDirty();
     }
@@ -226,8 +268,7 @@ public final class PartyManager {
             if (entity.getHealth() <= 0) {
                 EvolutionController.normalize(entity);
                 capture(data, member, entity);
-                member.setSlot(-1);
-                member.defeat(Progression.DEFEAT_REST_TICKS);
+                defeated(member, entity);
                 member.nextGeneration();
                 data.live.remove(member.id());
                 data.session(member.owner()).sync.invalidate();
@@ -237,6 +278,8 @@ public final class PartyManager {
                 unloaded(entity, (ServerLevel) entity.level());
                 continue;
             }
+            // Out of a fight a partner mends on its own, at the Digivice's pace.
+            if (server.getTickCount() % Progression.FIELD_REGEN_INTERVAL_TICKS == 0) entity.mend();
             data.session(member.owner()).sync.recordHealth(member.id(), entity.getHealth(), entity.getMaxHealth());
             if (entity.targetStateChanged()) data.session(member.owner()).sync.invalidate();
             ServerPlayer owner = server.getPlayerList().getPlayer(member.owner());
@@ -255,13 +298,44 @@ public final class PartyManager {
         boolean regenerate = now % Progression.RESERVE_REGEN_INTERVAL_TICKS == 0;
         if (now % 20 != 0) return;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (regenerate) incubate(data, player, Progression.RESERVE_REGEN_INTERVAL_TICKS);
             if (!player.isAlive() || player.isSpectator()) continue;
             if (regenerate) regenerateReserve(data, player.getUUID());
             if (away.contains(player.getUUID())) continue;
+            regroup(data, player.getUUID());
             for (PartyMember member : data.roster().party(player.getUUID())) {
                 if (!data.live.containsKey(member.id())) deploy(data, member, player);
             }
         }
+    }
+
+    /**
+     * A partner fell: it goes into the Digivice to rest {@link Progression#DEFEAT_REST_TICKS}, remembering the slot it
+     * stood in, and what it did to wild Digimon before falling no longer earns it anything.
+     */
+    private static void defeated(PartyMember member, DigimonEntity entity) {
+        member.stow();
+        member.defeat(Progression.DEFEAT_REST_TICKS);
+        entity.forfeitShares();
+    }
+
+    /**
+     * Partners sent into the Digivice by a defeat or by the Digivice leaving their tamer go back to the slot they stood
+     * in as soon as they can: rested, and with the Digivice back with the tamer (the caller's part). A slot the tamer
+     * filled meanwhile keeps its new partner, and the old one stays in the Digivice.
+     * @return how many went back
+     */
+    static int regroup(PartySavedData data, UUID owner) {
+        int back = 0;
+        for (PartyMember member : data.roster().owned(owner)) {
+            int slot = member.returnSlot();
+            if (slot < 0 || member.active() || member.defeated() || member.egg()) continue;
+            data.setDirty();
+            if (needsOrigin(data, member) || data.roster().inSlot(owner, slot) != null) member.forgetReturn();
+            else if (data.roster().select(owner, member.id(), slot)) back++;
+        }
+        if (back > 0) data.session(owner).sync.invalidate();
+        return back;
     }
 
     /**
@@ -276,9 +350,10 @@ public final class PartyManager {
     }
 
     /**
-     * Partners live in the Digivice: the moment it leaves its tamer (dropped, put in a chest, lost), every partner out
-     * in the world goes back to the Digispace ({@link #CREATIVE_GRACE_TICKS} later in creative). One in the middle of
-     * carrying a rider goes once the rider is down.
+     * Partners live in the Digivice: the moment it leaves its tamer (dropped, put in a chest, lost, left on the ground by
+     * a death), every partner out in the world goes back to the Digispace ({@link #CREATIVE_GRACE_TICKS} later in
+     * creative), each remembering its slot: with the Digivice back, the same party comes out again ({@link #regroup}).
+     * One in the middle of carrying a rider goes once the rider is down.
      * @return whether the device is away, so nobody is deployed (a respawn without it sends no partner out)
      */
     public static boolean checkDevice(ServerPlayer player, int now) {
@@ -290,7 +365,7 @@ public final class PartyManager {
         int stowed = 0;
         for (PartyMember member : data.roster().party(player.getUUID())) {
             if (busy(data, member)) continue;
-            member.setSlot(-1);
+            member.stow();
             recall(data, member);
             stowed++;
         }
@@ -331,6 +406,7 @@ public final class PartyManager {
             return "gui.digicube.party.invalid";
         }
         if (!player.isAlive() || player.isSpectator()) return "gui.digicube.party.unavailable";
+        if (member.egg()) return slot < 0 ? "" : "gui.digicube.scan.egg_party";
         if (member.defeated()) return "gui.digicube.party.defeated";
         data.session(player.getUUID()).creative = player.isCreative();
         if(slot>=0&&needsOrigin(data,member))return "gui.digicube.evolution.origin";
@@ -366,6 +442,8 @@ public final class PartyManager {
     public static List<net.minecraft.resources.Identifier> knownSpecies(PartySavedData data, UUID owner) {
         java.util.Set<net.minecraft.resources.Identifier> known = new java.util.TreeSet<>();
         for (PartyMember member : data.roster().owned(owner)) {
+            // A Digitama is no Digimon to describe yet.
+            if (member.egg()) continue;
             DigimonEntity live = data.live.get(member.id());
             var state = live == null ? member.evolution() : live.evolution();
             known.add(live == null ? member.species() : live.getSpeciesId());
@@ -419,6 +497,48 @@ public final class PartyManager {
         return "";
     }
 
+    /**
+     * Universal control: {@code memberId} casts the attack in its sheet slot {@code slot}. It goes at the partner's own
+     * target, or without one at the enemy on the owner's crosshair ({@link AttackOrders#sighted}); with neither the order is refused,
+     * and so is one on a move further than {@link DigimonEntity#ORDER_GRACE_TICKS} from ready. Nothing is spent on a refusal.
+     */
+    public static String attack(ServerPlayer player, UUID memberId, int slot) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        DigimonEntity live = member == null ? null : data.live.get(member.id());
+        if (live == null) return "gui.digicube.party.unavailable";
+        if (busy(data, member)) return "gui.digicube.party.riding";
+        List<com.digicube.digimon.DigimonAttack> attacks = live.speciesAttacks();
+        if (slot < 0 || slot >= attacks.size()) return "gui.digicube.party.invalid";
+        net.minecraft.world.entity.LivingEntity target = live.hasLiveTarget() ? live.getTarget() : AttackOrders.sighted(player, live);
+        if (target == null) return "gui.digicube.wheel.refused.no_target";
+        // a move behind a gauge waits for it to fill (no cooldown to wait out)
+        if (!live.gaugeFull(attacks.get(slot))) return "gui.digicube.wheel.refused.charging";
+        if (live.readyIn(attacks.get(slot)) > DigimonEntity.ORDER_GRACE_TICKS) return "gui.digicube.wheel.refused.cooling";
+        if (!live.orderAttack(attacks.get(slot), target)) return "gui.digicube.wheel.refused.unable";
+        data.session(member.owner()).sync.invalidate();
+        return "";
+    }
+
+    /**
+     * Universal control: the attack in sheet slot {@code slot} goes on AUTO, or on manual, for {@code memberId}. Saved with
+     * the Digimon, out in the world or not.
+     */
+    public static String auto(ServerPlayer player, UUID memberId, int slot, boolean auto) {
+        PartySavedData data = PartySavedData.get(player.level().getServer());
+        PartyMember member = commanded(data, player, memberId);
+        if (member == null) return "gui.digicube.party.invalid";
+        DigimonEntity live = data.live.get(member.id());
+        var attacks = live != null ? live.speciesAttacks()
+                : DigimonSpeciesRegistry.get(member.species()).map(com.digicube.digimon.DigimonSpecies::attacks).orElse(List.of());
+        if (slot < 0 || slot >= attacks.size()) return "gui.digicube.party.invalid";
+        if (live != null) live.setManual(attacks.get(slot), !auto);
+        else member.setManual(attacks.get(slot).id(), !auto);
+        data.session(member.owner()).sync.invalidate();
+        data.setDirty();
+        return "";
+    }
+
     /** The sender's own party member, or null: orders never reach the collection or another player's roster. */
     private static PartyMember commanded(PartySavedData data, ServerPlayer player, UUID memberId) {
         PartyMember member = data.roster().get(memberId);
@@ -432,6 +552,11 @@ public final class PartyManager {
 
     public static boolean deployed(PartySavedData data, PartyMember member) {
         return data.live.containsKey(member.id());
+    }
+
+    /** The member's incarnation out in the world, or null while it is in the Digivice. */
+    public static DigimonEntity live(PartySavedData data, PartyMember member) {
+        return data.live.get(member.id());
     }
 
     private static DigimonEntity restore(PartyMember member, ServerPlayer player) {

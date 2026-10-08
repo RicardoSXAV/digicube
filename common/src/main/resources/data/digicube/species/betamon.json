@@ -13,6 +13,10 @@
     {
       "target": "digicube:seadramon",
       "min_level": 20
+    },
+    {
+      "target": "digicube:dinohyumon",
+      "min_level": 20
     }
   ],
   "body": {

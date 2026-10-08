@@ -30,6 +30,9 @@ public final class StarterRegressionTest {
     private static final Identifier GABUMON = Constants.id("gabumon");
     private static final Identifier GOMAMON = Constants.id("gomamon");
     private static final Identifier KOROMON = Constants.id("koromon");
+    private static final Identifier TSUNOMON = Constants.id("tsunomon");
+    private static final Identifier BUKAMON = Constants.id("pukamon");
+    private static final Identifier MOTIMON = Constants.id("mochimon");
 
     /** @param args unused */
     public static void main(String[] args) {
@@ -52,10 +55,11 @@ public final class StarterRegressionTest {
 
     private static void checkBundledSet() {
         StarterSet set = StarterSet.load(KNOWN_SPECIES);
-        check(set.species().equals(List.of(AGUMON, GABUMON, GOMAMON)), "the bundled starters are Agumon, Gabumon and Gomamon in that order");
+        check(set.species().equals(List.of(KOROMON, TSUNOMON, BUKAMON, MOTIMON)),
+                "the bundled starters are the four Baby II, Koromon, Tsunomon, Bukamon and Motimon, in that order");
         check(set.level() == 1, "starters begin at level 1");
-        check(set.contains(GABUMON) && !set.contains(KOROMON), "membership follows the list");
-        check(set.asSet().size() == 3, "the set view has one entry per species");
+        check(set.contains(TSUNOMON) && !set.contains(AGUMON), "membership follows the list");
+        check(set.asSet().size() == 4, "the set view has one entry per species");
         StarterSet.registerBuiltIn();
         check(StarterSet.get().equals(set), "the registered set is the bundled one");
     }
@@ -154,24 +158,24 @@ public final class StarterRegressionTest {
         StarterSet set = StarterSet.get();
         StarterSavedData data = new StarterSavedData();
         UUID player = UUID.randomUUID();
-        check(StarterFlow.link(data, set, player, GABUMON, true, sheet -> true) == StarterFlow.Outcome.NOT_OFFERED
+        check(StarterFlow.link(data, set, player, TSUNOMON, true, sheet -> true) == StarterFlow.Outcome.NOT_OFFERED
                 && !data.hasRecord(player), "an unrequested choice writes nothing");
         data.markOffered(player);
-        check(StarterFlow.link(data, set, player, KOROMON, true, sheet -> true) == StarterFlow.Outcome.UNKNOWN
+        check(StarterFlow.link(data, set, player, AGUMON, true, sheet -> true) == StarterFlow.Outcome.UNKNOWN
                 && !data.hasRecord(player), "a non-starter writes nothing");
         boolean[] recordedBeforeGrant = new boolean[1];
-        StarterFlow.Outcome failed = StarterFlow.link(data, set, player, GABUMON, true, sheet -> {
+        StarterFlow.Outcome failed = StarterFlow.link(data, set, player, TSUNOMON, true, sheet -> {
             recordedBeforeGrant[0] = data.hasRecord(player);
             return false;
         });
         check(failed == StarterFlow.Outcome.SPAWN_FAILED && recordedBeforeGrant[0], "the record is written before the partner is created");
         check(!data.hasRecord(player) && data.isOffered(player), "a failed grant rolls the record back and keeps the offer open");
-        StarterFlow.Outcome linked = StarterFlow.link(data, set, player, GABUMON, true, sheet -> sheet.id().equals(GABUMON));
-        check(linked == StarterFlow.Outcome.LINKED && data.choice(player).orElseThrow().equals(GABUMON) && !data.isOffered(player),
+        StarterFlow.Outcome linked = StarterFlow.link(data, set, player, TSUNOMON, true, sheet -> sheet.id().equals(TSUNOMON));
+        check(linked == StarterFlow.Outcome.LINKED && data.choice(player).orElseThrow().equals(TSUNOMON) && !data.isOffered(player),
                 "a successful link records the species and closes the offer");
         data.markOffered(player);
-        check(StarterFlow.link(data, set, player, AGUMON, true, sheet -> true) == StarterFlow.Outcome.ALREADY_CHOSEN
-                && data.choice(player).orElseThrow().equals(GABUMON), "a second choice is refused and leaves the record");
+        check(StarterFlow.link(data, set, player, KOROMON, true, sheet -> true) == StarterFlow.Outcome.ALREADY_CHOSEN
+                && data.choice(player).orElseThrow().equals(TSUNOMON), "a second choice is refused and leaves the record");
     }
 
     private static void checkPayloads() {

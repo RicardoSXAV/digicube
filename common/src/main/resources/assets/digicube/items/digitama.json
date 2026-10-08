@@ -1,0 +1,41 @@
+{
+  "model": {
+    "type": "minecraft:select",
+    "property": "minecraft:component",
+    "component": "digicube:digitama",
+    "cases": [
+      {
+        "when": "digicube:koromon",
+        "model": {
+          "type": "minecraft:model",
+          "model": "digicube:item/digitama/koromon"
+        }
+      },
+      {
+        "when": "digicube:tsunomon",
+        "model": {
+          "type": "minecraft:model",
+          "model": "digicube:item/digitama/tsunomon"
+        }
+      },
+      {
+        "when": "digicube:pukamon",
+        "model": {
+          "type": "minecraft:model",
+          "model": "digicube:item/digitama/pukamon"
+        }
+      },
+      {
+        "when": "digicube:mochimon",
+        "model": {
+          "type": "minecraft:model",
+          "model": "digicube:item/digitama/mochimon"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "digicube:item/digitama"
+    }
+  }
+}

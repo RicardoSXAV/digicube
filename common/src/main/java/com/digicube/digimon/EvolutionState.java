@@ -15,8 +15,38 @@ public final class EvolutionState {
     public boolean initialized,fee;
     public String rejection="";
     public final Set<Identifier> completed=new LinkedHashSet<>();
+    /**
+     * The Champion the first digivolution took, for good: from then on the Rookie digivolves into it alone. Set when
+     * that digivolution commits, or when a Champion with no Rookie form is given one.
+     */
+    public Identifier line;
+    /** Routes the tamer has seen ready in this Digimon's tree; a ready route not in here is news. */
+    public final Set<Identifier> noticed=new LinkedHashSet<>();
     public boolean transitioning(){return phase==Phase.EVOLVING||phase==Phase.REVERTING;}
     public boolean needsOrigin(Identifier current){return EvolutionRules.champion(current)&&!EvolutionRules.validOrigin(origin,current);}
+    /**
+     * The Champion this individual is bound to while it is {@code current}, or null while its choice is still open. A
+     * Champion with no Rookie form is bound to the form it is. Saves from before the choice existed bind to the
+     * Champion they already reached.
+     */
+    public Identifier line(Identifier current) {
+        if(current==null)return line;
+        Identifier rookie=EvolutionRules.rookie(current)?current:EvolutionRules.validOrigin(origin,current)?origin:null;
+        if(rookie==null)return EvolutionRules.champion(current)?current:line;
+        if(line!=null&&EvolutionRules.validOrigin(rookie,line))return line;
+        for(Identifier reached:completed)if(EvolutionRules.validOrigin(rookie,reached))return reached;
+        if(migrationChampion!=null&&EvolutionRules.validOrigin(rookie,migrationChampion))return migrationChampion;
+        return null;
+    }
+    /** What {@code current} at {@code level} may digivolve into now: its line once bound, else every ready route. */
+    public List<Identifier> choices(Identifier current,int level) {
+        var ready=EvolutionRules.targets(current,level);var bound=line(current);
+        return bound==null?ready:ready.stream().filter(bound::equals).toList();
+    }
+    /** Whether {@code current} has a ready route the tamer has not looked at in its tree yet. */
+    public boolean news(Identifier current,int level) {
+        return line(current)==null&&choices(current,level).stream().anyMatch(t->!noticed.contains(t));
+    }
     public void unlock(Identifier current,int level) {
         if(!initialized&&EvolutionRules.rookie(current)&&level>=Progression.CHAMPION_LEVEL){charge=Progression.DIGISOUL_CAPACITY;initialized=true;}
     }
@@ -32,7 +62,8 @@ public final class EvolutionState {
         if(migrationChampion!=null)tag.putString("migration",migrationChampion.toString());
         tag.putInt("charge",charge);tag.putBoolean("initialized",initialized);tag.putInt("cooldown",cooldown);tag.putBoolean("fee",fee);
         tag.putLong("sequence",sequence);tag.putLong("start",start);tag.putInt("duration",duration);tag.putInt("recharge",rechargeTick);
-        tag.putString("rejection",rejection);tag.putString("completed",String.join(",",completed.stream().map(Object::toString).toList()));return tag;
+        tag.putString("rejection",rejection);tag.putString("completed",String.join(",",completed.stream().map(Object::toString).toList()));
+        if(line!=null)tag.putString("line",line.toString());if(!noticed.isEmpty())tag.putString("noticed",String.join(",",noticed.stream().map(Object::toString).toList()));return tag;
     }
     public static EvolutionState load(CompoundTag tag) {
         var s=new EvolutionState();try{s.phase=Phase.valueOf(tag.getStringOr("phase","RESTING"));}catch(IllegalArgumentException ignored){s.phase=Phase.RESTING;}
@@ -41,6 +72,8 @@ public final class EvolutionState {
         s.cooldown=Math.clamp(tag.getIntOr("cooldown",0),0,Progression.EVOLUTION_COOLDOWN);s.fee=tag.getBooleanOr("fee",false);
         s.sequence=Math.max(0,tag.getLongOr("sequence",0));s.start=tag.getLongOr("start",0);s.duration=tag.getIntOr("duration",0);s.rechargeTick=Math.clamp(tag.getIntOr("recharge",0),0,1);
         for(String name:tag.getStringOr("completed","").split(",")){if(name.isBlank())continue;var id=Identifier.tryParse(name);if(id!=null&&s.completed.size()<256)s.completed.add(id);}
+        for(String name:tag.getStringOr("noticed","").split(",")){if(name.isBlank())continue;var id=Identifier.tryParse(name);if(id!=null&&s.noticed.size()<256)s.noticed.add(id);}
+        s.line=optionalId(tag,"line");
         s.rejection=tag.getStringOr("rejection","");
         return s;
     }

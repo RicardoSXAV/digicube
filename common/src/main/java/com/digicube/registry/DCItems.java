@@ -1,10 +1,12 @@
 package com.digicube.registry;
 
 import com.digicube.Constants;
+import com.digicube.digimon.Progression;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 
 import java.util.function.Function;
@@ -31,6 +33,13 @@ public final class DCItems {
     public static final Item DIGIVICE = register(DIGIVICE_KEY, Item::new, new Item.Properties().stacksTo(1));
     public static final Item RECALL_CHIP = register(key("recall_chip"), com.digicube.digivice.RecallChip::new,
             new Item.Properties().stacksTo(16));
+    /** A Digitama out of the scan; its family is the {@link DCDataComponents#DIGITAMA} component. One egg a slot. */
+    public static final Item DIGITAMA = register(key("digitama"), com.digicube.scan.DigitamaItem::new,
+            new Item.Properties().stacksTo(1));
+    /** Food a wild Digimon drops ({@link com.digicube.digimon.DigimonDrops}): the tamer eats it or feeds a hurt partner. */
+    public static final Item DIGIMEAT = register(key("digimeat"), Item::new, new Item.Properties().food(
+            new FoodProperties.Builder().nutrition(Progression.DIGIMEAT_NUTRITION)
+                    .saturationModifier(Progression.DIGIMEAT_SATURATION_MODIFIER).build()));
 
     private DCItems() {}
 

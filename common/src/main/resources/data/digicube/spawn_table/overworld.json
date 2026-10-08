@@ -1,66 +1,286 @@
 {
   "dimension": "minecraft:overworld",
+  "bands": {
+    "wild": {"baby_ii": 2, "child": 4},
+    "dangerous": {"baby_ii": 4, "child": 8}
+  },
+  "regions": [
+    {"id": "plains", "danger": "calm", "biomes": ["plains", "sunflower_plains"]},
+    {"id": "meadows", "danger": "calm", "biomes": ["meadow", "cherry_grove"]},
+    {"id": "forests", "danger": "calm", "biomes": ["forest", "flower_forest", "birch_forest", "old_growth_birch_forest"]},
+    {"id": "beaches", "danger": "calm", "biomes": ["beach"]},
+    {"id": "rivers", "danger": "calm", "biomes": ["river"]},
+    {"id": "mushroom_fields", "danger": "calm", "biomes": ["mushroom_fields"]},
+    {"id": "taigas", "danger": "wild", "biomes": ["taiga", "snowy_taiga", "old_growth_pine_taiga", "old_growth_spruce_taiga"]},
+    {"id": "snowy_plains", "danger": "wild", "biomes": ["snowy_plains"]},
+    {"id": "dark_forests", "danger": "wild", "biomes": ["dark_forest"]},
+    {"id": "savannas", "danger": "wild", "biomes": ["savanna", "savanna_plateau"]},
+    {"id": "desert", "danger": "wild", "biomes": ["desert"]},
+    {"id": "swamps", "danger": "wild", "biomes": ["swamp", "mangrove_swamp"]},
+    {"id": "stony_shores", "danger": "wild", "biomes": ["stony_shore"]},
+    {"id": "snowy_beaches", "danger": "wild", "biomes": ["snowy_beach"]},
+    {"id": "frozen_rivers", "danger": "wild", "biomes": ["frozen_river"]},
+    {"id": "oceans", "danger": "wild", "biomes": ["ocean", "cold_ocean"]},
+    {"id": "warm_oceans", "danger": "wild", "biomes": ["warm_ocean", "lukewarm_ocean"]},
+    {"id": "jungles", "danger": "dangerous", "biomes": ["jungle", "sparse_jungle", "bamboo_jungle"]},
+    {"id": "badlands", "danger": "dangerous", "biomes": ["badlands", "eroded_badlands", "wooded_badlands"]},
+    {"id": "windswept_hills", "danger": "dangerous", "biomes": ["windswept_hills", "windswept_gravelly_hills", "windswept_forest", "windswept_savanna"]},
+    {"id": "mountains", "danger": "dangerous", "biomes": ["grove", "snowy_slopes", "frozen_peaks", "jagged_peaks", "stony_peaks"]},
+    {"id": "ice_spikes", "danger": "dangerous", "biomes": ["ice_spikes"]},
+    {"id": "pale_garden", "danger": "dangerous", "biomes": ["pale_garden"]},
+    {"id": "deep_oceans", "danger": "dangerous", "biomes": ["deep_ocean", "deep_lukewarm_ocean", "deep_cold_ocean"]},
+    {"id": "frozen_oceans", "danger": "dangerous", "biomes": ["frozen_ocean", "deep_frozen_ocean"]}
+  ],
   "entries": [
     {
       "species": "koromon",
-      "weight": 30,
-      "level": [1, 4],
+      "weight": 24,
+      "level": [1, 6],
       "pack": [1, 3],
-      "biomes": ["minecraft:plains", "minecraft:meadow", "#minecraft:is_forest"],
-      "placement": "land",
-      "time": "any"
-    },
-    {
-      "species": "tsunomon",
-      "weight": 30,
-      "level": [1, 4],
-      "pack": [1, 3],
-      "biomes": ["#minecraft:is_taiga", "minecraft:snowy_plains"],
+      "regions": ["plains", "meadows", "forests", "savannas", "badlands"],
       "placement": "land",
       "time": "any"
     },
     {
       "species": "agumon",
-      "weight": 14,
-      "level": [4, 9],
+      "weight": 16,
+      "level": [3, 11],
       "pack": [1, 2],
-      "biomes": ["#minecraft:is_savanna", "minecraft:desert", "minecraft:plains"],
+      "regions": ["plains", "savannas", "desert", "badlands"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "betamon",
+      "weight": 16,
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["rivers", "swamps", "deep_oceans"],
+      "placement": "water",
+      "time": "any"
+    },
+    {
+      "species": "greymon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["savannas", "desert", "badlands"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "meramon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["desert", "badlands"],
+      "placement": "land",
+      "time": "night"
+    },
+    {
+      "species": "seadramon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["deep_oceans"],
+      "placement": "water",
+      "time": "any"
+    },
+    {
+      "species": "dinohyumon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["jungles"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "tsunomon",
+      "weight": 24,
+      "level": [1, 6],
+      "pack": [1, 3],
+      "regions": ["meadows", "taigas", "snowy_plains", "mountains"],
       "placement": "land",
       "time": "any"
     },
     {
       "species": "gabumon",
-      "weight": 14,
-      "level": [4, 9],
+      "weight": 16,
+      "level": [3, 11],
       "pack": [1, 2],
-      "biomes": ["#minecraft:is_taiga", "minecraft:snowy_plains", "#minecraft:is_forest"],
+      "regions": ["forests", "taigas", "snowy_plains", "mountains"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "elecmon",
+      "weight": 16,
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["plains", "meadows", "savannas"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "garurumon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["taigas", "snowy_plains", "mountains"],
+      "placement": "land",
+      "time": "night"
+    },
+    {
+      "species": "centalmon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["plains", "savannas"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "darktyrannomon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["badlands", "jungles"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "leomon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["savannas", "windswept_hills"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "pukamon",
+      "weight": 24,
+      "level": [1, 6],
+      "pack": [1, 3],
+      "regions": ["beaches", "rivers", "snowy_beaches", "stony_shores", "ice_spikes"],
       "placement": "land",
       "time": "any"
     },
     {
       "species": "gomamon",
       "weight": 16,
-      "level": [3, 8],
-      "pack": [1, 3],
-      "biomes": ["#minecraft:is_ocean", "#minecraft:is_river", "#minecraft:is_beach"],
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["rivers", "oceans", "warm_oceans", "deep_oceans", "frozen_oceans"],
       "placement": "water",
       "time": "any"
     },
     {
-      "species": "greymon",
-      "weight": 3,
-      "level": [14, 20],
+      "species": "ganimon",
+      "weight": 16,
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["beaches", "stony_shores", "swamps"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "ikkakumon",
+      "weight": 4,
+      "level": [12, 22],
       "pack": [1, 1],
-      "biomes": ["#minecraft:is_badlands", "#minecraft:is_savanna", "minecraft:desert"],
+      "regions": ["frozen_oceans", "frozen_rivers"],
+      "placement": "water",
+      "time": "any"
+    },
+    {
+      "species": "gesomon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["warm_oceans", "deep_oceans"],
+      "placement": "water",
+      "time": "night"
+    },
+    {
+      "species": "mojyamon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["mountains", "ice_spikes"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "shellmon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["beaches", "stony_shores"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "mochimon",
+      "weight": 24,
+      "level": [1, 6],
+      "pack": [1, 3],
+      "regions": ["forests", "dark_forests", "jungles"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "tentomon",
+      "weight": 16,
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["forests", "dark_forests", "jungles"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "gotsumon",
+      "weight": 16,
+      "level": [3, 11],
+      "pack": [1, 2],
+      "regions": ["stony_shores", "windswept_hills", "mountains"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "kabuterimon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["jungles"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "monochromon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["savannas", "badlands"],
+      "placement": "land",
+      "time": "any"
+    },
+    {
+      "species": "digmon",
+      "weight": 4,
+      "level": [12, 22],
+      "pack": [1, 1],
+      "regions": ["desert", "badlands"],
       "placement": "land",
       "time": "any"
     },
     {
       "species": "golemon",
-      "weight": 3,
-      "level": [14, 20],
+      "weight": 4,
+      "level": [12, 22],
       "pack": [1, 1],
-      "biomes": ["minecraft:stony_peaks", "minecraft:stony_shore", "minecraft:windswept_hills"],
+      "regions": ["windswept_hills", "mountains", "stony_shores"],
       "placement": "land",
       "time": "any"
     }

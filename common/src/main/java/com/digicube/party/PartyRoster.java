@@ -22,8 +22,9 @@ public final class PartyRoster {
     private PartyRoster(List<PartyMember> saved) {
         // Repair invalid/duplicate slots deterministically without losing an individual.
         for (PartyMember member : saved) {
-            if (member.slot() < -1 || member.slot() >= PARTY_SIZE || member.defeated()
-                    || member.active() && inSlot(member.owner(), member.slot()) != null) {
+            // One already in the Digivice is left alone, so the slot it is to go back to survives the reload.
+            if (member.slot() != -1 && (member.slot() < -1 || member.slot() >= PARTY_SIZE || member.defeated() || member.egg()
+                    || member.active() && inSlot(member.owner(), member.slot()) != null)) {
                 member.setSlot(-1);
             }
             members.putIfAbsent(member.id(), member);
@@ -63,15 +64,15 @@ public final class PartyRoster {
 
     public boolean add(PartyMember member) {
         if (members.containsKey(member.id())) return false;
-        member.setSlot(member.defeated() ? -1 : freeSlot(member.owner()));
+        member.setSlot(member.defeated() || member.egg() ? -1 : freeSlot(member.owner()));
         members.put(member.id(), member);
         return true;
     }
 
-    /** Replaces a slot atomically; a forged owner/id or slot never changes anything. */
+    /** Replaces a slot atomically; a forged owner/id or slot never changes anything, and a Digitama stays where it is. */
     public boolean select(UUID owner, UUID id, int slot) {
         PartyMember member = members.get(id);
-        if (member == null || !member.owner().equals(owner) || member.defeated()
+        if (member == null || !member.owner().equals(owner) || member.defeated() || member.egg()
                 || slot < -1 || slot >= PARTY_SIZE) return false;
         if (slot >= 0) {
             // Whoever held the slot takes the mover's old one: two party members trade places, a newcomer sends it to reserve.

@@ -31,6 +31,7 @@ public final class DigiCube {
                 Services.PLATFORM.getPlatformName(),
                 Services.PLATFORM.getEnvironmentName());
 
+        com.digicube.registry.DCDataComponents.init();
         DCItems.init();
         DCEntityTypes.init();
         Services.PLATFORM.registerEntityAttributes(DCEntityTypes.DIGIMON, DigimonEntity.createAttributes());

@@ -1,8 +1,11 @@
 package com.digicube.spawn;
 
 import com.digicube.Constants;
+import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesBootstrap;
 import com.digicube.digimon.DigimonSpeciesRegistry;
+import com.digicube.digimon.DigimonStage;
+import com.digicube.digimon.Progression;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -22,7 +25,7 @@ import net.minecraft.world.level.biome.Biome;
 import java.util.List;
 import java.util.function.Predicate;
 
-/** Validates the bundled spawn tables, the loader's rejections, the filters, the weighted pick and the settings codec. */
+/** Validates the bundled spawn tables, their regions and level bands, the loader's rejections, the filters, the weighted pick and the settings codec. */
 public final class SpawnTableRegressionTest {
     private SpawnTableRegressionTest() {}
 
@@ -35,11 +38,12 @@ public final class SpawnTableRegressionTest {
             Bootstrap.bootStrap();
             DigimonSpeciesBootstrap.registerBuiltIn();
             checkBundledTables();
+            checkRegions();
             checkValidation();
             checkFilters();
             checkWeightedPick();
             checkSettings();
-            Constants.LOG.info("Spawn table regression checks passed: bundled tables, validation, filters, weighted pick and settings.");
+            Constants.LOG.info("Spawn table regression checks passed: bundled tables, regions and bands, validation, filters, weighted pick and settings.");
         } finally {
             Util.shutdownExecutors();
         }
@@ -49,31 +53,118 @@ public final class SpawnTableRegressionTest {
         List<SpawnTable> tables = BundledSpawnTableLoader.load(KNOWN_SPECIES);
         check(tables.size() == 1 && tables.getFirst().dimension().equals(Level.OVERWORLD), "one bundled table, for the overworld");
         SpawnTable overworld = tables.getFirst();
-        check(overworld.entries().size() == 7, "starter habitats plus the rare stone champion");
-        SpawnEntry golemon = overworld.entries().stream().filter(entry -> entry.species().equals(Constants.id("golemon"))).findFirst().orElseThrow();
-        check(golemon.weight() == 3 && golemon.minLevel() == 14 && golemon.maxLevel() == 20 && golemon.maxPack() == 1,
-                "Golemon is a rare solitary adult in rocky habitats");
-        check(overworld.entries().stream().noneMatch(entry -> entry.species().equals(Constants.id("garurumon"))),
-                "Garurumon stays out of the wild until it has attacks");
         check(overworld.entries().stream().allMatch(entry -> KNOWN_SPECIES.test(entry.species())), "every entry names a known species");
-        for (SpawnEntry entry : overworld.entries()) {
-            boolean swimmer = entry.species().equals(Constants.id("gomamon"));
-            check((entry.placement() == SpawnPlacement.WATER) == swimmer, "only Gomamon spawns in water");
-            check(entry.time() == SpawnTime.ANY, "the starter table has no day or night entries yet");
+        for (DigimonSpecies species : DigimonSpeciesRegistry.all()) {
+            check(overworld.entries().stream().anyMatch(entry -> entry.species().equals(species.id())), species.id() + " lives in the wild");
         }
-        SpawnEntry greymon = overworld.entries().stream().filter(entry -> entry.species().equals(Constants.id("greymon"))).findFirst().orElseThrow();
-        check(greymon.weight() == 3 && greymon.minLevel() == 14 && greymon.maxLevel() == 20 && greymon.maxPack() == 1,
-                "Greymon is rare, strong and alone");
-        SpawnEntry koromon = overworld.entries().getFirst();
-        check(koromon.species().equals(Constants.id("koromon")) && koromon.weight() == 30 && koromon.minLevel() == 1
-                && koromon.maxLevel() == 4 && koromon.minPack() == 1 && koromon.maxPack() == 3 && koromon.biomes().size() == 3,
-                "Koromon leads the table as the common early spawn");
-        check(koromon.biomes().get(2).isTag() && koromon.biomes().get(2).tag().equals(BiomeTags.IS_FOREST)
-                && !koromon.biomes().getFirst().isTag() && koromon.biomes().getFirst().reference().equals("minecraft:plains"),
-                "biome ids and #tags both parse");
+        check(overworld.entries().size() == DigimonSpeciesRegistry.size(), "one entry per species");
+        for (SpawnEntry entry : overworld.entries()) {
+            DigimonStage stage = DigimonSpeciesRegistry.getOrThrow(entry.species()).stage();
+            int[] calm = switch (stage) {
+                case BABY_II -> new int[] {24, 1, 6, 3};
+                case CHILD -> new int[] {16, 3, 11, 2};
+                default -> new int[] {4, 12, 22, 1};
+            };
+            check(entry.weight() == calm[0] && entry.minLevel() == calm[1] && entry.maxLevel() == calm[2] && entry.maxPack() == calm[3],
+                    entry.species() + " has its stage's weight, calm levels and pack");
+            check(entry.biomes().isEmpty() && !entry.regions().isEmpty(), entry.species() + " lives in named regions");
+        }
+        check(overworld.entries().getFirst().species().equals(Constants.id("koromon")), "Koromon leads the table as the common early spawn");
+        SpawnEntry gesomon = entry(overworld, "gesomon");
+        check(gesomon.placement() == SpawnPlacement.WATER && gesomon.time() == SpawnTime.NIGHT, "Gesomon rises from warm seas at night");
+
+        // The bands: calm, wild and dangerous land, each a step up for Baby II and Rookies; Champions stay 12-22.
+        check(overworld.levelBonus(SpawnDanger.CALM, DigimonStage.CHILD) == 0 && overworld.levelBonus(SpawnDanger.WILD, DigimonStage.BABY_II) == 2
+                && overworld.levelBonus(SpawnDanger.WILD, DigimonStage.CHILD) == 4 && overworld.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.BABY_II) == 4
+                && overworld.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.CHILD) == 8 && overworld.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.ADULT) == 0
+                && overworld.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.ARMOR) == 0, "bands: Baby II +2/+4, Rookies +4/+8, Champions none");
+        for (SpawnEntry entry : overworld.entries()) {
+            DigimonStage stage = DigimonSpeciesRegistry.getOrThrow(entry.species()).stage();
+            for (String id : entry.regions()) {
+                int top = entry.maxLevel() + overworld.levelBonus(overworld.region(id).danger(), stage);
+                check(stage != DigimonStage.CHILD || top < Progression.CHAMPION_LEVEL, entry.species() + " in " + id + " stays below the Champion level");
+                check(stage != DigimonStage.BABY_II || top <= Progression.GROWTH_LEVEL, entry.species() + " in " + id + " stays a Baby II's level");
+            }
+        }
+        check(overworld.danger(Identifier.parse("minecraft:plains")) == SpawnDanger.CALM
+                && overworld.danger(Identifier.parse("minecraft:dark_forest")) == SpawnDanger.WILD
+                && overworld.danger(Identifier.parse("minecraft:eroded_badlands")) == SpawnDanger.DANGEROUS
+                && overworld.danger(Identifier.parse("minecraft:deep_dark")) == SpawnDanger.CALM, "a biome's danger is its region's, else calm");
+        check(overworld.region(Identifier.parse("minecraft:snowy_slopes")).id().equals("mountains"), "the mountains hold the snowy slopes");
+
+        // Every family has young Digimon in calm land, and Rookies where the land is dangerous.
+        for (String[] family : new String[][] {{"koromon", "agumon", "betamon"}, {"tsunomon", "gabumon", "elecmon"},
+                {"pukamon", "gomamon", "ganimon"}, {"mochimon", "tentomon", "gotsumon"}}) {
+            check(entry(overworld, family[0]).regions().stream().anyMatch(id -> overworld.region(id).danger() == SpawnDanger.CALM),
+                    family[0] + " lives in calm land");
+            check(java.util.Arrays.stream(family).skip(1).anyMatch(rookie -> entry(overworld, rookie).regions().stream()
+                    .anyMatch(id -> overworld.region(id).danger() == SpawnDanger.DANGEROUS)), family[0] + "'s family has Rookies in dangerous land");
+        }
+        check(entry(overworld, "agumon").regions().contains("badlands") && entry(overworld, "gabumon").regions().contains("mountains"),
+                "Agumon roams the badlands and Gabumon the mountains");
         SpawnTables.registerBuiltIn();
         check(SpawnTables.size() == 1 && SpawnTables.get(Level.OVERWORLD).isPresent() && SpawnTables.get(Level.NETHER).isEmpty(),
                 "the registry serves the overworld only");
+    }
+
+    private static SpawnEntry entry(SpawnTable table, String species) {
+        return table.entries().stream().filter(entry -> entry.species().equals(Constants.id(species))).findFirst().orElseThrow();
+    }
+
+    private static void checkRegions() {
+        JsonObject table = GsonHelper.parse("""
+                {"dimension":"minecraft:overworld","bands":{"dangerous":{"child":10}},
+                 "regions":[{"id":"fields","danger":"calm","biomes":["plains","sunflower_plains"]},
+                            {"id":"rough","danger":"dangerous","biomes":["minecraft:badlands"]}],
+                 "entries":[{"species":"agumon","weight":10,"level":[4,9],"regions":["rough"],"biomes":["minecraft:desert"]},
+                            {"species":"koromon","weight":10,"level":[1,4],"regions":["fields"]}]}
+                """);
+        SpawnTable parsed = BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES);
+        SpawnEntry agumon = parsed.entries().getFirst();
+        check(agumon.matches(SpawnPlacement.LAND, true, false, id -> false, tag -> false, "rough"), "a region on the entry's list matches");
+        check(!agumon.matches(SpawnPlacement.LAND, true, false, id -> false, tag -> false, "fields"), "another region does not");
+        check(agumon.matches(SpawnPlacement.LAND, true, false, id -> id.equals(Identifier.parse("minecraft:desert")), tag -> false, null),
+                "an entry's biomes still match outside its regions");
+        check(parsed.candidates(SpawnPlacement.LAND, true, false, id -> false, tag -> false, "fields").equals(List.of(parsed.entries().get(1))),
+                "candidates filter by the spot's region");
+        check(parsed.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.CHILD) == 10 && parsed.levelBonus(SpawnDanger.DANGEROUS, DigimonStage.BABY_II) == 0
+                && parsed.levelBonus(SpawnDanger.WILD, DigimonStage.CHILD) == 0, "missing bands add nothing");
+        check(parsed.danger(Identifier.parse("minecraft:sunflower_plains")) == SpawnDanger.CALM
+                && parsed.danger(Identifier.parse("minecraft:badlands")) == SpawnDanger.DANGEROUS, "bare region biomes are vanilla ids");
+
+        JsonObject entry = table.getAsJsonArray("entries").get(1).getAsJsonObject();
+        JsonArray unknown = new JsonArray();
+        unknown.add("nowhere");
+        entry.add("regions", unknown);
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "an unknown region rejected");
+        JsonArray fields = new JsonArray();
+        fields.add("fields");
+        entry.add("regions", fields);
+        JsonObject rough = table.getAsJsonArray("regions").get(1).getAsJsonObject();
+        JsonArray twice = new JsonArray();
+        twice.add("plains");
+        rough.add("biomes", twice);
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "a biome in two regions rejected");
+        JsonArray tagged = new JsonArray();
+        tagged.add("#minecraft:is_badlands");
+        rough.add("biomes", tagged);
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "a tag in a region rejected");
+        JsonArray badlands = new JsonArray();
+        badlands.add("badlands");
+        rough.add("biomes", badlands);
+        rough.addProperty("danger", "deadly");
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "an unknown danger rejected");
+        rough.addProperty("danger", "dangerous");
+        rough.addProperty("id", "Rough Land");
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "a malformed region id rejected");
+        rough.addProperty("id", "fields");
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "a region id twice rejected");
+        rough.addProperty("id", "rough");
+        table.getAsJsonObject("bands").getAsJsonObject("dangerous").addProperty("child", -2);
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "a band that lowers levels rejected");
+        table.getAsJsonObject("bands").getAsJsonObject("dangerous").remove("child");
+        table.getAsJsonObject("bands").getAsJsonObject("dangerous").addProperty("toddler", 2);
+        rejects(() -> BundledSpawnTableLoader.parse("test", table, KNOWN_SPECIES), "an unknown stage in a band rejected");
     }
 
     private static void checkValidation() {
@@ -180,6 +271,14 @@ public final class SpawnTableRegressionTest {
         }
         double fraction = commons / (double) picks;
         check(fraction > 0.72 && fraction < 0.78, "weights 30:10 pick the common entry about three times in four, got " + fraction);
+        // A crowd: three Koromon already near divide its weight by four, 30 -> 7 against 10.
+        java.util.Map<Identifier, Integer> crowd = java.util.Map.of(common.species(), 3);
+        check(SpawnTable.crowdedWeight(common, crowd) == 7 && SpawnTable.crowdedWeight(rare, crowd) == 10, "each one near divides its species' weight");
+        check(SpawnTable.crowdedWeight(rare, java.util.Map.of(rare.species(), 50)) == 1, "a crowded species keeps a weight of one");
+        int crowdedCommons = 0;
+        for (int index = 0; index < picks; index++) if (SpawnTable.pick(random, candidates, crowd) == common) crowdedCommons++;
+        double crowded = crowdedCommons / (double) picks;
+        check(crowded > 0.38 && crowded < 0.45, "with three Koromon near, Koromon falls from three in four to 7 in 17, got " + crowded);
         check(SpawnTable.pick(random, List.of()) == null, "nothing to pick from gives null");
         check(SpawnTable.pick(random, List.of(rare)) == rare, "a single candidate always wins");
         for (int index = 0; index < 200; index++) {
@@ -191,13 +290,13 @@ public final class SpawnTableRegressionTest {
 
     private static void checkSettings() {
         WildSpawnSettings settings = new WildSpawnSettings();
-        check(settings.enabled() && settings.intervalTicks() == 400 && settings.maxPerPlayer() == 4 && settings.maxPerLevel() == 24
+        check(settings.enabled() && settings.intervalTicks() == 200 && settings.maxPerPlayer() == 8 && settings.maxPerLevel() == 48
                 && settings.minDistance() == 24 && settings.maxDistance() == 48 && settings.levelBonusPer500Blocks() == 0
                 && !settings.debug(), "defaults match the design");
         check(!settings.isDirty(), "a fresh settings object is clean");
-        check(settings.cap(1) == 4 && settings.cap(3) == 12 && settings.cap(10) == 24, "the cap grows per player up to the dimension cap");
+        check(settings.roomFor(7, 47) && !settings.roomFor(8, 0) && !settings.roomFor(0, 48), "the cap counts around a player and in the whole dimension");
         WildSpawnSettings fromEmpty = WildSpawnSettings.CODEC.parse(NbtOps.INSTANCE, new CompoundTag()).getOrThrow();
-        check(fromEmpty.intervalTicks() == 400 && fromEmpty.maxDistance() == 48 && fromEmpty.enabled(), "missing fields fill in the defaults");
+        check(fromEmpty.intervalTicks() == 200 && fromEmpty.maxDistance() == 48 && fromEmpty.enabled(), "missing fields fill in the defaults");
 
         settings.setEnabled(false);
         check(settings.setIntervalTicks(5) == 20 && settings.intervalTicks() == 20, "intervals never drop below one second");

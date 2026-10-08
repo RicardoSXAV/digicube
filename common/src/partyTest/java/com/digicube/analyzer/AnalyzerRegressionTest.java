@@ -10,7 +10,6 @@ import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.FreezeMark;
 import com.digicube.digimon.IceCombo;
 import com.digicube.entity.CombatMarkState;
-import com.digicube.entity.MegaFlameEntity;
 import com.digicube.entity.PepperBreathEntity;
 import com.digicube.party.PartySnapshotPayload;
 import io.netty.buffer.Unpooled;
@@ -72,8 +71,9 @@ public final class AnalyzerRegressionTest {
                 "a mark with its own length reports it; Held lasts as long as the hold");
         check(CombatMark.ticks(attack("gesomon", "deadly_shade")) == 40 && CombatMark.ticks(attack("centalmon", "hunting_cannon")) == 80,
                 "Inked and Exposed last what the shot's data says");
-        check(CombatMark.ticks(attack("agumon", "pepper_breath")) == PepperBreathEntity.BURN_TICKS && CombatMark.ticks(attack("greymon", "mega_flame")) == MegaFlameEntity.BURN_TICKS
-                && PepperBreathEntity.BURN_TICKS < MegaFlameEntity.BURN_TICKS, "the two fire shots burn for their own lengths");
+        int megaFlameBurn = com.digicube.digimon.KineticAttacks.get(attack("greymon", "mega_flame")).burn();
+        check(CombatMark.ticks(attack("agumon", "pepper_breath")) == PepperBreathEntity.BURN_TICKS && CombatMark.ticks(attack("greymon", "mega_flame")) == megaFlameBurn
+                && PepperBreathEntity.BURN_TICKS < megaFlameBurn, "the two fire shots burn for their own lengths");
         StringBuilder guide = new StringBuilder();
         for (DigimonSpecies species : DigimonSpeciesRegistry.all()) for (DigimonAttack move : species.attacks()) {
             CombatMark mark = CombatMark.of(move);

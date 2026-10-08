@@ -6,5 +6,14 @@
   "base_defence": 2,
   "base_speed": 0.25,
   "attacks": ["bubble_blow"],
-  "evolutions": []
+  "evolutions": [
+    {
+      "target": "digicube:gabumon",
+      "min_level": 10
+    },
+    {
+      "target": "digicube:elecmon",
+      "min_level": 10
+    }
+  ]
 }

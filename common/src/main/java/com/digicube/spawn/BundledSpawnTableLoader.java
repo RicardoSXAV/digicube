@@ -1,6 +1,7 @@
 package com.digicube.spawn;
 
 import com.digicube.Constants;
+import com.digicube.digimon.DigimonStage;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.core.registries.Registries;
@@ -13,8 +14,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -50,7 +53,8 @@ public final class BundledSpawnTableLoader {
 
     /**
      * Decode one table. Unqualified species names use the mod namespace; unqualified
-     * biome names are vanilla biomes.
+     * biome names are vanilla biomes. {@code regions} and {@code bands} are optional:
+     * without them every spot is calm.
      * @param name         table name, used in error messages
      * @param json         table data
      * @param knownSpecies tells whether a species id is registered
@@ -59,15 +63,42 @@ public final class BundledSpawnTableLoader {
     public static SpawnTable parse(String name, JsonObject json, Predicate<Identifier> knownSpecies) {
         Identifier dimension = Identifier.tryParse(GsonHelper.getAsString(json, "dimension"));
         if (dimension == null) throw new IllegalArgumentException(name + ": invalid dimension id");
-        var entries = new ArrayList<SpawnEntry>();
-        for (var element : GsonHelper.getAsJsonArray(json, "entries")) {
-            entries.add(entry(name, GsonHelper.convertToJsonObject(element, "spawn entry"), knownSpecies));
-        }
         try {
-            return new SpawnTable(ResourceKey.create(Registries.DIMENSION, dimension), entries);
+            var regions = new ArrayList<SpawnRegion>();
+            if (json.has("regions")) {
+                for (var element : GsonHelper.getAsJsonArray(json, "regions")) regions.add(region(GsonHelper.convertToJsonObject(element, "region")));
+            }
+            var bands = new EnumMap<SpawnDanger, Map<DigimonStage, Integer>>(SpawnDanger.class);
+            if (json.has("bands")) {
+                for (var band : GsonHelper.getAsJsonObject(json, "bands").entrySet()) {
+                    var levels = new EnumMap<DigimonStage, Integer>(DigimonStage.class);
+                    for (var level : GsonHelper.convertToJsonObject(band.getValue(), "band").entrySet()) {
+                        levels.put(DigimonStage.byId(level.getKey()), GsonHelper.convertToInt(level.getValue(), "band level"));
+                    }
+                    bands.put(SpawnDanger.byId(band.getKey()), levels);
+                }
+            }
+            var entries = new ArrayList<SpawnEntry>();
+            for (var element : GsonHelper.getAsJsonArray(json, "entries")) {
+                entries.add(entry(name, GsonHelper.convertToJsonObject(element, "spawn entry"), knownSpecies));
+            }
+            return new SpawnTable(ResourceKey.create(Registries.DIMENSION, dimension), entries, regions, bands);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(name + ": " + e.getMessage(), e);
         }
+    }
+
+    private static SpawnRegion region(JsonObject json) {
+        var biomes = new ArrayList<Identifier>();
+        for (var element : GsonHelper.getAsJsonArray(json, "biomes")) {
+            String reference = GsonHelper.convertToString(element, "biome");
+            Identifier biome = Identifier.tryParse(reference);
+            if (biome == null || biome.getPath().isEmpty() || reference.startsWith("#")) {
+                throw new IllegalArgumentException("A region lists biome ids, not " + reference);
+            }
+            biomes.add(biome);
+        }
+        return new SpawnRegion(GsonHelper.getAsString(json, "id"), SpawnDanger.byId(GsonHelper.getAsString(json, "danger")), biomes);
     }
 
     private static SpawnEntry entry(String table, JsonObject json, Predicate<Identifier> knownSpecies) {
@@ -82,7 +113,11 @@ public final class BundledSpawnTableLoader {
                     biomes.add(BiomeFilter.parse(GsonHelper.convertToString(element, "biome")));
                 }
             }
-            return new SpawnEntry(species, GsonHelper.getAsInt(json, "weight"), level[0], level[1], pack[0], pack[1], biomes,
+            var regions = new ArrayList<String>();
+            if (json.has("regions")) {
+                for (var element : GsonHelper.getAsJsonArray(json, "regions")) regions.add(GsonHelper.convertToString(element, "region"));
+            }
+            return new SpawnEntry(species, GsonHelper.getAsInt(json, "weight"), level[0], level[1], pack[0], pack[1], biomes, regions,
                     SpawnPlacement.byId(GsonHelper.getAsString(json, "placement", SpawnPlacement.LAND.getId())),
                     SpawnTime.byId(GsonHelper.getAsString(json, "time", SpawnTime.ANY.getId())));
         } catch (IllegalArgumentException e) {

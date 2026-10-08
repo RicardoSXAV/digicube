@@ -9,7 +9,16 @@
     "comet_hammer",
     "hardest_punch"
   ],
-  "evolutions": [],
+  "evolutions": [
+    {
+      "target": "digicube:monochromon",
+      "min_level": 20
+    },
+    {
+      "target": "digicube:golemon",
+      "min_level": 20
+    }
+  ],
   "body": {
     "model_scale": 0.25,
     "width": 0.85,

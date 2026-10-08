@@ -19,9 +19,10 @@ boxes and bundles inside them, then the owner's ender chest. The chip takes it f
 `RecallPath.surface`). Nowhere found, it is summoned from the ledger's stack snapshot, straight down out of
 the sky. The old copy is dead: any container a player opens drops revoked copies at once.
 
-Partners live in the Digivice: the tick it leaves its tamer, `PartyManager.checkDevice` sends every deployed
-partner to the Digispace (a mount carrying its rider waits until they are down) and nobody is deployed or
-given out meanwhile. The creative inventory's cursor is client-only, so the client reports a Digivice held
+Partners live in the Digivice: the tick it leaves its tamer (dropped, stored, or left on the ground by a death),
+`PartyManager.checkDevice` sends every deployed partner to the Digispace (a mount carrying its rider waits until they
+are down) and nobody is deployed or given out meanwhile. Each remembers its slot (`PartyMember.returnSlot`, saved), so
+the tick the Digivice is back with its tamer the same party comes out in the same slots (`PartyManager.regroup`). The creative inventory's cursor is client-only, so the client reports a Digivice held
 there (`DigiviceCursorPayload`, believed only in creative) and creative alone waits `CREATIVE_GRACE_TICKS` (3)
 for that report.
 
@@ -45,7 +46,8 @@ landing; `thirdPersonHeld` is the resting hand until it is drawn. The chip break
 billboarded; watchers hear the cues from that hand.
 
 The ledger snapshots stack components and revokes the old token before delivery; chip remainders require a
-free slot. `RecallMotion` breaks the chip's exact pixels apart; `RecallFlight`/`RecallVisuals` keep the
+free slot. `RecallMotion` breaks the chip's exact pixels apart (a used Digitama breaks the same way,
+`DigitamaVisuals`, see [domain.md](domain.md#the-scan-and-the-digitama)); `RecallFlight`/`RecallVisuals` keep the
 dropped model's world pose, spin it up to a hover and fly it from where it lies (within the receiver's view
 distance, `RecallChip.flyRange`, sent in the packet so the cooldown matches: a device the player can see never
 vanishes; a long flight holds about 45 blocks a second), or bring it in from the remote source's bearing after

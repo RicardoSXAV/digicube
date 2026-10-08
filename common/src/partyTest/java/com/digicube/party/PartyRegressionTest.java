@@ -1,6 +1,8 @@
 package com.digicube.party;
 
 import com.digicube.Constants;
+import com.digicube.digimon.DigimonAttack;
+import com.digicube.digimon.ManualAttacks;
 import com.digicube.digimon.Progression;
 import com.digicube.dev.DevActionPayload;
 import com.digicube.dev.DevActions;
@@ -18,7 +20,9 @@ import net.minecraft.world.level.storage.SavedDataStorage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /** Standalone server-safe regression suite; requires no game, test framework or extra dependency. */
@@ -111,15 +115,23 @@ public final class PartyRegressionTest {
         check(!external.equals(restored.entityData()), "snapshots cannot be mutated through accessors");
 
         PartyMember dead = member(owner);
-        dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), dead.entityData());
+        CompoundTag fellBurning = dead.entityData();
+        fellBurning.putShort("Fire", (short) 90);
+        fellBurning.putInt("TicksFrozen", 40);
+        fellBurning.put("active_effects", new net.minecraft.nbt.ListTag());
+        dead.capture(dead.species(), "", 0, 20, dead.level(), dead.xp(), fellBurning);
         roster.add(dead);
         dead.defeat(Progression.DEFEAT_REST_TICKS);
         check(!dead.active() && !roster.select(owner, dead.id(), 0), "party storage cannot resurrect dead partners");
+        CompoundTag fellData = dead.entityData();
+        check(!fellData.contains("Fire") && !fellData.contains("TicksFrozen") && !fellData.contains("active_effects")
+                && fellData.getStringOr("FutureTrainingData", "").equals("retained"),
+                "a partner that fell burning, iced or under effects keeps none of them, and the rest of its data");
         PartyMember full = member(owner);
         full.setHealth(20);
         roster.add(full);
         int resting = (int) roster.owned(owner).stream().filter(m -> m.health() > 0 && m.health() < m.maxHealth()).count();
-        float pulse = 20.0F * Progression.RESERVE_REGEN_INTERVAL_TICKS / Progression.RESERVE_FULL_HEAL_TICKS;
+        float pulse = 20.0F * Progression.RESERVE_REGEN_INTERVAL_TICKS / Progression.FULL_HEAL_TICKS;
         check(PartyManager.regenerateReserve(data, owner) == resting, "a pulse heals every resting partner below full");
         check(reserve.health() == 7.5F + pulse && reserve.entityData().getFloatOr("Health", 0) == reserve.health(),
                 "a resting partner regains one pulse in its saved data");
@@ -128,8 +140,11 @@ public final class PartyRegressionTest {
         check(full.health() == 20, "a full partner stays full");
         check(PartyManager.regenerateReserve(data, other) == 1 && PartyManager.regenerateReserve(data, UUID.randomUUID()) == 0,
                 "regeneration is scoped to one owner");
-        for (int i = 0; i < Progression.RESERVE_FULL_HEAL_TICKS / Progression.RESERVE_REGEN_INTERVAL_TICKS; i++) PartyManager.regenerateReserve(data, owner);
-        check(dead.health() > 0 && !dead.defeated() && dead.restTicks() == 0, "after its rest a defeated partner heals from zero");
+        for (int i = 1; i < Progression.DEFEAT_REST_TICKS / Progression.RESERVE_REGEN_INTERVAL_TICKS; i++) PartyManager.regenerateReserve(data, owner);
+        check(dead.health() == Progression.REVIVE_HEALTH && !dead.defeated() && dead.restTicks() == 0,
+                "after thirty seconds of rest a defeated partner is back on its feet with one point of health");
+        for (int i = 0; i < Progression.FULL_HEAL_TICKS / Progression.RESERVE_REGEN_INTERVAL_TICKS; i++) PartyManager.regenerateReserve(data, owner);
+        check(dead.health() > Progression.REVIVE_HEALTH && !dead.defeated() && dead.restTicks() == 0, "and heals on in the Digivice from there");
         dead.setHealth(20);
         check(reserve.health() == 20 && PartyManager.regenerateReserve(data, owner) == 0, "regeneration stops at full health");
         reserve.setHealth(7.5F);
@@ -147,6 +162,40 @@ public final class PartyRegressionTest {
         check(reserve.entityData().getStringOr("FutureTrainingData", "").equals("retained"), "heal keeps the rest of the saved data");
         check(roster.select(owner, dead.id(), -1), "a revived partner is selectable again");
         check(PartyManager.healAll(data, other) == 1 && PartyManager.healAll(data, UUID.randomUUID()) == 0, "heal is scoped to one owner");
+
+        // A partner sent into the Digivice by a defeat or by the Digivice left behind goes back to its slot once it can.
+        PartyMember fallen = roster.inSlot(owner, 2);
+        check(fallen != null, "a partner stands in the third slot");
+        fallen.stow();
+        fallen.capture(fallen.species(), "", 0, 20, fallen.level(), fallen.xp(), fallen.entityData());
+        fallen.defeat(Progression.DEFEAT_REST_TICKS);
+        check(!fallen.active() && fallen.returnSlot() == 2 && fallen.resting(), "a fallen partner rests in the Digivice, remembering its slot");
+        check(PartyManager.regroup(data, owner) == 0 && !fallen.active() && fallen.returnSlot() == 2, "resting, it does not go back yet");
+        CompoundTag fallenSave = (CompoundTag) PartyMember.CODEC.encodeStart(NbtOps.INSTANCE, fallen).getOrThrow();
+        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, fallenSave).getOrThrow().returnSlot() == 2, "the slot to go back to survives reload");
+        var rosterSave = PartyRoster.CODEC.encodeStart(NbtOps.INSTANCE, roster).getOrThrow();
+        check(PartyRoster.CODEC.parse(NbtOps.INSTANCE, rosterSave).getOrThrow().get(fallen.id()).returnSlot() == 2, "and the roster's repair on load keeps it");
+        fallenSave.putInt("return_slot", 7);
+        check(PartyMember.CODEC.parse(NbtOps.INSTANCE, fallenSave).getOrThrow().returnSlot() == -1, "a slot that does not exist is dropped");
+        for (int i = 0; i < Progression.DEFEAT_REST_TICKS / Progression.RESERVE_REGEN_INTERVAL_TICKS; i++) PartyManager.regenerateReserve(data, owner);
+        check(fallen.health() == Progression.REVIVE_HEALTH && !fallen.active() && fallen.returnSlot() == 2, "rested, it has one point of health");
+        check(PartyManager.regroup(data, owner) == 1 && fallen.slot() == 2 && fallen.returnSlot() == -1, "and goes back to its own slot");
+        fallen.stow();
+        PartyMember standIn = roster.owned(owner).stream().filter(m -> !m.active() && !m.defeated() && !m.egg() && m != fallen).findFirst().orElseThrow();
+        check(roster.select(owner, standIn.id(), 2) && standIn.slot() == 2, "the tamer puts another partner in the empty slot");
+        check(PartyManager.regroup(data, owner) == 0 && !fallen.active() && fallen.returnSlot() == -1, "a slot filled meanwhile keeps its new partner");
+        fallen.stow();
+        check(fallen.returnSlot() == -1, "stowing a partner already in the Digivice remembers nothing");
+        List<PartyMember> formation = roster.party(owner);
+        int[] places = formation.stream().mapToInt(PartyMember::slot).toArray();
+        formation.forEach(PartyMember::stow);
+        check(roster.party(owner).isEmpty(), "the Digivice away: the whole party is in it");
+        check(PartyManager.regroup(data, owner) == formation.size(), "the Digivice back: every partner goes back");
+        for (int index = 0; index < formation.size(); index++)
+            check(formation.get(index).slot() == places[index] && formation.get(index).returnSlot() == -1, "each to the slot it stood in");
+        formation.getFirst().stow();
+        check(roster.select(owner, formation.getFirst().id(), -1) && formation.getFirst().returnSlot() == -1, "a choice by hand forgets the old slot");
+        check(roster.select(owner, formation.getFirst().id(), places[0]), "and the tamer may put it back");
         PartyMember malformed = member(owner);
         malformed.setSlot(99);
         PartyMember duplicateSlot = member(owner);
@@ -157,17 +206,43 @@ public final class PartyRegressionTest {
         check(new PartySavedData().roster().all().isEmpty(), "separate world registries do not share state");
 
         PartyMemberView view = PartyMemberView.of(data, first);
-        PartySnapshotPayload snapshot = new PartySnapshotPayload(true, 2, 19, List.of(view), List.of(view), "", List.of(view.species()));
+        // Universal control: AUTO settings live in the stored entity data and travel as a mask in the snapshot.
+        check(ManualAttacks.read(first.entityData()).isEmpty() && view.manual() == 0 && view.target() == -1, "every attack starts on AUTO, with no target");
+        CompoundTag stored = new CompoundTag();
+        ManualAttacks.write(stored, new LinkedHashSet<>(List.of(Constants.id("claw"))));
+        check(ManualAttacks.read(stored).equals(Set.of(Constants.id("claw"))), "a manual attack survives being saved");
+        ManualAttacks.write(stored, Set.of());
+        check(!stored.contains(ManualAttacks.TAG), "an empty set leaves no key behind");
+        first.setManual(Constants.id("claw"), true);
+        check(ManualAttacks.read(first.entityData()).equals(Set.of(Constants.id("claw"))), "a stored partner's attack goes manual in its saved data");
+        check(first.entityData().getStringOr("FutureTrainingData", "").equals("retained"), "and the rest of its data stays");
+        first.setManual(Constants.id("claw"), false);
+        check(ManualAttacks.read(first.entityData()).isEmpty(), "and back on AUTO");
+        DigimonAttack bite = new DigimonAttack(Constants.id("bite"), DigimonAttack.Kind.MELEE, 1, 20, 10, 5, 2, false);
+        DigimonAttack spit = new DigimonAttack(Constants.id("spit"), DigimonAttack.Kind.FIREBALL, 1, 20, 10, 5, 8, false);
+        check(ManualAttacks.mask(List.of(bite, spit), Set.of(spit.id())) == 0b10 && ManualAttacks.manual(0b10, 1) && !ManualAttacks.manual(0b10, 0),
+                "the mask has one bit per sheet slot");
+        PartyMemberView manualView = view.withManual(1, true);
+        check(manualView.manual(1) && !manualView.manual(0) && !manualView.withManual(1, false).manual(1) && manualView.slot() == view.slot(),
+                "the wheel's flip shows at once and keeps the party slot");
+        check(PartyActionPayload.autoValue(1, true) == 3 && PartyActionPayload.autoValue(1, false) >> 1 == 1
+                && (PartyActionPayload.autoValue(0, true) & 1) == 1, "an AUTO flip carries the slot and the setting");
+        PartySnapshotPayload snapshot = new PartySnapshotPayload(true, 2, 19, List.of(manualView), List.of(view), "", List.of(view.species()));
         check(PartyManager.knownSpecies(data, owner).contains(first.species()), "the Analyzer knows every species the tamer owns");
         check(new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "").known().isEmpty(), "a snapshot without the Digivice open names no species");
         RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
         try {
             PartySnapshotPayload.STREAM_CODEC.encode(buffer, snapshot);
-            check(PartySnapshotPayload.STREAM_CODEC.decode(buffer).equals(snapshot), "network snapshot round-trip");
+            PartySnapshotPayload received = PartySnapshotPayload.STREAM_CODEC.decode(buffer);
+            check(received.equals(snapshot) && received.party().getFirst().manual(1), "network snapshot round-trip, AUTO settings included");
             buffer.clear();
             PartyActionPayload action = new PartyActionPayload(PartyActionPayload.SELECT, first.id(), -1);
             PartyActionPayload.STREAM_CODEC.encode(buffer, action);
             check(PartyActionPayload.STREAM_CODEC.decode(buffer).equals(action), "recall action round-trip");
+            buffer.clear();
+            PartyActionPayload order = new PartyActionPayload(PartyActionPayload.ATTACK, first.id(), 1);
+            PartyActionPayload.STREAM_CODEC.encode(buffer, order);
+            check(PartyActionPayload.STREAM_CODEC.decode(buffer).equals(order), "attack order round-trip");
             buffer.clear();
             CompoundTag devArgs = new CompoundTag();
             devArgs.put(DevActions.SIDE_A_ARG, com.digicube.dev.BattleRoster.write(List.of(new com.digicube.dev.BattleRoster.Entry("agumon", 7, 3))));

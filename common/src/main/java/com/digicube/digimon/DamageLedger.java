@@ -56,4 +56,15 @@ public final class DamageLedger {
     public void clear() {
         entries.clear();
     }
+
+    /** Drops {@code attacker}'s total: a partner that fell is owed nothing for what it did before. */
+    public void forget(UUID attacker) {
+        entries.remove(attacker);
+    }
+
+    /** Health the victim lost to {@code attacker} so far, 0 for none. */
+    public float damageBy(UUID attacker) {
+        Entry entry = entries.get(attacker);
+        return entry == null ? 0 : entry.damage();
+    }
 }

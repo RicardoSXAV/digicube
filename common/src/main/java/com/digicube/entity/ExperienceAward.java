@@ -4,11 +4,13 @@ import com.digicube.Constants;
 import com.digicube.digimon.DamageLedger;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.Progression;
+import com.digicube.scan.Scan;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityReference;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,7 +22,8 @@ import java.util.UUID;
  * contributor must still be alive, owned, in this dimension and within
  * {@link Progression#CONTRIBUTION_RANGE} blocks, and must have hit within the last
  * {@link Progression#CONTRIBUTION_MEMORY_TICKS}; everyone else drops out and the
- * remaining damage is the whole pie. The arithmetic itself is {@link Progression#split}.
+ * remaining damage is the whole pie. The arithmetic itself is {@link Progression#split}; the scan's data is split the
+ * same way ({@link Progression#scanSplit}) and goes to each partner's tamer.
  */
 final class ExperienceAward {
 
@@ -40,6 +43,13 @@ final class ExperienceAward {
         }
         Map<UUID, Integer> shares = Progression.split(species.stage(), defeated.getLevel(), contributors);
         shares.forEach((id, share) -> partners.get(id).addExperience(share));
+        // The same split fills the scan: each tamer gets its partners' shares of the stage's data.
+        Map<UUID, Integer> data = new LinkedHashMap<>();
+        Progression.scanSplit(species.stage(), defeated.getLevel(), contributors).forEach((id, share) -> {
+            var owner = partners.get(id).getOwnerReference();
+            if (owner != null) data.merge(owner.getUUID(), share, Integer::sum);
+        });
+        Scan.credit(level.getServer(), species.id(), data);
         if (Constants.LOG.isDebugEnabled()) {
             Constants.LOG.debug("Wild {} (level {}) defeated: yield {} split {} from ledger {}", species.id(),
                     defeated.getLevel(), Progression.xpYield(species.stage(), defeated.getLevel()), shares, ledger.entries());

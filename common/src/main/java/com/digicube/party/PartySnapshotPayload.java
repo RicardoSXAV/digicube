@@ -1,6 +1,7 @@
 package com.digicube.party;
 
 import com.digicube.Constants;
+import com.digicube.scan.ScanBar;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -13,13 +14,14 @@ import java.util.List;
  * Bounded pages keep a large collection below the custom-payload packet limit. A page is large enough that the
  * Digispace shows a whole ordinary reserve at once. {@code known} lists the species the Analyzer may describe and
  * {@code marks} the combat marks ({@link com.digicube.digimon.CombatMark#mask}); like the collection they are only
- * filled while the Digivice is open.
+ * filled while the Digivice is open. {@code scan} is the tamer's scan, a bar per family, always sent.
  */
 public record PartySnapshotPayload(boolean openScreen, int page, int total,
                                    List<PartyMemberView> party, List<PartyMemberView> collection,
-                                   String message, List<Identifier> known, int marks) implements CustomPacketPayload {
+                                   String message, List<Identifier> known, int marks, List<ScanBar> scan) implements CustomPacketPayload {
     public static final int PAGE_SIZE = 64;
     private static final int MAX_KNOWN = 1024;
+    private static final int MAX_FAMILIES = 64;
     public static final Type<PartySnapshotPayload> TYPE = new Type<>(Constants.id("party_snapshot"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PartySnapshotPayload> STREAM_CODEC =
             StreamCodec.ofMember(PartySnapshotPayload::write, PartySnapshotPayload::read);
@@ -28,6 +30,7 @@ public record PartySnapshotPayload(boolean openScreen, int page, int total,
         party = List.copyOf(party);
         collection = List.copyOf(collection);
         known = List.copyOf(known);
+        scan = List.copyOf(scan);
     }
 
     public PartySnapshotPayload(boolean openScreen, int page, int total, List<PartyMemberView> party, List<PartyMemberView> collection, String message) {
@@ -36,6 +39,10 @@ public record PartySnapshotPayload(boolean openScreen, int page, int total,
 
     public PartySnapshotPayload(boolean openScreen, int page, int total, List<PartyMemberView> party, List<PartyMemberView> collection, String message, List<Identifier> known) {
         this(openScreen, page, total, party, collection, message, known, 0);
+    }
+
+    public PartySnapshotPayload(boolean openScreen, int page, int total, List<PartyMemberView> party, List<PartyMemberView> collection, String message, List<Identifier> known, int marks) {
+        this(openScreen, page, total, party, collection, message, known, marks, List.of());
     }
 
     private void write(RegistryFriendlyByteBuf buffer) {
@@ -48,11 +55,22 @@ public record PartySnapshotPayload(boolean openScreen, int page, int total,
         buffer.writeVarInt(known.size());
         known.forEach(buffer::writeIdentifier);
         buffer.writeVarInt(marks);
+        buffer.writeVarInt(scan.size());
+        scan.forEach(bar -> bar.write(buffer));
     }
 
     private static PartySnapshotPayload read(RegistryFriendlyByteBuf buffer) {
         return new PartySnapshotPayload(buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(),
-                readMembers(buffer, PartyRoster.PARTY_SIZE), readMembers(buffer, PAGE_SIZE), buffer.readUtf(128), readKnown(buffer), buffer.readVarInt());
+                readMembers(buffer, PartyRoster.PARTY_SIZE), readMembers(buffer, PAGE_SIZE), buffer.readUtf(128), readKnown(buffer), buffer.readVarInt(),
+                readScan(buffer));
+    }
+
+    private static List<ScanBar> readScan(RegistryFriendlyByteBuf buffer) {
+        int size = buffer.readVarInt();
+        if (size < 0 || size > MAX_FAMILIES) throw new IllegalArgumentException("Invalid scan family count: " + size);
+        List<ScanBar> bars = new ArrayList<>(size);
+        for (int index = 0; index < size; index++) bars.add(ScanBar.read(buffer));
+        return bars;
     }
 
     private static void writeMembers(RegistryFriendlyByteBuf buffer, List<PartyMemberView> members) {

@@ -8,8 +8,12 @@
   "attacks": ["bubble_blow"],
   "evolutions": [
     {
-      "target": "agumon",
-      "min_level": 5
+      "target": "digicube:agumon",
+      "min_level": 10
+    },
+    {
+      "target": "digicube:betamon",
+      "min_level": 10
     }
   ]
 }

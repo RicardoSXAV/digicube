@@ -16,16 +16,23 @@ public final class PartyEvolution {
         if(member==null||!member.owner().equals(player.getUUID())||member.generation()!=generation)return false;
         var live=data.live.get(id);return (live==null?member.evolution():live.evolution()).sequence==sequence;
     }
+    /** The route an {@link PartyActionPayload#EVOLVE} value names for the sender's Digimon {@code id} in its current form, or null. */
+    public static Identifier route(ServerPlayer player,UUID id,int value) {
+        var data=PartySavedData.get(player.level().getServer());var member=data.roster().get(id);
+        if(member==null||!member.owner().equals(player.getUUID()))return null;
+        var live=data.live.get(id);return PartyActionPayload.route(live!=null?live.getSpeciesId():member.species(),value);
+    }
     public static String action(ServerPlayer player,UUID id,String action,int value,Identifier choice) {
         var data=PartySavedData.get(player.level().getServer());var member=data.roster().get(id);
         if(member==null||!member.owner().equals(player.getUUID())||!player.isAlive()||player.isSpectator())return "gui.digicube.party.invalid";
         var live=data.live.get(id);var state=live==null?member.evolution():live.evolution();String result="";
         switch(action) {
-            case "evolve" -> {if(live==null)return "gui.digicube.evolution.deploy";result=EvolutionController.evolve(live);}
+            case "evolve" -> {if(live==null)return "gui.digicube.evolution.deploy";result=EvolutionController.evolve(live,choice);}
             case "revert" -> {if(live==null)return "gui.digicube.evolution.deploy";result=EvolutionController.revert(live);}
             case "origin" -> {
                 if(live!=null||!member.originRequired()||!EvolutionRules.validOrigin(choice,member.species()))return "gui.digicube.evolution.origin";
-                state.origin=choice;state.migrationChampion=member.species();state.phase=EvolutionState.Phase.RESTING;state.source=null;state.target=null;state.refund();
+                // The Champion it was stays its form: the Rookie it becomes digivolves back into that one only.
+                state.origin=choice;state.migrationChampion=member.species();state.line=member.species();state.phase=EvolutionState.Phase.RESTING;state.source=null;state.target=null;state.refund();
                 member.editStored(choice,member.level(),false);state.unlock(choice,member.level());
             }
             case "level", "level_add" -> {
@@ -34,6 +41,12 @@ public final class PartyEvolution {
                 else {member.editStored(member.species(),value,true);state.unlock(member.species(),member.level());}
             }
             case "charge" -> {state.charge=Math.clamp(value,0,Progression.DIGISOUL_CAPACITY);state.initialized=true;}
+            case "notice" -> {
+                // The tamer opened its tree: what it can digivolve into now is no longer news.
+                var species=live==null?member.species():live.getSpeciesId();int level=live==null?member.level():live.getLevel();
+                var ready=state.choices(species,level);if(state.noticed.containsAll(ready))return "";
+                state.noticed.addAll(ready);
+            }
             case "preview" -> {
                 if(live==null)return "gui.digicube.evolution.deploy";
                 if(state.transitioning())return "gui.digicube.evolution.busy";

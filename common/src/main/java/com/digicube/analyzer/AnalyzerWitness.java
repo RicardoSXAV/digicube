@@ -27,7 +27,8 @@ import java.util.UUID;
  * stayed in sight for {@link #WATCH_TICKS}: within {@link #RANGE}, in front of the tamer and with nothing solid in
  * between. A tamer's own Digimon are recorded at once, every form they have, came from or have reached. A combat
  * mark is recorded the moment its emblem shows over a body in sight, the tamer's own included. The game mode plays
- * no part: what is witnessed in creative is recorded too, and it is the Analyzer that opens every entry there.
+ * no part: what is witnessed in creative is recorded too, and it is the Analyzer that opens every entry there. The
+ * first species of a family on record is the scan's first sighting of that family ({@link com.digicube.scan.Scan#sight}).
  */
 public final class AnalyzerWitness {
     /** How far a tamer reads a body, in blocks. */
@@ -63,6 +64,7 @@ public final class AnalyzerWitness {
             // The first look of all: what the tamer already has is on record without an announcement.
             data.open(id, own);
             parties.session(id).sync.invalidate();
+            com.digicube.scan.Scan.sight(player, own);
             return;
         }
         boolean changed = false;
@@ -84,6 +86,8 @@ public final class AnalyzerWitness {
             watch.remove(species);
             if (record.add(species)) changed |= announce(player, AnalyzerDiscoveryPayload.species(species));
         }
+        // A family on record for the first time fills part of its Digitama; a record kept from before the scan does too.
+        com.digicube.scan.Scan.sight(player, record.species());
         if (!changed) return;
         data.setDirty();
         // An open Digivice shows the new entry at once.

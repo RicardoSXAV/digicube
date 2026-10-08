@@ -19,7 +19,7 @@ public final class PartySyncState {
     /** Returns whether this snapshot needs sending; unchanged periodic checks stay silent. */
     public boolean updateSnapshot(PartySnapshotPayload next) {
         PartySnapshotPayload state = new PartySnapshotPayload(false, next.page(), next.total(),
-                next.party(), next.collection(), "", next.known(), next.marks());
+                next.party(), next.collection(), "", next.known(), next.marks(), next.scan());
         boolean send = next.openScreen() || !next.message().isEmpty() || !state.equals(snapshot);
         snapshot = state;
         needsSnapshot = false;

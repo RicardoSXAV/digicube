@@ -14,8 +14,12 @@
   },
   "evolutions": [
     {
-      "target": "tentomon",
-      "min_level": 5
+      "target": "digicube:tentomon",
+      "min_level": 10
+    },
+    {
+      "target": "digicube:gotsumon",
+      "min_level": 10
     }
   ],
   "body": {

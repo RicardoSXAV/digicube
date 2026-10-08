@@ -10,20 +10,38 @@ import static com.digicube.digimon.EvolutionState.Phase.*;
 /** The single server lifecycle used by player actions, depletion, recall, saves and tooling. */
 public final class EvolutionController {
     private EvolutionController() {}
+    /** Tooling: the Champion it is bound to, else its first ready route. */
     public static String evolve(DigimonEntity entity) {
+        var choices=entity.evolution().choices(entity.getSpeciesId(),entity.getLevel());
+        return evolve(entity,choices.isEmpty()?null:choices.getFirst());
+    }
+    /**
+     * The tamer's digivolution into {@code choice}. Before the first one commits every ready route is open and the
+     * tamer must name one when there are several; after it, only the Champion it took ({@link EvolutionState#line}),
+     * so a null choice means that one and any other is refused. A Baby II's growth into a Rookie takes the same path:
+     * a choice among its family's Rookies, from {@link Progression#GROWTH_LEVEL}, for good and without DigiSoul.
+     */
+    public static String evolve(DigimonEntity entity,Identifier choice) {
         var s=entity.evolution();s.unlock(entity.getSpeciesId(),entity.getLevel());
         if(s.transitioning()||s.phase==EVOLVED)return reject(s,"busy");
         if(!entity.isAlive())return reject(s,"resting");
         if(entity.isVehicle()||entity.isPassenger())return reject(s,"dismount");
         if(entity.isFlyingMovement()||!entity.onGround()&&!entity.isInWater())return reject(s,"land");
         if(entity.hasEffect(com.digicube.registry.DCEffects.CONSTRICTED))return reject(s,"captured");
-        if(entity.getLevel()<Progression.CHAMPION_LEVEL)return reject(s,"level");
-        var target=EvolutionRules.target(entity.getSpeciesId(),entity.getLevel()).orElse(null);
-        if(target==null)return reject(s,"route");
+        boolean growth=EvolutionRules.baby(entity.getSpeciesId());
+        if(entity.getLevel()<EvolutionRules.minimumLevel(entity.getSpeciesId()))return reject(s,growth?"grow_level":"level");
+        var choices=s.choices(entity.getSpeciesId(),entity.getLevel());var bound=s.line(entity.getSpeciesId());
+        if(choices.isEmpty())return reject(s,"route");
+        if(bound!=null&&choice!=null&&!choice.equals(bound))return reject(s,"locked");
+        if(choice==null&&choices.size()>1)return reject(s,"choose");
+        var target=choice==null?choices.getFirst():choice;
+        if(!choices.contains(target))return reject(s,"route");
         boolean creative=creative(entity);
-        if(s.cooldown>0&&!creative)return reject(s,"cooldown");
-        if(s.charge<Progression.DIGISOUL_MINIMUM&&!creative)return reject(s,"charge");
+        if(!growth&&s.cooldown>0&&!creative)return reject(s,"cooldown");
+        if(!growth&&s.charge<Progression.DIGISOUL_MINIMUM&&!creative)return reject(s,"charge");
         if(!fits(entity,target))return reject(s,"space");
+        // Growth spends nothing and leaves nothing to return to.
+        if(growth){begin(entity,target,EvolutionTimeline.LONG.duration(),EVOLVING);return "";}
         s.origin=entity.getSpeciesId();
         if(creative){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}else{s.charge-=Progression.DIGISOUL_FEE;s.fee=true;}
         begin(entity,target,s.completed.contains(target)?EvolutionTimeline.SHORT.duration():EvolutionTimeline.LONG.duration(),EVOLVING);return "";
@@ -67,8 +85,11 @@ public final class EvolutionController {
                 else PartyManager.storeForEvolution(entity);
                 return;
             }
-            s.rejection="";boolean upward=s.phase==EVOLVING;entity.changeEvolutionForm(s.target);
-            if(upward){s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
+            s.rejection="";boolean upward=s.phase==EVOLVING,growth=upward&&EvolutionRules.baby(s.source);entity.changeEvolutionForm(s.target);
+            // A growth is for good: the Rookie it became starts its own story, its Champion choice still open.
+            if(growth){s.phase=RESTING;s.origin=null;s.line=null;s.fee=false;s.cooldown=0;s.noticed.clear();s.source=null;s.target=null;}
+            // The first digivolution to commit binds the Digimon to that Champion for good.
+            else if(upward){if(s.line==null)s.line=s.target;s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
             entity.syncEvolutionEvent(false);PartyManager.progressChanged(entity);return;
         }
         if(creative(entity)) {

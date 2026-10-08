@@ -14,8 +14,12 @@
   },
   "evolutions": [
     {
-      "target": "gomamon",
-      "min_level": 5
+      "target": "digicube:gomamon",
+      "min_level": 10
+    },
+    {
+      "target": "digicube:ganimon",
+      "min_level": 10
     }
   ],
   "body": {

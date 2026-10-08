@@ -154,6 +154,19 @@ tasks.register('starterTest', JavaExec) {
 }
 tasks.named('check') { dependsOn tasks.named('starterTest') }
 
+// Pins the scan: the bars, the pace, the families, the data split, the habitat line, saving and the packets.
+tasks.register('scanTest', JavaExec) {
+    dependsOn tasks.named('partyTestClasses')
+    classpath = sourceSets.partyTest.runtimeClasspath
+    mainClass = 'com.digicube.scan.ScanRegressionTest'
+    workingDir = layout.buildDirectory.dir('scan-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version)
+    }
+}
+tasks.named('check') { dependsOn tasks.named('scanTest') }
+
 tasks.register('flightTest', JavaExec) {
     dependsOn tasks.named('partyTestClasses')
     classpath = sourceSets.partyTest.runtimeClasspath

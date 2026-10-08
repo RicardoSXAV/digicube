@@ -20,10 +20,12 @@ public final class EvolutionScenario {
     private static int step,waitUntil,startedTick;
     private static float fraction;
     private static int cases,routeIndex,routeStep;
-    private static java.util.List<DigimonSpecies> routeSources;
+    /** Every supported Rookie route as (Rookie, Champion), each staged on a fresh partner. */
+    private static java.util.List<Map.Entry<DigimonSpecies,net.minecraft.resources.Identifier>> routeSources;
     private static boolean mounted;
     private static DigimonEntity combatPrey;
     private static int combatStep,combatDeadline,commitTick;
+    private static int growthStep;
 
     private EvolutionScenario() {}
     private static void check(boolean value,String label){if(!value)throw new AssertionError(label+" step="+step);}
@@ -45,7 +47,14 @@ public final class EvolutionScenario {
                     check(PartyEvolution.action(owner,member.id(),"level",20,null).isEmpty(),"dev deployed level");
                     check(Math.abs(hp-partner.getHealth()/partner.getMaxHealth())<1e-6,"level no healing");
                     fraction=hp;check(partner.evolution().charge==3600,"one-time unlock grant");
-                    check(EvolutionController.evolve(partner).isEmpty(),"accept long");
+                    // The choice: two ready routes, so the tamer has to name one; news until its tree is opened.
+                    check(partner.evolution().news(partner.getSpeciesId(),20)&&PartyMemberView.of(data,member).line().isEmpty(),"agumon at 20 has an open choice and news");
+                    check(PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&!partner.evolution().news(partner.getSpeciesId(),20),"opening its tree clears the news");
+                    check((PartyMemberView.of(data,member).noticed()&3)==3,"the snapshot carries both routes as seen");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose")&&partner.evolution().charge==3600,"no choice named: refused, nothing spent");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("garurumon")).endsWith("route"),"another Rookie's Champion refused");
+                    check(partner.evolution().line==null,"nothing bound before a digivolution commits");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("greymon")).isEmpty(),"accept long");
                     check(partner.evolution().duration==EvolutionTimeline.LONG.duration(),"first duration");tracking(level);startedTick=now;waitUntil=now+(int)EvolutionTimeline.LONG.leadIn();
                     pass("evolution_unlock","19 rejected; 20 accepted; fee=360");
                 }
@@ -71,12 +80,17 @@ public final class EvolutionScenario {
                 case 2 -> {
                     check(partner.getSpeciesId().equals(Constants.id("greymon")),"commit at long duration");check(partner.evolutionEvent()==null,"commit clears tracked event with species");
                     check(partner.evolution().charge==3240,"drain begins after commit");check(partner.evolution().completed.contains(Constants.id("greymon")),"history commit");
+                    check(Constants.id("greymon").equals(partner.evolution().line)&&PartyMemberView.of(data,member).line().equals("digicube:greymon"),"the first digivolution binds it to greymon");
                     check(Math.abs(fraction-partner.getHealth()/partner.getMaxHealth())<1e-6,"form no healing");
                     check(EvolutionController.revert(partner).isEmpty(),"return accepted");waitUntil=now+16;
                 }
                 case 3 -> {check(partner.getSpeciesId().equals(Constants.id("agumon")),"return16");check(partner.evolution().cooldown==200,"return cooldown");waitUntil=now+200;}
-                case 4 -> {check(EvolutionController.evolve(partner).isEmpty(),"repeat accepted");check(partner.evolution().duration==32,"short repeat");waitUntil=now+32;}
-                case 5 -> {check(partner.getSpeciesId().equals(Constants.id("greymon")),"short committed");pass("evolution_first_repeat","220/32/16 exact ticks; damage blocked; history durable");partner.evolution().charge=1;waitUntil=now+17;}
+                case 4 -> {
+                    int charge=partner.evolution().charge;
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("meramon")).endsWith("locked")&&partner.evolution().charge==charge,"bound: meramon refused for good, nothing spent");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,null).isEmpty(),"bound: no choice needed, repeat accepted");check(partner.evolution().duration==32,"short repeat");waitUntil=now+32;
+                }
+                case 5 -> {check(partner.getSpeciesId().equals(Constants.id("greymon")),"short committed");pass("evolution_first_repeat","choice required, bound to greymon, meramon locked; 220/32/16 exact ticks; damage blocked; history durable");partner.evolution().charge=1;waitUntil=now+17;}
                 case 6 -> {
                     check(partner.getSpeciesId().equals(Constants.id("agumon"))&&partner.evolution().phase==EvolutionState.Phase.RESTING,"depletion returns");
                     pass("digisoul_deplete","last unit spent then 16-tick return; no Champion attack extension");
@@ -105,8 +119,10 @@ public final class EvolutionScenario {
                     check(old.originRequired()&&!old.active()&&!data.live.containsKey(old.id()),"unresolved owned Champion safely stored");
                     check(PartyEvolution.action(owner,old.id(),"origin",0,Constants.id("gomamon")).endsWith("origin"),"unrelated origin rejected");
                     check(PartyEvolution.action(owner,old.id(),"origin",0,Constants.id("agumon")).isEmpty()&&old.species().equals(Constants.id("agumon")),"explicit origin repair");
-                    var noRoute=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);noRoute.initializeAs(DigimonSpeciesRegistry.getOrThrow(Constants.id("gesomon")),20);var unresolved=PartyManager.give(owner,noRoute);check(unresolved.originRequired()&&!unresolved.active()&&EvolutionRules.origins(unresolved.species()).isEmpty(),"no ancestry guessed");
-                    pass("evolution_origin_migration","direct Champions stored; explicit matching Rookie only; no-route retained");
+                    check(Constants.id("greymon").equals(old.evolution().line)&&old.evolution().choices(old.species(),20).equals(List.of(Constants.id("greymon"))),"the Rookie form stays bound to the Champion it was");
+                    var crab=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);crab.initializeAs(DigimonSpeciesRegistry.getOrThrow(Constants.id("gesomon")),20);var unresolved=PartyManager.give(owner,crab);
+                    check(unresolved.originRequired()&&!unresolved.active()&&unresolved.evolution().origin==null&&EvolutionRules.origins(unresolved.species()).equals(List.of(Constants.id("ganimon"))),"no ancestry guessed");
+                    pass("evolution_origin_migration","direct Champions stored; explicit matching Rookie only, bound to the Champion it was");
                     partner.evolution().cooldown=0;EvolutionController.evolve(partner);waitUntil=now+32;
                 }
                 case 10 -> {
@@ -122,7 +138,9 @@ public final class EvolutionScenario {
                     check(member.health()==0&&member.species().equals(Constants.id("agumon"))&&member.restTicks()>0&&!data.live.containsKey(member.id()),"defeat resting form");
                     PartyEvolution.action(owner,member.id(),"level",30,null);check(member.health()==0&&member.restTicks()>0,"dead level preserves rest");
                     pass("evolution_defeat","stored Rookie at zero HP; dev levelling cannot revive");
-                    routeSources=DigimonSpeciesRegistry.all().stream().filter(v->EvolutionRules.target(v.id(),20).isPresent()).sorted(java.util.Comparator.comparing(v->v.id().toString())).toList();
+                    // Champion routes only: a Baby II's growth is one way and has its own steps (growth).
+                    routeSources=DigimonSpeciesRegistry.all().stream().filter(v->EvolutionRules.rookie(v.id())).sorted(java.util.Comparator.comparing(v->v.id().toString()))
+                            .flatMap(v->EvolutionRules.targets(v.id(),20).stream().map(t->Map.entry(v,t))).toList();
                 }
                 default -> throw new AssertionError("unexpected step");
             }
@@ -130,7 +148,7 @@ public final class EvolutionScenario {
     }
     private static void routes(ServerLevel level,int now) {
         if(routeIndex>=routeSources.size()){combat(level,now);return;}
-        var source=routeSources.get(routeIndex);var target=EvolutionRules.target(source.id(),20).orElseThrow();
+        var source=routeSources.get(routeIndex).getKey();var target=routeSources.get(routeIndex).getValue();
         switch(routeStep++) {
             case 0 -> {
                 var fresh=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);fresh.initializeAs(source,20);
@@ -140,7 +158,7 @@ public final class EvolutionScenario {
                 check(PartyEvolution.currentIntent(owner,member.id(),generation,sequence),"current intent");
                 check(!PartyEvolution.currentIntent(owner,member.id(),generation-1,sequence),"old generation refused");
                 check(!PartyEvolution.currentIntent(owner,UUID.randomUUID(),generation,sequence),"foreign member refused");
-                check(EvolutionController.evolve(partner).isEmpty(),"route long accepted");
+                check(EvolutionController.evolve(partner,target).isEmpty(),"route long accepted");
                 check(!PartyEvolution.currentIntent(owner,member.id(),generation,sequence),"replayed sequence refused");
                 var tracked=partner.evolutionEvent();var late=EvolutionEvent.decode(tracked.encode());
                 check(late.equals(tracked)&&level.getGameTime()+80-late.start()==80,"late observer uses current phase");
@@ -148,7 +166,10 @@ public final class EvolutionScenario {
             }
             case 1 -> {check(partner.getSpeciesId().equals(target),"route long committed");check(partner.getUUID().equals(member.id()),"route UUID stable");EvolutionController.revert(partner);waitUntil=now+16;}
             case 2 -> {check(partner.getSpeciesId().equals(source.id()),"route return committed");waitUntil=now+200;}
-            case 3 -> {check(EvolutionController.evolve(partner).isEmpty()&&partner.evolution().duration==32,"route repeat accepted");waitUntil=now+42;}
+            case 3 -> {
+                for(var other:EvolutionRules.targets(source.id(),20))if(!other.equals(target))check(EvolutionController.evolve(partner,other).endsWith("locked"),"route sibling locked");
+                check(EvolutionController.evolve(partner,null).isEmpty()&&partner.evolution().duration==32,"route repeat accepted");waitUntil=now+42;
+            }
             case 4 -> {
                 check(partner.getSpeciesId().equals(target),"route repeat committed");
                 check(partner.getSpecies().orElseThrow().attacks().isEmpty()||partner.getSpecies().orElseThrow().attacks().stream().anyMatch(partner::isAttackReady),"post-evolution authored attacks resume");
@@ -159,8 +180,9 @@ public final class EvolutionScenario {
             case 5 -> {
                 if(mounted){check(!owner.isPassenger()&&!data.live.containsKey(member.id())&&!member.active(),"mounted expiry safely stores");check(owner.getY()>=301&&owner.getY()<302&&owner.fallDistance==0,"rider on supported ground");}
                 else check(partner.getSpeciesId().equals(source.id()),"route depletion return");
-                check(member.species().equals(source.id()),"stored resting form");
+                // A live partner's roster entry catches up when it is captured, so read it once recalled.
                 PartyManager.select(owner,member.id(),-1);owner.setPos(10,301,0);
+                check(member.species().equals(source.id()),"stored resting form");
                 pass("evolution_route",source.id()+" -> "+target+" long/short/return; stable UUID; stale intent rejected; authored attack readiness checked (empty move sets unchanged); mounted="+mounted);
                 routeIndex++;routeStep=0;
             }
@@ -187,7 +209,52 @@ public final class EvolutionScenario {
                 combatStep++;waitUntil=now+4;
             }
             case 5 -> {check(partner.isUnderWater(),"water fixture");check(EvolutionController.evolve(partner).isEmpty(),"aquatic route accepted underwater");combatStep++;waitUntil=now+EvolutionTimeline.LONG.duration();}
-            case 6 -> {check(partner.getSpeciesId().equals(Constants.id("ikkakumon")),"underwater commit");PartyManager.select(owner,member.id(),-1);pass("evolution_water","underwater Gomamon to Ikkakumon; recall restores Rookie");finish(level);}
+            case 6 -> {check(partner.getSpeciesId().equals(Constants.id("ikkakumon")),"underwater commit");PartyManager.select(owner,member.id(),-1);pass("evolution_water","underwater Gomamon to Ikkakumon; recall restores Rookie");
+                for(int x=-4;x<=4;x++)for(int z=-4;z<=4;z++)for(int y=301;y<=305;y++)level.setBlock(new BlockPos(x,y,z),Blocks.AIR.defaultBlockState(),3);combatStep++;}
+            case 7 -> growth(level,now);
+        }
+    }
+    /** A Baby II grows into one of its family's Rookies at level 10: chosen, permanent, no DigiSoul, interrupted by a recall. */
+    private static void growth(ServerLevel level,int now) {
+        if(now<waitUntil)return;
+        var agumon=Constants.id("agumon");var betamon=Constants.id("betamon");var koromon=Constants.id("koromon");
+        switch(growthStep++) {
+            case 0 -> {
+                var fresh=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);fresh.initializeAs(DigimonSpeciesRegistry.getOrThrow(koromon),9);
+                member=PartyManager.give(owner,fresh);partner=data.live.get(member.id());check(partner!=null,"baby deployed");
+                partner.setNoAi(true);partner.setPos(0,301,0);partner.setOnGround(true);
+                check(PartyEvolution.action(owner,member.id(),"evolve",0,agumon).endsWith("grow_level"),"a level-9 Baby II cannot grow yet");
+                check(PartyEvolution.action(owner,member.id(),"level",10,null).isEmpty()&&partner.evolution().news(koromon,10),"at level 10 its two Rookies are news");
+                check((PartyMemberView.of(data,member).noticed()&3)==0&&PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&(PartyMemberView.of(data,member).noticed()&3)==3,"its tree's NOTICE marks both Rookies seen");
+                check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose"),"two Rookies: the tamer has to name one");
+                check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("greymon")).endsWith("route"),"a Champion is no growth");
+                check(partner.evolution().charge==0&&!partner.evolution().initialized,"a Baby II has no DigiSoul");
+                check(EvolutionController.evolve(partner,betamon).isEmpty()&&partner.evolution().duration==EvolutionTimeline.LONG.duration(),"Betamon accepted, the long sequence");
+                waitUntil=now+40;
+            }
+            case 1 -> {
+                // Recalled mid-growth: back to Koromon, nothing spent, nothing grown.
+                check(partner.evolution().transitioning(),"growing");
+                PartyManager.select(owner,member.id(),-1);
+                check(member.species().equals(koromon)&&member.evolution().phase==EvolutionState.Phase.RESTING&&member.evolution().charge==0,"a recall in the middle leaves a Koromon");
+                check(PartyManager.select(owner,member.id(),0).isEmpty(),"redeploy the Koromon");partner=data.live.get(member.id());check(partner!=null,"redeployed");
+                partner.setNoAi(true);partner.setPos(0,301,0);partner.setOnGround(true);
+                check(EvolutionController.evolve(partner,agumon).isEmpty(),"Agumon accepted at once, no cooldown for a growth");
+                startedTick=now;waitUntil=now+EvolutionTimeline.LONG.duration();
+            }
+            case 2 -> {
+                var s=partner.evolution();
+                check(partner.getSpeciesId().equals(agumon)&&partner.getLevel()==10&&s.phase==EvolutionState.Phase.RESTING,"grown into Agumon at level 10, at rest");
+                check(s.line==null&&s.origin==null&&s.charge==0&&!s.initialized&&s.noticed.isEmpty()&&s.completed.isEmpty(),"a fresh Rookie: no line, no return form, no DigiSoul, no history");
+                check(EvolutionController.revert(partner).endsWith("busy"),"a growth cannot be undone");
+                check(EvolutionController.evolve(partner,Constants.id("greymon")).endsWith("level"),"its Champions wait for level 20");
+                check(PartyEvolution.action(owner,member.id(),"level",20,null).isEmpty()&&partner.evolution().choices(agumon,20).size()==2,"at 20 both of Agumon's Champions are open");
+                PartyManager.select(owner,member.id(),-1);
+                check(member.species().equals(agumon)&&member.level()==20,"stored as an Agumon");
+                pass("evolution_growth","L9 refused; L10 Koromon chooses Betamon or Agumon, recall mid-way keeps Koromon, Agumon committed for good with no DigiSoul and an open Champion choice");
+                finish(level);
+            }
+            default -> throw new AssertionError("growth step");
         }
     }
     private static void tracking(ServerLevel level) {

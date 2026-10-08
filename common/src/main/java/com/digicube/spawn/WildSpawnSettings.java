@@ -23,9 +23,9 @@ import java.util.Optional;
 public final class WildSpawnSettings extends SavedData {
 
     public static final boolean DEFAULT_ENABLED = true;
-    public static final int DEFAULT_INTERVAL_TICKS = 400;
-    public static final int DEFAULT_MAX_PER_PLAYER = 4;
-    public static final int DEFAULT_MAX_PER_LEVEL = 24;
+    public static final int DEFAULT_INTERVAL_TICKS = 200;
+    public static final int DEFAULT_MAX_PER_PLAYER = 8;
+    public static final int DEFAULT_MAX_PER_LEVEL = 48;
     public static final int DEFAULT_MIN_DISTANCE = 24;
     public static final int DEFAULT_MAX_DISTANCE = 48;
     public static final int DEFAULT_LEVEL_BONUS_PER_500_BLOCKS = 0;
@@ -89,9 +89,13 @@ public final class WildSpawnSettings extends SavedData {
     public int levelBonusPer500Blocks() { return levelBonusPer500Blocks; }
     public boolean debug() { return debug; }
 
-    /** Most wild Digimon a dimension may hold with {@code players} in it. */
-    public int cap(int players) {
-        return Math.min(maxPerPlayer * players, maxPerLevel);
+    /**
+     * Whether a spot near a player may get another wild Digimon: fewer than {@link #maxPerPlayer} within
+     * {@link WildSpawner#LOCAL_RADIUS} of that player, and fewer than {@link #maxPerLevel} in the whole dimension. The
+     * cap is counted around each player, so Digimon lingering where a player walked past never starve the next place.
+     */
+    public boolean roomFor(int nearPlayer, int inDimension) {
+        return nearPlayer < maxPerPlayer && inDimension < maxPerLevel;
     }
 
     public void setEnabled(boolean enabled) {
