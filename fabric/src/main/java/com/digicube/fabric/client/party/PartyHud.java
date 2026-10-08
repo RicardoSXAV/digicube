@@ -53,6 +53,8 @@ final class PartyHud {
     private static final int SCAN_PERIOD_TICKS = 160;
     private static final int SCAN_SWEEP_TICKS = 64;
     private static final int LOW_HEALTH_BREATH_TICKS = 40;
+    /** A full gauge's bar breathes on this period. */
+    private static final int GAUGE_BREATH_TICKS = 24;
     private static final float LOW_HEALTH = 0.25F;
     private static final float HALF_HEALTH = 0.5F;
     private static final int TEXT_X = 40;
@@ -69,7 +71,21 @@ final class PartyHud {
     }
 
     private final Map<UUID, Memory> memories = new HashMap<>();
+    /** Why an order from the command wheel was not given, shown on the partner's card until the tick it lapses. */
+    private record Notice(String text, int until) {}
+    private final Map<UUID, Notice> notices = new HashMap<>();
     private int tick;
+
+    /** Shows {@code text} in red on {@code member}'s status row for {@code ticks}, while the command wheel is closed. */
+    void notice(UUID member, String text, int ticks) {
+        notices.put(member, new Notice(text, tick + ticks));
+    }
+
+    /** The notice still showing for {@code member}, or null. */
+    String notice(UUID member) {
+        Notice notice = notices.get(member);
+        return notice != null && tick < notice.until() ? notice.text() : null;
+    }
 
     /** Once per client tick: remembers health and level per partner and runs the ghost and flash timers. */
     void tick(PartySnapshotPayload snapshot) {
@@ -91,6 +107,7 @@ final class PartyHud {
             if (memory.flash > 0) memory.flash--;
         }
         memories.keySet().retainAll(present);
+        notices.values().removeIf(notice -> tick >= notice.until());
     }
 
     /**
@@ -115,9 +132,12 @@ final class PartyHud {
             }
         }
         Map<UUID, Float> flightFuel = new HashMap<>();
+        // a gauge move's charge (CompoundAttacks.Gauge), as the partner in sight shows it
+        Map<UUID, Float> gauges = new HashMap<>();
         if (client.level != null) {
             for (var entity : client.level.entitiesForRendering()) {
                 if (entity instanceof DigimonEntity digimon && digimon.canFly()) flightFuel.put(entity.getUUID(), digimon.getFlightFuel());
+                if (entity instanceof DigimonEntity digimon && digimon.hasGauge()) gauges.put(entity.getUUID(), digimon.shownGauge());
             }
         }
         // Top-left corner, a touch under full size. Everything below is drawn from the origin inside this transform.
@@ -138,7 +158,7 @@ final class PartyHud {
             }
             boolean isSelected = slot == selected;
             String key = isSelected && evolveKey != null && !evolveKey.isUnbound() ? evolveKey.getTranslatedKeyMessage().getString() : "";
-            card(graphics, font, x, y, member, age, isSelected, key, flightFuel.get(member.id()),
+            card(graphics, font, x, y, member, age, isSelected, key, flightFuel.get(member.id()), gauges.get(member.id()),
                     memories.computeIfAbsent(member.id(), id -> new Memory()), time, fade);
             y += H + GAP;
         }
@@ -164,7 +184,7 @@ final class PartyHud {
     }
 
     private void card(GuiGraphicsExtractor g, Font font, int x, int y, PartyMemberView m, int age, boolean selected, String key,
-                      Float fuel, Memory memory, float time, float fade) {
+                      Float fuel, Float gauge, Memory memory, float time, float fade) {
         float health = PartyHudReadout.healthFraction(m);
         boolean alive = m.health() > 0;
         boolean lit = alive && m.deployed();
@@ -247,16 +267,27 @@ final class PartyHud {
             rect(g, hx, y + 23, TEXT_W, 1, tint(DigiTheme.EDGE_DIM, 0xFF, fade));
             rect(g, hx, y + 23, Math.round(TEXT_W * Math.clamp(fuel, 0.0F, 1.0F)), 1, tint(DigiTheme.FLIGHT, 0xFF, fade));
         }
+        if (gauge != null) {
+            // a gauge move's charge: amber as its hits fill it, breathing white once it is full and the move unlocks
+            int gy = y + (fuel != null ? 24 : 23), ink = gauge >= 1 ? DigiTheme.mix(DigiTheme.AMBER, DigiTheme.WHITE, .5F * breath(time, GAUGE_BREATH_TICKS, 0)) : DigiTheme.AMBER;
+            rect(g, hx, gy, TEXT_W, 1, tint(DigiTheme.EDGE_DIM, 0xFF, fade));
+            rect(g, hx, gy, Math.round(TEXT_W * Math.clamp(gauge, 0.0F, 1.0F)), 1, tint(ink, 0xFF, fade));
+        }
 
-        // status row
+        // status row; a refused order says why in its place for a moment (the wheel's caption says it while the wheel is open)
         int soul = PartyHudReadout.soul(m, age);
         int sx = x + TEXT_X;
-        if (status == Status.STAGE) {
-            DigiPanels.attributeGlyph(g, attribute, sx, y + 27, tint(attributeColor, 0xD0, fade));
-            sx += 8;
+        String notice = Minecraft.getInstance().gui.screen() instanceof CommandWheelScreen ? null : notice(m.id());
+        if (notice != null) {
+            g.text(font, DigiPanels.shortText(font, Component.literal(notice), TEXT_W), sx, y + 26, tint(DigiTheme.RED, 0xFF, fade), true);
+        } else {
+            if (status == Status.STAGE) {
+                DigiPanels.attributeGlyph(g, attribute, sx, y + 27, tint(attributeColor, 0xD0, fade));
+                sx += 8;
+            }
+            g.text(font, DigiPanels.shortText(font, Component.literal(code(m, status, age, soul, key, species)), x + TEXT_X + TEXT_W - sx), sx, y + 26,
+                    tint(codeColor(status, soul), 0xFF, fade), true);
         }
-        g.text(font, DigiPanels.shortText(font, Component.literal(code(m, status, age, soul, key, species)), x + TEXT_X + TEXT_W - sx), sx, y + 26,
-                tint(codeColor(status, soul), 0xFF, fade), true);
 
         // XP rail
         int xpWidth = Math.round(TEXT_W * PartyHudReadout.xpFraction(m));

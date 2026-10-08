@@ -10,6 +10,8 @@ import com.digicube.party.PartyMemberView;
 import com.digicube.party.PartySavedData;
 import com.digicube.party.PartySnapshotPayload;
 import com.digicube.registry.DCItems;
+import com.digicube.scan.Scan;
+import com.digicube.scan.ScanToastPayload;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -33,6 +35,8 @@ public final class FabricPartyNetworking {
         PayloadTypeRegistry.clientboundPlay().register(PartySnapshotPayload.TYPE, PartySnapshotPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(PartyHealthPayload.TYPE, PartyHealthPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(AnalyzerDiscoveryPayload.TYPE, AnalyzerDiscoveryPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ScanToastPayload.TYPE, ScanToastPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(com.digicube.scan.DigitamaUsePayload.TYPE, com.digicube.scan.DigitamaUsePayload.STREAM_CODEC);
         PayloadTypeRegistry.serverboundPlay().register(PartyActionPayload.TYPE, PartyActionPayload.STREAM_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(PartyActionPayload.TYPE, (payload, context) ->
                 context.server().execute(() -> handle(context.player(), payload)));
@@ -102,12 +106,21 @@ public final class FabricPartyNetworking {
             if (player.getVehicle() instanceof com.digicube.entity.DigimonEntity mount) mount.noteRiderSwimRoll(player, payload.value());
             return;
         }
-        boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.OPEN || payload.action() == PartyActionPayload.RIDE;
+        boolean order = payload.action() >= PartyActionPayload.HOLD && payload.action() <= PartyActionPayload.OPEN || payload.action() == PartyActionPayload.RIDE
+                || payload.action() == PartyActionPayload.ATTACK || payload.action() == PartyActionPayload.AUTO_ATTACK || payload.action() == PartyActionPayload.NOTICE;
         // The V key and the command wheel act from the world, without the Digivice screen open.
         if ((!session.open && payload.action()!=PartyActionPayload.EVOLVE && payload.action()!=PartyActionPayload.REVERT && !order) || !player.isAlive() || player.isSpectator()
                 || !com.digicube.digivice.Digivices.hasDevice(player)) return;
-        if(payload.action()>=PartyActionPayload.EVOLVE&&!order&&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
+        // CONVERT names a family, not a Digimon: there is no evolution intent to check.
+        if(payload.action()>=PartyActionPayload.EVOLVE&&payload.action()!=PartyActionPayload.CONVERT&&!order
+                &&!com.digicube.party.PartyEvolution.currentIntent(player,payload.member(),payload.generation(),payload.sequence())) {
             send(player,false,"gui.digicube.evolution.stale");return;
+        }
+        if (payload.action() == PartyActionPayload.NOTICE) {
+            // Sent as a tree opens, often right after the order that opened the Digivice: no rate limit, no message.
+            com.digicube.party.PartyEvolution.action(player, payload.member(), "notice", 0, null);
+            send(player, false, "");
+            return;
         }
         int tick = player.level().getServer().getTickCount();
         if (tick - session.lastActionTick < 2) {
@@ -119,7 +132,12 @@ public final class FabricPartyNetworking {
         if (payload.action() == PartyActionPayload.PAGE) session.page = Math.max(0, payload.value());
         else if (payload.action() == PartyActionPayload.SELECT) message = PartyManager.select(player, payload.member(), payload.value());
         else if(payload.action()==PartyActionPayload.EVOLVE||payload.action()==PartyActionPayload.REVERT) {
-            message=com.digicube.party.PartyEvolution.action(player,payload.member(),payload.action()==PartyActionPayload.EVOLVE?"evolve":"revert",0,null);
+            net.minecraft.resources.Identifier choice=null;
+            if(payload.action()==PartyActionPayload.EVOLVE&&payload.value()!=0) {
+                choice=com.digicube.party.PartyEvolution.route(player,payload.member(),payload.value());
+                if(choice==null){send(player,false,"gui.digicube.evolution.route");return;}
+            }
+            message=com.digicube.party.PartyEvolution.action(player,payload.member(),payload.action()==PartyActionPayload.EVOLVE?"evolve":"revert",0,choice);
             if(message.isEmpty())message="gui.digicube.evolution.accepted";
         } else if(payload.action()==PartyActionPayload.ORIGIN) {
             var member=data.roster().get(payload.member());if(member==null||!member.owner().equals(player.getUUID()))return;
@@ -132,6 +150,13 @@ public final class FabricPartyNetworking {
         else if (payload.action() == PartyActionPayload.CANCEL_TARGET) message = PartyManager.cancelTarget(player, payload.member());
         else if (payload.action() == PartyActionPayload.RIDE) message = PartyManager.ride(player, payload.member());
         else if (payload.action() == PartyActionPayload.RECALL) message = PartyManager.recall(player, payload.member());
+        else if (payload.action() == PartyActionPayload.ATTACK) message = PartyManager.attack(player, payload.member(), payload.value());
+        else if (payload.action() == PartyActionPayload.AUTO_ATTACK)
+            message = PartyManager.auto(player, payload.member(), payload.value() >> 1, (payload.value() & 1) != 0);
+        else if (payload.action() == PartyActionPayload.CONVERT) {
+            message = Scan.convert(player, payload.value());
+            if (message.isEmpty()) message = "gui.digicube.scan.converted";
+        }
         else if (payload.action() == PartyActionPayload.OPEN) {
             session.open = true;
             send(player, true, "");
@@ -153,7 +178,8 @@ public final class FabricPartyNetworking {
                 .map(member -> PartyMemberView.of(data, member)).toList() : List.of();
         PartySnapshotPayload snapshot = new PartySnapshotPayload(open, session.page, owned.size(),
                 data.roster().party(player.getUUID()).stream().map(member -> PartyMemberView.of(data, member)).toList(),
-                page, message, session.open ? AnalyzerWitness.species(player) : List.of(), session.open ? AnalyzerWitness.marks(player) : 0);
+                page, message, session.open ? AnalyzerWitness.species(player) : List.of(), session.open ? AnalyzerWitness.marks(player) : 0,
+                Scan.bars(player.level().getServer(), player.getUUID()));
         if (session.sync.updateSnapshot(snapshot)) ServerPlayNetworking.send(player, snapshot);
     }
 }

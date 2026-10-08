@@ -179,13 +179,14 @@ public final class RiderControls {
                 wasDown[slot] = down;
                 continue;
             }
-            if (spec.aim() == RiderAttack.Aim.RUSH) {
-                // Held, the mount braces and then rushes (the server moves it); let go, it strikes. Only a fresh press
-                // starts one: a button still held after a blow waits for the next press, but one pressed a moment before
-                // the mount is ready is tried again for a few ticks.
+            if (spec.aim() == RiderAttack.Aim.RUSH || spec.aim() == RiderAttack.Aim.SPIN) {
+                // Held, the mount braces and then rushes (the server moves it); let go, it strikes. A spin the same way:
+                // held, it withdraws and spins up; let go, it spins off. Only a fresh press starts one: a button still
+                // held after it waits for the next press, but one pressed a moment before the mount is ready is tried
+                // again for a few ticks.
                 boolean canSend = ClientPlayNetworking.canSend(PartyActionPayload.TYPE);
                 if (down && !wasDown[slot]) pressed[slot] = mount.tickCount;
-                if (down && canSend && mount.rushCode() == 0 && mount.getAnimatingAttack() == null
+                if (down && canSend && mount.rushCode() == 0 && mount.spinCode() == 0 && mount.getAnimatingAttack() == null
                         && mount.tickCount - pressed[slot] <= RUSH_PRESS_TICKS && mount.tickCount != lastSend[slot] && cast(mount, slot)) {
                     lastSend[slot] = mount.tickCount;
                     pressed[slot] = Integer.MIN_VALUE / 2;

@@ -5,6 +5,7 @@ import com.digicube.fabric.client.gui.DigiTheme;
 import com.digicube.fabric.client.party.PartyClient;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
+import com.digicube.party.PartyMemberView;
 import com.digicube.party.PartySnapshotPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.Font;
@@ -53,6 +54,11 @@ public final class DigiviceScreen extends Screen {
     private final PartyClient client;
     private final AnalyzerTab analyzer;
     private final DigispaceTab digispace;
+    private final EvolutionSheet sheet;
+    /** Routes looked at in a tree on this screen, by Digimon, until the server's snapshot says the same. */
+    private final java.util.Map<java.util.UUID, Integer> seen = new java.util.HashMap<>();
+    /** Under a question nothing else reacts to the pointer. */
+    private boolean blind;
     private final List<Hit> hits = new ArrayList<>();
     private PartySnapshotPayload snapshot;
     private int tab;
@@ -71,6 +77,22 @@ public final class DigiviceScreen extends Screen {
         this.snapshot = client.snapshot();
         this.analyzer = new AnalyzerTab(this);
         this.digispace = new DigispaceTab(this);
+        this.sheet = new EvolutionSheet(this);
+        // Opened by a Digitama taken in from the hand: straight onto the island, where it comes together once the
+        // display is on.
+        java.util.UUID egg = client.takePendingEgg();
+        if (egg != null) {
+            tab = 1;
+            digispace.arrive(egg, BOOT_TICKS + 3);
+        }
+        // Opened by the wheel's DIGIVOLVE: straight onto the partner's tree, where the tamer picks the form.
+        java.util.UUID tree = client.takePendingTree();
+        PartyMemberView chooser = tree == null ? null : member(tree);
+        if (chooser != null) {
+            tab = 1;
+            boot = BOOT_TICKS * 2;
+            sheet.open(chooser, EvolutionSheet.From.WHEEL);
+        }
     }
 
     // ---------- what the tabs see ----------
@@ -83,7 +105,27 @@ public final class DigiviceScreen extends Screen {
     float partial() { return partial; }
     double mouseX() { return mouseX; }
     double mouseY() { return mouseY; }
-    boolean over(int x, int y, int w, int h) { return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h; }
+    boolean over(int x, int y, int w, int h) { return !blind && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h; }
+    void blind(boolean blind) { this.blind = blind; }
+
+    // ---------- digivolution: who is who, what the Analyzer knows, what is news, and the tree sheet ----------
+    /** The Digimon {@code id} as the latest snapshot has it, in the party or on the island; null when it is gone. */
+    PartyMemberView member(java.util.UUID id) {
+        for (PartyMemberView member : snapshot.party()) if (member.id().equals(id)) return member;
+        for (PartyMemberView member : snapshot.collection()) if (member.id().equals(id)) return member;
+        return null;
+    }
+    boolean knows(Identifier species) { return analyzer.knows(species); }
+    int seen(java.util.UUID id) { return seen.getOrDefault(id, 0); }
+    void noticed(java.util.UUID id, int mask) { seen.merge(id, mask, (a, b) -> a | b); }
+    /** A digivolution {@code member} has not been shown yet: its balloon and the dots on the way to it. */
+    boolean news(PartyMemberView member) { return member != null && EvolutionTree.news(member, seen(member.id())); }
+    boolean anyNews(List<PartyMemberView> members) { return members.stream().anyMatch(this::news); }
+    /** Opens {@code member}'s tree over the display; BACK returns to the island. */
+    void openTree(PartyMemberView member) { sheet.open(member, EvolutionSheet.From.CARD); }
+    /** Opens {@code species}' tree from the Analyzer. */
+    void openTree(Identifier species) { sheet.open(species); }
+    boolean sheetCovering() { return sheet.covering(); }
     boolean pressed(String id) { return id.equals(press); }
     void hit(int x, int y, int w, int h, Runnable action) { hits.add(new Hit(x, y, w, h, action, null, null)); }
     /** A control that shows itself held down while the button is. */
@@ -94,7 +136,13 @@ public final class DigiviceScreen extends Screen {
     static String upper(Component text) { return text.getString().toUpperCase(Locale.ROOT); }
 
     /** Opens the Analyzer on {@code species}, e.g. from a Digimon in the Digispace. */
-    void analyze(Identifier species) { analyzer.select(species); show(0); }
+    void analyze(Identifier species) { sheet.close(); analyzer.select(species); show(0); }
+    /** Opens the Analyzer's SCAN page on {@code family}'s Digitama, e.g. from a Digitama in the Digispace. */
+    void scan(Identifier family) { sheet.close(); analyzer.scan(family); show(0); }
+    /** Turns to the Digispace with the camera on the Digitama {@code id} and its card up. */
+    void showEgg(java.util.UUID id) { sheet.close(); digispace.focus(id); show(1); }
+    /** A Digitama just taken in from the hand while the Digivice is open: the Digispace turns to it as it comes together. */
+    public void arrive(java.util.UUID id) { sheet.close(); show(1); digispace.arrive(id, SWAP_TICKS); }
 
     /** GUI units of the real screen for a point of the plate; the 3D preview is drawn outside the plate's transform. */
     int screenX(int plateX) { return originX + Math.round(plateX * scale); }
@@ -111,6 +159,7 @@ public final class DigiviceScreen extends Screen {
     public void receive(PartySnapshotPayload snapshot) {
         this.snapshot = snapshot;
         analyzer.refresh();
+        analyzer.answer(snapshot.message());
         digispace.refresh(snapshot.message());
     }
 
@@ -133,6 +182,7 @@ public final class DigiviceScreen extends Screen {
         if (keyTicks > 0 && --keyTicks == 0) keyDown = null;
         analyzer.tick();
         digispace.tick(tab == 1);
+        sheet.tick();
         if (minecraft.player == null || !minecraft.player.isAlive()) onClose();
     }
 
@@ -152,6 +202,8 @@ public final class DigiviceScreen extends Screen {
     }
 
     private void pressKey(DeviceKey key) {
+        // the sheet covers the tabs: Q and E wait until it is put away
+        if (sheet.open() && key != DeviceKey.POWER) return;
         keyDown = key;
         keyTicks = KEY_TICKS;
         switch (key) {
@@ -183,12 +235,13 @@ public final class DigiviceScreen extends Screen {
         g.enableScissor(DISPLAY_X, DISPLAY_Y, DISPLAY_X + DISPLAY_WIDTH, DISPLAY_Y + DISPLAY_HEIGHT);
         tabs(g);
         if (tab == 0) analyzer.draw(g); else digispace.draw(g);
+        sheet.draw(g);
         transitions(g);
         g.disableScissor();
         g.fill(DISPLAY_X, DISPLAY_Y, DISPLAY_X + DISPLAY_WIDTH, DISPLAY_Y + 1, DigiTheme.SHADOW);
         g.fill(DISPLAY_X, DISPLAY_Y, DISPLAY_X + 1, DISPLAY_Y + DISPLAY_HEIGHT, DigiTheme.SHADOW);
 
-        boolean glove = tab == 1 && digispace.gloveActive();
+        boolean glove = tab == 1 && !sheet.covering() && digispace.gloveActive();
         hideCursor(glove);
         if (glove) digispace.drawGlove(g);
         g.pose().popMatrix();
@@ -271,6 +324,10 @@ public final class DigiviceScreen extends Screen {
             else DigiviceArt.digispaceIcon(g, x + 6, y + (active ? 4 : 5), active ? DigiTheme.CYAN : color);
             g.text(font, labels[i], x + 21, y + (active ? 5 : 6), color, false);
             hit(x, y, w, 16, () -> show(index));
+            // a Digitama can be converted and the tamer has not looked at it on the SCAN page
+            if (i == 0 && client.scanNews().any()) DigiviceArt.dot(g, x + w - 5, y - 1);
+            // a Digimon in the Digispace has a digivolution it has not been shown
+            if (i == 1 && (anyNews(snapshot.party()) || anyNews(snapshot.collection()))) DigiviceArt.dot(g, x + w - 5, y - 1);
             x += w + 3;
         }
         for (int i = 0; i < EMPTY_BAYS; i++) { DigiviceKit.emptyBay(g, x, y, 44, 16); x += 47; }
@@ -347,6 +404,7 @@ public final class DigiviceScreen extends Screen {
     }
 
     @Override public boolean keyPressed(KeyEvent event) {
+        if (sheet.open()) return sheet.keyPressed(event.key()) || super.keyPressed(event);
         if (tab == 0 && analyzer.keyPressed(event.key())) return true;
         if (tab == 1 && digispace.keyPressed(event.key())) return true;
         if (event.key() == InputConstants.KEY_Q) { pressKey(DeviceKey.PREVIOUS); return true; }

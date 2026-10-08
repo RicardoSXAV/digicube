@@ -2,7 +2,6 @@ package com.digicube.fabric.client.digivice;
 
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.DigimonSpeciesRegistry;
-import com.digicube.digimon.EvolutionRules;
 import com.digicube.fabric.client.gui.DigiPanels;
 import com.digicube.fabric.client.gui.DigiTheme;
 import com.digicube.party.PartyActionPayload;
@@ -31,6 +30,10 @@ import static com.digicube.fabric.client.gui.DigiTheme.withAlpha;
 
 /**
  * The Digispace: the island where the Digimon that are not with the tamer wander, and the place the party is managed.
+ * A Digitama from the scan sits still on the island until it hatches, half a Digimon's size so its texels are the
+ * island's, its time to hatching above it; it rocks now and then and cracks at the end. It can be moved about the island
+ * but not carried to the party. One just taken in from the hand comes together out of golden data where it lies
+ * ({@link #arrive}), the camera on it.
  * The hand is the player. A click selects a Digimon and slides its card up; dragging one slides the party dock up,
  * and letting go on a bay puts it in the party (whoever was there comes back to the island, rebuilt out of data on the
  * spot the other was picked up from). With the dock pinned open by the PARTY key, a partner can be carried out of its
@@ -62,7 +65,14 @@ final class DigispaceTab {
     private boolean pinned;
     private float dock, lastDock, card, lastCard;
     private String note = "";
-    private int noteTicks, originChoice;
+    private int noteTicks;
+    /** The Digitama in the last snapshot: one that is gone from it hatched, and is rebuilt out of data where it sat. */
+    private final java.util.Set<UUID> eggs = new java.util.HashSet<>();
+    /** The Digitama coming together after it was taken in from the hand, and the ticks since it began (below 0: not yet). */
+    private UUID arriving;
+    private int arriveTicks, arriveWait;
+    /** Ticks the white of a Digitama that just came together takes to fade. */
+    private static final int ARRIVE_FLASH_TICKS = 8;
 
     DigispaceTab(DigiviceScreen screen) {
         this.screen = screen;
@@ -81,6 +91,14 @@ final class DigispaceTab {
         return null;
     }
     private static boolean asleep(PartyMemberView member) { return member.health() <= 0; }
+    /** The family a Digitama hatches into, named by its first form. */
+    private static Identifier eggFamily(PartyMemberView member) {
+        Identifier family = com.digicube.digimon.DigimonFamilies.of(member.species());
+        return family == null ? member.species() : family;
+    }
+    /** A Digitama's time left, counted down locally between the server's updates. */
+    private int hatchLeft(PartyMemberView member) { return Math.max(20, member.hatchTicks() - screen.client().snapshotAge()); }
+    private boolean isEgg(UUID id) { PartyMemberView member = member(id); return member != null && member.egg(); }
     private static DigimonSpecies species(PartyMemberView member) { return DigimonSpeciesRegistry.get(member.species()).orElse(null); }
     private static String name(PartyMemberView member) {
         if (!member.nickname().isEmpty()) return member.nickname();
@@ -93,16 +111,22 @@ final class DigispaceTab {
         List<DigispaceHerd.Entry> entries = new ArrayList<>();
         for (PartyMemberView member : reserve()) {
             DigimonSpecies species = species(member);
-            entries.add(new DigispaceHerd.Entry(member.id(), species != null && species.baseSpeed() > 0.2F, asleep(member)));
+            // A Digitama lies still, like a sleeper, until it hatches.
+            entries.add(new DigispaceHerd.Entry(member.id(), species != null && species.baseSpeed() > 0.2F, asleep(member) || member.egg()));
         }
         herd.sync(entries);
+        for (PartyMemberView member : reserve()) {
+            if (member.egg()) { eggs.add(member.id()); continue; }
+            DigispaceHerd.Walker hatched = eggs.remove(member.id()) ? herd.get(member.id()) : null;
+            if (hatched != null) hatched.spawn = DigispaceHerd.SPAWN_TICKS;
+        }
         for (int slot = 0; slot < bays.length; slot++) {
             PartyMemberView now = bay(slot);
             UUID id = now == null ? null : now.id();
             if (id != null && !id.equals(bays[slot])) flash[slot] = FLASH_TICKS;
             bays[slot] = id;
         }
-        if (picked != null && herd.get(picked) == null) picked = null;
+        if (picked != null && member(picked) == null) picked = null;
         if (!message.isEmpty()) note(Component.translatable(message).getString());
     }
 
@@ -110,15 +134,62 @@ final class DigispaceTab {
 
     void release() { hold = null; carry = null; pan = null; }
 
+    /**
+     * {@code id}, a Digitama just taken in from the hand, comes together out of golden data where it lies after
+     * {@code delay} ticks (the display powering on): the camera goes to it at once, its card comes up once it is whole.
+     */
+    void arrive(UUID id, int delay) {
+        arriving = id;
+        arriveTicks = -delay;
+        arriveWait = 0;
+        picked = null;
+        DigispaceHerd.Walker walker = herd.get(id);
+        if (walker == null) return;
+        camera.focus(walker.x, walker.y, 3);
+        // It comes together its own way, not rebuilt like a Digimon back from the party.
+        walker.spawn = 0;
+    }
+
+    /** Seconds the arriving Digitama {@code id} has been coming together, or -1 when it is not arriving. */
+    private float arrival(UUID id) {
+        return id.equals(arriving) ? (arriveTicks + screen.partial()) / 20F : -1;
+    }
+
+    private void tickArrival() {
+        if (arriving == null) return;
+        DigispaceHerd.Walker walker = herd.get(arriving);
+        if (walker == null) {
+            // Not in a snapshot yet: wait a moment for it, then give up.
+            if (++arriveWait > 60) arriving = null;
+            return;
+        }
+        if (arriveWait > 0) { camera.focus(walker.x, walker.y, 3); walker.spawn = 0; arriveWait = 0; }
+        arriveTicks++;
+        if (arriveTicks == DigitamaArt.ASSEMBLE_TICKS) {
+            picked = arriving;
+            Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(com.digicube.registry.DCSounds.RECALL_CATCH, 1F, .95F));
+        } else if (arriveTicks > DigitamaArt.ASSEMBLE_TICKS + ARRIVE_FLASH_TICKS * 2) arriving = null;
+    }
+
+    /** Picks {@code id} with its card up and the camera on it, as the SCAN page does for a new Digitama. */
+    void focus(UUID id) {
+        DigispaceHerd.Walker walker = herd.get(id);
+        if (walker == null) return;
+        picked = id;
+        camera.focus(walker.x, walker.y, 3);
+    }
+
     void tick(boolean active) {
+        tickArrival();
         for (int i = 0; i < flash.length; i++) if (flash[i] > 0) flash[i]--;
         if (noteTicks > 0) noteTicks--;
         boolean flashing = false;
         for (int f : flash) flashing |= f > 0;
         lastDock = dock; lastCard = card;
-        dock = Math.clamp(dock + (pinned || carry != null || flashing ? 0.25F : -0.2F), 0, 1);
+        // a Digitama in the hand has no bay to go to: the dock stays down for it
+        dock = Math.clamp(dock + (pinned || carry != null && !carry.member().egg() || flashing ? 0.25F : -0.2F), 0, 1);
         if (picked != null) shown = picked;
-        card = Math.clamp(card + (picked != null && carry == null ? 0.25F : -0.25F), 0, 1);
+        card = Math.clamp(card + (picked != null && carry == null && !screen.sheetCovering() ? 0.25F : -0.25F), 0, 1);
         if (active) herd.step(screen.ticks(), carry != null && !carry.fromBay() ? carry.member().id() : hold != null && hold.slot() < 0 ? hold.id() : null);
     }
 
@@ -135,7 +206,7 @@ final class DigispaceTab {
         for (int slot = 0; slot < bays.length; slot++) { int[] r = bayRect(slot); if (x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3]) return slot; }
         return -1;
     }
-    private int cardWidth() { PartyMemberView member = member(shown); return member != null && member.originRequired() ? 330 : 214; }
+    private int cardWidth() { return 286; }
     private int cardX() { return VX + (VW - cardWidth()) / 2; }
     private int cardY() { return VY + VH - CARD_HEIGHT - 3 - Math.round(dockShown() * (DOCK_HEIGHT + 3)) + Math.round((1 - cardShown()) * (CARD_HEIGHT + DOCK_HEIGHT + 12)); }
     private boolean overPanels(double x, double y) {
@@ -150,14 +221,16 @@ final class DigispaceTab {
         DigispaceHerd.Walker best = null;
         for (DigispaceHerd.Walker w : herd.walkers()) {
             double sx = camera.screenX(w.x), sy = camera.screenY(w.y);
-            if (x >= sx - 8 * z && x < sx + 8 * z && y >= sy - 15 * z && y < sy + z && (best == null || w.y > best.y)) best = w;
+            boolean egg = isEgg(w.id);
+            int half = egg ? 6 : 8, top = egg ? 10 : 15;
+            if (x >= sx - half * z && x < sx + half * z && y >= sy - top * z && y < sy + z && (best == null || w.y > best.y)) best = w;
         }
         return best;
     }
 
-    /** Where a carried Digimon's feet are: it hangs under the fist. */
+    /** Where a carried Digimon's feet are: it hangs under the fist (a Digitama, half as tall, nearer it). */
     private double dropX(double x) { return camera.worldX(x); }
-    private double dropY(double y) { return camera.worldY(y + 2 + 15 * camera.scale()); }
+    private double dropY(double y, Carry carried) { return camera.worldY(y + 2 + (carried.member().egg() ? 8 : 15) * camera.scale()); }
 
     // ---------- the hand ----------
     boolean gloveActive() { return screen.mouseX() >= 0 && (carry != null || pan != null || camera.contains(screen.mouseX(), screen.mouseY())); }
@@ -186,7 +259,8 @@ final class DigispaceTab {
         if (hold != null && Math.hypot(x - hold.x(), y - hold.y()) > DRAG_DISTANCE) {
             PartyMemberView member = member(hold.id());
             DigispaceHerd.Walker walker = herd.get(hold.id());
-            if (member != null && asleep(member)) note(Component.translatable("gui.digicube.party.defeated").getString());
+            if (member != null && member.egg()) { carry = new Carry(member, -1, walker == null ? 0 : walker.x, walker == null ? 0 : walker.y); picked = null; }
+            else if (member != null && asleep(member)) note(Component.translatable("gui.digicube.party.defeated").getString());
             else if (member != null && member.originRequired()) note(Component.translatable("gui.digicube.evolution.origin").getString());
             else if (member != null) { carry = new Carry(member, hold.slot(), walker == null ? 0 : walker.x, walker == null ? 0 : walker.y); picked = null; }
             hold = null;
@@ -194,16 +268,23 @@ final class DigispaceTab {
         if (pan != null) camera.pan(pan.centerX(), pan.centerY(), x - pan.x(), y - pan.y());
     }
 
-    /** Let go: on a bay the server is asked for the slot, on open ground the Digimon is set down, anywhere else nothing changes. */
+    /** Let go: on a bay the server is asked for the slot, on open ground the Digimon is set down, anywhere else nothing changes. A plain click picks. */
     void mouseUp(double x, double y) {
-        if (hold != null && hold.slot() < 0) picked = hold.id().equals(picked) ? null : hold.id();
+        if (hold != null) picked = hold.id().equals(picked) ? null : hold.id();
         Carry held = carry;
         hold = null; pan = null; carry = null;
         if (held == null) return;
         int slot = bayAt(x, y);
-        double wx = dropX(x), wy = dropY(y);
+        double wx = dropX(x), wy = dropY(y, held);
         boolean ground = slot < 0 && onIsland(x, y) && world.walkable(wx, wy);
         UUID id = held.member().id();
+        if (held.member().egg()) {
+            // A Digitama moves about the island; the party is no place for it.
+            DigispaceHerd.Walker egg = herd.get(id);
+            if (slot >= 0) note(Component.translatable("gui.digicube.scan.egg_party").getString());
+            else if (egg != null && ground) herd.settle(egg, wx, wy);
+            return;
+        }
         if (held.fromBay()) {
             if (slot >= 0 && slot != held.slot()) screen.send(new PartyActionPayload(PartyActionPayload.SELECT, id, slot));
             else if (ground) {
@@ -248,8 +329,8 @@ final class DigispaceTab {
         DigiviceArt.terrain(world).draw(g, 0, 0, DigispaceWorld.WIDTH, DigispaceWorld.IMAGE_HEIGHT / DigispaceWorld.TEXELS);
         glints(g);
         if (carry != null && mx >= 0 && bayAt(mx, my) < 0) {
-            int dx = (int) Math.round(dropX(mx)), dy = (int) Math.round(dropY(my));
-            int color = onIsland(mx, my) && world.walkable(dropX(mx), dropY(my)) ? DigiTheme.CYAN : DigiTheme.RED;
+            int dx = (int) Math.round(dropX(mx)), dy = (int) Math.round(dropY(my, carry));
+            int color = onIsland(mx, my) && world.walkable(dropX(mx), dropY(my, carry)) ? DigiTheme.CYAN : DigiTheme.RED;
             g.fill(dx - 6, dy - 1, dx + 6, dy + 2, withAlpha(color, 0x90));
             g.fill(dx - 4, dy - 2, dx + 4, dy + 3, withAlpha(color, 0x70));
         }
@@ -267,6 +348,25 @@ final class DigispaceTab {
             for (int r = -5; r <= 5; r++) { int half = (int) Math.round(Math.sqrt(1 - Math.pow(r / 6.0, 2)) * (52 + i * 8) / 4) * 4; g.fill(cx - half, cy + r * 4, cx + half, cy + r * 4 + 4, 0x14061020); }
         }
         g.pose().popMatrix();
+        // news: a "!" balloon over every Digimon with a digivolution it has not been shown, the same size at every zoom
+        int lift = floating();
+        for (DigispaceHerd.Walker w : herd.walkers()) {
+            if (carry != null && !carry.fromBay() && carry.member().id().equals(w.id) || !screen.news(member(w.id))) continue;
+            double wx = w.lastX + (w.x - w.lastX) * screen.partial(), wy = w.lastY + (w.y - w.lastY) * screen.partial();
+            int bob = w.moving() ? (int) Math.round(Math.abs(Math.sin(time / 3)) * 2) : 0;
+            DigiviceArt.balloon(g, (int) Math.round(camera.screenX(wx)), (int) Math.round(camera.screenY(wy - 15 - bob)) - 2 - lift);
+        }
+        // every Digitama wears its time to hatching in the pointer's tag, the same size at every zoom; under the pointer
+        // the tag names it as well
+        for (DigispaceHerd.Walker w : herd.walkers()) {
+            PartyMemberView member = member(w.id);
+            if (member == null || !member.egg() || w == hovered && !w.id.equals(picked)
+                    || carry != null && carry.member().id().equals(w.id) || w.id.equals(arriving) && arrival(w.id) < DigitamaArt.ASSEMBLE) continue;
+            String clock = ScanPage.clock(hatchLeft(member));
+            int tw = DigiviceKit.tagWidth(font, clock), sx = (int) Math.round(camera.screenX(w.x)), sy = (int) Math.round(camera.screenY(w.y));
+            int up = Math.round(sy - 10 * z - 13);
+            DigiviceKit.tag(g, font, clock, Math.clamp(sx - tw / 2, VX + 2, VX + VW - tw - 2), up < VY + 20 ? sy + 4 : up, DigiTheme.EDGE, DigiTheme.WHITE);
+        }
         g.disableScissor();
         DigiPanels.frame(g, VX, VY, VW, VH, 0, DigiTheme.EDGE, 1);
 
@@ -284,17 +384,28 @@ final class DigispaceTab {
         if (hovered != null && !hovered.id.equals(picked)) {
             PartyMemberView member = member(hovered.id);
             if (member != null) {
-                String text = name(member).toUpperCase(Locale.ROOT) + "  L" + member.level();
+                String text = member.egg() ? eggName(member) + "  " + ScanPage.clock(hatchLeft(member))
+                        : name(member).toUpperCase(Locale.ROOT) + "  L" + member.level();
                 int tw = DigiviceKit.tagWidth(font, text), sx = (int) Math.round(camera.screenX(hovered.x)), sy = (int) Math.round(camera.screenY(hovered.y));
-                int up = Math.round(sy - 15 * z - 13);
+                int up = Math.round(sy - (member.egg() ? 10 : 15) * z - (screen.news(member) ? DigiviceArt.BALLOON_HEIGHT + 15 : 13));
                 DigiviceKit.tag(g, font, text, Math.clamp(sx - tw / 2, VX + 2, VX + VW - tw - 2), up < VY + 20 ? sy + 4 : up, DigiTheme.EDGE, DigiTheme.WHITE);
             }
         }
         if (carry != null && mx >= 0) {
             int size = Math.round(16 * z), sway = (int) Math.round(Math.sin(time / 2));
-            DigiPanels.icon(g, carry.member().species(), (int) Math.round(mx - size / 2.0) + sway, (int) Math.round(my) + 2, size);
+            if (carry.member().egg()) {
+                // a Digitama hangs under the fist at its size on the island
+                g.pose().pushMatrix();
+                g.pose().translate((float) mx + sway, (float) my + 2);
+                g.pose().scale(z / 2, z / 2);
+                DigitamaArt.draw(g, eggFamily(carry.member()), -8, 0, 1, 1, 0, DigitamaArt.crack(hatchLeft(carry.member())), 0, 0, screen.ticks());
+                g.pose().popMatrix();
+            } else DigiPanels.icon(g, carry.member().species(), (int) Math.round(mx - size / 2.0) + sway, (int) Math.round(my) + 2, size);
         }
     }
+
+    /** The news balloons float a unit up and down. */
+    private int floating() { return screen.ticks() / 8 % 2; }
 
     /** Loose squares of data gather around the island's rim. */
     private void looseData(GuiGraphicsExtractor g, float time) {
@@ -341,17 +452,56 @@ final class DigispaceTab {
         int bob = w.moving() ? (int) Math.round(Math.abs(Math.sin(time / 3)) * 2) : 0;
         g.pose().pushMatrix();
         g.pose().translate((float) x, (float) y);
-        g.fill(-5, -1, 5, 1, 0x50000000);
-        g.fill(-3, -2, 3, 2, 0x40000000);
-        int tint = w.spawn > 0 ? withAlpha(0xFFFFFF, (int) (255 * (1 - (float) w.spawn / DigispaceHerd.SPAWN_TICKS))) : w.asleep ? 0xFF7A8794 : 0xFFFFFFFF;
-        icon(g, member.species(), -8, -15 - bob, 16, tint, w.flip);
-        // coming back from the party: the body is rebuilt out of data blocks
-        if (w.spawn > 0) for (int k = 0; k < 14; k++) if (DigispaceWorld.hash(k, w.spawn) > 0.45) {
-            int bx = -8 + (int) (DigispaceWorld.hash(k, 3) * 7) * 2, by = -15 + (int) (DigispaceWorld.hash(k, 5) * 8) * 2;
+        if (member.egg()) egg(g, w, member, hovered);
+        else {
+            g.fill(-5, -1, 5, 1, 0x50000000);
+            g.fill(-3, -2, 3, 2, 0x40000000);
+            int tint = w.spawn > 0 ? withAlpha(0xFFFFFF, (int) (255 * (1 - (float) w.spawn / DigispaceHerd.SPAWN_TICKS))) : w.asleep ? 0xFF7A8794 : 0xFFFFFFFF;
+            icon(g, member.species(), -8, -15 - bob, 16, tint, w.flip);
+            // coming back from the party: the body is rebuilt out of data blocks
+            if (w.spawn > 0) for (int k = 0; k < 14; k++) if (DigispaceWorld.hash(k, w.spawn) > 0.45) {
+                int bx = -8 + (int) (DigispaceWorld.hash(k, 3) * 7) * 2, by = -15 + (int) (DigispaceWorld.hash(k, 5) * 8) * 2;
+                g.fill(bx, by, bx + 2, by + 2, DigispaceWorld.hash(k, 9) > 0.5 ? DigiTheme.CYAN : DigiTheme.WHITE);
+            }
+            if (w.id.equals(picked)) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, DigiTheme.AMBER);
+            else if (hovered) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, withAlpha(DigiTheme.WHITE, 0xC0));
+        }
+        g.pose().popMatrix();
+    }
+
+    /**
+     * A Digitama on the island at its feet, drawn in half units: half a Digimon's size, so each of its texels is one of
+     * the island's. It rocks now and then, flashes as it hatches, and one just taken in from the hand comes together
+     * first ({@link #arrive}).
+     */
+    private void egg(GuiGraphicsExtractor g, DigispaceHerd.Walker w, PartyMemberView member, boolean hovered) {
+        float arrival = arrival(w.id);
+        // Not on the island yet: the display is still powering on.
+        if (arrival < 0 && w.id.equals(arriving)) return;
+        int left = hatchLeft(member);
+        Identifier family = eggFamily(member);
+        g.pose().pushMatrix();
+        g.pose().scale(0.5F, 0.5F);
+        if (arrival >= 0 && arrival < DigitamaArt.ASSEMBLE) DigitamaArt.assemble(g, family, -8, -15, arrival);
+        else {
+            g.fill(-8, -2, 8, 2, 0x50000000);
+            g.fill(-6, -3, 6, 3, 0x30000000);
+            // Just whole: white at first, and a ring of data runs out from under it.
+            float landed = arrival < 0 ? 0 : 1 - (arrival - DigitamaArt.ASSEMBLE) * 20 / ARRIVE_FLASH_TICKS;
+            if (arrival >= 0) DigitamaArt.landed(g, 0, 0, arrival - DigitamaArt.ASSEMBLE);
+            float white = w.spawn > 0 ? (float) w.spawn / DigispaceHerd.SPAWN_TICKS : left < 40 ? 1 - left / 40F : 0;
+            g.pose().pushMatrix();
+            g.pose().translate(DigitamaArt.wobble(left, screen.ticks(), w.id.hashCode() & 0xFF) * 2, 0);
+            DigitamaArt.draw(g, family, -8, -15, 1, 1, 0, DigitamaArt.crack(left), Math.max(white, Math.clamp(landed, 0, 1)), 0, screen.ticks());
+            g.pose().popMatrix();
+        }
+        // set down on the island: rebuilt out of data blocks
+        if (w.spawn > 0) for (int k = 0; k < 18; k++) if (DigispaceWorld.hash(k, w.spawn) > 0.4) {
+            int bx = -14 + (int) (DigispaceWorld.hash(k, 3) * 14) * 2, by = -24 + (int) (DigispaceWorld.hash(k, 5) * 12) * 2;
             g.fill(bx, by, bx + 2, by + 2, DigispaceWorld.hash(k, 9) > 0.5 ? DigiTheme.CYAN : DigiTheme.WHITE);
         }
-        if (w.id.equals(picked)) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, DigiTheme.AMBER);
-        else if (hovered) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, withAlpha(DigiTheme.WHITE, 0xC0));
+        if (w.id.equals(picked)) DigiPanels.brackets(g, -10, -19, 20, 20, 6, 2, DigiTheme.AMBER);
+        else if (hovered) DigiPanels.brackets(g, -10, -19, 20, 20, 6, 2, withAlpha(DigiTheme.WHITE, 0xC0));
         g.pose().popMatrix();
     }
 
@@ -370,6 +520,8 @@ final class DigispaceTab {
         g.fill(tx - 3, ty - 2, tx + tw + 3, ty + th + 2, withAlpha(DigiTheme.VOID, 0xC0));
         DigiviceKit.keyButton(g, font, tx, ty, tw, th, party, false, false, DigiviceKit.state(true, over, screen.pressed("party")));
         if (pinned) DigiviceKit.lit(g, font, tx, ty, tw, th, party);
+        // a partner has a digivolution it has not been shown
+        if (screen.anyNews(screen.snapshot().party())) DigiviceArt.dot(g, tx + tw - 4, ty - 3);
         screen.hit(tx, ty, tw, th, "party", () -> pinned = !pinned);
         if (over) DigiviceKit.tag(g, font, DigiviceScreen.upper(Component.translatable(pinned ? "gui.digicube.digivice.party_hide" : "gui.digicube.digivice.party_show")), tx + tw + 5, ty + 1, DigiTheme.EDGE, DigiTheme.WHITE);
 
@@ -386,7 +538,9 @@ final class DigispaceTab {
     /** The party: three bays. While a Digimon is carried they open up, and the one under the hand says what letting go would do. */
     private void dock(GuiGraphicsExtractor g, Font font, double mx, double my) {
         if (dock <= 0 && lastDock <= 0) return;
-        int x = dockX(), y = dockY(), at = carry != null ? bayAt(mx, my) : -1;
+        // a carried Digitama has no bay to go to, so none lights up for it
+        boolean bringing = carry != null && !carry.member().egg();
+        int x = dockX(), y = dockY(), at = bringing ? bayAt(mx, my) : -1;
         DigiPanels.frame(g, x, y, DOCK_WIDTH, DOCK_HEIGHT, withAlpha(DigiTheme.PANEL, 0xF4), DigiTheme.EDGE, 3);
         g.fill(x + 4, y, x + DOCK_WIDTH - 4, y + 1, DigiviceArt.KEY_LIGHT);
         g.fill(x + 4, y + 1, x + DOCK_WIDTH - 4, y + 2, withAlpha(DigiviceArt.KEY, 0xA0));
@@ -415,9 +569,18 @@ final class DigispaceTab {
                 float health = member.maxHealth() <= 0 ? 0 : Math.clamp(member.health() / member.maxHealth(), 0, 1);
                 g.fill(sx + 1, sy + sh - 2, sx + 1 + Math.round((sw - 2) * health), sy + sh - 1, health > 0.5F ? DigiTheme.TEAL : health > 0.25F ? DigiTheme.AMBER : DigiTheme.RED);
             }
-            DigiPanels.frame(g, sx, sy, sw, sh, 0, on ? DigiTheme.AMBER : carry != null ? withAlpha(DigiTheme.AMBER, 0x50 + (int) (0x90 * pulse)) : hover ? DigiTheme.WHITE : DigiTheme.EDGE, 1);
-            if (carry != null) DigiPanels.brackets(g, sx, sy, sw, sh, 5, on ? 2 : 1, withAlpha(DigiTheme.AMBER, on ? 0xFF : 0x60 + (int) (0x80 * pulse)));
+            boolean chosen = member != null && member.id().equals(picked);
+            DigiPanels.frame(g, sx, sy, sw, sh, 0, on || chosen ? DigiTheme.AMBER : bringing ? withAlpha(DigiTheme.AMBER, 0x50 + (int) (0x90 * pulse)) : hover ? DigiTheme.WHITE : DigiTheme.EDGE, 1);
+            if (bringing) DigiPanels.brackets(g, sx, sy, sw, sh, 5, on ? 2 : 1, withAlpha(DigiTheme.AMBER, on ? 0xFF : 0x60 + (int) (0x80 * pulse)));
+            else if (chosen) DigiPanels.brackets(g, sx, sy, sw, sh, 5, 1, DigiTheme.AMBER);
             if (flash[slot] > 0) g.fill(sx, sy, sx + sw, sy + sh, withAlpha(DigiTheme.WHITE, 0xE0 * flash[slot] / FLASH_TICKS));
+        }
+        // a partner with news wears its balloon on the bay, drawn after the bays so a neighbour never covers it
+        for (int slot = 0; slot < bays.length; slot++) {
+            PartyMemberView member = bay(slot);
+            if (!screen.news(member) || carry != null && carry.slot() == slot) continue;
+            int[] r = bayRect(slot);
+            DigiviceArt.balloon(g, r[0] + r[2] - 2, r[1] + 3 - floating());
         }
         if (carry == null || noteTicks > 0 || dock < 1) return;
         String text;
@@ -429,12 +592,46 @@ final class DigispaceTab {
         DigiviceKit.tag(g, font, text, x + (DOCK_WIDTH - DigiviceKit.tagWidth(font, text)) / 2, y - 14, at >= 0 ? DigiTheme.AMBER : DigiTheme.EDGE, at >= 0 ? DigiTheme.AMBER : DigiTheme.MUTED);
     }
 
-    /** A click selects: the card says who it is and offers its Analyzer entry. A Champion with no recorded origin picks one here. */
+    /** A Digitama's name: its family's first form. */
+    private static String eggName(PartyMemberView member) {
+        DigimonSpecies species = species(member);
+        String family = species == null ? member.species().getPath() : Component.translatable(species.translationKey()).getString();
+        return DigiviceScreen.upper(Component.translatable("gui.digicube.scan.digitama", family));
+    }
+
+    /** A Digitama's card: what it will hatch into and when, SCAN for its family's bar and ANALYZE for the first form. */
+    private void eggCard(GuiGraphicsExtractor g, Font font, PartyMemberView member, int x, int y, int w) {
+        DigiPanels.frame(g, x, y, w, CARD_HEIGHT, withAlpha(DigiTheme.PANEL, 0xF4), DigiTheme.EDGE, 3);
+        g.fill(x + 4, y, x + w - 4, y + 1, DigiTheme.AMBER);
+        g.fill(x + 3, y + 3, x + 21, y + 21, withAlpha(DigiTheme.VOID, 0xE0));
+        int left = hatchLeft(member);
+        Identifier family = eggFamily(member);
+        DigitamaArt.draw(g, family, x + 4, y + 4, 1, 1, 0, DigitamaArt.crack(left), 0, 0, screen.ticks());
+        g.text(font, eggName(member), x + 26, y + 4, DigiTheme.WHITE, true);
+        g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.scan.hatches_in", ScanPage.clock(left))), x + 26, y + 13, DigiTheme.CYAN, false);
+        String scan = DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.page.scan")), analyze = DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.analyze"));
+        int aw = font.width(analyze) + 14, sw = font.width(scan) + 14, ax = x + w - 4 - aw, sx = ax - 4 - sw, by = y + 4;
+        DigiviceKit.keyButton(g, font, sx, by, sw, 16, scan, true, false, DigiviceKit.state(true, screen.over(sx, by, sw, 16), screen.pressed("egg_scan")));
+        DigiviceKit.keyButton(g, font, ax, by, aw, 16, analyze, false, false, DigiviceKit.state(true, screen.over(ax, by, aw, 16), screen.pressed("analyze")));
+        // the time it has waited, filling a hairline under the card
+        float done = 1 - Math.clamp(left / (float) com.digicube.digimon.Progression.DIGITAMA_HATCH_TICKS, 0, 1);
+        g.fill(x + 4, y + CARD_HEIGHT - 3, x + w - 4, y + CARD_HEIGHT - 2, withAlpha(DigiTheme.EDGE_DIM, 0xC0));
+        g.fill(x + 4, y + CARD_HEIGHT - 3, x + 4 + Math.round((w - 8) * done), y + CARD_HEIGHT - 2, DigiTheme.CYAN);
+        boolean live = card > 0.5F;
+        Identifier scanned = family;
+        if (live) screen.hit(x, y, w, CARD_HEIGHT, () -> {});
+        if (live) screen.hit(sx, by, sw, 16, "egg_scan", () -> screen.scan(scanned));
+        if (live) screen.hit(ax, by, aw, 16, "analyze", () -> screen.analyze(member.species()));
+    }
+
+    /** A click selects: the card says who it is and opens its digivolution tree and its Analyzer entry. */
     private void card(GuiGraphicsExtractor g, Font font) {
         PartyMemberView member = member(shown);
         DigispaceHerd.Walker walker = shown == null ? null : herd.get(shown);
-        if (member == null || walker == null || (card <= 0 && lastCard <= 0)) return;
+        boolean partner = member != null && member.slot() >= 0;
+        if (member == null || walker == null && !partner || (card <= 0 && lastCard <= 0)) return;
         int x = cardX(), y = cardY(), w = cardWidth();
+        if (member.egg()) { eggCard(g, font, member, x, y, w); return; }
         DigiPanels.frame(g, x, y, w, CARD_HEIGHT, withAlpha(DigiTheme.PANEL, 0xF4), DigiTheme.EDGE, 3);
         g.fill(x + 4, y, x + w - 4, y + 1, DigiTheme.AMBER);
         g.fill(x + 3, y + 3, x + 21, y + 21, withAlpha(DigiTheme.VOID, 0xE0));
@@ -444,28 +641,27 @@ final class DigispaceTab {
         DigimonSpecies species = species(member);
         if (species != null) DigiviceArt.mark(g, species.attribute(), x + 30 + font.width(name), y + 4, DigiviceArt.color(species.attribute()));
         String doing;
+        int tone = DigiTheme.MUTED;
         if (asleep(member)) {
             // The rest counts down every second here, between the server's slower updates.
             int left = Math.max(20, member.restTicks() - screen.client().snapshotAge()), seconds = (left + 19) / 20;
             doing = member.restTicks() > 0 ? Component.translatable("gui.digicube.party.resting", String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)).getString() : Component.translatable("gui.digicube.party.defeated").getString();
-        } else doing = Component.translatable(walker.moving() ? "gui.digicube.digivice.wandering" : "gui.digicube.digivice.idle").getString();
-        g.text(font, (Component.translatable("gui.digicube.party.level", member.level()).getString() + "  " + doing).toUpperCase(Locale.ROOT), x + 26, y + 13, DigiTheme.MUTED, false);
+        } else if (member.originRequired()) { doing = Component.translatable("gui.digicube.digivice.no_rookie").getString(); tone = DigiTheme.AMBER; }
+        else if (partner) doing = Component.translatable("gui.digicube.digivice.in_party").getString();
+        else doing = Component.translatable(walker.moving() ? "gui.digicube.digivice.wandering" : "gui.digicube.digivice.idle").getString();
+        String level = Component.translatable("gui.digicube.party.level", member.level()).getString().toUpperCase(Locale.ROOT) + "  ";
+        g.text(font, level, x + 26, y + 13, DigiTheme.MUTED, false);
+        g.text(font, doing.toUpperCase(Locale.ROOT), x + 26 + font.width(level), y + 13, tone, false);
 
-        String analyze = DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.analyze"));
-        int bx = x + w - 76, by = y + 4;
-        DigiviceKit.keyButton(g, font, bx, by, 72, 16, analyze, false, false, DigiviceKit.state(true, screen.over(bx, by, 72, 16), screen.pressed("analyze")));
+        // DIGIVOLUTION opens its tree (where a Champion with no Rookie form gets one), ANALYZE its entry
+        String tree = DigiviceScreen.upper(Component.translatable("gui.digicube.tree.title")), analyze = DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.analyze"));
+        int aw = font.width(analyze) + 14, tw = font.width(tree) + 14, ax = x + w - 4 - aw, tx = ax - 4 - tw, by = y + 4;
+        DigiviceKit.keyButton(g, font, tx, by, tw, 16, tree, true, false, DigiviceKit.state(true, screen.over(tx, by, tw, 16), screen.pressed("tree")));
+        if (screen.news(member)) DigiviceArt.dot(g, tx + tw - 4, by - 3);
+        DigiviceKit.keyButton(g, font, ax, by, aw, 16, analyze, false, false, DigiviceKit.state(true, screen.over(ax, by, aw, 16), screen.pressed("analyze")));
         boolean live = card > 0.5F;
         if (live) screen.hit(x, y, w, CARD_HEIGHT, () -> {});
-        if (live) screen.hit(bx, by, 72, 16, "analyze", () -> screen.analyze(member.species()));
-        if (!member.originRequired()) return;
-        List<Identifier> origins = EvolutionRules.origins(member.species());
-        if (origins.isEmpty()) return;
-        Identifier origin = origins.get(Math.floorMod(originChoice, origins.size()));
-        String from = DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.origin", Component.translatable("digimon." + origin.getNamespace() + "." + origin.getPath())));
-        int ox = bx - 118, sx = bx - 40;
-        DigiviceKit.keyButton(g, font, ox, by, 74, 16, font.plainSubstrByWidth(from, 68), false, false, DigiviceKit.state(origins.size() > 1, screen.over(ox, by, 74, 16), screen.pressed("origin")));
-        DigiviceKit.keyButton(g, font, sx, by, 36, 16, DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.origin_set")), true, false, DigiviceKit.state(true, screen.over(sx, by, 36, 16), screen.pressed("origin_set")));
-        if (live && origins.size() > 1) screen.hit(ox, by, 74, 16, "origin", () -> originChoice++);
-        if (live) screen.hit(sx, by, 36, 16, "origin_set", () -> screen.send(new PartyActionPayload(PartyActionPayload.ORIGIN, member.id(), Math.floorMod(originChoice, origins.size()), member.generation(), member.sequence())));
+        if (live) screen.hit(tx, by, tw, 16, "tree", () -> screen.openTree(member));
+        if (live) screen.hit(ax, by, aw, 16, "analyze", () -> screen.analyze(member.species()));
     }
 }

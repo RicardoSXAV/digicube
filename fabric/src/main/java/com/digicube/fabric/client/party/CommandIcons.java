@@ -1,12 +1,13 @@
 package com.digicube.fabric.client.party;
 
+import com.digicube.digimon.DigimonAttack;
 import com.digicube.fabric.client.party.CommandWheelReadout.Order;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * The command wheel's 20 x 20 order icons, drawn from bitmaps like the level readout so
- * they tint freely: {@code #} is the body, {@code +} the accent and {@code -} a dark shade
- * of the accent.
+ * The command wheel's 20 x 20 order icons and the 16 x 16 placeholder art of attacks without a tile, drawn from
+ * bitmaps like the level readout so they tint freely: {@code #} is the body, {@code +} the accent and {@code -} a dark
+ * shade of the accent.
  */
 final class CommandIcons {
     private CommandIcons() {}
@@ -53,6 +54,45 @@ final class CommandIcons {
 
     /** The Digivice alone, for the wheel's Digivice key: 20 x 10. */
     static String[] device() { return DEVICE; }
+
+    /** Side of the placeholder art an attack without a tile wears in the wheel, until its art exists. */
+    static final int GLYPH = 16;
+    private static final String[] FIREBALL = {
+            "................", "................", "................", "................", "........######..", ".......########.",
+            "....+++##++++##.", ".++++++##++++##.", ".++++++########.", "....+++########.", ".......########.", "........######..",
+            "................", "................", "................", "................"};
+    private static final String[] CLAWS = {
+            "................", "................", "....#....#......", "#....#....#.....", ".#+...#+...#+...", "..#+...#+...#+..",
+            "...#+...#+...#+.", "....#+...#+...#+", ".....#+...#+...#", "......#+...#+...", ".......#+...#+..", "........#+...#+.",
+            ".........#+...#+", "..........#....#", "...........#....", "................"};
+    private static final String[] BUBBLES = {
+            "................", ".....####.......", "....#....#......", "...#......#.....", "...#......#..##.", "...#......#.#..#",
+            "....#....#..#..#", ".....####....##.", "................", "........###.....", ".......#...#....", ".......#...#....",
+            "........###.....", "..##............", ".#..#...........", "..##............"};
+    private static final String[] STREAM = {
+            "................", "...............+", ".............##+", "...........#+##+", ".........+##+##+", ".......##+##+##+",
+            ".....#+##+##+##+", "..#+##+##+##+##+", "..#+##+##+##+##+", ".....#+##+##+##+", ".......##+##+##+", ".........+##+##+",
+            "...........#+##+", ".............##+", "...............+", "................"};
+    private static final String[] SHOT = {
+            "................", ".........++++++.", "..........+++++.", "...........++++.", "..........+++++.", ".........+++.++.",
+            "........###...+.", ".......###......", "......###.......", ".....###........", "....###.........", "...###..........",
+            "..###...........", ".###............", ".##.............", "................"};
+    private static final String[] BURST = {
+            ".......##.......", ".......##.......", ".......##.......", "...##..##..##...", "...###.##.###...", "....##....##....",
+            "......++++......", "#####.++++.#####", "#####.++++.#####", "......++++......", "....##....##....", "...###.##.###...",
+            "...##..##..##...", ".......##.......", ".......##.......", ".......##......."};
+
+    /** The placeholder art for an attack delivered as {@code kind}: a fireball, a stream, bubbles, a thrown or shot weapon, a burst, or claws. */
+    static String[] glyph(DigimonAttack.Kind kind) {
+        return switch (kind) {
+            case FIREBALL -> FIREBALL;
+            case FLAME_STREAM, FROST_STREAM, WATER_WAVE -> STREAM;
+            case BUBBLES -> BUBBLES;
+            case KINETIC_SHOT, RETURNING_THROW, CHARGED_THROW -> SHOT;
+            case BOX_BURST, GROUND_WAVE -> BURST;
+            default -> CLAWS;
+        };
+    }
 
     static String[] rows(Order order) {
         return switch (order) {

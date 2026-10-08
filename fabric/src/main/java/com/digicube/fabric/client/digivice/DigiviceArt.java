@@ -213,15 +213,54 @@ public final class DigiviceArt {
     public static void analyzerIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tab_analyzer", ANALYZER_ICON).draw(g, x, y, color); }
     public static void digispaceIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tab_digispace", DIGISPACE_ICON).draw(g, x, y, color); }
 
-    // --- the Analyzer's pages: a paw print for the Digimon, a badge for the marks ---
+    // --- the Analyzer's pages: a paw print for the Digimon, a badge for the marks, an egg for the scan ---
     private static final String[] PAW_ICON = {"..##.##..", "..##.##..", "##.....##", "##.....##", "...###...", "..#####..", ".#######.", ".#######.", "..#####.."};
     private static final String[] BADGE_ICON = {".#######.", "#.......#", "#...#...#", "#..###..#", "#.#####.#", "#..###..#", "#...#...#", "#.......#", ".#######."};
+    /** An egg half full of data: the SCAN page. */
+    private static final String[] EGG_ICON = {"...###...", "..#...#..", ".#.....#.", ".#.....#.", "#########", "#########", "#########", ".#######.", "..#####.."};
     public static final int PAGE_ICON = 9;
     public static void pawIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("page_digimon", PAW_ICON).draw(g, x, y, color); }
     public static void badgeIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("page_marks", BADGE_ICON).draw(g, x, y, color); }
+    public static void eggIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("page_scan", EGG_ICON).draw(g, x, y, color); }
 
     private static final String[] LENS ={".###...", "#...#..", "#...#..", "#...#..", ".###...", "....#..", ".....##", ".....##"};
     public static void lens(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("lens", LENS).draw(g, x, y, color); }
+
+    // --- digivolution: the tree's icon, the choice's chevrons, the padlock, and the news ---
+    private static final String[] TREE_ICON = {".###...###.", ".#.#...#.#.", ".###...###.", "..#.....#..", "..#######..", ".....#.....", ".....#.....", "....###....", "....#.#....", "....###....", "..........."};
+    private static final String[] CHEVRON_ICON = {".....#.....", "....###....", "...##.##...", "..##...##..", ".##.....##.", ".....#.....", "....###....", "...##.##...", "..##...##..", ".##.....##.", "..........."};
+    private static final String[] LOCK = {".........", "...###...", "..#...#..", "..#...#..", ".#######.", ".###.###.", ".###.###.", ".#######.", "........."};
+    /** White body, dark outline, an amber "!" with a dark rim so it reads on white; the tip of the tail is at the bottom centre. */
+    private static final String[] BALLOON = {"..########..", ".#wwwwwwww#.", "#www####www#", "#www#oo#www#", "#www#oo#www#", "#www#oo#www#", "#www####www#", "#www#oo#www#", "#www####www#", ".#wwwwwwww#.", "..###ww###..", "....#ww#....", ".....##....."};
+    private static final String[] DOT = {"..###..", ".#ooo#.", "#ooooo#", "#ooooo#", "#ooooo#", ".#ooo#.", "..###.."};
+    public static void treeIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tree", TREE_ICON).draw(g, x, y, color); }
+    public static void chevronIcon(GuiGraphicsExtractor g, int x, int y, int color) { bitmap("tree_choice", CHEVRON_ICON).draw(g, x, y, color); }
+    /** A padlock in {@code color} on a nine-unit square: a form a choice ruled out. */
+    public static void lock(GuiGraphicsExtractor g, int x, int y, int color, int badge) {
+        g.fill(x, y, x + LOCK[0].length(), y + LOCK.length, badge);
+        bitmap("lock", LOCK).draw(g, x, y, color);
+    }
+    /** A digivolution not shown yet: the balloon, with the tip of its tail at {@code tipX}, {@code tipY}. */
+    public static void balloon(GuiGraphicsExtractor g, int tipX, int tipY) {
+        painted("balloon", BALLOON).draw(g, tipX - BALLOON[0].length() / 2, tipY - BALLOON.length + 1);
+    }
+    public static final int BALLOON_HEIGHT = 13;
+    /** The same news on a key or a tab: a yellow dot. */
+    public static void dot(GuiGraphicsExtractor g, int x, int y) { painted("news_dot", DOT).draw(g, x, y); }
+
+    /** A small picture in the palette's three inks: {@code #} the dark outline, {@code w} white, {@code o} amber. */
+    private static Texture painted(String name, String[] rows) {
+        return texture(name, rows[0].length(), rows.length, () -> {
+            int[] px = new int[rows[0].length() * rows.length];
+            for (int y = 0; y < rows.length; y++) for (int x = 0; x < rows[y].length(); x++) px[y * rows[0].length() + x] = switch (rows[y].charAt(x)) {
+                case '#' -> DigiTheme.VOID;
+                case 'w' -> DigiTheme.WHITE;
+                case 'o' -> DigiTheme.AMBER;
+                default -> 0;
+            };
+            return px;
+        });
+    }
 
     private static final String[] RUNES = {"#####.#|#...#.#|#.#.#.#|#.#...#|#.#####|#......|#######", "###.###|#.#.#.#|#.###.#|#.....#|#.###.#|#.#.#.#|###.###", "#######|......#|.####.#|.#..#.#|.#.##.#|.#....#|.######",
             "#.#####|#.#....|#.#.###|#.#.#.#|#.###.#|#.....#|#######", "..###..|.#...#.|#..#..#|#.###.#|#..#..#|.#...#.|..###..", "#######|#.....#|#.###.#|#.#.#.#|#.#.###|#.#....|#.#####",

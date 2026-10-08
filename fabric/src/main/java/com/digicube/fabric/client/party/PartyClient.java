@@ -48,6 +48,8 @@ public final class PartyClient {
     private final PartyHud hud = new PartyHud();
     /** What the Analyzer recorded since connecting and the tamer has not opened yet. */
     private final AnalyzerNews news = new AnalyzerNews();
+    /** The Digitama ready to convert that the tamer has not looked at on the SCAN page yet. */
+    private final com.digicube.fabric.client.digivice.ScanNews scanNews = new com.digicube.fabric.client.digivice.ScanNews();
     /** How far the crosshair picks a partner out, in blocks. Asking for a ride needs {@link DigimonEntity#RIDE_REACH}. */
     private static final double AIM_REACH = 24;
     /** The own deployed partner under the crosshair, or null. Static for the render mixins, like the rider's soft target. */
@@ -59,6 +61,18 @@ public final class PartyClient {
     private KeyMapping previousKey;
     private KeyMapping nextKey;
     private KeyMapping wheelKey;
+    /** The enemy on the crosshair when the wheel opened, that the selected partner would fight; what an order goes at without a target. */
+    private net.minecraft.world.entity.LivingEntity sighted;
+    /** The partner the last attack order went to, so a refusal the server answers with is shown on its card. */
+    private java.util.UUID ordered;
+    /** How long a refused order's reason stays on its partner's card, in ticks. */
+    static final int NOTICE_TICKS = 40;
+    /** The partner whose tree the Digivice should open on, once the server opens it: DIGIVOLVE before the choice. */
+    private java.util.UUID pendingTree;
+    /** The Digitama the Digivice should open on, once the server opens it: one just taken in from the hand. */
+    private java.util.UUID pendingEgg;
+    /** Client ticks since {@link #pendingTree} or {@link #pendingEgg} was asked for. */
+    private int pendingAge;
 
     private static PartySnapshotPayload empty() {
         return new PartySnapshotPayload(false, 0, 0, List.of(), List.of(), "");
@@ -77,7 +91,18 @@ public final class PartyClient {
                 context.client().execute(() -> {
                     snapshot = payload;
                     snapshotAge = 0;
+                    scanNews.update(payload.scan());
                     selected = PartyHudReadout.normalizeSelection(filled(), selected);
+                    // An attack order the server turned down: its reason on the partner's card, or the wheel's caption.
+                    if (ordered != null && payload.message().startsWith(REFUSED)) {
+                        // a gauge still charging reads out its share, as the partner shows it here
+                        boolean charging = payload.message().equals(REFUSED + "charging");
+                        var partner = charging ? partner(ordered) : null;
+                        var reason = !charging ? net.minecraft.network.chat.Component.translatable(payload.message())
+                                : net.minecraft.network.chat.Component.translatable(payload.message(), partner == null ? "?" : CommandWheelReadout.percent(partner.shownGauge()));
+                        hud.notice(ordered, reason.getString(), NOTICE_TICKS);
+                        ordered = null;
+                    }
                     if (payload.openScreen() && !(context.client().gui.screen() instanceof DigiviceScreen)) {
                         context.client().gui.setScreen(new DigiviceScreen(this));
                     } else if (context.client().gui.screen() instanceof DigiviceScreen screen) {
@@ -93,14 +118,22 @@ public final class PartyClient {
                 }));
         ClientPlayNetworking.registerGlobalReceiver(AnalyzerDiscoveryPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> discovered(context.client(), payload)));
+        ClientPlayNetworking.registerGlobalReceiver(com.digicube.scan.ScanToastPayload.TYPE, (payload, context) ->
+                context.client().execute(() -> com.digicube.fabric.client.digivice.ScanToast.show(context.client(), payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             snapshot = empty();
             selected = 0;
             aimed = null;
+            sighted = null;
+            ordered = null;
+            pendingTree = null;
+            pendingEgg = null;
             news.clear();
+            scanNews.clear();
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             snapshotAge++;
+            pendingAge++;
             hud.tick(snapshot);
         });
         HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, vanilla ->
@@ -142,17 +175,69 @@ public final class PartyClient {
                     // On foot it opens on the partner under the crosshair.
                     selected = member(aimed).slot();
                 }
+                PartyMemberView opened = member(selected);
+                DigimonEntity partner = opened == null ? null : partner(opened.id());
+                sighted = partner == null || client.player.isPassenger() ? null : com.digicube.party.AttackOrders.sighted(client.player, partner);
                 client.gui.setScreen(new CommandWheelScreen(this));
             }
         }
         while (evolveKey.consumeClick()) {
             if (!inWorld) continue;
-            snapshot.party().stream().filter(m -> m.slot() == selected && m.phase().equals("RESTING")).findFirst()
-                    .ifPresent(m -> send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), 0, m.generation(), m.sequence())));
+            snapshot.party().stream().filter(m -> m.slot() == selected && m.phase().equals("RESTING")).findFirst().ifPresent(this::digivolve);
         }
     }
 
+    /**
+     * The Digivolve key does what the wheel's DIGIVOLVE does: before the partner's first digivolution it opens its tree
+     * to choose the form; once bound it digivolves into that form. A partner that cannot digivolve now is still asked
+     * for, so the server's reason shows.
+     */
+    private void digivolve(PartyMemberView m) {
+        boolean route = com.digicube.digimon.EvolutionRules.target(m.species(), m.level()).isPresent();
+        boolean ready = CommandWheelReadout.modules(m, snapshotAge, route)[CommandWheelReadout.BOTTOM_RIGHT].enabled();
+        if (ready && m.lineId() == null) openTree(m);
+        else send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), 0, m.generation(), m.sequence()));
+    }
+
+    /** Opens the Digivice on {@code member}'s tree, where the tamer picks the form it digivolves into. */
+    void openTree(PartyMemberView member) {
+        pendingTree = member.id();
+        pendingAge = 0;
+        send(new PartyActionPayload(PartyActionPayload.OPEN, PartyActionPayload.NO_MEMBER, 0));
+    }
+
+    /** The tree the Digivice was asked to open on, once; null when it was opened any other way, or the ask is stale. */
+    public java.util.UUID takePendingTree() {
+        java.util.UUID tree = pendingAge <= PENDING_TICKS ? pendingTree : null;
+        pendingTree = null;
+        return tree;
+    }
+
+    /**
+     * A Digitama was taken into the Digivice from the hand: the Digivice opens on the Digispace, where it comes together.
+     * An open Digivice turns to it; any other screen is left alone.
+     */
+    public void openEgg(java.util.UUID id) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.gui.screen() instanceof DigiviceScreen screen) { screen.arrive(id); return; }
+        if (client.player == null || client.gui.screen() != null) return;
+        pendingEgg = id;
+        pendingAge = 0;
+        send(new PartyActionPayload(PartyActionPayload.OPEN, PartyActionPayload.NO_MEMBER, 0));
+    }
+
+    /** The Digitama the Digivice was asked to open on, once; null when it was opened any other way, or the ask is stale. */
+    public java.util.UUID takePendingEgg() {
+        java.util.UUID egg = pendingAge <= PENDING_TICKS ? pendingEgg : null;
+        pendingEgg = null;
+        return egg;
+    }
+
+    /** An open request the server turned down is forgotten: the next snapshot comes well within this. */
+    private static final int PENDING_TICKS = 40;
+
     public AnalyzerNews news() { return news; }
+    public com.digicube.fabric.client.digivice.ScanNews scanNews() { return scanNews; }
 
     /**
      * The Analyzer recorded something: it is news until opened, and a toast says so. Not in creative, where the
@@ -166,6 +251,42 @@ public final class PartyClient {
         if (mark != null) news.add(mark); else news.add(payload.id());
         if (client.player != null && !client.player.isCreative()) client.gui.toastManager().addToast(toast);
     }
+
+    /** Server messages that turn an attack order down start with this. */
+    static final String REFUSED = "gui.digicube.wheel.refused.";
+
+    /** The enemy an attack order goes at when the partner has no target of its own, or null. */
+    net.minecraft.world.entity.LivingEntity sighted() {
+        return sighted != null && sighted.isAlive() && !sighted.isRemoved() ? sighted : null;
+    }
+
+    /** The partner {@code id} as this client sees it, or null while it is out of sight: its tiles' clocks come from the attacks it was seen to start. */
+    DigimonEntity partner(java.util.UUID id) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null) return null;
+        for (var entity : client.level.entitiesForRendering()) if (entity instanceof DigimonEntity digimon && digimon.getUUID().equals(id)) return digimon;
+        return null;
+    }
+
+    /** Orders {@code member} to cast the attack in its sheet slot {@code slot}; a refusal the server answers with lands on its card. */
+    void orderAttack(PartyMemberView member, int slot) {
+        ordered = member.id();
+        send(new PartyActionPayload(PartyActionPayload.ATTACK, member.id(), slot));
+    }
+
+    /** Puts {@code member}'s attack in {@code slot} on AUTO or on manual. The wheel shows the flip at once; the next snapshot confirms it. */
+    void setAuto(PartyMemberView member, int slot, boolean auto) {
+        send(new PartyActionPayload(PartyActionPayload.AUTO_ATTACK, member.id(), PartyActionPayload.autoValue(slot, auto)));
+        PartyMemberView flipped = member.withManual(slot, !auto);
+        snapshot = new PartySnapshotPayload(false, snapshot.page(), snapshot.total(),
+                snapshot.party().stream().map(m -> m.id().equals(member.id()) ? flipped : m).toList(), snapshot.collection(), "", snapshot.known(), snapshot.marks());
+    }
+
+    /** Shows why an order was not given on {@code member}'s card for a moment; the wheel's caption shows it while the wheel is open. */
+    void notice(java.util.UUID member, String text) { hud.notice(member, text, NOTICE_TICKS); }
+
+    /** The reason still shown for {@code member}, or null. */
+    String notice(java.util.UUID member) { return hud.notice(member); }
 
     /** The party member that is {@code entity}, or null. */
     private PartyMemberView member(DigimonEntity entity) {

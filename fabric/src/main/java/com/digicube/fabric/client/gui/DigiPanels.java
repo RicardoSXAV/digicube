@@ -122,7 +122,9 @@ public final class DigiPanels {
         }
     }
 
-    /** 3 x 5 readout glyphs, one bit per unit, top row first. Digits, plus the L and V of "LV". */
+    /** The characters {@link #READOUT} draws, in its order: digits, the L and V of "LV", the A, U, T and O of "AUTO". */
+    private static final String READOUT_CHARACTERS = "0123456789LVAUTO";
+    /** 3 x 5 readout glyphs, one bit per unit, top row first, in {@link #READOUT_CHARACTERS} order. */
     private static final int[][] READOUT = {
             {0b111, 0b101, 0b101, 0b101, 0b111}, // 0
             {0b010, 0b110, 0b010, 0b010, 0b111}, // 1
@@ -136,19 +138,22 @@ public final class DigiPanels {
             {0b111, 0b101, 0b111, 0b001, 0b111}, // 9
             {0b100, 0b100, 0b100, 0b100, 0b111}, // L
             {0b101, 0b101, 0b101, 0b101, 0b010}, // V
+            {0b111, 0b101, 0b111, 0b101, 0b101}, // A
+            {0b101, 0b101, 0b101, 0b101, 0b111}, // U
+            {0b111, 0b010, 0b010, 0b010, 0b010}, // T
+            {0b111, 0b101, 0b101, 0b101, 0b111}, // O
     };
 
     /**
-     * A device readout in 3 x 5 pixel glyphs on a 4-unit pitch: digits, 'L' and 'V'; any
-     * other character is a blank cell. It sits under a sprite where the vanilla font is
-     * too tall and reads as hardware rather than as body text.
+     * A device readout in 3 x 5 pixel glyphs on a 4-unit pitch: digits and the letters of
+     * "LV" and "AUTO"; any other character is a blank cell. It sits under a sprite where the
+     * vanilla font is too tall and reads as hardware rather than as body text.
      * @return the width drawn, in units
      */
     public static int readout(GuiGraphicsExtractor graphics, int x, int y, String text, int color) {
         int cx = x;
         for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            int glyph = ch >= '0' && ch <= '9' ? ch - '0' : ch == 'L' ? 10 : ch == 'V' ? 11 : -1;
+            int glyph = READOUT_CHARACTERS.indexOf(text.charAt(i));
             if (glyph >= 0) {
                 for (int row = 0; row < 5; row++) {
                     int bits = READOUT[glyph][row];

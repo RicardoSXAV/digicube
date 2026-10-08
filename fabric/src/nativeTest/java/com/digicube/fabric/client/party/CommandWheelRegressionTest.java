@@ -1,18 +1,22 @@
 package com.digicube.fabric.client.party;
 
 import com.digicube.Constants;
+import com.digicube.digimon.DigimonAttack;
 import com.digicube.digimon.Progression;
+import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.party.CommandWheelReadout.Module;
 import com.digicube.fabric.client.party.CommandWheelReadout.Order;
 import com.digicube.fabric.client.party.CommandWheelReadout.Reason;
+import com.digicube.fabric.client.party.CommandWheelReadout.Refusal;
+import com.digicube.fabric.client.party.CommandWheelReadout.Target;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyMemberView;
 
 import java.util.UUID;
 
 /**
- * Pins the command wheel's rules: which order each
- * sector offers, when it can be given and why not, and how the cursor picks a sector.
+ * Pins the command wheel's rules: which order each key offers, when it can be given and why not, what the cursor
+ * points at, where the wheel sits beside the party strip, and when an attack order is sent.
  * No game, no window, no test framework.
  */
 public final class CommandWheelRegressionTest {
@@ -74,16 +78,53 @@ public final class CommandWheelRegressionTest {
                 && Order.REVERT.action() == PartyActionPayload.REVERT, "every order maps to its payload action");
         check(Order.DIGIVOLVE.evolution() && Order.REVERT.evolution() && !Order.RECALL.evolution(), "only evolution orders carry an intent");
 
-        check(CommandWheelReadout.overDigivice(0, 90) && CommandWheelReadout.overDigivice(-50, 84) && !CommandWheelReadout.overDigivice(0, 60) && !CommandWheelReadout.overDigivice(60, 90), "the Digivice key sits under the orders, with a little reach");
-        check(CommandWheelReadout.sector(0, 0) == CommandWheelReadout.NONE, "the centre selects nothing");
-        check(CommandWheelReadout.sector(9, -9) == CommandWheelReadout.NONE, "inside the dead zone selects nothing");
-        check(CommandWheelReadout.sector(-10, -10) == CommandWheelReadout.TOP_LEFT, "just outside the dead zone, up and left");
-        check(CommandWheelReadout.sector(200, -3) == CommandWheelReadout.TOP_RIGHT, "far right, slightly up: the whole quarter counts");
-        check(CommandWheelReadout.sector(-1, 120) == CommandWheelReadout.BOTTOM_LEFT, "down and barely left");
-        check(CommandWheelReadout.sector(30, 30) == CommandWheelReadout.BOTTOM_RIGHT, "down and right");
+        // Pointing, from the wheel's centre: the panel is the dead zone, its tiles and switches the targets in it.
+        check(CommandWheelReadout.pick(0, 0, 2, true).target() == Target.NOTHING, "the centre of the panel points at nothing");
+        check(CommandWheelReadout.pick(-50, -50, 2, true).target() == Target.NOTHING, "nor does the rest of the panel");
+        check(CommandWheelReadout.pick(-27, 10, 2, true).is(Target.TILE, 0) && CommandWheelReadout.pick(26, 33, 2, true).is(Target.TILE, 1),
+                "the two tiles sit side by side under the name");
+        check(CommandWheelReadout.pick(-15, 40, 2, true).is(Target.SWITCH, 0) && CommandWheelReadout.pick(10, 46, 2, true).is(Target.SWITCH, 1),
+                "each AUTO switch sits under its tile");
+        check(CommandWheelReadout.pick(-15, 40, 2, false).target() == Target.NOTHING, "a ridden partner's tiles have no switches");
+        check(CommandWheelReadout.pick(-12, 20, 0, true).target() == Target.NOTHING, "no attacks, no tiles");
+        check(CommandWheelReadout.pick(-59, -1, 2, true).is(Target.KEY, CommandWheelReadout.TOP_LEFT), "just past the panel's left edge, up: the top left key");
+        check(CommandWheelReadout.pick(200, -3, 2, true).is(Target.KEY, CommandWheelReadout.TOP_RIGHT), "far right, slightly up: the whole quarter counts");
+        check(CommandWheelReadout.pick(-1, 61, 2, true).is(Target.KEY, CommandWheelReadout.BOTTOM_LEFT), "below the panel and barely left");
+        check(CommandWheelReadout.pick(30, 120, 2, true).is(Target.KEY, CommandWheelReadout.BOTTOM_RIGHT), "down and right, past the Digivice key");
+        check(CommandWheelReadout.pick(0, 80, 2, true).target() == Target.DIGIVICE && CommandWheelReadout.pick(-50, 66, 2, true).target() == Target.DIGIVICE,
+                "the Digivice key under the panel wins over its quarters, with a little reach");
+        check(!CommandWheelReadout.overDigivice(0, 60) && !CommandWheelReadout.overDigivice(60, 80), "but not beyond it");
 
-        check(CommandWheelReadout.moduleX(CommandWheelReadout.TOP_LEFT, 240) == 114 && CommandWheelReadout.moduleX(CommandWheelReadout.BOTTOM_RIGHT, 240) == 248, "columns sit 16 units apart around the centre");
-        check(CommandWheelReadout.moduleY(CommandWheelReadout.TOP_RIGHT, 135) == 71 && CommandWheelReadout.moduleY(CommandWheelReadout.BOTTOM_LEFT, 135) == 167, "rows leave a 64-unit band for the hub");
+        check(CommandWheelReadout.tileX(0, 2) == -27 && CommandWheelReadout.tileX(1, 2) == 3 && CommandWheelReadout.tileX(0, 1) == -12, "tiles are centred in the panel, 6 apart");
+        check(CommandWheelReadout.keyX(CommandWheelReadout.TOP_LEFT) == -134 && CommandWheelReadout.keyX(CommandWheelReadout.BOTTOM_RIGHT) == 66
+                && CommandWheelReadout.keyY(CommandWheelReadout.TOP_RIGHT) == -54 && CommandWheelReadout.keyY(CommandWheelReadout.BOTTOM_LEFT) == 6,
+                "the keys stand 8 off the panel's sides, in two rows");
+        int reach = CommandWheelReadout.HALF_WIDTH + CommandWheelReadout.STEP_OUT;
+        check(CommandWheelReadout.centerX(480, 101) == 240, "at 480 units wide (1080p) the wheel stays centred");
+        int shifted = CommandWheelReadout.centerX(426, 108);
+        check(shifted - reach >= 108 + CommandWheelReadout.STRIP_CLEAR && shifted + reach <= 426 - CommandWheelReadout.EDGE_CLEAR,
+                "at 426 units wide (4K, 1440p, 720p) it moves right, clear of the party strip and inside the screen: " + shifted);
+        check(CommandWheelReadout.centerX(320, 96) + reach <= 320 - CommandWheelReadout.EDGE_CLEAR, "on the narrowest screen it never leaves the right edge");
+
+        // Attack orders: a target (its own, or an enemy on the crosshair) and a move within two seconds of ready.
+        PartyMemberView calm = member(20, 24, true, 0, 3600, "RESTING", 0, false, false);
+        PartyMemberView fighting = member(20, 24, true, 0, 3600, "RESTING", 0, false, true);
+        check(CommandWheelReadout.attackRefusal(calm, false, 0) == Refusal.NO_TARGET, "no target and nothing on the crosshair: NO TARGET, nothing sent");
+        check(CommandWheelReadout.attackRefusal(calm, true, 0) == Refusal.NONE, "an enemy on the crosshair is enough");
+        check(CommandWheelReadout.attackRefusal(fighting, false, DigimonEntity.ORDER_GRACE_TICKS) == Refusal.NONE, "an order within two seconds of ready goes and waits");
+        check(CommandWheelReadout.attackRefusal(fighting, false, DigimonEntity.ORDER_GRACE_TICKS + 1) == Refusal.COOLING, "further out it is refused");
+        check(CommandWheelReadout.attackRefusal(fighting, false, -1) == Refusal.NONE, "a partner out of sight is left to the server");
+        check(CommandWheelReadout.attackRefusal(member(20, 24, false, 0, 3600, "RESTING", 0, false, false), true, 0) == Refusal.AWAY,
+                "nothing is ordered to a partner that is not out");
+        // A move behind a gauge (Beast King Fist): refused while it charges, whatever its clock says; full, it goes.
+        check(CommandWheelReadout.attackRefusal(fighting, false, 0, .6F) == Refusal.CHARGING
+                && CommandWheelReadout.attackRefusal(fighting, false, 0, 1) == Refusal.NONE
+                && CommandWheelReadout.attackRefusal(fighting, false, 0, -1) == Refusal.NONE
+                && CommandWheelReadout.attackRefusal(calm, false, 0, .6F) == Refusal.NO_TARGET, "a gauge still charging refuses the order");
+        check(CommandWheelReadout.percent(.6F) == 60 && CommandWheelReadout.percent(.999F) == 99 && CommandWheelReadout.percent(1) == 100
+                && CommandWheelReadout.percent(0) == 0, "the charging readout's percentage, never 100 before full");
+        check(CommandWheelReadout.ATTACK_KEYS.length == 2 && CommandWheelReadout.ATTACK_KEYS[0].equals("Q") && CommandWheelReadout.ATTACK_KEYS[1].equals("E"),
+                "Q casts the first attack and E the second, on foot as in the saddle");
         check(CommandWheelReadout.soulPercent(650) == 18 && CommandWheelReadout.soulPercent(3600) == 100 && CommandWheelReadout.soulPercent(0) == 0, "DigiSoul percentage");
 
         for (Order order : Order.values()) {
@@ -91,6 +132,12 @@ public final class CommandWheelRegressionTest {
             boolean square = rows.length == CommandIcons.SIZE;
             for (String row : rows) square &= row.length() == CommandIcons.SIZE;
             check(square, order + " icon is 20 x 20");
+        }
+        for (DigimonAttack.Kind kind : DigimonAttack.Kind.values()) {
+            String[] rows = CommandIcons.glyph(kind);
+            boolean square = rows.length == CommandIcons.GLYPH;
+            for (String row : rows) square &= row.length() == CommandIcons.GLYPH;
+            check(square, kind + " placeholder glyph is 16 x 16");
         }
 
         if (failures > 0) {

@@ -29,7 +29,7 @@ public final class PartyHudReadout {
 
     /**
      * @param age   client ticks since the snapshot that carried {@code member}
-     * @param route whether the species has a supported Champion route at this level
+     * @param route whether the species has a supported growth or Champion route at this level
      */
     public static Status status(PartyMemberView member, int age, boolean route) {
         if (member.health() <= 0) return member.restTicks() > 0 ? Status.REST : Status.DEFEATED;
@@ -67,11 +67,21 @@ public final class PartyHudReadout {
         return member.level() < Progression.CHAMPION_LEVEL;
     }
 
-    /** A Digivolution can be requested right now: the READY code and the amber brackets. */
+    /**
+     * A Digivolution can be requested right now: the READY code and the amber brackets. A Baby II's growth spends no
+     * DigiSoul, so only its level and the route count.
+     */
     public static boolean ready(PartyMemberView member, int age, boolean route) {
+        if (grows(member)) return route && member.level() >= Progression.GROWTH_LEVEL && member.health() > 0 && member.deployed()
+                && "RESTING".equals(member.phase());
         return route && !soulLocked(member) && member.health() > 0 && member.deployed()
                 && "RESTING".equals(member.phase()) && cooldown(member, age) == 0 && !member.originRequired()
                 && soul(member, age) >= Progression.DIGISOUL_MINIMUM;
+    }
+
+    /** A Baby II: its next step is a growth into a Rookie, from {@link Progression#GROWTH_LEVEL}, with no DigiSoul. */
+    public static boolean grows(PartyMemberView member) {
+        return com.digicube.digimon.EvolutionRules.baby(member.species());
     }
 
     public static float healthFraction(PartyMemberView member) {

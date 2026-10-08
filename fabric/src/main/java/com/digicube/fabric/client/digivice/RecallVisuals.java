@@ -453,7 +453,7 @@ public final class RecallVisuals {
         return LightCoordsUtil.smoothPack(Math.round(LightCoordsUtil.smoothBlock(a) * (1 - progress) + LightCoordsUtil.smoothBlock(b) * progress),
                 Math.round(LightCoordsUtil.smoothSky(a) * (1 - progress) + LightCoordsUtil.smoothSky(b) * progress));
     }
-    private static void submitLight(List<RecallFx.Quad> quads, PoseStack pose, SubmitNodeCollector collector) {
+    static void submitLight(List<RecallFx.Quad> quads, PoseStack pose, SubmitNodeCollector collector) {
         if (quads.isEmpty()) return;
         collector.submitCustomGeometry(pose, EvolutionRenderType.DIGIVICE_BEACON, (matrix, vertices) -> {
             for (var q : quads) for (int i = 0; i < 4; i++)
@@ -474,7 +474,7 @@ public final class RecallVisuals {
             if (heard != null) { x = heard.x; y = heard.y; z = heard.z; }
         }
     }
-    private static void submit(List<EvolutionMesh.Face> faces, PoseStack pose, SubmitNodeCollector collector, RenderType type) {
+    static void submit(List<EvolutionMesh.Face> faces, PoseStack pose, SubmitNodeCollector collector, RenderType type) {
         if (faces.isEmpty()) return;
         collector.submitCustomGeometry(pose, type, (matrix, vertices) -> {
             for (var face : faces) {

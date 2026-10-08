@@ -7,6 +7,7 @@ import com.digicube.digimon.DigimonSpeciesBootstrap;
 import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.FreezeMark;
 import com.digicube.digimon.IceCombo;
+import com.digicube.party.PartyMemberView;
 import net.minecraft.SharedConstants;
 import net.minecraft.util.Util;
 
@@ -127,6 +128,7 @@ public final class DigiviceRegressionTest {
         }
         try {
             marks();
+            tree();
         } finally {
             Util.shutdownExecutors();
         }
@@ -171,6 +173,75 @@ public final class DigiviceRegressionTest {
         MarkLife.Frame cold = MarkLife.at(guide.get(CombatMark.COLD), MarkLife.REST + IceCombo.COLD_CHARGE_TICKS);
         check(cold.draw() == MarkLife.Draw.TIMER && cold.amount() == 1 && cold.caption().equals("slowed"), "Cold charges, then its timer starts full");
         check(MarkLife.at(crack, MarkLife.REST).caption().equals("hit") && (int) MarkLife.at(crack, MarkLife.REST).args()[0] == 1, "Crack counts its charges");
+    }
+
+    /** The digivolution tree: the beta families, room on the sheet, and the choice, the binding and the news as a partner sees them. */
+    private static void tree() {
+        var koromon = Constants.id("koromon"); var agumon = Constants.id("agumon"); var greymon = Constants.id("greymon");
+        var meramon = Constants.id("meramon"); var seadramon = Constants.id("seadramon");
+        for (String root : List.of("koromon", "tsunomon", "pukamon", "mochimon")) {
+            var all = EvolutionTree.layout(Constants.id(root), 0, 0, null).all();
+            check(all.size() == 7 && all.stream().allMatch(n -> EvolutionTree.family(n.id()).equals(Constants.id(root))), root + " family has every form of the beta tree");
+        }
+        check(EvolutionTree.parent(meramon).id().equals(agumon) && EvolutionTree.parent(meramon).level() == 20 && EvolutionTree.parent(agumon).level() == 10
+                && EvolutionTree.family(greymon).equals(koromon) && EvolutionTree.ancestor(koromon, meramon) && !EvolutionTree.ancestor(meramon, agumon), "the family's steps and their levels");
+        boolean roomy = true, contained = true, spread = true;
+        for (String root : List.of("koromon", "tsunomon", "pukamon", "mochimon")) for (var open : EvolutionTree.kids(Constants.id(root))) {
+            var layout = EvolutionTree.layout(Constants.id(root), 0, 0, open.id());
+            // a form takes its box, its name under it and, folded, the note under that
+            for (var a : layout.all()) for (var b : layout.all()) if (a != b && a.column() == b.column() && a.y() <= b.y() && b.y() - a.y() < EvolutionTree.extent(a) + 2) roomy = false;
+            for (var n : layout.all()) if (n.y() < 9 || n.y() + EvolutionTree.extent(n) > EvolutionTree.HEIGHT || n.x() + EvolutionTree.NODE > EvolutionTree.WIDTH) contained = false;
+            var champions = layout.all().stream().filter(n -> n.column() == 2).toList();
+            if (champions.size() == 2 && Math.abs(champions.get(1).y() - champions.get(0).y()) != 2 * EvolutionTree.SPREAD) spread = false;
+        }
+        check(roomy && contained && spread, "one branch open at a time: no form, name or note meets another, all inside the sheet, Champions 80 apart");
+        check(EvolutionTree.openBranch(null, seadramon, koromon, null).equals(Constants.id("betamon")) && EvolutionTree.openBranch(null, koromon, koromon, null).equals(agumon), "a species tree opens its own branch");
+
+        PartyMemberView young = partner(agumon, 19, 0, "", 0, "RESTING", ""), ready = partner(agumon, 20, 0, "", 0, "RESTING", "");
+        check(!EvolutionTree.offers(young) && EvolutionTree.ready(young).isEmpty() && !EvolutionTree.news(young, 0), "L19: nothing to choose, no news");
+        check(EvolutionTree.ready(ready).equals(List.of(greymon, meramon)) && EvolutionTree.chooses(ready) && EvolutionTree.news(ready, 0), "L20, unbound: Greymon and Meramon are a choice, and news");
+        check(EvolutionTree.fresh(ready, 1).equals(java.util.Set.of(meramon)) && !EvolutionTree.news(partner(agumon, 20, 0, "", 3, "RESTING", ""), 0), "looked at here or on the server, a form is news no more");
+        check(EvolutionTree.readyMask(ready) == 3 && EvolutionTree.focus(ready, EvolutionTree.fresh(ready, 0)).equals(greymon), "the choice opens on the first form");
+        PartyMemberView bound = partner(agumon, 22, 0, "digicube:meramon", 3, "RESTING", "");
+        check(EvolutionTree.ready(bound).equals(List.of(meramon)) && EvolutionTree.offers(bound) && !EvolutionTree.chooses(bound) && !EvolutionTree.news(bound, 0), "bound to Meramon: no choice, no news, Meramon still ready");
+        check(EvolutionTree.blocked(bound, greymon) && !EvolutionTree.blocked(bound, meramon) && !EvolutionTree.blocked(bound, seadramon) && EvolutionTree.focus(bound, java.util.Set.of()).equals(meramon),
+                "the other Champion is blocked, another Rookie's forms are not; its tree opens on its form");
+        check(!EvolutionTree.offers(partner(agumon, 20, -1, "", 0, "RESTING", "")), "a Digimon in the Digispace cannot digivolve");
+        PartyMemberView evolved = partner(meramon, 22, 0, "digicube:meramon", 3, "EVOLVED", "digicube:agumon");
+        check(EvolutionTree.rookie(evolved).equals(agumon) && EvolutionTree.blocked(evolved, greymon) && EvolutionTree.reached(evolved, agumon) && EvolutionTree.ready(evolved).isEmpty(), "as Meramon it keeps its Rookie and its line");
+
+        java.util.function.Predicate<net.minecraft.resources.Identifier> all = id -> true, none = id -> false;
+        var NONE = com.digicube.fabric.client.party.CommandWheelReadout.Reason.NONE;
+        check(EvolutionTree.sentence(ready, agumon, all, NONE).key().equals("choose") && EvolutionTree.sentence(ready, agumon, all, NONE).amber(), "its own form asks for a choice");
+        check(EvolutionTree.sentence(ready, meramon, all, NONE).key().equals("digivolve") && EvolutionTree.sentence(bound, meramon, all, NONE).key().equals("digivolve_chosen"), "a ready form says digivolve, the chosen one says so");
+        check(EvolutionTree.sentence(bound, greymon, all, NONE).key().equals("blocked") && EvolutionTree.sentence(bound, agumon, all, NONE).key().equals("bound"), "the blocked form names the chosen one");
+        check(EvolutionTree.sentence(partner(agumon, 20, -1, "", 0, "RESTING", ""), meramon, all, NONE).key().equals("ready_reserve")
+                && EvolutionTree.sentence(ready, meramon, all, com.digicube.fabric.client.party.CommandWheelReadout.Reason.COOLDOWN).key().equals("ready_but"), "ready, but in the Digispace or cooling down");
+        var blind = EvolutionTree.sentence(ready, meramon, none, NONE);
+        check(blind.key().equals("blind") && !blind.record() && EvolutionTree.sentence(young, greymon, none, NONE).record(), "a form not met yet can be picked blind; elsewhere it says how to record it");
+        check(EvolutionTree.sentence(null, meramon, all, NONE).key().equals("digivolves_from") && EvolutionTree.sentence(young, greymon, all, NONE).key().equals("digivolves_at_one"), "a species' sentence, and the levels still to go");
+
+        // A Baby II grows into one of its family's Rookies at level 10: the same choice, no DigiSoul.
+        var betamon = Constants.id("betamon");
+        PartyMemberView baby = partner(koromon, 9, 0, "", 0, "RESTING", ""), grown = partner(koromon, 10, 0, "", 0, "RESTING", "");
+        check(!EvolutionTree.offers(baby) && EvolutionTree.sentence(baby, agumon, all, NONE).key().equals("grows_at_one"), "L9: one level to its growth");
+        check(EvolutionTree.ready(grown).equals(List.of(agumon, betamon)) && EvolutionTree.chooses(grown) && EvolutionTree.news(grown, 0), "L10: Agumon and Betamon are a choice, and news");
+        check(EvolutionTree.sentence(grown, koromon, all, NONE).key().equals("choose_growth") && EvolutionTree.sentence(grown, betamon, all, NONE).key().equals("grow")
+                && EvolutionTree.sentence(grown, betamon, none, NONE).key().equals("blind_growth"), "its growth is worded as one");
+        check(EvolutionTree.scope(grown).containsAll(List.of(koromon, agumon, betamon, greymon, seadramon)), "a Baby II's whole family is still ahead of it");
+        var modules = com.digicube.fabric.client.party.CommandWheelReadout.modules(partner(koromon, 10, 0, "", 0, "RESTING", "", 0), 0, true);
+        check(modules[com.digicube.fabric.client.party.CommandWheelReadout.BOTTOM_RIGHT].enabled(), "growth needs no DigiSoul on the wheel");
+        check(com.digicube.fabric.client.party.CommandWheelReadout.modules(baby, 0, false)[com.digicube.fabric.client.party.CommandWheelReadout.BOTTOM_RIGHT].reason()
+                == com.digicube.fabric.client.party.CommandWheelReadout.Reason.NEEDS_LEVEL, "below level 10 the wheel says it needs the level");
+    }
+
+    private static PartyMemberView partner(net.minecraft.resources.Identifier species, int level, int slot, String line, int noticed, String phase, String origin) {
+        return partner(species, level, slot, line, noticed, phase, origin, 3600);
+    }
+
+    private static PartyMemberView partner(net.minecraft.resources.Identifier species, int level, int slot, String line, int noticed, String phase, String origin, int soul) {
+        return new PartyMemberView(UUID.randomUUID(), species, "", 40, 40, level, 0, slot, slot >= 0, 0, soul, phase, 0, false, origin, false, 0, 0,
+                false, false, false, 0, -1, line, noticed);
     }
 
     private static void write(File file, int width, int height, int[] argb) throws Exception {

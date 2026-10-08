@@ -34,14 +34,15 @@ public final class EvolutionPresentation {
             var texture=entry.getValue() instanceof com.digicube.fabric.client.model.NativeGroundModel nativeModel?nativeModel.definition().texture():entry.getKey().withPath("textures/entity/digimon/"+entry.getKey().getPath()+".png");var image=EvolutionSurface.readTexture(texture);images.put(entry.getKey(),image);
             surfaces.put(entry.getKey(),EvolutionSurface.capture(entry.getValue().root(),s.modelScale,texture,image));
         }
-        for(var source:DigimonSpeciesRegistry.all())for(var route:source.evolutions())if(EvolutionRules.rookie(source.id())&&EvolutionRules.supported(route)) {
-            template(source.id(),route.target());template(route.target(),source.id());
+        for(var source:DigimonSpeciesRegistry.all())for(var route:EvolutionRules.routes(source.id())) {
+            // A growth never goes back, so only a digivolution needs its return.
+            template(source.id(),route.target());if(!EvolutionRules.growth(route))template(route.target(),source.id());
         }
     }
     private CompletableFuture<EvolutionMesh.Template> template(Identifier from,Identifier to) {
         var key=new Key(from,to);var old=templates.get(key);if(old!=null)return old;
         if(!surfaces.containsKey(from)||!surfaces.containsKey(to))return null;
-        if(templates.size()>=32)templates.remove(templates.keySet().iterator().next());
+        if(templates.size()>=64)templates.remove(templates.keySet().iterator().next());
         var a=surfaces.get(from);var b=surfaces.get(to);
         var future=CompletableFuture.supplyAsync(()->EvolutionMesh.prepare(EvolutionSurface.pair(a,b,3072)));
         templates.put(key,future);return future;

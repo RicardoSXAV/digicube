@@ -7,19 +7,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Exact chip pixels breaking into golden data, shared by the game and review stage. */
+/**
+ * Exact chip pixels breaking into golden data, shared by the game and review stage. A used Digitama breaks the same way,
+ * from its own sprite's texels ({@link DigitamaVisuals}).
+ */
 public final class RecallMotion {
     public record Pixel(int x, int y, int rgb) {}
     public record Frame(List<EvolutionMesh.Face> chip, List<EvolutionMesh.Face> glow) {}
     public static final List<Pixel> PIXELS = readPixels();
+    /** Seconds after which no texel is left. */
+    public static final float GONE = .83F;
     private RecallMotion() {}
     public static float gripLift(float seconds) { return 1-smooth((seconds-.35F)/.55F); }
 
-    public static Frame frame(float seconds) {
+    public static Frame frame(float seconds) { return frame(PIXELS, seconds); }
+
+    /** {@code pixels}, a sixteen-texel square sprite's, breaking into golden data {@code seconds} in. */
+    public static Frame frame(List<Pixel> pixels, float seconds) {
         float t = Math.max(0, seconds);
         var chip = new ArrayList<EvolutionMesh.Face>();
         var glow = new ArrayList<EvolutionMesh.Face>();
-        if (t < .83F) for (var pixel : PIXELS) {
+        if (t < GONE) for (var pixel : pixels) {
             int seed = pixel.x()*31 + pixel.y()*17;
             float release = .09F + (15-pixel.y())*.012F + (seed%5)*.012F;
             float p = smooth((t-release)/.43F), vanish = smooth((t-release-.26F)/.24F);
@@ -37,6 +45,12 @@ public final class RecallMotion {
             }
         }
         return new Frame(List.copyOf(chip), List.copyOf(glow));
+    }
+    /** The texels of a sprite {@code width} wide (ARGB, row by row) that are drawn, as the Digivice's art counts them. */
+    public static List<Pixel> pixels(int[] argb, int width) {
+        var pixels = new ArrayList<Pixel>();
+        for (int i = 0; i < argb.length; i++) if (argb[i] >>> 24 >= 0x60) pixels.add(new Pixel(i % width, i / width, argb[i] & 0xffffff));
+        return List.copyOf(pixels);
     }
     private static List<Pixel> readPixels() {
         try (var reader=new InputStreamReader(Objects.requireNonNull(RecallMotion.class.getResourceAsStream("/assets/digicube/effects/recall_chip_pixels.json")))) {

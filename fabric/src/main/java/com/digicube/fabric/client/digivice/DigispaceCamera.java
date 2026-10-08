@@ -51,6 +51,14 @@ public final class DigispaceCamera {
         return true;
     }
 
+    /** Looks at ({@code worldX}, {@code worldY}), zoomed in to at least {@code minZoom}. */
+    public void focus(double worldX, double worldY, int minZoom) {
+        zoom = Math.clamp(Math.max(zoom, minZoom), 0, ZOOM_THIRDS.length - 1);
+        centerX = worldX;
+        centerY = worldY;
+        clamp();
+    }
+
     /** Dragging the ground: the view moves against the hand by the same distance on screen. */
     public void pan(double startCenterX, double startCenterY, double screenDeltaX, double screenDeltaY) {
         centerX = startCenterX - screenDeltaX / scale();

@@ -34,23 +34,25 @@ import static com.digicube.fabric.client.digivice.DigiviceScreen.CONTENT_Y;
 import static com.digicube.fabric.client.gui.DigiTheme.withAlpha;
 
 /**
- * The Analyzer, two pages under a strip: DIGIMON, every species in a numbered index with the selected one on an LCD
- * like the toy's own screen and what the scan says beside it, and MARKS, the guide to the combat marks
- * ({@link MarksPage}). An entry the tamer has not witnessed yet is a silhouette that gives nothing away; in creative
- * every entry is open. An entry recorded since the tamer connected wears a NEW tag until it is opened.
+ * The Analyzer, three pages under a strip: DIGIMON, every species in a numbered index with the selected one on an LCD
+ * like the toy's own screen and what the scan says beside it, MARKS, the guide to the combat marks ({@link MarksPage}),
+ * and SCAN, a Digitama per family filling with data ({@link ScanPage}). An entry the tamer has not witnessed yet is a
+ * silhouette that gives nothing away; in creative every entry is open. An entry recorded since the tamer connected
+ * wears a NEW tag until it is opened.
  */
 final class AnalyzerTab {
     /** The pages start this far under the content area's top: the strip and a gap. */
     static final int PAGE_TOP = 16;
     private static final int ROWS = 8, ROW = 17, LIST_WIDTH = 126, LCD_WIDTH = 118, LCD_HEIGHT = 92, ICON = 64, THUMB = 24, MAX_QUERY = 24;
     private static final int PAGE_SWAP_TICKS = 6;
-    private static final int DIGIMON = 0, MARKS = 1;
+    private static final int DIGIMON = 0, MARKS = 1, SCAN = 2, PAGES = 3;
     /** The colour of a shape not seen yet, on the dark panel. */
     static final int UNSEEN = DigiTheme.EDGE_DIM;
     private static final String NOISE = "01#$&*%=";
 
     private final DigiviceScreen screen;
     private final MarksPage marksPage;
+    private final ScanPage scanPage;
     private AnalyzerIndex index;
     private Set<CombatMark> marks = EnumSet.noneOf(CombatMark.class);
     /** Creative: every entry is open, and nothing is news. */
@@ -70,6 +72,7 @@ final class AnalyzerTab {
     AnalyzerTab(DigiviceScreen screen) {
         this.screen = screen;
         this.marksPage = new MarksPage(screen, this);
+        this.scanPage = new ScanPage(screen, this);
         refresh();
         // Open on the first partner: the entry the tamer most likely wants to read.
         screen.snapshot().party().stream().findFirst().ifPresent(member -> selected = member.species());
@@ -116,6 +119,15 @@ final class AnalyzerTab {
         marksPage.select(mark);
     }
 
+    /** The server's answer to the last action, for the SCAN page's CONVERT. */
+    void answer(String message) { scanPage.answer(message); }
+
+    /** Opens the SCAN page on {@code family}'s Digitama. */
+    void scan(Identifier family) {
+        show(SCAN);
+        scanPage.select(family);
+    }
+
     private void choose(Identifier species) {
         if (!species.equals(selected)) { selected = species; decode = 0; }
         opened(species);
@@ -142,6 +154,7 @@ final class AnalyzerTab {
         decode++;
         pageSwap++;
         marksPage.tick();
+        scanPage.tick();
         if (preview != null) preview.tick();
         if (creative() != open) refresh();
     }
@@ -155,6 +168,7 @@ final class AnalyzerTab {
         strip(g, font);
         int top = CONTENT_Y + PAGE_TOP;
         if (page == MARKS) marksPage.draw(g, font, top);
+        else if (page == SCAN) scanPage.draw(g, font, top);
         else {
             AnalyzerIndex.Entry entry = selected == null ? null : index.get(selected);
             index(g, font, list(), top);
@@ -175,18 +189,25 @@ final class AnalyzerTab {
         }
     }
 
-    /** The two pages, each with how much of it is on record; in creative, how much there is. */
+    /** The pages, each with how much of it is on record (in creative, how much there is); SCAN with its fullest bar. */
     private void strip(GuiGraphicsExtractor g, Font font) {
         int x = CONTENT_X, y = CONTENT_Y, h = DigiviceKit.PAGE_TAB_HEIGHT;
         g.fill(x, y + h - 1, x + CONTENT_WIDTH, y + h, DigiTheme.EDGE_DIM);
         AnalyzerNews news = screen.client().news();
-        for (int i = 0; i < 2; i++) {
-            String label = DigiviceScreen.upper(Component.translatable(i == DIGIMON ? "gui.digicube.digivice.page.digimon" : "gui.digicube.digivice.page.marks"));
-            int total = i == DIGIMON ? index.entries().size() : CombatMark.values().length, known = i == DIGIMON ? index.knownCount() : marks.size();
-            String count = open ? Integer.toString(total) : known + "/" + total;
+        for (int i = 0; i < PAGES; i++) {
+            String label = DigiviceScreen.upper(Component.translatable(i == DIGIMON ? "gui.digicube.digivice.page.digimon"
+                    : i == MARKS ? "gui.digicube.digivice.page.marks" : "gui.digicube.digivice.page.scan"));
+            String count;
+            if (i == SCAN) count = scanPage.count();
+            else {
+                int total = i == DIGIMON ? index.entries().size() : CombatMark.values().length, known = i == DIGIMON ? index.knownCount() : marks.size();
+                count = open ? Integer.toString(total) : known + "/" + total;
+            }
             int w = DigiviceKit.pageTabWidth(font, label, count), at = i;
-            boolean active = page == i, pending = !open && (i == DIGIMON ? news.anySpecies() : news.anyMarks()) && screen.ticks() % 20 < 14;
-            DigiviceKit.pageTab(g, font, x, y, i == DIGIMON ? DigiviceArt::pawIcon : DigiviceArt::badgeIcon, label, count, active, !active && screen.over(x, y, w, h), pending);
+            boolean fresh = i == SCAN ? screen.client().scanNews().any() : !open && (i == DIGIMON ? news.anySpecies() : news.anyMarks());
+            boolean active = page == i, pending = fresh && screen.ticks() % 20 < 14;
+            DigiviceKit.pageTab(g, font, x, y, i == DIGIMON ? DigiviceArt::pawIcon : i == MARKS ? DigiviceArt::badgeIcon : DigiviceArt::eggIcon,
+                    label, count, active, !active && screen.over(x, y, w, h), pending);
             screen.hit(x, y, w, h, () -> show(at));
             x += w + 4;
         }
@@ -396,18 +417,54 @@ final class AnalyzerTab {
             g.text(font, font.plainSubstrByWidth(attack, room), x + 14, ay + 1, DigiTheme.WHITE, false);
         }
 
-        DigiviceKit.label(g, font, DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.evolution_line")), x, y + 132, w);
-        List<AnalyzerIndex.Step> line = index.line(entry);
-        if (line.size() == 1) { g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.no_route")), x + 28, y + 150, DigiTheme.MUTED, false); }
-        int step = line.size() > 3 ? 34 : 37, ex = x, ey = y + 142;
-        for (int i = 0; i < line.size(); i++, ex += step) {
-            AnalyzerIndex.Step s = line.get(i);
-            boolean current = s.entry().id().equals(entry.id()), hover = !current && screen.over(ex, ey, THUMB, THUMB);
-            if (i > 0) { int ax = ex - (step - THUMB) / 2 - 3; g.fill(ax, ey + 11, ax + 5, ey + 12, DigiTheme.CYAN); g.fill(ax + 3, ey + 9, ax + 4, ey + 14, DigiTheme.CYAN); g.fill(ax + 4, ey + 10, ax + 5, ey + 13, DigiTheme.CYAN); }
-            thumb(g, font, s.entry().id(), s.entry().known(), ex, ey, current ? DigiTheme.AMBER : hover ? DigiTheme.WHITE : DigiTheme.EDGE);
-            if (s.level() > 0) { String lv = "L" + s.level(); DigiPanels.readout(g, ex + (THUMB - (lv.length() * 4 - 1)) / 2, ey + THUMB + 2, lv, DigiTheme.AMBER); }
-            if (!current) { Identifier target = s.entry().id(); screen.hit(ex, ey, THUMB, THUMB, () -> select(target)); }
+        // where the species comes from and how many forms it leads to; the tree itself opens in a sheet
+        int tagRoom = familyTag(g, font, species.id(), x + w, y + 128);
+        DigiviceKit.label(g, font, DigiviceScreen.upper(Component.translatable("gui.digicube.tree.title")), x, y + 130, w - tagRoom);
+        EvolutionTree.Branch from = EvolutionTree.parent(species.id());
+        List<EvolutionTree.Branch> into = EvolutionTree.kids(species.id());
+        String fromText = from == null ? DigiviceScreen.upper(Component.translatable("gui.digicube.tree.first_form"))
+                : (knows(from.id()) ? name(DigimonSpeciesRegistry.getOrThrow(from.id())) : "? ? ?").toUpperCase(Locale.ROOT) + "  L" + from.level();
+        String intoText = into.isEmpty() ? DigiviceScreen.upper(Component.translatable("gui.digicube.tree.none_yet"))
+                : DigiviceScreen.upper(Component.translatable(into.size() == 1 ? "gui.digicube.tree.forms_one" : "gui.digicube.tree.forms", into.size())) + "  L" + into.getFirst().level();
+        g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.tree.from")), x, y + 140, DigiTheme.MUTED, false);
+        g.text(font, font.plainSubstrByWidth(fromText, w - 28), x + 28, y + 140, DigiTheme.WHITE, false);
+        g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.tree.into")), x, y + 149, DigiTheme.MUTED, false);
+        g.text(font, intoText, x + 28, y + 149, into.isEmpty() ? DigiTheme.MUTED : DigiTheme.WHITE, false);
+        String see = DigiviceScreen.upper(Component.translatable("gui.digicube.tree.see"));
+        int by = y + 159, bh = 15;
+        DigiviceKit.State state = DigiviceKit.state(true, screen.over(x, by, w, bh), screen.pressed("tree"));
+        DigiviceKit.keyButton(g, font, x, by, w, bh, "", false, false, state);
+        int lw = font.width(see) + 15, push = state == DigiviceKit.State.DOWN ? 1 : 0, lx = x + (w - lw) / 2 + push;
+        DigiviceArt.treeIcon(g, lx, by + 2 + push, DigiTheme.CYAN);
+        g.text(font, see, lx + 15, by + 4 + push, DigiTheme.WHITE, false);
+        Identifier id = species.id();
+        screen.hit(x, by, w, bh, "tree", () -> screen.openTree(id));
+    }
+
+    /**
+     * The family's Digitama and its bar at the right end of the DIGIVOLUTION row, ending at {@code right}: a click opens
+     * SCAN on it.
+     * @return the room it takes, 0 for a species of no family
+     */
+    private int familyTag(GuiGraphicsExtractor g, Font font, Identifier species, int right, int y) {
+        Identifier family = com.digicube.digimon.DigimonFamilies.of(species);
+        if (family == null) return 0;
+        com.digicube.scan.ScanBar bar = screen.snapshot().scan().stream().filter(b -> b.family().equals(family)).findFirst()
+                .orElse(new com.digicube.scan.ScanBar(family, 0, false, -1));
+        boolean ready = ScanPage.ready(bar);
+        String text = bar.seen() ? bar.data() * 100 / com.digicube.digimon.Progression.DIGITAMA_DATA + "%" : "?";
+        int w = 12 + font.width(text) + 4, x = right - w, tone = ready ? DigiTheme.AMBER : DigiTheme.CYAN;
+        boolean over = screen.over(x, y, w, 11);
+        DigiPanels.frame(g, x, y, w, 11, withAlpha(tone, over ? 0x40 : 0x14), withAlpha(tone, over ? 0xFF : 0x80), 1);
+        DigitamaArt.icon(g, family, x + 1, y + 1, 9, bar.seen());
+        g.text(font, text, x + 12, y + 2, ready ? DigiTheme.AMBER : DigiTheme.WHITE, false);
+        screen.hit(x, y, w, 11, () -> scan(family));
+        if (over) {
+            String tip = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.open", bar.seen() ? name(DigimonSpeciesRegistry.getOrThrow(family)) : "?"));
+            int tw = DigiviceKit.tagWidth(font, tip);
+            DigiviceKit.tag(g, font, tip, right - tw, y - 13, DigiTheme.EDGE, DigiTheme.WHITE);
         }
+        return w + 4;
     }
 
     /** A species in a small slot: its sprite, or only its shape while the tamer has not seen it. */
@@ -427,8 +484,9 @@ final class AnalyzerTab {
             // Letters belong to the field while it has the caret, so Q and E do not change tab.
             return key != InputConstants.KEY_UP && key != InputConstants.KEY_DOWN && key != InputConstants.KEY_TAB;
         }
-        if (key == InputConstants.KEY_TAB) { show(page == DIGIMON ? MARKS : DIGIMON); return true; }
+        if (key == InputConstants.KEY_TAB) { show((page + 1) % PAGES); return true; }
         if (page == MARKS) return marksPage.keyPressed(key);
+        if (page == SCAN) return scanPage.keyPressed(key);
         if (key == GLFW.GLFW_KEY_SLASH) { focus = true; return true; }
         if (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN) {
             List<AnalyzerIndex.Entry> list = list();

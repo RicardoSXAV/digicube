@@ -22,7 +22,14 @@ public final class EvolutionSurface {
         public Tile(Point a,Point b,Point c,Point d,int color){this(a,b,c,d,color,-1);}
         public Point[] points() { return new Point[]{a,b,c,d}; }
         public Vector3f center() { return a.vector().add(b.vector()).add(c.vector()).add(d.vector()).mul(.25F); }
-        public Vector3f normal() { return b.vector().sub(a.vector()).cross(d.vector().sub(a.vector())).normalize(); }
+        /**
+         * Across the diagonals: the same direction as the edges' on a flat quad, and still a direction when two corners
+         * meet (a tapered cube's face folds to a triangle); straight up for a face with no area at all.
+         */
+        public Vector3f normal() {
+            Vector3f n = c.vector().sub(a.vector()).cross(d.vector().sub(b.vector()));
+            return n.lengthSquared() > 1e-12F ? n.normalize() : new Vector3f(0, 1, 0);
+        }
         public float area() { return b.vector().sub(a.vector()).cross(d.vector().sub(a.vector())).length(); }
         public float edge() { return Math.max(a.vector().distanceSquared(b.vector()),a.vector().distanceSquared(d.vector())); }
         Tile[] split() {
