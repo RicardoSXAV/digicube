@@ -2458,6 +2458,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     aimPitch = localBreathPitch;
                 }
                 Vec3 mouth = breathMouth(attack, clip, yBodyRot, aimYaw, aimPitch);
+                // drawn over the gait, the mouth is where the drawn neck carries it (a frame or two old at most)
+                if (breathDrift != null && tickCount - breathDriftTick <= 2) mouth = mouth.add(breathDrift.yRot(-yBodyRot * Mth.DEG_TO_RAD));
                 clientBreath.emit(mouth, Vec3.directionFromRotation(aimPitch, aimYaw), new Vec3(getX() - xo, getY() - yo, getZ() - zo), random);
                 clientBreathMouth = mouth;
             }
@@ -3516,6 +3518,14 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private int clientBreathSince;
     public boolean isClientBreathing() { return clientBreathing; }
     public Vec3 clientBreathMouth() { return clientBreathMouth; }
+    /**
+     * Client: how far the drawn neck stands from where the breath's motion table puts it (blocks, the body's frame), as the
+     * renderer last drew a breath played over the gait, and on which tick: this client sheds the water that much off the
+     * table's mouth, so it leaves the drawn mouth however the gait carries the neck. The server's water keeps the table's.
+     */
+    private Vec3 breathDrift;
+    private int breathDriftTick;
+    public void drawnBreathDrift(Vec3 drift) { breathDrift = drift; breathDriftTick = tickCount; }
     /** Client: ticks the mouth has been shedding its breath, 0 when it is not. */
     public int clientBreathTicks() { return clientBreathing ? tickCount - clientBreathSince : 0; }
     /** Client: a leap's momentum is being carried (body.mount.leap_carry) until the body lands. */

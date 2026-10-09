@@ -184,7 +184,7 @@ on the soft target picked at the press, shoves the rest aside unhurt (only the b
 attack's kinetic kick committed at the prey (`KineticSession` buck constructor); a `shot` with `input: hold`
 is drawn like a bow (`rider_draw_tick` in `kinetic_attacks.json` holds the clip, `DATA_RIDER_DRAW` the charge)
 and with `move` loosed on the run: `upper_body` in `ground_models.json` names the part whose subtree alone
-plays the attack over the gait, turned to the rider's aim up to `KineticSession.MAX_TWIST`, and `twistShift`
+plays the attack over the gait (a breath's clip turns nothing above it), turned to the rider's aim up to `KineticSession.MAX_TWIST`, and `twistShift`
 moves the muzzle to match. `charge_flames` names the clip and parts a charge burns.
 
 The charge fires in the air too (no gather, a small thrust, its fall held while it burns), goes where the

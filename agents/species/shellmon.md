@@ -64,10 +64,14 @@ it about its waterline a beat late. `swim_idle` (40) treads water. `swim_wake` b
 ## Hydro Pressure
 
 A breath of puffs (`breath_attacks.json`, `art` `water`, clip `hydro_pressure`, 120 ticks, the jet from tick 11 to 100).
-The head bows until the crown faces ahead (torso, neck and head share the turn), the tendrils open, the hands grip (the
-elbows bending on as the body bows) and the jet leaves the crown (8 px above its joint, the motion table's `mouth`);
-each damage pulse kicks the head back, and after the jet the head comes up shaking the water off. The aim pitch turns
-`neck` (the last part of `aim_path`), the crown with it, from 60 degrees up to 50 down (`pitch`); `twist` 70.
+The neck and head bow until the crown faces ahead, the torso still: in game only the neck's subtree (`upper_body`) plays
+the clip, over the gait (the body breathes on its hands, it steps round on them; a rider's jet goes on the crawl). The
+tendrils open, the hands grip and the jet leaves the crown (8 px above its joint, the motion table's `mouth`); each
+damage pulse kicks the head back, and after the jet the head comes up shaking the water off. The aim pitch turns `neck`
+(the last part of `aim_path`), the crown with it, from 60 degrees up to 50 down (`pitch`); `twist` 70. Over the gait the
+neck keeps the clip's turn whatever the torso does, so the crown faces the aim, and each client sheds its water from
+where the drawn neck carries the crown ([effects.md](../effects.md#breaths-and-pounces)); the server's leaves within
+0.06 blocks of it at rest, up to half a block on the crawl, where the torso dips.
 
 - Water's own physics: three puffs a tick at 1.8 blocks a tick, 0.22 blocks across at the mouth widening to 0.66, that
   fall (`rise` -0.045), keep 0.985 of their speed a tick (0.78 under water: `under_drag`), bounce off what they strike
@@ -154,7 +158,11 @@ spin-up).
   the dummy through more than 70 % of the jet; wild, both moves at prey.
 - `:fabric:nativeShellmonTest`: the rider's slots, the crawl's and the heave's pads planted (within three quarters of a
   model pixel), walk and run a walk cycle long, the seat on land, under water and afloat, the jet leaving the drawn
-  crown at any aim through the whole jet, everything of the body inside the shell behind the cavity plate while it is
-  in and every vertex of the soft body within the shell's inner wall, the shell spinning under the rider without turning
-  them, settles from any turn at any rate, no arm snapping in any clip, the mouth's spells and its folds, the cavity
-  plate and the spire's tip hidden and shown as they should be.
+  crown at any aim through the whole jet, standing and over the gait (at rest and crawling, the neck twisted 40 degrees
+  either way: the client's water from the drawn crown, the crown within 5 degrees of the aim on every tick, the
+  pulses' kicks included, the server's water within 0.08 blocks of it at rest), everything of the body inside the shell behind the
+  cavity plate while it is in and every vertex of the soft body within the shell's inner wall, the shell spinning under
+  the rider without turning them, settles from any turn at any rate, no arm snapping in any clip, the mouth's spells and
+  its folds, the cavity plate and the spire's tip hidden and shown as they should be.
+- `:fabric:nativeLayeredBreathTest` ([effects.md](../effects.md#breaths-and-pounces)): Hydro Pressure's clip turns
+  nothing above the neck, and its table's head is the neck's pivot.

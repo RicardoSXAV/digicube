@@ -448,6 +448,7 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     private void posed(DigimonRenderState state) {
         unsplit();
         super.setupAnim(state);
+        breathHeld = false;
         pose(state);
         footFloor(state);
         stanceLook(state);
@@ -546,6 +547,12 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
                 if (kinetic == null && aimPart != null && state.attackDefinition != null && state.attackDefinition.motion() != null
                         && (com.digicube.digimon.BreathAttacks.handles(state.attackDefinition) || state.attackDefinition.fuel() != null))
                     aimPart.xRot += state.attackAimPitch*state.attackDefinition.motion().sample(tick).aimWeight()*blend*((float)Math.PI/180);
+                // A breath's motion table is measured on the clip's own still body: the aim part keeps that turn in the
+                // model's frame whatever the gait does to the parts it hangs from (a torso's lurch on the crawl), so the
+                // mouth faces the aim; it stays in its socket, and the client sheds the water from where the drawn neck
+                // carries the mouth (breathDrift).
+                breathHeld = breathLayered(state) && definition.spine() == null;
+                if (breathHeld) holdAim(blend);
                 bank(state);
                 supportFloor(state);
                 return;
@@ -1142,6 +1149,57 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         var axis = new org.joml.Matrix3f(parent).transpose().transform(new org.joml.Vector3f(1, 0, 0));
         var angles = new org.joml.Matrix3f().rotation(angle, axis).mul(rotation(aimPart)).getEulerAnglesZYX(new org.joml.Vector3f());
         aimPart.setRotation(angles.x, angles.y, angles.z);
+    }
+
+    /** Whether the last pose held a breath's aim part in the model's frame ({@link #holdAim}). */
+    private boolean breathHeld;
+
+    /** A breath of puffs played over the gait (on the legs, or on a rider's crawl), its upper body aimed. */
+    private boolean breathLayered(DigimonRenderState state) {
+        return state.attackUpperBody && upperParts != null && aimPart != null && state.attackAnimation.isStarted()
+                && com.digicube.digimon.BreathAttacks.handles(state.attackDefinition) && state.attackDefinition.motion() != null;
+    }
+
+    /**
+     * Turns the aim part, by {@code amount}, so that in the model's frame it is turned as the clip alone turns it, on the
+     * rest pose of the parts above the upper body (which the clip leaves at rest): whatever the gait does to them no longer
+     * turns it. Its pivot stays where its parent carries it.
+     */
+    private void holdAim(float amount) {
+        if (amount <= 0) return;
+        var drawn = rotation(rootPart);
+        var rest = restRotation(rootPart);
+        ModelPart part = rootPart;
+        var path = definition.aimPath();
+        for (int i = 0; i < path.size() - 1; i++) {
+            part = part.getChild(path.get(i));
+            drawn.mul(rotation(part));
+            rest.mul(upperParts.contains(part) ? rotation(part) : restRotation(part));
+        }
+        var own = rotation(aimPart);
+        var held = drawn.transpose().mul(rest).mul(own);
+        var turn = new org.joml.Quaternionf().setFromNormalized(own).slerp(new org.joml.Quaternionf().setFromNormalized(held), amount);
+        var angles = turn.getEulerAnglesZYX(new org.joml.Vector3f());
+        aimPart.setRotation(angles.x, angles.y, angles.z);
+    }
+
+    /**
+     * For a breath played over the gait: how far the drawn aim part's pivot is from where the attack's motion table puts it
+     * (blocks, the entity's frame at yaw 0), the gait having carried it (a torso's dip on the crawl, its sway at rest). The
+     * part's turn is held to the table's ({@link #holdAim}), so the drawn mouth is the table's mouth moved by exactly this
+     * much: the client sheds the water there. Null when the pose holds no breath.
+     */
+    public net.minecraft.world.phys.Vec3 breathDrift(DigimonRenderState state) {
+        if (!breathLayered(state)) return null;
+        setupAnim(state);
+        if (!breathHeld) return null;
+        var stack = new com.mojang.blaze3d.vertex.PoseStack();
+        ModelPart part = rootPart; part.translateAndRotate(stack);
+        for (String name : definition.aimPath()) { part = part.getChild(name); part.translateAndRotate(stack); }
+        var p = stack.last().pose().transformPosition(0, 0, 0, new org.joml.Vector3f());
+        float tick = state.attackAnimation.getTimeInMillis(state.ageInTicks) / 50F;
+        return new net.minecraft.world.phys.Vec3(p.x, 1.5 - p.y, -p.z).scale(state.modelScale)
+                .subtract(state.attackDefinition.motion().sample(tick).head());
     }
 
     /** A galloper (or a body with {@code bank} in the catalog, a running dinosaur) under a rider leans into its turns, more the faster it runs. */

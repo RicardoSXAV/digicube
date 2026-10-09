@@ -66,7 +66,8 @@ stream frost, and the bite bursts `freeze_fang_impact_fx` where the jaws met.
 ## Howling Blaster
 
 A breath of puffs (`breath_attacks.json`, clip `howling_blaster`, the neck's subtree only so the legs keep their
-gait): each tick the mouth sheds two puffs at 1.55 blocks a tick with the body's own motion; they slow (0.9 a tick),
+gait, the neck keeping the clip's turn and the water leaving the drawn mouth:
+[effects.md](../effects.md#breaths-and-pounces)): each tick the mouth sheds two puffs at 1.55 blocks a tick with the body's own motion; they slow (0.9 a tick),
 sink a little, slide along what they hit (a wall met head-on splashes them over it) and die after 16 ticks (a reach of
 about 12.9 blocks). Their radius follows the drawn flame's outline: 0.2 at the mouth, 0.56 about six blocks out
 (age 5), 0.34 at the tips. Contact pays 3.5 a tick into the Freeze gauge and a damage pulse every 10 ticks per victim;

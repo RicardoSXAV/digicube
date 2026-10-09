@@ -426,6 +426,12 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
         }
         serpent(entity, state);
         state.evolution = evolution.extract(entity,state,partialTick);
+        // A breath played over the gait: this client sheds the water from where the drawn neck carries the mouth.
+        if (state.attackUpperBody && com.digicube.digimon.BreathAttacks.handles(state.attackDefinition)
+                && models.get(state.species) instanceof com.digicube.fabric.client.model.NativeGroundModel ground) {
+            var drift = ground.breathDrift(state);
+            if (drift != null) entity.drawnBreathDrift(drift);
+        }
     }
 
     /**

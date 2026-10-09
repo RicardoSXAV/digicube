@@ -301,6 +301,15 @@ tasks.register('nativeGlowPartsTest', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
 }
 tasks.named('check') { dependsOn tasks.named('nativeGlowPartsTest') }
+tasks.register('nativeLayeredBreathTest', JavaExec) {
+    dependsOn tasks.named('nativeTestClasses')
+    classpath = sourceSets.nativeTest.runtimeClasspath
+    mainClass = 'com.digicube.fabric.client.model.NativeLayeredBreathRegressionTest'
+    workingDir = layout.buildDirectory.dir('native-layered-breath-test').get().asFile
+    doFirst { workingDir.mkdirs() }
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+}
+tasks.named('check') { dependsOn tasks.named('nativeLayeredBreathTest') }
 tasks.register('nativeLeomonTest', JavaExec) {
     dependsOn tasks.named('nativeTestClasses')
     classpath = sourceSets.nativeTest.runtimeClasspath

@@ -69,6 +69,15 @@ A breath drawn as `water` (Hydro Pressure) is `fabric/.../render/WaterJetRendere
 puffs, sorted back to front; the faces it strikes stay wet for a while on every client (`WetSurfaces`, the sheet's
 `wet`). Both are described in [species/shellmon.md](species/shellmon.md#hydro-pressure).
 
+A breath played over the gait (`upper_body`: the AI's breath from a body that breathes on its legs, a rider's on the
+move) leaves the parts above the upper body to the gait, while the server sheds its water from the motion table, measured
+on the whole clip. So its clip turns nothing above the upper body, and the table's `head` is the aim part's pivot. Drawn,
+the aim part keeps the clip's turn in the model's frame whatever the gait does above it (`NativeGroundModel.holdAim`):
+the mouth faces the aim. It stays in its socket, and each client sheds its water from the table's mouth moved by how far
+the gait carried that pivot (`breathDrift`, handed to `DigimonEntity.drawnBreathDrift` as the renderer draws the body),
+so the water leaves the drawn mouth; the server's keeps the table's. `:fabric:nativeLayeredBreathTest` holds the clip
+and the table to this on every such breath (Shellmon's, Garurumon's).
+
 ## Bodies of fire
 
 `glow` in `ground_models.json` draws a body full-bright (`DigimonRenderer` sets its light), so a creature made of fire

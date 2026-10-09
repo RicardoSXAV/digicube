@@ -37,7 +37,8 @@ import java.util.Locale;
  */
 public final class NativeShellmonRegressionTest {
     private static int checks;
-    private static double worstPlant, worstJet, worstWall = Double.NEGATIVE_INFINITY, worstSettle;
+    private static double worstPlant, worstJet, worstWall = Double.NEGATIVE_INFINITY, worstSettle, worstLayeredJet, worstLayeredFacing,
+            worstRestDrift, worstCrawlDrift;
 
     private static void check(boolean condition, String label) { checks++; if (!condition) throw new AssertionError(label); }
 
@@ -248,6 +249,7 @@ public final class NativeShellmonRegressionTest {
         Vec3 crown = pivot(root, CROWN, scale), top = point(root, CROWN, scale, CROWN_TOP[0], CROWN_TOP[1], CROWN_TOP[2]);
         Vec3 facing = top.subtract(crown).normalize();
         check(facing.z > .9, "bowed, the crown faces ahead: " + facing);
+        layeredJet(model, root, state, scale, hydro);
         state.attackAnimation.stop(); state.attackDefinition = null; state.attackAnimationName = null; state.attackAimPitch = 0;
 
         // Drill Shell: withdrawn, the whole body is inside the shell, behind the cavity plate, which shows while it is in.
@@ -327,10 +329,58 @@ public final class NativeShellmonRegressionTest {
 
 
         System.out.println(String.format(Locale.ROOT, "Shellmon native checks passed: %d checks, hands planted within %.4f blocks, jet from the crown "
-                + "within %.4f, seat %.3f, crawl drift %.3f, heave drift %.3f, swim drift %.3f, paddle drift %.3f, withdrawn %.3f blocks in, "
+                + "within %.4f (over the gait %.4f, the crown %.2f degrees off the aim, the neck drifting %.3f at rest and %.3f crawling), "
+                + "seat %.3f, crawl drift %.3f, heave drift %.3f, swim drift %.3f, paddle drift %.3f, withdrawn %.3f blocks in, "
                 + "soft body %.1f px inside the shell's wall at worst, spin sway %.3f, settle rate off by %.2f of its start at worst, arm steps "
-                + "%.1f (swims) and %.1f degrees a quarter tick", checks, worstPlant, worstJet, seated.length(), crawlDrift, heaveDrift, swum, paddled,
-                -deepest, -worstWall, sway, worstSettle, worstSwim, worstOther));
+                + "%.1f (swims) and %.1f degrees a quarter tick", checks, worstPlant, worstJet, worstLayeredJet, worstLayeredFacing,
+                worstRestDrift, worstCrawlDrift, seated.length(), crawlDrift, heaveDrift, swum, paddled, -deepest, -worstWall, sway,
+                worstSettle, worstSwim, worstOther));
+    }
+
+    /**
+     * Hydro Pressure as the game draws it: an unridden Shellmon breathes on its hands (it steps round on them) and a
+     * rider's jet goes on the crawl, so only the neck's subtree ({@code upper_body}) plays the clip over the gait, the neck
+     * twisted toward the aim. At rest and through the crawl, twisted either way and aimed up or down:
+     * <ul>
+     * <li>the crown faces along the aim (the neck holds the table's turn however the torso sways);</li>
+     * <li>the drawn crown is where this client sheds the water: the server's mouth ({@code DigimonEntity.breathMouth})
+     *     moved by the drawn neck's drift ({@link NativeGroundModel#breathDrift});</li>
+     * <li>at rest that drift (how far the server's own water leaves from the drawn crown) is only the idle's sway.</li>
+     * </ul>
+     */
+    private static void layeredJet(NativeGroundModel model, ModelPart root, DigimonRenderState state, float scale,
+                                   com.digicube.digimon.DigimonAttack hydro) {
+        var motion = hydro.motion();
+        state.attackDefinition = hydro; state.attackAnimationName = "hydro_pressure"; state.attackAnimation.start(0);
+        state.attackUpperBody = true; state.groundRunAmount = 0;
+        String worstAt = "", worstFacingAt = "";
+        double worst = 0, worstFacing = 0;
+        for (float crawl : new float[]{0, 1})
+            for (float twist : new float[]{-40, 0, 40})
+                for (float pitch : new float[]{-45, -20, 0, 35})
+                    for (float t = motion.activeFrom(); t <= motion.activeUntil(); t += 1) {
+                        // the crawl's phase runs on its own clock, so every stride's phase meets every aim
+                        state.ageInTicks = t; state.groundAnimationAmount = crawl; state.groundAnimationPhase = t * 1.37F;
+                        state.attackAimPitch = pitch; state.attackTwist = twist;
+                        Vec3 drift = model.breathDrift(state);
+                        check(drift != null, "a breath over the gait holds its aim and gives its drift");
+                        var frame = motion.sample(t);
+                        Vec3 served = frame.head().add(frame.aimedMouth(pitch).subtract(frame.head()).yRot(-twist * net.minecraft.util.Mth.DEG_TO_RAD));
+                        Vec3 drawn = point(root, CROWN, scale, CROWN_TOP[0], CROWN_TOP[1], CROWN_TOP[2]);
+                        double error = drawn.distanceTo(served.add(drift));
+                        double off = Math.toDegrees(Math.acos(Math.min(1, drawn.subtract(pivot(root, CROWN, scale)).normalize()
+                                .dot(Vec3.directionFromRotation(pitch, twist)))));
+                        String at = String.format(Locale.ROOT, "%s, twist %.0f, aimed %.0f, tick %.0f", crawl > 0 ? "crawling" : "at rest", twist, pitch, t);
+                        if (error > worst) { worst = error; worstAt = at; }
+                        if (off > worstFacing) { worstFacing = off; worstFacingAt = at; }
+                        if (crawl > 0) worstCrawlDrift = Math.max(worstCrawlDrift, drift.length());
+                        else worstRestDrift = Math.max(worstRestDrift, drift.length());
+                    }
+        worstLayeredJet = worst; worstLayeredFacing = worstFacing;
+        check(worst < .05, "layered, the jet leaves the drawn crown: " + worst + " blocks off " + worstAt);
+        check(worstFacing < 5, "layered, the crown faces the aim: " + worstFacing + " degrees off " + worstFacingAt);
+        check(worstRestDrift < .08, "at rest the server's water leaves from the drawn crown but for the idle's sway: " + worstRestDrift);
+        state.attackUpperBody = false; state.attackTwist = 0; state.groundAnimationAmount = 0; state.groundAnimationPhase = 0;
     }
 
     /** Model px of room the soft body keeps inside the shell's inner wall, and behind the cavity plate in the opening. */
