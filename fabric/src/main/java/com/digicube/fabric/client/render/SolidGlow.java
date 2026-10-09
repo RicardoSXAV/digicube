@@ -21,6 +21,10 @@ import net.minecraft.util.Util;
  */
 public final class SolidGlow {
     private static final RenderPipeline PIPELINE = MixinEvolutionPipelines.digicube$register(build());
+    static {
+        // A shader pack has no program of its own for this pipeline: it draws it as a glowing entity layer.
+        ShaderPacks.drawAsEmissive(PIPELINE);
+    }
     private static final Function<Identifier, RenderType> TYPES = Util.memoize(texture ->
             MixinEvolutionRenderType.digicube$create("digicube_solid_glow",
                     RenderSetup.builder(PIPELINE).withTexture("Sampler0", texture).createRenderSetup()));

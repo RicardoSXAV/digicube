@@ -18,7 +18,6 @@ public final class EvolutionGeometryExperiment {
         return switch(name) {
             case "gabumon"->new GabumonModel(GabumonModel.createBodyLayer().bakeRoot());
             case "gomamon"->new GomamonModel(GomamonModel.createBodyLayer().bakeRoot());
-            case "tentomon"->new TentomonModel(TentomonModel.createBodyLayer().bakeRoot());
             default->throw new IllegalArgumentException(name);
         };
     }

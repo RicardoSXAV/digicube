@@ -455,7 +455,7 @@ public final class RecallVisuals {
     }
     static void submitLight(List<RecallFx.Quad> quads, PoseStack pose, SubmitNodeCollector collector) {
         if (quads.isEmpty()) return;
-        collector.submitCustomGeometry(pose, EvolutionRenderType.DIGIVICE_BEACON, (matrix, vertices) -> {
+        EvolutionRenderType.submit(collector, pose, EvolutionRenderType.DIGIVICE_BEACON, (matrix, vertices) -> {
             for (var q : quads) for (int i = 0; i < 4; i++)
                 vertices.addVertex(matrix, q.xyz()[i * 3], q.xyz()[i * 3 + 1], q.xyz()[i * 3 + 2]).setColor(q.argb()[i])
                         .setUv(q.uv()[i * 2], q.uv()[i * 2 + 1]).setOverlay(OverlayTexture.NO_OVERLAY)
@@ -476,7 +476,7 @@ public final class RecallVisuals {
     }
     static void submit(List<EvolutionMesh.Face> faces, PoseStack pose, SubmitNodeCollector collector, RenderType type) {
         if (faces.isEmpty()) return;
-        collector.submitCustomGeometry(pose, type, (matrix, vertices) -> {
+        EvolutionRenderType.submit(collector, pose, type, (matrix, vertices) -> {
             for (var face : faces) {
                 var v = face.vertices();
                 for (int i = 0; i < v.length; i += 8)

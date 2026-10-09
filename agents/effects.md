@@ -14,6 +14,20 @@ layer. Like vanilla particles, a glow under a water surface is then hidden from 
 `entityTranslucent` effects are left before the water on purpose, so submerged fish and bubbles still show
 through it.
 
+## Shader packs
+
+A shader pack (Iris) draws the level with a program of its own for each of vanilla's pipelines and skips a pipeline
+it has none for. `ShaderPacks` reaches Iris's public API by reflection, so Iris stays optional: `drawAsEmissive`
+hands a mod pipeline to the pack's program for glowing entity layers (its shadow pass too). Iris picks that
+program's variant by vertex format or an `ALPHA_CUTOUT` define, so a mod pipeline on vanilla's entity format
+declares the define (`SolidGlow` has it as its cutout). The pack's program cannot run the mod's own fragment
+shaders (`shaders/core/evolution_*`, `digivice_beacon`, `recall_chip`), so each `EvolutionRenderType` has a twin
+on vanilla's entity shader over `textures/effect/shader_pack/<name>.png`, and `EvolutionRenderType.submit` sends
+the geometry there while a pack is in use. Those textures hold each shape's strength as grey, premultiplied (a
+pack's alpha test drops alpha under a tenth), in tiles 128 texels wide with 2 empty at either side; a shape's UVs
+(the unit square at u = 0, 2, 4...) are moved onto its tile. The data body's grid repeats one cell a texture.
+Without a pack, the shape shaders draw as before.
+
 ## Shot styles
 
 A kinetic shot may have a `shot_style` (`ShotStyle`, `cannon` for the Hunting Cannon): the report and the

@@ -45,7 +45,7 @@ public final class DigiviceLocator {
                 var faces = DigiviceBeacon.frame(seconds, distance);
                 var pose = context.poseStack(); pose.pushPose();
                 pose.translate(point.x-camera.x, point.y-camera.y, point.z-camera.z);
-                context.submitNodeCollector().submitCustomGeometry(pose, EvolutionRenderType.DIGIVICE_BEACON, (matrix, vertices) -> {
+                EvolutionRenderType.submit(context.submitNodeCollector(), pose, EvolutionRenderType.DIGIVICE_BEACON, (matrix, vertices) -> {
                     for (var face : faces) { var v = face.vertices(); for (int i = 0; i < v.length; i += 8)
                         vertices.addVertex(matrix,v[i],v[i+1],v[i+2]).setColor((face.color() & 0xffffff) | (Math.round((face.color() >>> 24) * strength) << 24)).setUv(v[i+3],v[i+4])
                                 .setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightCoordsUtil.FULL_BRIGHT).setNormal(matrix,0,1,0);

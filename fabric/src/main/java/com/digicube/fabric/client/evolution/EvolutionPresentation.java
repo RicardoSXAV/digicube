@@ -129,7 +129,7 @@ public final class EvolutionPresentation {
     }
     private static void submit(List<EvolutionMesh.Face> faces,net.minecraft.client.renderer.rendertype.RenderType type,PoseStack pose,SubmitNodeCollector collector,int light) {
         if(faces.isEmpty())return;
-        collector.submitCustomGeometry(pose,type,(matrix,vertices)-> {
+        EvolutionRenderType.submit(collector,pose,type,(matrix,vertices)-> {
             for(var face:faces) {
                 var v=face.vertices();for(int i=0;i<32;i+=8)
                     vertices.addVertex(matrix,v[i],v[i+1],v[i+2]).setColor(face.color()).setUv(v[i+3],v[i+4])
