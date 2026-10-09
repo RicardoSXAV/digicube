@@ -113,6 +113,10 @@ public final class DigiviceRegressionTest {
         DigispaceHerd.Walker walkerC = herd.get(c);
         check(herd.get(b) == null && herd.get(a) == walkerA && walkerA.x == heldX, "who joins the party leaves the island, everyone else keeps their spot");
         check(walkerC.spawn == DigispaceHerd.SPAWN_TICKS && (!open || walkerC.x == 250 && walkerC.y == 60), "who comes back is rebuilt where it was set down");
+        double eggX = walkerC.x, eggY = walkerC.y;
+        herd.hatch(walkerC);
+        for (int tick = 700; tick < 700 + DigispaceHerd.HATCH_TICKS; tick++) herd.step(tick, null);
+        check(walkerC.hatch == 0 && walkerC.spawn == 0 && walkerC.x == eggX && walkerC.y == eggY, "a Baby hatches where its Digitama lay and stands there through it");
         herd.reserve(b, 160, 128);
         herd.sync(List.of(new DigispaceHerd.Entry(b, false, false)));
         check(world.walkable(herd.get(b).x, herd.get(b).y), "a spot in the water is not honoured");

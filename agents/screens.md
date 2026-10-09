@@ -57,7 +57,9 @@ its card up (DIGIVOLUTION and ANALYZE; a click on a party bay picks a partner th
 dock up and dropping it on a bay sends `SELECT`; with the dock pinned by the PARTY key a partner can be
 carried back to the island (`SELECT` -1, never the last one) or to another bay, where two partners trade
 places (`PartyRoster.select`). A Digitama lies still on the island at half a Digimon's size (its texels the island's),
-rocks now and then and cracks before it hatches (rebuilt out of data as a Digimon); its time to hatching sits above it
+rocks now and then (cracked through, all but constantly) and cracks before it hatches, each crack heard; as it hatches
+(`DigispaceHerd.hatch`, `DigitamaArt.swell` and `hatch`) it swells white, its shell bursts (the cap thrown off, the
+rest coming apart into data) and the Baby hops up out of it, growing to its own size; its time to hatching sits above it
 in the pointer's tag (`DigiviceKit.tag`, the name added under the pointer), its card counts it down each second and offers SCAN and
 ANALYZE, and it can be carried about the island but not to the party (the dock stays down; a bay says why). One just taken in from the hand (`DigitamaVisuals` opens the Digivice on it,
 `PartyClient.openEgg`) comes together where it lies once the display is on (`DigispaceTab.arrive`,

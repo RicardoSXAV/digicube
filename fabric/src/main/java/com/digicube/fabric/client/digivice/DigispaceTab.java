@@ -31,7 +31,8 @@ import static com.digicube.fabric.client.gui.DigiTheme.withAlpha;
 /**
  * The Digispace: the island where the Digimon that are not with the tamer wander, and the place the party is managed.
  * A Digitama from the scan sits still on the island until it hatches, half a Digimon's size so its texels are the
- * island's, its time to hatching above it; it rocks now and then and cracks at the end. It can be moved about the island
+ * island's, its time to hatching above it; it rocks now and then and cracks at the end, and its Baby bursts out of the
+ * shell where it lay ({@link #hatching}). It can be moved about the island
  * but not carried to the party. One just taken in from the hand comes together out of golden data where it lies
  * ({@link #arrive}), the camera on it.
  * The hand is the player. A click selects a Digimon and slides its card up; dragging one slides the party dock up,
@@ -66,8 +67,10 @@ final class DigispaceTab {
     private float dock, lastDock, card, lastCard;
     private String note = "";
     private int noteTicks;
-    /** The Digitama in the last snapshot: one that is gone from it hatched, and is rebuilt out of data where it sat. */
+    /** The Digitama in the last snapshot: one that is gone from it hatched, and the Baby comes out of its shell where it sat. */
     private final java.util.Set<UUID> eggs = new java.util.HashSet<>();
+    /** How cracked each Digitama was last tick, so a new crack is heard. */
+    private final java.util.Map<UUID, Integer> cracks = new java.util.HashMap<>();
     /** The Digitama coming together after it was taken in from the hand, and the ticks since it began (below 0: not yet). */
     private UUID arriving;
     private int arriveTicks, arriveWait;
@@ -118,7 +121,7 @@ final class DigispaceTab {
         for (PartyMemberView member : reserve()) {
             if (member.egg()) { eggs.add(member.id()); continue; }
             DigispaceHerd.Walker hatched = eggs.remove(member.id()) ? herd.get(member.id()) : null;
-            if (hatched != null) hatched.spawn = DigispaceHerd.SPAWN_TICKS;
+            if (hatched != null) herd.hatch(hatched);
         }
         for (int slot = 0; slot < bays.length; slot++) {
             PartyMemberView now = bay(slot);
@@ -191,6 +194,21 @@ final class DigispaceTab {
         if (picked != null) shown = picked;
         card = Math.clamp(card + (picked != null && carry == null && !screen.sheetCovering() ? 0.25F : -0.25F), 0, 1);
         if (active) herd.step(screen.ticks(), carry != null && !carry.fromBay() ? carry.member().id() : hold != null && hold.slot() < 0 ? hold.id() : null);
+        if (active) eggSounds();
+    }
+
+    /** A Digitama cracking further, and a shell bursting as its Baby hatches, are heard. */
+    private void eggSounds() {
+        for (PartyMemberView member : reserve()) {
+            if (!member.egg()) continue;
+            int crack = DigitamaArt.crack(hatchLeft(member));
+            Integer was = cracks.put(member.id(), crack);
+            if (was != null && crack > was) Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(net.minecraft.sounds.SoundEvents.SNIFFER_EGG_CRACK, 1.25F, .8F));
+        }
+        for (DigispaceHerd.Walker w : herd.walkers()) if (w.hatch == DigispaceHerd.HATCH_TICKS - DigitamaArt.SWELL_TICKS) {
+            cracks.remove(w.id);
+            Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(net.minecraft.sounds.SoundEvents.SNIFFER_EGG_HATCH, 1.2F, .9F));
+        }
     }
 
     private static float ease(float t) { return t * t * (3 - 2 * t); }
@@ -453,6 +471,7 @@ final class DigispaceTab {
         g.pose().pushMatrix();
         g.pose().translate((float) x, (float) y);
         if (member.egg()) egg(g, w, member, hovered);
+        else if (w.hatch > 0) hatching(g, w, member);
         else {
             g.fill(-5, -1, 5, 1, 0x50000000);
             g.fill(-3, -2, 3, 2, 0x40000000);
@@ -466,6 +485,42 @@ final class DigispaceTab {
             if (w.id.equals(picked)) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, DigiTheme.AMBER);
             else if (hovered) DigiPanels.brackets(g, -8, -15, 16, 16, 4, 1, withAlpha(DigiTheme.WHITE, 0xC0));
         }
+        g.pose().popMatrix();
+    }
+
+    /**
+     * A Baby hatching where its Digitama lay ({@link DigispaceHerd#hatch}), at its feet: the egg swells white, the shell
+     * bursts ({@link DigitamaArt#hatch}) and the Baby hops up out of it, growing from the egg's size to its own, and lands
+     * with a squash.
+     */
+    private void hatching(GuiGraphicsExtractor g, DigispaceHerd.Walker w, PartyMemberView member) {
+        float t = (DigispaceHerd.HATCH_TICKS - w.hatch + screen.partial()) / 20F, since = t - DigitamaArt.SWELL;
+        Identifier family = eggFamily(member);
+        g.fill(-5, -1, 5, 1, 0x50000000);
+        g.fill(-3, -2, 3, 2, 0x40000000);
+        if (since < 0) {
+            g.pose().pushMatrix();
+            g.pose().scale(0.5F, 0.5F);
+            DigitamaArt.swell(g, family, -8, -15, t, screen.ticks());
+            g.pose().popMatrix();
+            return;
+        }
+        // the cap flies off behind the Baby, the cup stays in front of its feet
+        g.pose().pushMatrix();
+        g.pose().scale(0.5F, 0.5F);
+        DigitamaArt.hatch(g, family, -8, -15, since, w.flip ? -1 : 1, false);
+        g.pose().popMatrix();
+        float rise = Math.clamp(since / .55F, 0, 1), land = since - .55F;
+        float grow = .5F + .5F * ease(Math.clamp(since / .35F, 0, 1));
+        float stretch = .12F * (float) Math.sin(Math.PI * rise), squash = land > 0 && land < .25F ? .2F * (float) Math.sin(Math.PI * land / .25F) : 0;
+        g.pose().pushMatrix();
+        g.pose().translate(0, -(float) Math.sin(Math.PI * rise) * 5);
+        g.pose().scale(grow * (1 + squash - stretch * .5F), grow * (1 - squash + stretch));
+        icon(g, member.species(), -8, -15, 16, 0xFFFFFFFF, w.flip);
+        g.pose().popMatrix();
+        g.pose().pushMatrix();
+        g.pose().scale(0.5F, 0.5F);
+        DigitamaArt.hatch(g, family, -8, -15, since, w.flip ? -1 : 1, true);
         g.pose().popMatrix();
     }
 

@@ -12,8 +12,9 @@ import static com.digicube.fabric.client.gui.DigiTheme.withAlpha;
  * A family's Digitama as the Digivice draws it, from its item sprite ({@code textures/item/digitama/<first form>.png},
  * sixteen texels square in the shape of a spawn egg). On the SCAN page the egg is the bar: its colours rise from the
  * bottom as data comes in and the rest is ink, the Analyzer's silhouette, with data glinting along the line between
- * them; a ready one breathes amber. On the island it rocks now and then and cracks before it hatches, and one just
- * taken in from the hand comes together there out of the golden data it broke into ({@link #assemble}).
+ * them; a ready one breathes amber. On the island it rocks now and then and cracks before it hatches, swells and bursts
+ * as the Baby comes out ({@link #swell}, {@link #hatch}), and one just taken in from the hand comes together there out
+ * of the golden data it broke into ({@link #assemble}).
  */
 final class DigitamaArt {
     /** The ink of a shell not filled yet: the Analyzer's silhouette, a lighter edge. */
@@ -27,6 +28,13 @@ final class DigitamaArt {
     /** Cracks before hatching, as sprite texels {column, row}: a few first, then one across the shell. */
     private static final int[][][] CRACKS = {{}, {{7, 4}, {8, 5}, {7, 6}, {8, 7}},
             {{3, 7}, {4, 6}, {5, 7}, {6, 6}, {7, 5}, {8, 6}, {9, 5}, {10, 6}, {11, 7}, {12, 6}, {7, 4}, {8, 7}}};
+    /** The row of the crack across the shell in each sprite column: above it is the cap the Baby knocks off. */
+    private static final int[] CRACK_ROW = {7, 7, 7, 7, 6, 7, 6, 5, 6, 5, 6, 7, 6, 6, 6, 6};
+    /** Ticks, and seconds, a hatching Digitama swells white before its shell bursts ({@link #swell}). */
+    static final int SWELL_TICKS = 6;
+    static final float SWELL = SWELL_TICKS / 20F;
+    /** Seconds the burst shell takes to be gone ({@link #hatch}). */
+    static final float BURST = .9F;
 
     private DigitamaArt() {}
 
@@ -35,9 +43,9 @@ final class DigitamaArt {
     /** How cracked a Digitama with {@code hatchTicks} left is: 0, 1 at eleven seconds, 2 at three and a half. */
     static int crack(int hatchTicks) { return hatchTicks < 70 ? 2 : hatchTicks < 220 ? 1 : 0; }
 
-    /** Now and then it rocks, in the last half minute more often: a sideways offset in island units, one of its texels there. */
+    /** Now and then it rocks, in the last half minute more often, cracked through all but constantly: a sideways offset in island units, one of its texels there. */
     static float wobble(int hatchTicks, int ticks, int seed) {
-        int period = hatchTicks < 600 ? 26 : 80, phase = Math.floorMod(ticks + seed * 17, period);
+        int period = hatchTicks < 70 ? 10 : hatchTicks < 600 ? 26 : 80, phase = Math.floorMod(ticks + seed * 17, period);
         return phase < 8 ? new float[]{0.5F, 0, -0.5F, 0}[phase >> 1] : 0;
     }
 
@@ -135,6 +143,76 @@ final class DigitamaArt {
             int x = cx + (int) Math.round(Math.cos(a) * reach), y = cy + (int) Math.round(Math.sin(a) * reach * .5);
             g.fill(x, y, x + 1, y + 1, alpha << 24 | (i % 3 == 0 ? 0xFFFFFF : i % 2 == 0 ? DATA_BLUE : GOLD_GLOW));
         }
+    }
+
+    /**
+     * A hatching Digitama the moment before its shell bursts, {@code t} seconds into its {@link #SWELL}: cracked through,
+     * it shudders, swells about its foot and washes white. {@code x}, {@code y} as for {@link #draw} with one unit a texel.
+     */
+    static void swell(GuiGraphicsExtractor g, Identifier family, int x, int y, float t, int ticks) {
+        float p = Math.clamp(t / SWELL, 0, 1), grow = 1 + .16F * p * p;
+        g.pose().pushMatrix();
+        g.pose().translate(x + 8 + ((ticks & 1) == 0 ? .5F : -.5F), y + 15);
+        g.pose().scale(grow, grow);
+        draw(g, family, -8, -15, 1, 1, 0, 2, .5F + .5F * p, 0, ticks);
+        g.pose().popMatrix();
+    }
+
+    /**
+     * The shell bursting as the Baby hatches out of it, {@code t} seconds after the burst, in two layers round the Baby.
+     * Behind it ({@code front} false), the cap above the crack, thrown up and aside ({@code side} 1 right, -1 left) and
+     * tumbling as it falls. In front of it, the rest of the shell, standing a moment as a cup round the Baby's feet before
+     * each texel lets go as a mote of data, rising and fading, and a ring of data running out over the ground. Both wash
+     * white in the burst's flash. Gone at {@link #BURST}; {@code x}, {@code y} as for {@link #draw} with one unit a texel.
+     */
+    static void hatch(GuiGraphicsExtractor g, Identifier family, int x, int y, float t, int side, boolean front) {
+        DigiviceArt.Pixels pixels = DigiviceArt.pixels(texture(family));
+        if (pixels == null || t < 0 || t >= BURST) return;
+        int[] px = pixels.argb();
+        int w = pixels.width(), h = pixels.height();
+        float white = 1 - Math.clamp(t / .12F, 0, 1);
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        // Quarter texels, so the pieces glide instead of stepping a whole texel at a time.
+        g.pose().scale(.25F, .25F);
+        float capAlpha = 1 - Math.clamp((t - .3F) / .25F, 0, 1);
+        if (!front && capAlpha > 0) {
+            g.pose().pushMatrix();
+            g.pose().translate((7.5F + side * t * 55) * 4, (3.5F - t * 55 + t * t * 110) * 4);
+            g.pose().rotate(side * t * 10);
+            int alpha = Math.round(255 * capAlpha) << 24;
+            for (int r = 0; r < h; r++) for (int c = 0; c < w; c++) {
+                if (!on(px, w, h, c, r) || r >= CRACK_ROW[Math.min(c, CRACK_ROW.length - 1)]) continue;
+                int qx = Math.round((c - 7.5F) * 4), qy = Math.round((r - 3.5F) * 4);
+                g.fill(qx, qy, qx + 4, qy + 4, alpha | blend(px[r * w + c], 0xFFFFFF, white));
+            }
+            g.pose().popMatrix();
+        }
+        if (front) for (int r = 0; r < h; r++) for (int c = 0; c < w; c++) {
+            if (!on(px, w, h, c, r) || r <= CRACK_ROW[Math.min(c, CRACK_ROW.length - 1)]) continue;
+            int seed = c * 31 + r * 17;
+            // the rim lets go first, the foot last
+            float since = t - (.12F + (r - 6) * .03F + seed % 7 * .025F);
+            if (since < 0) {
+                g.fill(c * 4, r * 4, c * 4 + 4, r * 4 + 4, 0xFF000000 | blend(px[r * w + c], 0xFFFFFF, white));
+                continue;
+            }
+            float p = since / .35F;
+            if (p >= 1) continue;
+            int color = blend(px[r * w + c], seed % 3 == 0 ? 0xFFFFFF : DATA_BLUE, Math.min(1, p * 2.5F));
+            int qx = Math.round((c + (seed % 5 - 2) * p * .9F) * 4), qy = Math.round((r - p * (5 + seed % 4)) * 4);
+            g.fill(qx, qy, qx + 3, qy + 3, Math.round(255 * (1 - p)) << 24 | color);
+        }
+        if (front && t < .55F) {
+            float p = t / .55F, reach = 5 + 22 * (1 - (1 - p) * (1 - p));
+            int alpha = Math.round(0xE0 * (1 - p));
+            for (int i = 0; i < 16; i++) {
+                double a = i * Math.PI / 8;
+                int mx = Math.round((8 + (float) Math.cos(a) * reach) * 4), my = Math.round((14.5F + (float) Math.sin(a) * reach * .45F) * 4);
+                g.fill(mx, my, mx + 4, my + 4, alpha << 24 | (i % 4 == 0 ? 0xFFFFFF : i % 2 == 0 ? DATA_BLUE : GOLD_GLOW));
+            }
+        }
+        g.pose().popMatrix();
     }
 
     /** RGB from {@code a} to {@code b}'s colour by {@code p}, opaque. */

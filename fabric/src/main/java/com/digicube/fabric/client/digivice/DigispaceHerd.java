@@ -16,6 +16,8 @@ import java.util.UUID;
 public final class DigispaceHerd {
     /** Ticks a newcomer takes to be rebuilt out of data blocks. */
     public static final int SPAWN_TICKS = 16;
+    /** Ticks a Baby takes to hatch out of its Digitama's shell ({@link DigitamaArt#hatch}), standing where the egg lay. */
+    public static final int HATCH_TICKS = 34;
 
     /** What the herd needs to know about a reserve member. */
     public record Entry(UUID id, boolean fast, boolean asleep) {}
@@ -29,6 +31,8 @@ public final class DigispaceHerd {
         int wait;
         public boolean flip;
         public int spawn;
+        /** Ticks left of hatching out of its shell. */
+        public int hatch;
         boolean fast;
         /** Defeated and resting: it lies still. */
         public boolean asleep;
@@ -84,6 +88,13 @@ public final class DigispaceHerd {
     /** Sets a walker down at a new spot (or back where it was); it stands for a moment before wandering on. */
     public void settle(Walker walker, double x, double y) { walker.settle(x, y, 40); }
 
+    /** The Digitama {@code walker} lay as hatched: the Baby comes out of its shell where it lay and stands a moment there. */
+    public void hatch(Walker walker) {
+        walker.hatch = HATCH_TICKS;
+        walker.spawn = 0;
+        walker.settle(walker.x, walker.y, HATCH_TICKS + 20);
+    }
+
     /** One tick: rest, pick a nearby reachable spot, walk to it. {@code held} is in the player's hand and does not move. */
     public void step(int tick, UUID held) {
         int index = 0;
@@ -91,6 +102,7 @@ public final class DigispaceHerd {
             int i = index++;
             w.lastX = w.x; w.lastY = w.y;
             if (w.spawn > 0) w.spawn--;
+            if (w.hatch > 0) w.hatch--;
             if (w.asleep || w.id.equals(held)) continue;
             if (w.wait > 0) {
                 if (--w.wait == 0) choose(w, tick, i);
