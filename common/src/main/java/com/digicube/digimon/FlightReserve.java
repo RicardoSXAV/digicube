@@ -1,6 +1,9 @@
 package com.digicube.digimon;
 
-/** Per-individual stamina, separate from attack fuel. Only a deployed creature resting on land refills it. */
+/**
+ * Per-individual stamina, separate from attack fuel. Only a deployed creature resting on land refills it. Wings that
+ * never tire ({@link DigimonFlight#endless}) keep it full: nothing is drawn and no rest is owed after a landing.
+ */
 public final class FlightReserve {
     private final DigimonFlight definition;
     private double charge;
@@ -29,13 +32,13 @@ public final class FlightReserve {
     /** Spend one active server tick without allowing negative charge. */
     public void consume() { consume(1); }
     /** Spend {@code rate} ticks of plain flight this tick (a boost or a climb more, a glide less). */
-    public void consume(double rate) { charge = Math.max(0, charge - Math.max(0, rate)); }
+    public void consume(double rate) { if (!definition.endless()) charge = Math.max(0, charge - Math.max(0, rate)); }
     /** Spend a one-off cost: {@code ticks} of the reserve at once (a barrel roll, a takeoff). */
     public void spend(double ticks) { consume(ticks); }
     /** Spend an attack cast on the wing: the costs' {@code attack} share of the whole reserve. */
     public void spendAttack() { consume(definition.costs().attack() * definition.capacityTicks()); }
     /** Begin mandatory recovery after ending a flight. */
-    public void landed() { restRemaining = definition.restTicks(); }
+    public void landed() { restRemaining = definition.endless() ? 0 : definition.restTicks(); }
     /** Advance one eligible grounded tick of recovery. */
     public void rest() { rest(1); }
     /** Advance one grounded tick of recovery at {@code rate} of the usual refill (slower while fighting). */
@@ -46,7 +49,8 @@ public final class FlightReserve {
     /** @param savedCharge stored remaining charge; nonfinite data becomes empty
      * @param savedRest stored mandatory rest, clamped to the species definition */
     public void restore(double savedCharge, int savedRest) {
-        charge = Double.isFinite(savedCharge) ? Math.clamp(savedCharge, 0, definition.capacityTicks()) : 0;
-        restRemaining = Math.clamp(savedRest, 0, definition.restTicks());
+        charge = definition.endless() ? definition.capacityTicks()
+                : Double.isFinite(savedCharge) ? Math.clamp(savedCharge, 0, definition.capacityTicks()) : 0;
+        restRemaining = definition.endless() ? 0 : Math.clamp(savedRest, 0, definition.restTicks());
     }
 }

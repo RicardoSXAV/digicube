@@ -25,18 +25,24 @@ import java.util.List;
 /** Exercises real decisions and steering using virtual collision/path delivery, without running Minecraft. */
 public final class FlightRegressionTest {
     private static DigimonLocomotion locomotion;
+    /** Tentomon's flight with a reserve that tires (his own wings never do): the reserve's rules are tested on it. */
+    private static DigimonFlight tiring;
     private static Air world;
     private static void check(boolean value,String message) { if(!value)throw new AssertionError(message); }
     public static void main(String[] args)throws Exception {
         try {
             SharedConstants.tryDetectVersion();Bootstrap.bootStrap();DigimonSpeciesBootstrap.registerBuiltIn();
             locomotion=DigimonSpeciesRegistry.getOrThrow(Constants.id("tentomon")).locomotion();
-            reserve();decisions();steering();timeline();
-            Constants.LOG.info("Flight regression passed: fuel, restart hysteresis, persistence, trigger gates, steering, transitions and descent.");
+            var d=locomotion.flight();
+            tiring=new DigimonFlight(d.speed(),d.capacityTicks(),d.rechargeTicks(),d.restTicks(),d.restartFraction(),d.landingReserveTicks(),
+                    d.minimumFlightTicks(),d.startDistance(),d.stopDistance(),d.cruiseHeight(),d.clearanceWidth(),d.clearanceHeight(),
+                    d.costs(),d.timing(),d.sortie(),false);
+            reserve();endless();decisions();steering();timeline();
+            Constants.LOG.info("Flight regression passed: fuel, endless wings, restart hysteresis, persistence, trigger gates, steering, transitions and descent.");
         }finally {Util.shutdownExecutors();}
     }
     private static void reserve() {
-        var data=locomotion.flight();var tank=new FlightReserve(data);
+        var data=tiring;var tank=new FlightReserve(data);
         check(tank.ready() && tank.fraction()==1,"initial full tank");
         for(int i=0;i<data.capacityTicks()-data.landingReserveTicks();i++)tank.consume();
         check(tank.mustLand() && !tank.exhausted(),"reserve leaves powered landing time");
@@ -54,6 +60,15 @@ public final class FlightRegressionTest {
         copy.restore(Double.NaN,-7);check(copy.charge()==0 && copy.restRemaining()==0,"malformed save cannot mint fuel");
         copy.restore(-10,99999);check(copy.charge()==0 && copy.restRemaining()==data.restTicks(),"save clamps bounds");
     }
+    private static void endless() {
+        check(locomotion.flight().endless(),"Tentomon's wings never tire");
+        var wings=new FlightReserve(locomotion.flight());
+        for(int i=0;i<5000;i++)wings.consume(3);
+        wings.spend(400);wings.spendAttack();
+        check(wings.fraction()==1 && wings.ready() && !wings.mustLand() && !wings.exhausted(),"endless wings draw nothing and never call a landing");
+        wings.landed();check(wings.restRemaining()==0 && wings.ready(),"endless wings owe no rest after a landing");
+        wings.restore(0,99);check(wings.fraction()==1 && wings.restRemaining()==0,"a saved empty reserve cannot tire endless wings");
+    }
     private static void decisions()throws Exception {
         var mob=fixture(0);mob.owner=fixture(4);
         check(!new DigimonFlightGoal(mob).canUse(),"ordinary following stays bipedal");
@@ -64,7 +79,7 @@ public final class FlightRegressionTest {
         mob.air.loaded=true;mob.water=true;check(!new DigimonFlightGoal(mob).canUse(),"water does not trigger air controls");
         mob.water=false;mob.leash=true;check(!new DigimonFlightGoal(mob).canUse(),"leash retains ground control");
         mob.leash=false;mob.reserve.restore(1,0);check(!new DigimonFlightGoal(mob).canUse(),"low stamina blocks voluntary flight");
-        mob.reserve=new FlightReserve(locomotion.flight());mob.owner=null;mob.threat=fixture(3);
+        mob.reserve=new FlightReserve(tiring);mob.owner=null;mob.threat=fixture(3);
         check(new DigimonFlightGoal(mob).canUse(),"recent nearby attack allows escape without an owner");
         mob.armed=true;
         check(!new DigimonFlightGoal(mob).canUse(),"healthy armed flyer retaliates instead of fleeing every hit");
@@ -90,15 +105,18 @@ public final class FlightRegressionTest {
     private static void timeline()throws Exception {
         var mob=fixture(0);mob.owner=fixture(12);var goal=new DigimonFlightGoal(mob);
         field(goal,"departure",Vec3.ZERO);field(goal,"previousPosition",Vec3.ZERO);
+        // the species' own clocks (locomotion.flight's lift_tick, takeoff_ticks, landing_ticks)
+        int lift=mob.flightLiftTick(),takeoff=mob.flightTakeoffTicks(),landing=mob.flightLandingTicks();
+        check(lift<takeoff,"the lift comes inside the takeoff");
         mob.phase=FlightPhase.TAKEOFF;
-        mob.clock=12;goal.tick();check(!mob.noGravity,"anticipation keeps feet grounded");
-        mob.clock=13;goal.tick();check(mob.noGravity,"lift begins with wing deployment");
-        mob.clock=32;goal.tick();check(mob.phase==FlightPhase.FLYING,"takeoff reaches hover at authored endpoint");
-        mob.ground=false;mob.reserve.restore(48,0);mob.clock=33;goal.tick();
+        mob.clock=lift-1;goal.tick();check(!mob.noGravity,"anticipation keeps feet grounded");
+        mob.clock=lift;goal.tick();check(mob.noGravity,"lift begins with wing deployment");
+        mob.clock=takeoff;goal.tick();check(mob.phase==FlightPhase.FLYING,"takeoff reaches hover at authored endpoint");
+        mob.ground=false;mob.reserve.restore(locomotion.flight().landingReserveTicks(),0);mob.clock=takeoff+1;goal.tick();
         check(mob.phase==FlightPhase.APPROACH,"low reserve requests a landing before depletion");
         mob.ground=true;mob.reserve.restore(0,0);goal.tick();
         check(mob.phase==FlightPhase.LANDING && !mob.noGravity,"touchdown precedes shell closure");
-        mob.clock+=32;goal.tick();check(!goal.canContinueToUse(),"landing finishes at the idle endpoint");
+        mob.clock+=landing;goal.tick();check(!goal.canContinueToUse(),"landing finishes at the idle endpoint");
     }
     private static void field(Object o,String name,Object value)throws Exception {
         Class<?> type=o.getClass();java.lang.reflect.Field f=null;
@@ -110,7 +128,7 @@ public final class FlightRegressionTest {
         return com.digicube.entity.EntityFixtureDefaults.initialize(type.cast(unsafe.getMethod("allocateInstance",Class.class).invoke(f.get(null),type)));
     }
     private static Fixture fixture(double z)throws Exception {
-        Fixture f=allocate(Fixture.class);f.reserve=new FlightReserve(locomotion.flight());f.phase=FlightPhase.GROUNDED;
+        Fixture f=allocate(Fixture.class);f.reserve=new FlightReserve(tiring);f.phase=FlightPhase.GROUNDED;
         if(world==null) {world=allocate(Air.class);world.border=new WorldBorder();}
         f.air=world;f.air.clear=f.air.loaded=true;
         f.nav=allocate(Navigation.class);f.control=new DigimonFlightMoveControl(f);f.ground=true;

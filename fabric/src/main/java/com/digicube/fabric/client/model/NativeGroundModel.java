@@ -491,7 +491,10 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         }
         // Off the ground a flyer's flight pose takes the whole body, its attacks on the wing included.
         if (flightPose != null && FlightPose.applies(state)) {
-            flightPose.pose(state, definition.attackBlendIn(), definition.attackBlendOut());
+            // a takeoff takes over from the gait the body was in over the catalog's ground_out ticks
+            float ground = flightPose.groundShare(state);
+            if (ground > 0) applyGround(state, ground);
+            flightPose.pose(state, definition.attackBlendIn(), definition.attackBlendOut(), 1 - ground);
             // a shot cast on the wing aims its upper body up or down at the target, as it does standing
             var kinetic = com.digicube.digimon.KineticAttacks.get(state.attackDefinition);
             if (kinetic != null && state.attackAnimation.isStarted())
@@ -1174,11 +1177,14 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
     /**
      * How the body is tipped in the model (degrees nose down and right side down): the pitch part's turn, which carries
      * the dive, the bank and a barrel roll, times the catalog's {@code rider.lean} shares; null when the rider stays
-     * upright. The seat part's own pose (a neck that lies forward while swimming) does not tip the rider. Read right after
+     * upright. The seat part's own pose (a neck that lies forward while swimming) does not tip the rider, nor, on the
+     * wing, the postures' lean ({@link FlightPose#riderLean}: the path's pitch, the bank and a roll). Read right after
      * {@link #riderOffset}.
      */
     @Override public float[] riderLean(DigimonRenderState state) {
         if(definition.rider()==null||definition.rider().lean()==null)return null;
+        // on the wing the body's own carriage is no tip of the rider's: the flight pose says what it turned the body by
+        if(flightPose!=null&&FlightPose.applies(state))return flightPose.riderLean(definition.rider().lean()[0],definition.rider().lean()[1]);
         var stack=new com.mojang.blaze3d.vertex.PoseStack();
         ModelPart part=rootPart;part.translateAndRotate(stack);
         var path=definition.pitchPath()!=null?definition.pitchPath():definition.rider().path();
@@ -1401,8 +1407,14 @@ public final class NativeGroundModel extends EntityModel<DigimonRenderState> imp
         var l=f.getAsJsonArray("leans");float[] leans=new float[l.size()];
         for(int i=0;i<leans.length;i++)leans[i]=l.get(i).getAsFloat();
         if(leans.length!=6)throw new IllegalArgumentException("A flight needs a lean for each of its six postures");
+        // when the beat comes in on a takeoff and how long it takes, how long it fades on a landing, and how long a takeoff
+        // takes over from the ground's pose (0: at once)
+        float[] wingIn=f.has("wing_in")?new float[]{f.getAsJsonArray("wing_in").get(0).getAsFloat(),f.getAsJsonArray("wing_in").get(1).getAsFloat()}
+                :new float[]{1,3};
+        float wingOut=GsonHelper.getAsFloat(f,"wing_out",6),groundOut=GsonHelper.getAsFloat(f,"ground_out",0);
+        if(!(wingIn[0]>=0 && wingIn[1]>0 && wingOut>0 && groundOut>=0))throw new IllegalArgumentException("Invalid flight wing timing");
         return new FlightPose.Spec(new org.joml.Vector3f(p.get(0).getAsFloat(),p.get(1).getAsFloat(),p.get(2).getAsFloat()),
-                f.get("landing_contact").getAsFloat(),GsonHelper.getAsString(f,"wings","wing_"),leans);
+                f.get("landing_contact").getAsFloat(),GsonHelper.getAsString(f,"wings","wing_"),leans,wingIn[0],wingIn[1],wingOut,groundOut);
     }
 
     private static Spin spin(com.google.gson.JsonObject config) {

@@ -139,8 +139,23 @@ public final class SpeciesRegressionTest {
             check(tentomon.locomotion().canFly() && !tentomon.locomotion().canSwim()
                     && tentomon.stage() == DigimonStage.CHILD && tentomon.attribute() == DigimonAttribute.VACCINE,
                     "Tentomon is a bipedal vaccine rookie with opt-in flight");
-            check(tentomon.attacks().isEmpty() && tentomon.body().mount().isEmpty(),
-                    "Tentomon only exposes approved locomotion, without unauthored attacks or a rider");
+            check(tentomon.attacks().stream().map(a -> a.id().getPath()).toList().equals(java.util.List.of("twice_arm", "petit_thunder"))
+                    && tentomon.body().mount().isEmpty(), "Tentomon fights with Twice Arm and Petit Thunder, and carries no rider");
+            var twiceArm = tentomon.attacks().get(0);
+            var petitThunder = tentomon.attacks().get(1);
+            check(WingCasts.allowed(twiceArm) && !WingCasts.only(twiceArm) && WingCasts.only(petitThunder),
+                    "Twice Arm is cast on the ground and on the wing, Petit Thunder only on the wing");
+            var sortie = tentomon.locomotion().flight().sortie();
+            check(sortie != null && sortie.from() < sortie.to() && tentomon.locomotion().flight().timing().liftTick() == 8
+                    && tentomon.locomotion().flight().timing().takeoffTicks() == 20 && tentomon.locomotion().flight().timing().landingTicks() == 16,
+                    "Tentomon's flight carries its sortie and the clocks of its authored takeoff and landing");
+            check(tentomon.locomotion().flight().endless() && sortie.hold() && sortie.strike() > .2 && sortie.strike() < .6,
+                    "Tentomon's wings never tire: he fights the whole fight on the wing, swooping in low for his claws");
+            var tentomonGait = tentomon.locomotion().groundGait();
+            double tentomonWalk = tentomon.baseSpeed() * tentomon.locomotion().walkSpeed(), tentomonRun = tentomon.baseSpeed() * tentomon.locomotion().runSpeed();
+            check(tentomonGait.maxPlaybackRate() * tentomonGait.fullSpeed(tentomon.body().modelScale()) >= 2.2 * tentomonRun * tentomonRun
+                    && 2.2 * tentomonWalk * tentomonWalk > tentomonGait.fullSpeed(tentomon.body().modelScale()),
+                    "Tentomon's waddle covers his walk and his run without sliding his feet");
             check(!DigimonLocomotion.DEFAULT.canFly(), "flight is not implicitly granted to other rookies");
             var gomamon = DigimonSpeciesRegistry.getOrThrow(Constants.id("gomamon"));
             check(gomamon.stage() == DigimonStage.CHILD && gomamon.attribute() == DigimonAttribute.VACCINE,

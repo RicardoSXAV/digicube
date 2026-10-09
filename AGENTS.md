@@ -93,7 +93,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/agility.md](agents/agility.md) | a body's own leap, crouch, roll and tuck (`body.leap`, `body.crouch`, `_crouch` twins), the AI's duck/roll/leap clear, blows' `launch`, shots' `falloff` |
 | [agents/mounts.md](agents/mounts.md) | anything a rider does (`RiderAttack`, `RiderControls`, attack tiles): getting on, pose, water and sea mounts, pace, leaps, charges, flying mounts |
 | [agents/flight.md](agents/flight.md) | flying under a rider (`AerialRiding`, `AerialHandling`): agile flight (dive, boost, slide, barrel roll, skim), the flight reserve's costs (`FlightReserve`), attacks on the wing (pounce wing forms), the catalog's `flight` (`FlightPose`, `FlightLook`), `FlightFeel` |
-| [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), particles (`DCParticles`), shot styles (`ShotStyle`), breaths of puffs (`FrostBreathRenderer`, water jets `WaterJetRenderer`, `WetSurfaces`), bodies of fire (`glow`), burning bodies (`BurnedVisuals`, `BurningFlames`), bolts (`ArcRenderer`), texture expressions (`expressions`), mouths (`mouth`), voices (`voices.json`) |
+| [agents/effects.md](agents/effects.md) | glows over water (`AfterWaterEffects`), shader packs (`ShaderPacks`), particles (`DCParticles`), shot styles (`ShotStyle`), breaths of puffs (`FrostBreathRenderer`, water jets `WaterJetRenderer`, `WetSurfaces`), bodies of fire (`glow`), burning bodies (`BurnedVisuals`, `BurningFlames`), bolts (`ArcRenderer`), texture expressions (`expressions`), mouths (`mouth`), voices (`voices.json`) |
 | [agents/digivice-item.md](agents/digivice-item.md) | the Digivice item (`Digivices`, `DroppedDigivice`): handing out, binding, storage, drops, the locator, the recall chip (`RecallChip`) |
 | [agents/screens.md](agents/screens.md) | a screen: the GUI language (`DigiTheme`, `DigiPanels`), the Digivice screen (`DigiviceScreen`: Analyzer with its marks guide, record (`AnalyzerWitness`) and SCAN page (`ScanPage`), Digispace, the DIGIVOLUTION tree and its choice (`EvolutionSheet`, `EvolutionTree`)) |
 | [agents/command-wheel.md](agents/command-wheel.md) | the command wheel (`CommandWheelScreen`, `CommandWheelReadout`): its orders, layout, pointing and cursor; universal control: AUTO per attack (`ManualAttacks`) and attack orders (`DigimonEntity.orderAttack`, `AttackOrders`) |
@@ -110,7 +110,8 @@ walking turns, a biped's aimed pounce), [ikkakumon](agents/species/ikkakumon.md)
 [meramon](agents/species/meramon.md) (and fire breaths),
 [mojyamon](agents/species/mojyamon.md) (and thrown weapons), [monochromon](agents/species/monochromon.md) (and held rushes),
 [pukamon](agents/species/pukamon.md) (Bukamon),
-[seadramon](agents/species/seadramon.md), [shellmon](agents/species/shellmon.md) (and spins in the shell, water jets).
+[seadramon](agents/species/seadramon.md), [shellmon](agents/species/shellmon.md) (and spins in the shell, water jets),
+[tentomon](agents/species/tentomon.md) (and fighting on the wing unridden).
 A species without a guide has nothing beyond its sheet and the topic guides.
 
 ## 4. Definition of done
@@ -129,10 +130,6 @@ Before reporting a change as complete:
 4. Tell the user exactly what to try in game — the command, the item, the recipe — and leave the feel judgments
    (animation, pacing, balance) to them.
 5. No new warnings in `latest.log` that this change introduced.
-
-What an agent still must **not** do is drive the Minecraft window: no keystrokes or chat commands typed into the
-client, no screenshots of it. Scenario runs are logs, not screens. Launching the client with the fresh build so the
-user's own test is one click away remains welcome.
 
 If something could not be built, launched or run through a scenario, **say so explicitly** rather than implying it
 was tested.

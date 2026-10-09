@@ -15,8 +15,33 @@ takeoff lifts from its sheet's `lift_tick` and becomes flight at `takeoff_ticks`
 by itself (`APPROACH`, the landing clip run on `DigimonEntity.landingProgress`): with the steady handling once it stops
 climbing, with agile flight only once it is also slow over the ground (`SETTLE_PACE`, so a skim at speed never lands).
 The dive key sinks it onto the ground. A spent reserve (`mustLand`) brings it down. Unridden, a flyer takes off on its
-own (`DigimonFlightGoal`) to catch up with its tamer or to escape danger; burning, an armed one with prey keeps fighting
-on the ground (the AI does not fight on the wing).
+own (`DigimonFlightGoal`) to catch up with its tamer, to escape danger, or on a sortie to fight on the wing (below);
+burning, an armed one with prey keeps fighting. An unridden flyer's takeoff and landing run on its sheet's clocks
+(`locomotion.flight`: `lift_tick`, `takeoff_ticks`, `landing_ticks`, and `loop_ticks`, the wing loop's seam a touchdown
+waits for, 1 for none; `DigimonFlight.Timing`, 13, 32, 32 and 40 without); a flying mount keeps its mount's.
+
+## Fighting on the wing unridden
+
+A move's `wing` key (`WingCasts`, on its entry in `kinetic_attacks.json` or `authored_attacks.json`) says where the AI
+casts it: `"only"` only flying (`startAttack` refuses it on the ground, and the ground's choice and stances leave it out),
+`true` on the ground and flying too; without it a move stays on the ground. A sheet with `locomotion.flight.sortie`
+(`DigimonFlight.Sortie`) takes off for it: with prey within reach, a move cast only on the wing ready and `reserve` of its
+reserve, `DigimonFlightGoal` flies a sortie. It flies (paths far off, straight over the last few blocks, facing the prey
+there: `DigimonFlightMoveControl.face`) to a perch on the line out from the prey, `height` blocks over the prey's feet and
+`range` blocks from it (turned round the prey when that place is shut in or out of sight), hovers there a few ticks and
+casts what `DigimonEntity.chooseWingAttack` picks (a move cast only on the wing first, a `true` blow when the prey is in
+its reach); a cast brakes it to a hover where it is. It comes down once nothing cast on the wing is ready within `linger`
+ticks, the prey is gone or the reserve runs low; badly hurt, it escapes instead.
+
+With `hold` it fights the whole fight on the wing: any prey within `range`'s far end and 12 blocks more draws it up
+(something it fights with on the wing is enough), a flight under way or coming down turns into the sortie as prey turns
+up, and it comes down only once it has had no prey for `linger` ticks. With `strike` (blocks over the prey's feet) it
+swoops in for its `true` blow (`DigimonEntity.wingBlow`): the sortie plans each tick (`Plan`), up to the perch for a ready
+shot (and to wait), in beside the prey at the `strike` height for a blow coming ready before the shot (`SWOOP_LEAD`), at
+once for a blow that reaches from where it is. The swoop's place is its body's width from the prey (its open wings may
+overlap it), where `canAttackFrom` says the blow reaches, along the way it came in (held through the swoop); a cast there
+never lets it sink under the `strike` height. `DigimonEntity.wingReadyIn` gives the ticks until each kind comes ready.
+Tentomon's is the example ([species/tentomon.md](species/tentomon.md#ai-the-sortie)).
 
 ## Agile flight
 
@@ -49,7 +74,7 @@ first tap's climb undone; reported by the rider's client as a swim roll is and d
 ## The flight reserve
 
 `FlightReserve` is the stamina (`locomotion.flight`: `capacity_ticks` of plain flight, `recharge_ticks` to refill on the
-ground). Its `costs` (`DigimonFlight.Costs`, steady without) are what flying hard and fighting on the wing take: a tick
+ground; with `endless` it stays full, owes no rest and never calls a landing: Tentomon). Its `costs` (`DigimonFlight.Costs`, steady without) are what flying hard and fighting on the wing take: a tick
 of flight costs `boost` on the sprint key, `climb` rising, `glide` diving or gliding (read from how the body moved,
 `AerialRiding.rate`); a barrel roll `roll` and a takeoff `takeoff` at once; every attack cast on the wing `attack` of the
 whole reserve (`spendAttack` in `beginAttack`), so a flyer cannot pound something on the ground from the sky for long.
@@ -82,13 +107,19 @@ name: postures `fly_hover`, `fly`, `fly_dash`, `fly_dive`, `fly_brake`, `fly_rol
 look's shares, the roll's tuck through a barrel roll), wing layers `wings_beat`, `wings_power`, `wings_fold` (on the wing
 clock, over everything), `takeoff` and `land`. The postures' base lean is not in their clips: the body is turned about the
 pivot by their mix of `leans`, with the path's pitch, the bank and a roll, so the rider stays put while the body swings
-under them. An attack on the wing plays over the posture and owns the body while it plays (a pounce's line pitches it).
+under them. The rider tips (`rider.lean`, [mounts.md](mounts.md#the-riders-pose)) with the path's pitch and the bank by
+its shares and with a barrel roll whole, never with the postures' `leans` (`FlightPose.riderLean`): a dive's lean on a
+steep path tips the body past upright, and the rider read off it came out upside down. An attack on the wing plays over the posture and owns the body while it plays (a pounce's line pitches it).
 `attack_effects` with `follow_root` draws its effect in the body's root frame as drawn (`NativeEffectState.root`), so a horn
-streak or a charging ball stays on the horn or the hands however the flyer turns.
+streak or a charging ball stays on the horn or the hands however the flyer turns. Optional `flight` keys time the wings
+and the ground: `wing_in` [from, ticks] (the beat comes in on a takeoff, [1, 3] without), `wing_out` (ticks it fades
+over on a landing, 6) and `ground_out` (ticks over which a takeoff takes the body over from the gait it was in, 0: at once).
+An unridden flyer's approach plays the land clip on its height over the ground as a ridden one's does
+(`DigimonEntity.landingProgress`).
 
 ## How flying feels
 
-`FlightFeel` (client): every agile flyer in hearing buzzes its wings (a loop following it, deeper for a big body, louder and
+`FlightFeel` (client): every agile flyer and unridden burst flyer in hearing buzzes its wings (a loop following it, deeper for a big body, louder and
 higher as the wings work, hushed in a dive and while a pounce plays, its wings swept back), and the local rider of an agile flyer gets a rush of wind with the speed, the view widening
 with it, a fine shudder near top speed and its burst, the view tilting into the body's banks (`ROLL_SHARE`, at most
 `ROLL_MOST`, `MixinCamera`) and swinging through a roll, and a whoosh as a roll begins. `FlightLook` also stirs the world

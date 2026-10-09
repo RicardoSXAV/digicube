@@ -113,6 +113,7 @@ verdict in `fabric/runs/server/logs/latest.log`. The dispatch in `CombatScenario
 | `recall_checks`, `recall_checks_reload` | the recall chip | [digivice-item.md](digivice-item.md#the-recall-chip) |
 | `betamon_checks` | Betamon's dash and discharge, case by case | [species/betamon.md](species/betamon.md#checks) |
 | `elecmon_checks` | Elecmon's discharge and whirl, case by case | [species/elecmon.md](species/elecmon.md#checks) |
+| `tentomon_checks` | Tentomon's two claws on the ground, on the wing and swooping low, Petit Thunder refused on the ground, the fight he flies from takeoff to landing | [species/tentomon.md](species/tentomon.md#checks) |
 | `kabuterimon_checks` | Kabuterimon flown by a stand-in rider (takeoff, cruise, boost, dive and carry, skim, hover, roll, slide, landing) and his moves (Beet Horn's gore on the ground and ram from the wing, Mega Blaster's shock and hit, stacked shots, the reserve they cost) | [species/kabuterimon.md](species/kabuterimon.md#checks) |
 | `evolution_checks` | digivolution: the choice and its binding, news, DigiSoul, recall and reload, every Rookie route long, short and back; a Baby II's growth | [domain.md](domain.md#species-and-individuals) |
 | `scan_checks` | the scan with two stand-in tamers: the first sighting, a defeat, one shared by damage, the full bar, CONVERT into the inventory (and refused with no free slot), the Digitama used from the hand (and refused with no Digivice), the hatch | [domain.md](domain.md#the-scan-and-the-digitama) |
@@ -124,4 +125,5 @@ verdict in `fabric/runs/server/logs/latest.log`. The dispatch in `CombatScenario
 `common/build.gradle` and `fabric/build.gradle`); `./gradlew :<module>:<task>` runs one alone. The compiled client models
 are checked without a window by `:fabric:native<Name>Test` tasks, each described where its subject is: a species' in its
 guide (`nativeLeomonTest`: [species/leomon.md](species/leomon.md#checks)), `nativeStanceTest` in
-[compound-attacks.md](compound-attacks.md#checks), `nativeGlowPartsTest` in [effects.md](effects.md#bodies-of-fire).
+[compound-attacks.md](compound-attacks.md#checks), `nativeGlowPartsTest` in [effects.md](effects.md#bodies-of-fire),
+`nativeLayeredBreathTest` in [effects.md](effects.md#breaths-and-pounces).

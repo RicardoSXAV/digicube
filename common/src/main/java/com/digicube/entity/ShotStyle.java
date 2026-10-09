@@ -44,7 +44,13 @@ public enum ShotStyle {
      * ball leaves, a ball that streams flame, embers and smoke behind it, and an explosion where it bursts: a ring of fire
      * thrown out along the ground, embers, a column of smoke and a deep boom. A fire with no magma: nothing drips.
      */
-    FIRE;
+    FIRE,
+    /**
+     * Tentomon's Petit Thunder: static gathered off the wings, a bright snap as the shock leaves, a crackling star that
+     * sheds sparks, and a sharp crack with a shower of sparks where it strikes. Its lightning is the client's own about the
+     * star (ShockBall), in the star's white and gold.
+     */
+    STATIC;
 
     public static ShotStyle byId(String id) {
         return id == null ? NONE : valueOf(id.toUpperCase(java.util.Locale.ROOT));
@@ -63,6 +69,15 @@ public enum ShotStyle {
             level.sendParticles(ParticleTypes.FLAME, true, true, ahead.x, ahead.y, ahead.z, 24, .25, .2, .25, .09);
             level.sendParticles(ParticleTypes.SMALL_FLAME, true, true, ahead.x, ahead.y, ahead.z, 12, .3, .25, .3, .05);
             level.sendParticles(ParticleTypes.LARGE_SMOKE, true, true, muzzle.x, muzzle.y, muzzle.z, 8, .2, .12, .2, .03);
+            return;
+        }
+        if (this == STATIC) {
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.TRIDENT_THUNDER, SoundSource.NEUTRAL, .45F, 2.0F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.NEUTRAL, .7F, 1.7F);
+            level.playSound(null, muzzle.x, muzzle.y, muzzle.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .4F, 1.9F);
+            Vec3 ahead = muzzle.add(direction.scale(.25));
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, true, true, ahead.x, ahead.y, ahead.z, 10, .2, .2, .2, .35);
+            level.sendParticles(ParticleTypes.WAX_OFF, true, true, ahead.x, ahead.y, ahead.z, 6, .25, .25, .25, .4);
             return;
         }
         if (this == ELECTRIC) {
@@ -112,6 +127,19 @@ public enum ShotStyle {
             }
             if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.LAVA, from.x, from.y, from.z, 0, 0, 0);
             if (random.nextInt(3) == 0) level.addParticle(ParticleTypes.LARGE_SMOKE, from.x, from.y + .1, from.z, 0, .05, 0);
+            return;
+        }
+        if (this == STATIC) {
+            // Sparks crackle off the star and hang a moment where it passed.
+            Vec3 step = to.subtract(from);
+            int sparks = Math.max(1, (int) Math.round(step.length() * 1.5));
+            for (int i = 0; i < sparks; i++) {
+                Vec3 at = from.add(step.scale((i + random.nextDouble()) / sparks));
+                level.addParticle(ParticleTypes.ELECTRIC_SPARK, at.x + random.nextGaussian() * .15, at.y + random.nextGaussian() * .15,
+                        at.z + random.nextGaussian() * .15, random.nextGaussian() * .08, random.nextGaussian() * .08, random.nextGaussian() * .08);
+            }
+            if (random.nextInt(2) == 0) level.addParticle(ParticleTypes.WAX_OFF, from.x, from.y, from.z, random.nextGaussian() * .2, random.nextGaussian() * .2,
+                    random.nextGaussian() * .2);
             return;
         }
         if (this == ELECTRIC) {
@@ -173,6 +201,15 @@ public enum ShotStyle {
             level.sendParticles(ParticleTypes.EXPLOSION, true, true, at.x, at.y, at.z, 2, .3, .3, .3, 0);
             return;
         }
+        if (this == STATIC) {
+            RandomSource random = level.getRandom();
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_THUNDER, SoundSource.NEUTRAL, .7F, 1.8F + random.nextFloat() * .15F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, 1F, 1.6F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .7F, 1.6F);
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, true, true, at.x, at.y, at.z, 22, .4, .4, .4, .7);
+            level.sendParticles(ParticleTypes.WAX_OFF, true, true, at.x, at.y, at.z, 12, .35, .35, .35, .6);
+            return;
+        }
         if (this == ELECTRIC) {
             RandomSource random = level.getRandom();
             level.playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_THUNDER, SoundSource.NEUTRAL, 1.1F, 1.35F + random.nextFloat() * .15F);
@@ -218,6 +255,13 @@ public enum ShotStyle {
      * ball sizzles and crackles on it, louder the harder it struck. Other styles have nothing to add to their burst.
      */
     public void shock(ServerLevel level, net.minecraft.world.entity.LivingEntity victim, float share) {
+        if (this == STATIC) {
+            Vec3 chest = victim.getBoundingBox().getCenter();
+            level.playSound(null, chest.x, chest.y, chest.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, .8F, 1.9F);
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, chest.x, chest.y, chest.z, 10, victim.getBbWidth() * .35, victim.getBbHeight() * .3,
+                    victim.getBbWidth() * .35, .3);
+            return;
+        }
         if (this != ELECTRIC) return;
         RandomSource random = level.getRandom();
         Vec3 chest = victim.getBoundingBox().getCenter();
@@ -235,6 +279,12 @@ public enum ShotStyle {
             level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_AMBIENT, SoundSource.NEUTRAL, 1.4F, .7F);
             return;
         }
+        if (this == STATIC) {
+            // the wings' buzz charging: a rising hum and a crackle
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, .5F, 2.0F);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, .5F, 1.8F);
+            return;
+        }
         if (this != ELECTRIC) return;
         level.playSound(null, at.x, at.y, at.z, SoundEvents.RESPAWN_ANCHOR_CHARGE, SoundSource.NEUTRAL, 1F, 1.45F);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_TWINKLE, SoundSource.NEUTRAL, .6F, 1.25F);
@@ -248,7 +298,7 @@ public enum ShotStyle {
             level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, .8F, .6F);
             return;
         }
-        if (this == ELECTRIC) {
+        if (this == ELECTRIC || this == STATIC) {
             impact(level, at);
             return;
         }

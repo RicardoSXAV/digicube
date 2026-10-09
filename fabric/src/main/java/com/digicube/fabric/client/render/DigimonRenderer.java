@@ -6,7 +6,6 @@ import net.minecraft.world.phys.AABB;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
-import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.AnimatedRiderModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
@@ -33,7 +32,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
             Constants.id("gabumon"), Constants.id("textures/entity/digimon/gabumon.png"),
             Constants.id("gomamon"), Constants.id("textures/entity/digimon/gomamon.png"),
             Constants.id("ikkakumon"), Constants.id("textures/entity/digimon/ikkakumon.png"),
-            Constants.id("tentomon"), Constants.id("textures/entity/digimon/tentomon.png"),
             Constants.id("koromon"), Constants.id("textures/entity/digimon/koromon.png"),
             Constants.id("tsunomon"), Constants.id("textures/entity/digimon/tsunomon.png"));
     private final Map<Identifier, EntityModel<DigimonRenderState>> models;
@@ -88,7 +86,6 @@ public class DigimonRenderer extends MobRenderer<DigimonEntity, DigimonRenderSta
                 DigimonEntity.DEFAULT_SPECIES, this.model,
                 Constants.id("gabumon"), new GabumonModel(context.bakeLayer(GabumonModel.LAYER)),
                 Constants.id("gomamon"), new GomamonModel(context.bakeLayer(GomamonModel.LAYER)),
-                Constants.id("tentomon"), new TentomonModel(context.bakeLayer(TentomonModel.LAYER)),
                 Constants.id("koromon"), new KoromonModel(context.bakeLayer(KoromonModel.LAYER)),
                 Constants.id("tsunomon"), new TsunomonModel(context.bakeLayer(TsunomonModel.LAYER))));
         for (var definition : com.digicube.fabric.client.model.NativeGroundModel.definitions().values()) {

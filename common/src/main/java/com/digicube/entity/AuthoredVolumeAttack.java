@@ -248,6 +248,8 @@ public final class AuthoredVolumeAttack {
                             || !box.intersects(entity.getBoundingBox()) || !visible(level,caster,attack,time,feet,caster.getYRot(),box)
                             || d.grounded() && !supported(level,caster,box)
                             || !clear(level,caster,d.anchored()?box.center():AttackGeometry.world(caster.position(),d.motion(caster.isInWater()).sample(time).head(),caster.getYRot()),entity.getBoundingBox().getCenter()))continue;
+                    // A flurry's later beats are blows of their own: the hurt immunity the last one left does not stop them.
+                    if(d.flurry() && beat>0 && !beats.getOrDefault(id,Set.of()).isEmpty())victim.invulnerableTime=0;
                     // A summoned strike throws its victims away from where it lands, and a little off the floor.
                     if(caster.hitWithAttack(level,attack,victim,d.anchored()?feet:caster.position())) {
                         if(d.anchored()){victim.push(0,.3,0);victim.hurtMarked=true;}

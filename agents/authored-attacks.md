@@ -94,6 +94,14 @@ the body it lands on alight, a Burn (`DigimonEntity.scorch`).
 (in place of its style's voice and of the growl), `release` as a dash sets off or a discharge leaves, `contact` where a
 volume lands, `struck` on each body a discharge strikes (`AuthoredAttacks.Definition.cue`).
 
+## Flurries and the wing
+
+`flurry: true` makes each hit window after the first a blow of its own: a body the move already struck is struck again
+through the hurt immunity the last blow left (`AuthoredVolumeAttack.tick`), so beats closer than vanilla's half second all
+land (Tentomon's Twice Arm, its second claw five ticks after the first). `wing: true` lets the AI cast the move flying
+too, `"only"` only flying ([flight.md](flight.md#fighting-on-the-wing-unridden)); a body that flies plays the clip's
+`_air` form, and a form that keeps the ground form's root and arms shares its volumes and effect.
+
 ## Stacked uses
 
 An authored attack may stack uses (`charges` in `authored_attacks.json`, Gold Rush 3, `AttackCharges`): each

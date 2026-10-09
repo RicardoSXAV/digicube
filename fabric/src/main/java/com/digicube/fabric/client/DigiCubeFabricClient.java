@@ -6,7 +6,6 @@ import com.digicube.fabric.client.party.PartyClient;
 import com.digicube.fabric.client.starter.StarterClient;
 import com.digicube.fabric.client.model.GabumonModel;
 import com.digicube.fabric.client.model.GomamonModel;
-import com.digicube.fabric.client.model.TentomonModel;
 import com.digicube.fabric.client.model.KoromonModel;
 import com.digicube.fabric.client.model.TsunomonModel;
 import com.digicube.fabric.client.model.BubbleBlowModel;
@@ -72,7 +71,6 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         com.digicube.fabric.client.render.SpinAudio.init();
         ModelLayerRegistry.registerModelLayer(GabumonModel.LAYER, GabumonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(GomamonModel.LAYER, GomamonModel::createBodyLayer);
-        ModelLayerRegistry.registerModelLayer(TentomonModel.LAYER, TentomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(KoromonModel.LAYER, KoromonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(TsunomonModel.LAYER, TsunomonModel::createBodyLayer);
         ModelLayerRegistry.registerModelLayer(BubbleBlowModel.LAYER, BubbleBlowModel::createBodyLayer);

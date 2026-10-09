@@ -32,10 +32,26 @@ final class FlightPose {
      * tick; {@code leans} each posture's lean (degrees forward, in {@link #POSTURES}' order): not in the clips, the body is
      * turned about the pivot by the postures' mix of it, so mixing them never moves the seat
      */
-    record Spec(Vector3f pivot, float contact, String wingPrefix, float[] leans) {}
+    record Spec(Vector3f pivot, float contact, String wingPrefix, float[] leans, float wingFrom, float wingIn, float wingOut,
+                float groundOut) {
+        /** The shared wing and ground timings: the beat comes in from the takeoff's first tick over three, fades over six. */
+        Spec(Vector3f pivot, float contact, String wingPrefix, float[] leans) {
+            this(pivot, contact, wingPrefix, leans, 1, WING_IN, WING_OUT, 0);
+        }
+    }
 
     private static final String[] POSTURES = {"fly_hover", "fly", "fly_dash", "fly_dive", "fly_brake", "fly_roll"};
     private static final float WING_IN = 3, WING_OUT = 6;
+
+    /**
+     * The share of the ground's pose a takeoff keeps at its tick {@code t}: all of it at the start, none after the catalog's
+     * {@code ground_out} ticks (0: the takeoff clip takes the body at once). A body that was walking or turning when it took
+     * off hands its legs over to the takeoff instead of snapping to its first pose.
+     */
+    float groundShare(DigimonRenderState s) {
+        if (s.flightPhase != FlightPhase.TAKEOFF || spec.groundOut() <= 0) return 0;
+        return 1 - smooth(s.flightPhaseTime / spec.groundOut());
+    }
 
     private final Spec spec;
     private final NativeAnimationSet animations;
@@ -58,9 +74,24 @@ final class FlightPose {
 
     /** The lean (degrees forward) the postures posed this frame give the body: their mix of the catalog's leans. */
     private float lean;
+    /** What the body was turned by this frame besides the postures' lean (degrees): its path's pitch, its bank, a roll. */
+    private float pathPitch, bank, spin;
+
+    /**
+     * How the rider tips with the body this frame (degrees nose down, right side down), as {@code rider.lean} shares
+     * the pitch and the bank: along the path and into the turns, and once round with a barrel roll. Never with the
+     * postures' lean, which is the body's own carriage under the seat: a dive posture's lean on top of a steep path tips
+     * the body past upright, and read off the body that came out as the rider rolled upside down.
+     */
+    float[] riderLean(float pitchShare, float rollShare) { return new float[]{pathPitch * pitchShare, -(bank * rollShare + spin)}; }
 
     /** The whole pose for this frame; {@code attackBlendIn}/{@code Out} are the catalog's attack blends (ticks). */
     void pose(DigimonRenderState s, float attackBlendIn, float attackBlendOut) {
+        pose(s, attackBlendIn, attackBlendOut, 1);
+    }
+
+    /** As {@link #pose(DigimonRenderState, float, float)}, every layer weighted by {@code weight} (the ground keeps the rest). */
+    void pose(DigimonRenderState s, float attackBlendIn, float attackBlendOut, float weight) {
         float t = s.flightPhaseTime, age = s.ageInTicks, wing = s.wingClock;
         String attack = attackClip(s);
         float attackTick = attack == null ? 0 : s.attackAnimation.getTimeInMillis(s.ageInTicks) / 50F;
@@ -71,11 +102,12 @@ final class FlightPose {
             if (attackBlendOut > 0) aw = Math.min(aw, (animations.length(attack) - attackTick) / attackBlendOut);
             aw = smooth(aw);
         }
-        float keep = 1 - aw;
+        float keep = (1 - aw) * weight;
+        aw *= weight;
         // the wings: how much of the beat they carry (folded at rest on the ground)
         float wingWeight = switch (s.flightPhase) {
-            case TAKEOFF -> smooth((t - 1) / WING_IN);
-            case LANDING -> 1 - smooth(t / WING_OUT);
+            case TAKEOFF -> smooth((t - spec.wingFrom()) / spec.wingIn());
+            case LANDING -> 1 - smooth(t / spec.wingOut());
             default -> 1;
         };
         float roll = Math.abs(s.swimRoll) / 360F, tuck = roll > 0 ? Mth.sin(roll * Mth.PI) : 0;
@@ -100,7 +132,10 @@ final class FlightPose {
         // pounce's own line pitches it instead)
         float air = s.flightPhase == FlightPhase.TAKEOFF ? smooth((t - 2) / 6) : s.flightPhase == FlightPhase.LANDING ? 0
                 : s.flightPhase == FlightPhase.APPROACH ? 1 - smooth(s.flightLandingProgress) : 1;
-        float pitch = (s.flightPitch * keep - s.pouncePitch * aw) * air + lean, bank = s.flightBank * keep * air, spin = s.swimRoll;
+        pathPitch = (s.flightPitch * keep - s.pouncePitch * aw) * air;
+        bank = s.flightBank * keep * air;
+        spin = s.swimRoll;
+        float pitch = pathPitch + lean;
         if (pitch != 0 || bank != 0 || spin != 0) turnAboutSeat(pitch, bank + spin);
     }
 

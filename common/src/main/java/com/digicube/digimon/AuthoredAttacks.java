@@ -15,6 +15,8 @@ import java.util.*;
  * is the clip of its effect model it plays (forms share one model), {@code key} the movement key a rider holds to pick
  * that form ({@code forward}, {@code left}, {@code right}; none for the first form's default). {@code burn} is the ticks a
  * landed blow sets its victim alight for ({@code burn}; 0: none), a Burn in the fight's terms (Meramon's Fire Fist).
+ * {@code flurry}: each hit window after the first strikes through the hurt immunity the one before it left, so blows
+ * closer than vanilla's half second all land (Twice Arm's second claw).
  */
 public final class AuthoredAttacks {
     public record Definition(DigimonAttack attack, String effect, boolean emissive, boolean grounded, int hitInterval, int maxHits,
@@ -22,7 +24,8 @@ public final class AuthoredAttacks {
                              List<AttackBox[]> waterFrames, AttackMotion waterMotion, List<AttackBox[]> mirroredFrames, int anchorLockTick, Vec3 anchorApproach, List<String> contactParts,
                              com.digicube.entity.StrikeParticles particles, boolean rootTravel, Leap leap, int charges, AttackVolley volley,
                              List<String> formNames, FormChoice formChoice, String effectClip, String key,
-                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds, int burn, boolean aimed) {
+                             double impactTick, com.digicube.entity.ArcDischarge.Spec arc, Map<String, Cue> sounds, int burn, boolean aimed,
+                             boolean flurry) {
         /**
          * Plays the move's own sound for {@code cue} at {@code at}, if its sheet names one ({@code sounds} in
          * {@code authored_attacks.json}: {@code wind_up} as it starts, {@code release} as a dash sets off or a discharge
@@ -226,7 +229,7 @@ public final class AuthoredAttacks {
                     forms(c),FormChoice.valueOf(GsonHelper.getAsString(c,"form_choice","combo").toUpperCase(Locale.ROOT)),
                     GsonHelper.getAsString(c,"effect_clip","effect"),GsonHelper.getAsString(c,"key",null),
                     impact(c,attack,rootTravel),c.has("arc")?com.digicube.entity.ArcDischarge.Spec.load(c.getAsJsonObject("arc")):null,
-                    sounds(c),burn(c,id),aimed(c,attack)));
+                    sounds(c),burn(c,id),aimed(c,attack),GsonHelper.getAsBoolean(c,"flurry",false)));
         }
         return Collections.unmodifiableMap(result);
     }

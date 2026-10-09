@@ -89,6 +89,7 @@ public final class CombatScenario {
         if (NAME.equals("ikkakumon_checks")) { IkkakumonScenario.tick(level); return; }
         if (NAME.equals("betamon_checks")) { BetamonScenario.tick(level); return; }
         if (NAME.equals("elecmon_checks")) { ElecmonScenario.tick(level); return; }
+        if (NAME.equals("tentomon_checks")) { TentomonScenario.tick(level); return; }
         if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
         if (NAME.equals("agumon_checks")) { AgumonScenario.tick(level); return; }
         if (NAME.startsWith("agility_checks")) { AgilityScenario.tick(level, NAME.startsWith("agility_checks:") ? NAME.substring(15) : ""); return; }

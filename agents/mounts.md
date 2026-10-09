@@ -78,7 +78,7 @@ rider round instead of leaving the rider facing the old heading with their legs 
 A rider can also tip with the body: `rider.lean` (pitch and roll shares, 0 to 1) makes `NativeGroundModel.riderLean`
 read how far the pitch part (the `pitch_path`, else the seat part) is turned nose down and right side down;
 `MixinEntityRenderer` carries it (`RiderVisuals.LEAN`) and `MixinLivingEntityRenderer.setupRotations` turns the rider
-about the seat, 0.6 over the feet. Ikkakumon's rider leans into its dives and banks and goes round with a barrel roll.
+about the seat, 0.6 over the feet, and its head back by the tip. Ikkakumon's rider leans and rolls with it.
 The first-person camera is the sheet's seat and never tips. The sheet's seat need not be where the rider is drawn:
 Ikkakumon's is 0.3 blocks to the right of the drawn seat, so its horn stands beside the crosshair.
 

@@ -1195,6 +1195,46 @@
       "pounce_pivot": [-44.75, 0.0],
       "pounce_air_pivot": [-44.75, 0.0],
       "glow_parts": ["bkf_root", "bkf_flash_0", "bkf_flash_1", "bkf_flash_2", "ls_streak_0", "ls_streak_1", "ls_streak_2"]
+    },
+    "tentomon": {
+      "culling_margin": 4,
+      "walk_blend": true,
+      "aim_path": ["root"],
+      "attack_blend_in": 2,
+      "attack_blend_out": 4,
+      "look": {
+        "path": ["root", "head"],
+        "yaw": 35,
+        "pitch": 25
+      },
+      "paws": {
+        "feet": [
+          {
+            "path": ["root", "legs_root", "leg_upper_l", "leg_foot_l"],
+            "toe": [0, 26, -23]
+          },
+          {
+            "path": ["root", "legs_root", "leg_upper_r", "leg_foot_r"],
+            "toe": [0, 26, -23]
+          }
+        ]
+      },
+      "attack_effects": {
+        "effect": "tentomon_fx",
+        "follow_root": true,
+        "clips": {
+          "petit_thunder": "petit_thunder"
+        }
+      },
+      "flight": {
+        "pivot": [0.0, -28.0, 4.0],
+        "landing_contact": 8,
+        "wings": "wing_",
+        "leans": [0.0, 18.0, 30.0, 52.0, -14.0, 8.0],
+        "wing_in": [6, 3],
+        "wing_out": 5,
+        "ground_out": 4
+      }
     }
   }
 }

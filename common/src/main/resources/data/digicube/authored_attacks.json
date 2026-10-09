@@ -635,5 +635,24 @@
         "pitch": 1.2
       }
     }
+  },
+  "twice_arm": {
+    "kind": "BOX_SWEEP",
+    "power": 1.0,
+    "cooldown": 36,
+    "duration": 22,
+    "hit_tick": 6,
+    "range": 2.2,
+    "knockback": 0.3,
+    "hit_interval": 3,
+    "max_hits": 2,
+    "effect": "tentomon_fx",
+    "effect_clip": "twice_arm",
+    "emissive": true,
+    "hit_windows": [[5.6, 8.2], [10.2, 12.8]],
+    "particles": "pincer",
+    "contact_parts": ["ta_hit_l", "ta_hit_lx", "ta_hit_r", "ta_hit_rx"],
+    "flurry": true,
+    "wing": true
   }
 }

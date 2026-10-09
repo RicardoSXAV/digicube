@@ -332,10 +332,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return aerialRiding;
     }
     public void requestFlightLanding() { needsFlightLanding=true; }
-    public int flightLiftTick() { return aerialMount()==null ? 13 : aerialMount().liftTick(); }
-    public int flightTakeoffTicks() { return aerialMount()==null ? 32 : aerialMount().takeoffTicks(); }
-    public int flightLandingTicks() { return aerialMount()==null ? 32 : aerialMount().landingTicks(); }
-    public int flightLoopTicks() { return aerialMount()==null ? 40 : aerialMount().wingLoopTicks(); }
+    public int flightLiftTick() { return aerialMount()==null ? flightTiming().liftTick() : aerialMount().liftTick(); }
+    public int flightTakeoffTicks() { return aerialMount()==null ? flightTiming().takeoffTicks() : aerialMount().takeoffTicks(); }
+    public int flightLandingTicks() { return aerialMount()==null ? flightTiming().landingTicks() : aerialMount().landingTicks(); }
+    public int flightLoopTicks() { return aerialMount()==null ? flightTiming().loopTicks() : aerialMount().wingLoopTicks(); }
+    /** An unridden flyer's takeoff and landing clocks (its sheet's {@code locomotion.flight}, else the shared ones). */
+    private com.digicube.digimon.DigimonFlight.Timing flightTiming() {
+        var flight = getLocomotion().flight();
+        return flight == null ? com.digicube.digimon.DigimonFlight.Timing.DEFAULT : flight.timing();
+    }
     private float previousFlightWalkAmount;
     private float aerialBank,previousAerialBank,aerialPitch,previousAerialPitch;
     /** Client: how this flyer carries itself on the wing (FlightLook), read from its motion every client tick. */
@@ -915,7 +920,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      */
     public float landingProgress(float partialTick) {
         var phase = getFlightPhase();
-        if (phase != FlightPhase.APPROACH || aerialMount() == null) return phase.airborne() ? 0 : 1;
+        if (phase != FlightPhase.APPROACH || !canFly()) return phase.airborne() ? 0 : 1;
         double height = Math.max(0, aerialRiding().groundDistance(6) + Mth.lerp(partialTick, yo, getY()) - getY());
         long stamp = entityData.get(DATA_FLIGHT_START);
         if (stamp != approachStamp) { approachStamp = stamp; approachFrom = Math.max(height, .5); }
@@ -5071,7 +5076,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 || target == null || !target.isAlive() || !canAttack(target)) return null;
         // The tamer's order: its move the moment it would go from here, whatever the tactics would rather do; nothing else meanwhile.
         DigimonAttack ordered = standingOrder();
-        if (ordered != null) return orderStrikes(ordered, target) ? ordered : null;
+        // an order for a move cast only on the wing is carried out by a sortie (DigimonFlightGoal), never from the ground
+        if (ordered != null) return !com.digicube.digimon.WingCasts.only(ordered) && orderStrikes(ordered, target) ? ordered : null;
         List<DigimonAttack> moves = aiAttacks();
         DigimonAttack wrap = wrapWanted(target);
         if (wrap != null) return wrapStrikes(wrap, target) ? wrap : null;
@@ -5082,7 +5088,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (compound != null) return compound;
         DigimonAttack chosen = null;
         for (DigimonAttack attack : moves) {
-            if (attack.kind() == DigimonAttack.Kind.CONSTRICTION || !usefulShot(attack, target)) continue;
+            // a move cast only on the wing waits for a sortie (DigimonFlightGoal)
+            if (attack.kind() == DigimonAttack.Kind.CONSTRICTION || com.digicube.digimon.WingCasts.only(attack) || !usefulShot(attack, target)) continue;
             // A brawler lands its melee when it can; its opener is for the walk in. Others keep the sheet's order.
             if (chosen == null || tactics().preferClose() && attack.range() < chosen.range()) chosen = attack;
             if (!tactics().preferClose()) break;
@@ -5337,7 +5344,9 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         // Frozen or Cold prey is the wrap's opening: close in and hold beside it even before the wrap is ready,
         // but only when the wrap will be ready while the opening still lasts; otherwise waiting beside it is a free hit.
         if ((frozen || target.hasEffect(DCEffects.COLD)) && wrapMove() != null && wrapOpening(target)) return List.of(wrapMove());
-        moves = moves.stream().filter(a -> a.kind() != DigimonAttack.Kind.CONSTRICTION && a.kind() != DigimonAttack.Kind.RETREAT_KICK).toList();
+        // a move cast only on the wing takes no stance on the ground: its sortie flies to its own place (DigimonFlightGoal)
+        moves = moves.stream().filter(a -> a.kind() != DigimonAttack.Kind.CONSTRICTION && a.kind() != DigimonAttack.Kind.RETREAT_KICK
+                && !com.digicube.digimon.WingCasts.only(a)).toList();
         // Frozen prey is for a blow, never more frost: a pouncer goes in for the shatter.
         return frozen ? moves.stream().filter(a -> a.kind() != DigimonAttack.Kind.FROST_STREAM).toList() : moves;
     }
@@ -5425,7 +5434,61 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         if (attack.kind() == DigimonAttack.Kind.GROUND_WAVE && (!onGround() || isInWater() || isInLava())) return false;
         var authored=com.digicube.digimon.AuthoredAttacks.get(attack);
         if (authored!=null && authored.grounded() && (!onGround() || isInWater() || isInLava())) return false;
-        return (attack.motion() == null || attack.isRanged() || onGround() || isInWater()) && canAttackFrom(attack, target, position());
+        return (attack.motion() == null || attack.isRanged() || onGround() || isInWater()
+                || isFlyingMovement() && com.digicube.digimon.WingCasts.allowed(attack)) && canAttackFrom(attack, target, position());
+    }
+
+    /**
+     * Server, an unridden flyer's sortie: the move it would cast on the wing at {@code target} now (ready, within reach and
+     * clear from where it hovers), its moves cast only on the wing first; null for none.
+     */
+    public DigimonAttack chooseWingAttack(LivingEntity target) {
+        if (getFlightPhase() != FlightPhase.FLYING || isVehicle() || isAttacking() || hasEffect(DCEffects.FROZEN) || hasEffect(DCEffects.CONSTRICTED)
+                || tickCount < windedUntil || target == null || !target.isAlive() || !canAttack(target)) return null;
+        DigimonAttack ordered = standingOrder();
+        if (ordered != null) return com.digicube.digimon.WingCasts.allowed(ordered) && orderStrikes(ordered, target) ? ordered : null;
+        DigimonAttack also = null;
+        for (DigimonAttack attack : aiAttacks()) {
+            if (!com.digicube.digimon.WingCasts.allowed(attack) || !usefulShot(attack, target)) continue;
+            if (com.digicube.digimon.WingCasts.only(attack)) return attack;
+            if (also == null) also = attack;
+        }
+        return also;
+    }
+
+    /**
+     * Server: the moves the AI may use that are cast only on the wing, ready within {@code ticks}: what a sortie takes off
+     * for, and what keeps it aloft.
+     */
+    public boolean wingOnlyReadyWithin(int ticks) {
+        for (DigimonAttack attack : aiAttacks())
+            if (com.digicube.digimon.WingCasts.only(attack) && cooldownUntil.getOrDefault(com.digicube.digimon.AuthoredAttacks.move(attack).id(), 0) - tickCount <= ticks
+                    && !(evolutionLocked() || tickCount < evolutionAttackUntil)) return true;
+        return false;
+    }
+
+    /**
+     * Server, a sortie: ticks until a move the AI may use on the wing comes ready, of the moves cast only on the wing
+     * ({@code only}) or of the blows also cast there (an order standing, only its move); MAX_VALUE for none.
+     */
+    public int wingReadyIn(boolean only) {
+        if (evolutionLocked()) return Integer.MAX_VALUE;
+        DigimonAttack ordered = standingOrder();
+        int best = Integer.MAX_VALUE;
+        for (DigimonAttack attack : ordered != null ? List.of(ordered) : aiAttacks()) {
+            if (!com.digicube.digimon.WingCasts.allowed(attack) || com.digicube.digimon.WingCasts.only(attack) != only) continue;
+            int cooldown = cooldownUntil.getOrDefault(com.digicube.digimon.AuthoredAttacks.move(attack).id(), 0);
+            best = Math.min(best, Math.max(0, Math.max(cooldown, evolutionAttackUntil) - tickCount));
+        }
+        return best;
+    }
+
+    /** Server, a sortie: the blow it swoops in to cast on the wing (a move also cast on the ground), or null for none. */
+    public DigimonAttack wingBlow() {
+        DigimonAttack ordered = standingOrder();
+        for (DigimonAttack attack : ordered != null ? List.of(ordered) : aiAttacks())
+            if (com.digicube.digimon.WingCasts.allowed(attack) && !com.digicube.digimon.WingCasts.only(attack)) return attack;
+        return null;
     }
 
     /** What a body in water can still do: anything but a move that needs the ground under it. A floating brawler keeps its fists. */
@@ -5609,7 +5672,10 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     /** Server only. Begins the attack timeline and tells clients to animate it. */
     public void startAttack(DigimonAttack attack, LivingEntity target) {
-        if (level().isClientSide() || hasEffect(DCEffects.FROZEN) || getFlightPhase() != FlightPhase.GROUNDED || isVehicle() || activeAttack != null || target == null
+        // On the ground anything but a move cast only on the wing; flying, only what is cast on the wing (WingCasts).
+        boolean phaseFits = getFlightPhase() == FlightPhase.GROUNDED ? !com.digicube.digimon.WingCasts.only(attack)
+                : getFlightPhase() == FlightPhase.FLYING && com.digicube.digimon.WingCasts.allowed(attack);
+        if (level().isClientSide() || hasEffect(DCEffects.FROZEN) || !phaseFits || isVehicle() || activeAttack != null || target == null
                 || !target.isAlive() || !canAttack(target) || stanceBusy() || !isAttackReady(attack) || !inRange(attack, target)) return;
         List<DigimonAttack> attacks = attacks();
         int index = attacks.indexOf(attack);

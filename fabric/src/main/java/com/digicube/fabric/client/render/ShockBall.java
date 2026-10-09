@@ -68,8 +68,13 @@ public final class ShockBall {
         /** Where the ball left the hands, relative; valid when {@code released}. */
         public float rx, ry, rz;
         public boolean released;
+        /** Its lightning's colours: the core, the strands, the sparks and the forks (Mega Blaster's by default). */
+        public int core = CORE, edge = MAGENTA, spark = WHITE, fork = MINT;
         final GlowRods rods = new GlowRods();
     }
+
+    /** The palette of the ball being drawn (set by submit; drawing happens on the render thread only). */
+    private static int C = CORE, E = MAGENTA, W = WHITE, F = MINT;
 
     /**
      * Whether a ball with this seed earths a bolt in the ground at this tick (when it flies within {@link #EARTH_REACH} of
@@ -86,6 +91,7 @@ public final class ShockBall {
     public static void submit(State s, PoseStack pose, SubmitNodeCollector collector, Quaternionf camera, float tx, float ty, float tz) {
         var rods = s.rods;
         rods.clear();
+        C = s.core; E = s.edge; W = s.spark; F = s.fork;
         Vector3f right = camera.transform(new Vector3f(1, 0, 0)), up = camera.transform(new Vector3f(0, 1, 0));
         float[] toward = {tx, ty, tz};
         if (s.impact < 0) flying(s, rods, right, up, toward);
@@ -120,8 +126,8 @@ public final class ShockBall {
                 rng = next(rng); float reach = r * (1.6F + 1.7F * (unit(rng) * .5F + .5F));
                 float w = .05F * (1 - .6F * life);
                 long jag = mix(s.seed, 200 + j, deal);
-                jag = rods.bolt(dx * r, dy * r, dz * r, dx * (r + reach), dy * (r + reach), dz * (r + reach), w, CORE, .18F, .22F, jag, 1, MINT);
-                rods.bolt(dx * r, dy * r, dz * r, dx * (r + reach), dy * (r + reach), dz * (r + reach), w * .55F, MAGENTA, .24F, .22F, jag, 0, 0);
+                jag = rods.bolt(dx * r, dy * r, dz * r, dx * (r + reach), dy * (r + reach), dz * (r + reach), w, C, .18F, .22F, jag, 1, F);
+                rods.bolt(dx * r, dy * r, dz * r, dx * (r + reach), dy * (r + reach), dz * (r + reach), w * .55F, E, .24F, .22F, jag, 0, 0);
             }
         }
         // a bolt earthing in the ground under it now and then, when it flies low
@@ -134,9 +140,9 @@ public final class ShockBall {
                 rng = next(rng); float gz = unit(rng) * .9F;
                 float w = .065F * (1 - .5F * (t - born) / EARTH_LIFE);
                 long jag = mix(s.seed, 301, deal);
-                jag = rods.bolt(0, -r, 0, gx, s.groundY + .02F, gz, w, CORE, .3F, .3F, jag, 2, MINT);
-                jag = rods.bolt(0, -r, 0, gx, s.groundY + .02F, gz, w * .55F, MAGENTA, .36F, .3F, jag, 0, 0);
-                rods.star(gx, s.groundY + .04F, gz, .38F, w * .7F, MAGENTA, CORE, jag, 6);
+                jag = rods.bolt(0, -r, 0, gx, s.groundY + .02F, gz, w, C, .3F, .3F, jag, 2, F);
+                jag = rods.bolt(0, -r, 0, gx, s.groundY + .02F, gz, w * .55F, E, .36F, .3F, jag, 0, 0);
+                rods.star(gx, s.groundY + .04F, gz, .38F, w * .7F, E, C, jag, 6);
             }
         }
         // feelers reaching for the bodies within its reach, flickering
@@ -150,8 +156,8 @@ public final class ShockBall {
             rng = next(rng); float reach = .55F + .35F * (unit(rng) * .5F + .5F);
             float sx = fx / l * r * 1.05F, sy = fy / l * r * 1.05F, sz = fz / l * r * 1.05F;
             float ex = sx + (fx - sx) * reach, ey = sy + (fy - sy) * reach, ez = sz + (fz - sz) * reach;
-            rng = rods.bolt(sx, sy, sz, ex, ey, ez, .04F, CORE, .2F, .28F, rng, 1, MINT);
-            rods.bolt(sx, sy, sz, ex, ey, ez, .022F, MAGENTA, .26F, .28F, rng, 0, 0);
+            rng = rods.bolt(sx, sy, sz, ex, ey, ez, .04F, C, .2F, .28F, rng, 1, F);
+            rods.bolt(sx, sy, sz, ex, ey, ez, .022F, E, .26F, .28F, rng, 0, 0);
         }
         // the wake along the stretch it just flew
         float px = 0, py = 0, pz = 0;
@@ -160,8 +166,8 @@ public final class ShockBall {
             float w = .045F * (1 - (k + .5F) / s.wakeCount);
             if (w > .006F) {
                 long rng = mix(s.seed, 500 + k, deal);
-                rng = rods.bolt(px, py, pz, qx, qy, qz, w, CORE, .14F, .3F, rng, 0, 0);
-                rods.bolt(px, py, pz, qx, qy, qz, w * .6F, MAGENTA, .2F, .3F, rng, 0, 0);
+                rng = rods.bolt(px, py, pz, qx, qy, qz, w, C, .14F, .3F, rng, 0, 0);
+                rods.bolt(px, py, pz, qx, qy, qz, w * .6F, E, .2F, .3F, rng, 0, 0);
             }
             px = qx; py = qy; pz = qz;
         }
@@ -213,9 +219,9 @@ public final class ShockBall {
                 }
                 float w = .085F * fade;
                 long jag = mix(s.seed, 820 + i, deal);
-                jag = rods.bolt(sx, sy, sz, ex, ey, ez, w, CORE, .3F, .34F, jag, 2, MINT);
-                jag = rods.bolt(sx, sy, sz, ex, ey, ez, w * .55F, MAGENTA, .38F, .34F, jag, 0, 0);
-                if (earthed && t > .8F) rods.star(ex, ey + .02F, ez, .32F * fade + .08F, w * .7F, MAGENTA, CORE, jag, 5);
+                jag = rods.bolt(sx, sy, sz, ex, ey, ez, w, C, .3F, .34F, jag, 2, F);
+                jag = rods.bolt(sx, sy, sz, ex, ey, ez, w * .55F, E, .38F, .34F, jag, 0, 0);
+                if (earthed && t > .8F) rods.star(ex, ey + .02F, ez, .32F * fade + .08F, w * .7F, E, C, jag, 5);
             }
         }
         // crackling about the spot after
@@ -230,8 +236,8 @@ public final class ShockBall {
                     rng = next(rng); p[2] = unit(rng) * 1.3F;
                     if (grounded) p[1] = Math.max(p[1], s.groundY + .05F);
                 }
-                rng = rods.bolt(a[0], a[1], a[2], b[0], b[1], b[2], .045F * fade, CORE, .2F, .26F, rng, 1, MINT);
-                rods.bolt(a[0], a[1], a[2], b[0], b[1], b[2], .025F * fade, MAGENTA, .26F, .26F, rng, 0, 0);
+                rng = rods.bolt(a[0], a[1], a[2], b[0], b[1], b[2], .045F * fade, C, .2F, .26F, rng, 1, F);
+                rods.bolt(a[0], a[1], a[2], b[0], b[1], b[2], .025F * fade, E, .26F, .26F, rng, 0, 0);
             }
         }
     }
@@ -258,8 +264,8 @@ public final class ShockBall {
             int j = (i + 1) % n;
             rng = next(rng);
             if (unit(rng) * .5F + .5F < gaps) continue;
-            rods.rod(x[i], y[i], z[i], x[j], y[j], z[j], width, MAGENTA);
-            rods.rod(x[i] + lx, y[i] + ly, z[i] + lz, x[j] + lx, y[j] + ly, z[j] + lz, width * .38F, WHITE);
+            rods.rod(x[i], y[i], z[i], x[j], y[j], z[j], width, E);
+            rods.rod(x[i] + lx, y[i] + ly, z[i] + lz, x[j] + lx, y[j] + ly, z[j] + lz, width * .38F, W);
         }
         for (int k = 0; k < tendrils; k++) {
             rng = next(rng);
@@ -274,9 +280,9 @@ public final class ShockBall {
             float qx = ny * oz - nz * oy, qy = nz * ox - nx * oz, qz = nx * oy - ny * ox;
             float mx = x[i] + ox * reach * .5F + qx * side, my = y[i] + oy * reach * .5F + qy * side, mz = z[i] + oz * reach * .5F + qz * side;
             float ex = x[i] + ox * reach, ey = y[i] + oy * reach, ez = z[i] + oz * reach;
-            rods.rod(x[i], y[i], z[i], mx, my, mz, width * .8F, MAGENTA);
-            rods.rod(mx, my, mz, ex, ey, ez, width * .6F, MAGENTA);
-            rods.rod(x[i] + lx, y[i] + ly, z[i] + lz, mx + lx, my + ly, mz + lz, width * .3F, WHITE);
+            rods.rod(x[i], y[i], z[i], mx, my, mz, width * .8F, E);
+            rods.rod(mx, my, mz, ex, ey, ez, width * .6F, E);
+            rods.rod(x[i] + lx, y[i] + ly, z[i] + lz, mx + lx, my + ly, mz + lz, width * .3F, W);
         }
         return rng;
     }
@@ -300,8 +306,8 @@ public final class ShockBall {
             rng = next(rng); float strand = radius * (1.06F + .1F * unit(rng));
             float x = (u[0] * c + v[0] * s), y = (u[1] * c + v[1] * s), z = (u[2] * c + v[2] * s);
             if (i > 0) {
-                rods.rod(px, py, pz, x * rr, y * rr, z * rr, width, CORE);
-                rods.rod(sx, sy, sz, x * strand, y * strand, z * strand, width * .6F, MAGENTA);
+                rods.rod(px, py, pz, x * rr, y * rr, z * rr, width, C);
+                rods.rod(sx, sy, sz, x * strand, y * strand, z * strand, width * .6F, E);
             }
             px = x * rr; py = y * rr; pz = z * rr;
             sx = x * strand; sy = y * strand; sz = z * strand;

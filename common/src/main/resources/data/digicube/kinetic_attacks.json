@@ -214,5 +214,32 @@
       "radius": 1.8,
       "falloff": 0.45
     }
+  },
+  "petit_thunder": {
+    "kind": "KINETIC_SHOT",
+    "power": 1.15,
+    "cooldown": 110,
+    "duration": 34,
+    "hit_tick": 20,
+    "range": 11,
+    "knockback": 0.35,
+    "model_scale": 0.2,
+    "projectile": "petit_thunder_shot",
+    "projectile_scale": 1.0,
+    "projectile_speed": 1.05,
+    "projectile_life": 14,
+    "impact_ticks": 10,
+    "max_lead": 5,
+    "max_pitch": 55,
+    "aim_path": ["root"],
+    "aim_at_top": false,
+    "shot_style": "static",
+    "wing": "only",
+    "proximity": {
+      "radius": 1.5,
+      "near": 0.45,
+      "far": 0.15,
+      "bolt_ticks": 5
+    }
   }
 }

@@ -542,5 +542,7 @@
   "digimon.digicube.shellmon": "Shellmon",
   "digimon.digicube.shellmon.profile": "A soft-bodied hermit of the shallows who carries a huge spined shell. It shoots water at high pressure from the top of its head.",
   "attack.digicube.hydro_pressure": "Hydro Pressure",
-  "attack.digicube.drill_shell": "Drill Shell"
+  "attack.digicube.drill_shell": "Drill Shell",
+  "attack.digicube.twice_arm": "Twice Arm",
+  "attack.digicube.petit_thunder": "Petit Thunder"
 }

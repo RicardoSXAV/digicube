@@ -37,6 +37,20 @@ public class MixinLivingEntityRenderer {
     }
 
     /**
+     * A rider tipped with the seat ({@code RiderVisuals.LEAN}) still looks where the rider looks: the head is turned back
+     * by the body's tip, within vanilla's reach of the neck. Vanilla's head pitch is the view's alone, so on a body tipped
+     * nose down into a dive it added to the tip and folded the head over, upside down.
+     */
+    @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
+            at = @At("TAIL"))
+    private void digicube$lookPastLean(net.minecraft.world.entity.LivingEntity entity, net.minecraft.client.renderer.entity.state.LivingEntityRenderState state,
+                                       float partialTick, CallbackInfo ci) {
+        float[] lean = ((FabricRenderState) state).getData(com.digicube.fabric.client.render.RiderVisuals.LEAN);
+        if (lean == null) return;
+        state.xRot = net.minecraft.util.Mth.clamp(state.xRot - lean[0], -85, 85);
+    }
+
+    /**
      * A rider tips with the seat when the mount's catalog asks it ({@code RiderVisuals.LEAN}): about the seat, forward as
      * the body dives, over as it banks, and once round with a barrel roll. After vanilla's turn to the body's heading the
      * rider faces -z with +x to the right and +y up; the seat is at the vehicle attachment, 0.6 over the feet.

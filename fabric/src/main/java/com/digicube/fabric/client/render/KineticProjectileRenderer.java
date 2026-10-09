@@ -23,6 +23,8 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
     private final ArcRenderer arcs = new ArcRenderer();
     /** A shocking shot's bolts: a pale pink core, a magenta strand and mint forks, as its ball's art. */
     private static final int SHOCK_CORE = 0xFFFFE8FF, SHOCK_EDGE = 0xFFE02AF0, SHOCK_FORK = 0xFF6CF2AD;
+    /** A static shot's lightning (ShotStyle.STATIC): a warm white core, gold strands and pale yellow forks. */
+    private static final int STATIC_CORE = 0xFFFFFBE0, STATIC_EDGE = 0xFFFFB81E, STATIC_FORK = 0xFFFFE987;
     public KineticProjectileRenderer(EntityRendererProvider.Context context) {
         super(context);
         for (var definition : KineticAttacks.all()) if (definition.projectile() != null) {
@@ -84,8 +86,13 @@ public final class KineticProjectileRenderer extends EntityRenderer<KineticProje
      * and where it left the hands.
      */
     private static void ball(KineticProjectileEntity entity, KineticAttacks.Definition definition, ShockBall.State s, float partial) {
-        s.drawn = definition.shotStyle() == com.digicube.entity.ShotStyle.ELECTRIC;
+        var style = definition.shotStyle();
+        s.drawn = style == com.digicube.entity.ShotStyle.ELECTRIC || style == com.digicube.entity.ShotStyle.STATIC;
         if (!s.drawn) return;
+        // static (Petit Thunder) crackles in its star's white and gold; Mega Blaster keeps its own colours
+        boolean gold = style == com.digicube.entity.ShotStyle.STATIC;
+        s.core = gold ? STATIC_CORE : ShockBall.CORE; s.edge = gold ? STATIC_EDGE : ShockBall.MAGENTA;
+        s.spark = ShockBall.WHITE; s.fork = gold ? STATIC_FORK : ShockBall.MINT;
         s.seed = entity.getId();
         s.time = entity.tickCount + partial;
         s.impact = entity.impacting() ? entity.effectTick(partial) : -1;

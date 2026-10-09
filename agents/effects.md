@@ -26,7 +26,9 @@ cues in `DCSounds`. The `water` style (Crabmon's Water Shot) is in
 blast) in [species/greymon.md](species/greymon.md#mega-flame), the `electric` style (Kabuterimon's Mega Blaster: its
 shocks are `ArcRenderer` bolts in its own colours, a bolt's `State` carrying its `core`, `edge` and `fork`; the ball's own
 lightning is `ShockBall`, a shocked body's crackle `ShockedBodies`, its hum `ShotAudio`, all on the client) in
-[species/kabuterimon.md](species/kabuterimon.md#mega-blaster).
+[species/kabuterimon.md](species/kabuterimon.md#mega-blaster). The `static` style (Tentomon's Petit Thunder) is a lighter
+crack and crackle drawn with the same `ShockBall` in its own white and gold (`ShockBall.State`'s `core`, `edge`, `spark`
+and `fork`, set by `KineticProjectileRenderer`): [species/tentomon.md](species/tentomon.md#petit-thunder).
 
 ## Breaths and pounces
 

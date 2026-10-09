@@ -190,7 +190,24 @@ public final class BundledSpeciesLoader {
                 GsonHelper.getAsDouble(json, "start_distance"), GsonHelper.getAsDouble(json, "stop_distance"),
                 GsonHelper.getAsDouble(json, "cruise_height"), GsonHelper.getAsFloat(json, "clearance_width"),
                 GsonHelper.getAsFloat(json, "clearance_height"),
-                json.has("costs") ? flightCosts(GsonHelper.getAsJsonObject(json, "costs")) : DigimonFlight.Costs.STEADY);
+                json.has("costs") ? flightCosts(GsonHelper.getAsJsonObject(json, "costs")) : DigimonFlight.Costs.STEADY,
+                flightTiming(json), json.has("sortie") ? flightSortie(GsonHelper.getAsJsonObject(json, "sortie")) : null,
+                GsonHelper.getAsBoolean(json, "endless", false));
+    }
+
+    /** An unridden flyer's takeoff and landing clocks (DigimonFlight.Timing), each defaulting to the shared ones. */
+    private static DigimonFlight.Timing flightTiming(JsonObject json) {
+        var d = DigimonFlight.Timing.DEFAULT;
+        return new DigimonFlight.Timing(GsonHelper.getAsInt(json, "lift_tick", d.liftTick()), GsonHelper.getAsInt(json, "takeoff_ticks", d.takeoffTicks()),
+                GsonHelper.getAsInt(json, "landing_ticks", d.landingTicks()), GsonHelper.getAsInt(json, "loop_ticks", d.loopTicks()));
+    }
+
+    /** How an unridden flyer fights on the wing (DigimonFlight.Sortie). */
+    private static DigimonFlight.Sortie flightSortie(JsonObject json) {
+        var range = GsonHelper.getAsJsonArray(json, "range");
+        return new DigimonFlight.Sortie(GsonHelper.getAsDouble(json, "height"), range.get(0).getAsDouble(), range.get(1).getAsDouble(),
+                GsonHelper.getAsFloat(json, "reserve"), GsonHelper.getAsInt(json, "linger", 20),
+                GsonHelper.getAsBoolean(json, "hold", false), GsonHelper.getAsDouble(json, "strike", 0));
     }
 
     /** What flying hard and fighting on the wing take from the flight reserve (DigimonFlight.Costs). */

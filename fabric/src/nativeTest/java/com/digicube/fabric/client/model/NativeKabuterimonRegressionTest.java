@@ -154,6 +154,17 @@ public final class NativeKabuterimonRegressionTest {
             s.flightPitch = pitch; s.flightBank = bank; s.swimRoll = roll;
             near(cruise, seat(model, s), .05, "the body turns about the seat: pitch " + pitch + " bank " + bank + " roll " + roll);
         }
+        // the rider tips with the path, the bank and a roll, never with the postures' own lean: a steep dive tips the
+        // body past upright, and the rider must not come out of it upside down
+        var leanShares = NativeGroundModel.definitions().get(Constants.id("kabuterimon")).rider().lean();
+        for (float dive : new float[]{0, 1}) for (float pitch : new float[]{-40, 0, 45, 75, 89}) for (float bank : new float[]{-55, 0, 55})
+            for (float roll = 0; roll < 360; roll += 45) {
+                s.flightDive = dive; s.flightCruise = 1 - dive; s.flightPitch = pitch; s.flightBank = bank; s.swimRoll = roll;
+                model.riderOffset(s);
+                float[] lean = model.riderLean(s);
+                check(Math.abs(lean[0] - pitch * leanShares[0]) < .01F, "the rider pitches with the path alone: " + pitch + " dive " + dive);
+                check(Math.abs(lean[1] + bank * leanShares[1] + roll) < .01F, "the rider rolls with the bank and the roll alone: " + bank + " / " + roll);
+            }
         reset(s);
         for (FlightPhase phase : FlightPhase.values()) {
             s.flightPhase = phase;

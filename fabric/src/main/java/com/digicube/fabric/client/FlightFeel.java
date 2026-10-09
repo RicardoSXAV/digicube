@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Client: what flying feels like. Every agile flyer in hearing buzzes its wings (a loop that follows it, deeper and slower
+ * Client: what flying feels like. Every agile flyer and unridden burst flyer in hearing buzzes its wings (a loop that follows it, deeper and slower
  * for the big ones, louder and higher as the wings work harder). The local rider of an agile flyer ({@code
  * AerialMount.Agility}) also gets the air: a rush of wind that grows with the speed, the view widening as it picks up,
  * shuddering past the dive's top speeds and punching out as it breaks past the burst, tilting into the body's banks (a
@@ -55,7 +55,9 @@ public final class FlightFeel {
         if (level == null || client.player == null || client.isPaused()) return;
         wings.values().removeIf(w -> w.isStopped());
         for (var entity : level.entitiesForRendering()) {
-            if (!(entity instanceof DigimonEntity flyer) || flyer.aerialMount() == null || flyer.aerialMount().agility() == null || !flyer.getFlightPhase().airborne()
+            // an agile mount's wings, and an unridden flyer's own (burst flight: Tentomon)
+            if (!(entity instanceof DigimonEntity flyer) || !(flyer.aerialMount() == null ? flyer.canFly() : flyer.aerialMount().agility() != null)
+                    || !flyer.getFlightPhase().airborne()
                     || wings.containsKey(flyer.getId()) || flyer.distanceToSqr(client.player) > RANGE_SQUARED) continue;
             var w = new Wings(flyer);
             wings.put(flyer.getId(), w);
