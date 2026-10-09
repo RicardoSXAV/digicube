@@ -556,31 +556,27 @@ Its attacks (left and right mouse with an empty hand, or R and G):
 
 `DIGICUBE_SCENARIO=shellmon_checks` rides it headless and checks its paces, the swim and both attacks.
 
-### Tentomon: biped walking and short flights
+### Tentomon: a brisk waddle and fighting on the wing
 
-Use `/digicube give tentomon` and deploy him from the Digivice. He walks on his two
-rear legs, keeping both pairs of arms free. Sprint away or get about 10 blocks ahead
-to see him open his shell and fly to catch up. Nearby danger can trigger an escape
-flight too. `/digicube spawn tentomon` creates a wild one for testing.
+Use `/digicube give tentomon` and deploy him from the Digivice. He waddles briskly on his two short legs, heel to toe on
+his radial claws, the big carapace rocking over them, and steps round on the spot to turn. Sprint away or get about 10
+blocks ahead to see him spring his carapace open, unfurl his buzzing wings and fly to catch up. `/digicube spawn tentomon`
+creates a wild one for testing.
 
-Flight has a separate fuel reserve: up to 12 seconds, with the last 2.4 seconds
-reserved for landing. He needs at least 40% fuel and three seconds of rest before
-another takeoff. A fully empty tank refills in 20 seconds on dry ground. Recall and
-reload preserve fuel. A blue line beneath his party health bar shows the reserve
-while he is tracked nearby. The settings live in `species/tentomon.json` under
-`locomotion.flight`, and can be reused by other flying species.
+His wings never tire: flight has no fuel limit for him, so he only lands when he means to. The settings live in
+`species/tentomon.json` under `locomotion.flight`.
 
-He checks space for the open shell, uses flying pathfinding, and looks for a dry,
-supported landing. With no fuel he descends; he cannot hover forever. Flight also
-ends when leashed or entering water. Try low ceilings, changing direction, an
-obstacle between him and his owner, depletion/recovery, and recalling/redeploying
-mid-flight. Real-world navigation and dedicated-server behavior need manual testing;
-the current dev server requires EULA acceptance before it can open a world.
+He fights the whole fight on the wing, with two moves:
 
-`build` runs the fuel, decision and steering regression suite.
+- **Petit Thunder**: cast only on the wing. He rises to hover a couple of blocks above and a few blocks off his prey,
+  charges static from his buzzing wings into a shock ahead of his brow and fires it.
+- **Twice Arm**: both main claws in a crossing one-two. Between shots he swoops in low beside his prey, hovering just over
+  the ground, and cuts it; on foot (where he cannot take off) he steps in with each cut.
 
-Tentomon currently has his idle and locomotion. His attacks come later; he is not yet
-in the starter or natural spawn tables.
+He takes off as soon as he has prey, goes round Petit Thunder and his swoops, and lands only once the fight is over.
+Try him against `/digicube spawn agumon` on open ground, under a low ceiling (no room to take off: he fights on foot), and
+with prey behind cover. `DIGICUBE_SCENARIO=tentomon_checks` checks both moves and the fight on the wing headless. He is
+not yet in the starter or natural spawn tables.
 
 ### Greymon and riding
 
