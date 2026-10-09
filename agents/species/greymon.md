@@ -92,8 +92,10 @@ The ball leaves from the jaws' middle as the standing clip has it.
   (`model_scale` 0.45 times `projectile_scale` 3), a ball 1.2 blocks across flying at 0.85 blocks a tick for 28 ticks.
   Its `effect` clip is the flight from launch (not looping: the licks' trail grows over the first three ticks and the
   embers come out one by one, the flutter repeating after); `impact` is its ten-tick breakup (`impact_ticks` 10). The same
-  ball forms in the jaws through the wind-up (`greymon_fx` `mf_*`, the flare's charge, from tick 3 to 18), in the art's
-  own corner of the effect's atlas.
+  ball gathers in the jaws through the wind-up (`greymon_fx` `mf_*`, in the art's own corner of the effect's atlas): from
+  tick 3 a spark inside the jaws swells into the ball and rolls forward to the lips while its embers spiral in from around
+  the snout, and at 12.5 it is gone, so after the release only the flying ball is seen. The flight's trailing tongues (`mf_lick*`) never show in
+  the jaws: at rest they stick out of the mouth as a rod.
 - `blast` (`KineticAttacks.Blast`: `radius` 1.8, `falloff` 0.45): where the ball bursts, on a block or a body, every
   other body within the radius and in sight of the burst takes the shot's damage times 1 - 0.45 x distance / radius, and
   its `burn` (120 ticks, a Burn). A ball that flies its range out fizzles without one.
