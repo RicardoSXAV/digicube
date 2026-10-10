@@ -10,13 +10,13 @@ It never repeats the Minecraft version: the jar name already carries it.
 
 | Release | Number | What it holds |
 |---|---|---|
-| Beta | `0.1.0` | The first public build: experimental, under heavy development, not stable. |
+| Alpha | `0.1.0` | The first public build: experimental, under heavy development, not stable. Its mechanics may still change a lot. Published on the alpha channel. |
 | Hotfix | next `0.N.x` | Urgent fixes for bugs players reported. None is cut while nothing urgent is pending. |
 | Monthly update | next `0.N.x` | New Digimon and a few new mechanics. |
 | Major update | `0.N+1.0` | Complex systems: new maps, bosses with their own structures, progression through quests, NPCs and lore. Its cadence follows development. |
 | Stable | `1.0.0` | The first release considered fully stable. |
 
-- The last number counts every release in a major line, hotfix or monthly update alike: `0.1.0` (beta), `0.1.1`
+- The last number counts every release in a major line, hotfix or monthly update alike: `0.1.0` (alpha), `0.1.1`
   (hotfix), `0.1.2` (monthly update). A major update resets it: `0.1.5` is followed by `0.2.0`.
 - A number is never reused. A broken release is replaced by a new one, not rebuilt under the same number.
 - No `-beta` or `-alpha` suffix: a `0.` number already says the mod is not stable, and the release channel is
