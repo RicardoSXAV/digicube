@@ -81,7 +81,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/conventions.md](agents/conventions.md) | a new identifier (`Constants.id`), registry entry (`DC*`), item (checklist), translation key or Creative tab entry; formatting |
 | [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
 | [agents/releasing.md](agents/releasing.md) | a release: the version number and what each kind bumps, tags, the jar players get |
-| [agents/branches.md](agents/branches.md) | work for a later release (`feature/` branches, worktrees), merging into `main`, agents sharing a checkout |
+| [agents/branches.md](agents/branches.md) | work for a later release (`update/` branches, worktrees), merging into `main`, agents sharing a checkout |
 | [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, the index of every check |
 | [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution and growth, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), defeat, healing and food, drops (`DigimonDrops`, Digimeat), creative play, the scan and Digitama (`Scan`, `DigitamaItem`), spawning and its regions, whom wild Digimon fight (`WildGrudge`) |
 | [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`, `FreezeMark`), attacks as data (`DigimonAttack`, `IceCombo`, `PounceAttacks`, `BreathAttacks`), tactics (`DigimonTactics`) and matchup balance, wraps (`ConstrictionCoil`), ink, projectiles |
@@ -182,8 +182,8 @@ never switch its branch; a branch gets a worktree ([agents/branches.md](agents/b
   into the topic guide and leave the species examples.
 - Every guide opens with a title and a line saying what it covers and when to read it; its map row says the same
   in short, naming the classes and files a task would mention.
-- Write how things work now: the rule, the class or file, and the check that pins it. Describe the files the game
-  reads (formats, keys, limits), not how they were made. History and rationale belong in the git history; keep a
+- Write how things work now, not plans: the rule, the class or file, and the check that pins it. Describe the files the
+  game reads (formats, keys, limits), not how they were made. History and rationale belong in the git history; keep a
   "because" only when it prevents a known regression.
 - This file and `agents/` are the only instructions both Codex and Claude Code read. A `CLAUDE.md` would switch
   Claude Code off this file unless its first line imports it (an `@` import of `AGENTS.md`); never name a guide
