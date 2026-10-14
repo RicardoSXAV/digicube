@@ -41,9 +41,7 @@ read it from there.
    in English. Inside a reply, keep code, paths, commands, quoted log lines and in-game names exactly as written.
    The one exception is a translation the user asks for (a `pt_br.json`, say).
 4. **Never invent an API.** If you are not certain a Minecraft or Fabric method exists in `26.2`, do not guess a
-   plausible name. A wrong guess costs a full Gradle build to discover. This is not hypothetical: the first version
-   of this scaffold used `ResourceLocation` because that is the name everywhere pre-26, and every file using it
-   failed to compile.
+   plausible name. A wrong guess costs a full Gradle build to discover; `ResourceLocation` was one.
 
    Ctrl-click the symbol in IntelliJ, or check the real jar directly — it is the ground truth and it answers in a
    second:
@@ -83,6 +81,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/conventions.md](agents/conventions.md) | a new identifier (`Constants.id`), registry entry (`DC*`), item (checklist), translation key or Creative tab entry; formatting |
 | [agents/build-and-run.md](agents/build-and-run.md) | running the client or the server, the first build, refreshing dependencies, `runs/` folders, crash logs |
 | [agents/releasing.md](agents/releasing.md) | a release: the version number and what each kind bumps, tags, the jar players get |
+| [agents/branches.md](agents/branches.md) | work for a later release (`feature/` branches, worktrees), merging into `main`, agents sharing a checkout |
 | [agents/testing.md](agents/testing.md) | verifying server behaviour: `DIGICUBE_SCENARIO` runs, balance runs, gait checks, the index of every check |
 | [agents/domain.md](agents/domain.md) | species sheets (`DigimonSpecies`), evolution and growth, ownership, the first partner (`StarterFlow`), levels and XP (`Progression`), defeat, healing and food, drops (`DigimonDrops`, Digimeat), creative play, the scan and Digitama (`Scan`, `DigitamaItem`), spawning and its regions, whom wild Digimon fight (`WildGrudge`) |
 | [agents/combat.md](agents/combat.md) | crits (`CriticalHits`), combat marks (`CombatMarkState`, `FreezeMark`), attacks as data (`DigimonAttack`, `IceCombo`, `PounceAttacks`, `BreathAttacks`), tactics (`DigimonTactics`) and matchup balance, wraps (`ConstrictionCoil`), ink, projectiles |
@@ -157,6 +156,9 @@ Rules:
 - Keep it under ~70 characters. If it does not fit, the commit is doing too much — split it (see golden rule 9).
 - **No trailers of any kind.** No `Co-Authored-By`, no "generated with" or other tool-attribution footer. The
   message is the one line and nothing else.
+
+Commit on `main` unless the task names a branch. Other agents share this checkout: stage your own files by path and
+never switch its branch; a branch gets a worktree ([agents/branches.md](agents/branches.md)).
 
 ## 6. Things not to do
 

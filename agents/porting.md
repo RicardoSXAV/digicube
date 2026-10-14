@@ -29,4 +29,4 @@ Minecraft now ships a drop every few months (`26.1`, `26.2`, `26.3`, ...). To po
    NeoForge's migration primer for that version.
 4. Expect mixins to break first — they bind to exact vanilla method signatures.
 
-Do this on a branch, never on `main`.
+Do this on a branch in a worktree of its own, never on `main` ([branches.md](branches.md)).

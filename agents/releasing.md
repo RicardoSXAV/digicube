@@ -41,8 +41,9 @@ It never repeats the Minecraft version: the jar name already carries it.
 A tag is never moved once pushed. Before that, a release that changes again gets its tag recreated on the new
 commit (`git tag -d v0.1.1`, then tag again).
 
-A hotfix while `main` holds unreleased work starts from the release's tag: `git switch -c release/0.1 v0.1.1`,
-fix, set the next number, build and tag there, then merge the branch back into `main`.
+A release is cut from `main`, which holds only what can ship. A hotfix while `main` holds work not ready to ship is
+cut from a branch off the release's tag, in a worktree of its own
+([branches.md](branches.md#a-hotfix-while-main-holds-unreleased-work)).
 
 ## What players see
 
