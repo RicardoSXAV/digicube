@@ -13,6 +13,7 @@
     "MixinEntityRenderer",
     "MixinEntityRenderDispatcher",
     "MixinHumanoidModel",
+    "MixinModelPartCube",
     "MixinLivingEntityRenderer",
     "MixinScreenEffectRenderer",
     "MixinItemInHandRenderer",

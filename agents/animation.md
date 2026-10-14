@@ -11,17 +11,18 @@ The client animation is looked up by the attack id path, so an attack named `dig
 
 ## Native JSON and the asset gates
 
-Animations ship as data, never as Java: `assets/digicube/models/entity/<name>.animation.json`, read by
-`NativeAnimationSet` (linear keys, or `"interpolation":"catmullrom"` for Minecraft's own spline); no
-`*Animations.java` keyframe class is committed. The `assetTest` build check fails on dense or unrounded tables
-(keys their neighbours' interpolation reproduces, needlessly precise motion values: they bloat the jar), and on a
+Animations ship as data, never as Java (no `*Animations.java` keyframe class):
+`assets/digicube/models/entity/<name>.animation.json`, read by `NativeAnimationSet` (linear keys, or
+`"interpolation":"catmullrom"` for Minecraft's own spline). The `assetTest` build check fails on dense or unrounded
+tables (keys their neighbours' interpolation reproduces, needlessly precise motion values: they bloat the jar), and on a
 clip `visibility` not shaped `{part: [[time, shown], ...]}` (the client rejects the model). A mesh's
-baked layer (`NativeModelGeometry.createLayer`) holds only a placeholder face per quad (empty texels);
-`NativeModelGeometry.apply` installs the real faces, so anything drawing a baked native root passes it through `apply`
-first, as the model classes do (else it is invisible); `FrostBreathRenderer` reads its boxes from the mesh instead.
-`assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no same-facing faces on one
-plane that overlap in the rest pose (`MeshSurfaceCheck`; they flicker in game). All species are clean since 2026-09-18
-and `AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty; the failure names each pair.
+baked layer (`NativeModelGeometry.createLayer`) holds a placeholder face per quad (empty texels);
+`NativeModelGeometry.apply` installs the real faces, each cube a `NativeCube` that draws its own
+(`MixinModelPartCube`; Sodium would draw its placeholder box). Anything drawing a baked native root passes it through
+`apply` first, as the model classes do (else it is invisible); `FrostBreathRenderer` reads its boxes from the mesh
+instead. `assetTest` also fails on z-fighting: a species mesh (one with an `idle` clip) may have no same-facing faces
+on one plane that overlap in the rest pose (`MeshSurfaceCheck`; they flicker in game).
+`AssetRegressionTest.KNOWN_COPLANAR_PAIRS` stays empty; the failure names each pair.
 
 ## Generic catalog keys
 
@@ -177,4 +178,4 @@ the spot (no joint jumping); and the shadow band under every joint, fainter unde
 ## Rescaling a species
 
 Scaling a species changes exported geometry baked at the old scale (`kinetic_motion.json`, `attack_motion`,
-`model_scale` in the attack data, the seat): Centarumon went .325 -> .36 on 22 September 2026.
+`model_scale` in the attack data, the seat).

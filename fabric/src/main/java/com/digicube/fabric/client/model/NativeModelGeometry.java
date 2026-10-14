@@ -187,8 +187,8 @@ public final class NativeModelGeometry {
     }
 
     /**
-     * Replace each baked slot with the exact original vertices, UVs and normal.
-     * A public polygon array is supplied by Minecraft; no access widening is needed.
+     * Replace each baked slot with the exact original vertices, UVs and normal, and mark it a {@link NativeCube}
+     * that draws them itself. A public polygon array is supplied by Minecraft; no access widening is needed.
      * @param root baked hierarchy
      * @param resource same mesh used to create the layer
      * @return the supplied root, with its native surfaces installed
@@ -212,6 +212,8 @@ public final class NativeModelGeometry {
             var n = face.normal;
             if (cube.polygons.length != 1) throw new IllegalStateException("Competing native faces at " + path);
             cube.polygons[0] = new ModelPart.Polygon(vertices, new Vector3f(n[0], n[1], n[2]));
+            // Every cube is a NativeCube in game; the regression tests bake in a plain JVM without mixins.
+            if (cube instanceof NativeCube marked) marked.digicube$markNative();
             count[0]++;
         });
         if (count[0] != total) throw new IllegalStateException("Incomplete native model " + resource);
