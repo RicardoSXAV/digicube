@@ -26,9 +26,11 @@ Branch names are lower case with hyphens. An update's branch takes the name the 
   (`git add <path>...`), never `git add -A`, `git add .` or `git commit -a`: another agent's unfinished work sits in
   the same tree. Before the commit, `git diff --cached --stat` lists only your change.
 - Never switch the shared checkout's branch (`git switch`, `git checkout <branch>`): every other agent's files would
-  change under it mid-task. Any other branch gets a worktree of its own, a second folder on the same repository,
-  outside this checkout. Git checks a branch out in one worktree at a time, so agents on the same update share its
-  worktree and follow the rule above there.
+  change under it mid-task. Any other branch gets a worktree of its own, a second checkout of the same repository in
+  `.claude/worktrees/<name>`, which `.gitignore` keeps out of this one. Git checks a branch out in one worktree at a
+  time, so agents on the same update share its worktree and follow the rule above there.
+- A search from this checkout's root skips `.claude/` (ripgrep honours `.gitignore`; `grep -r` needs
+  `--exclude-dir=.claude`): it would find each worktree's copy of every file, and an edit there lands on that branch.
 - A worktree builds and runs on its own (its own `build/` and `runs/`, so it starts with no dev world); the Gradle and
   Loom caches are shared, so it builds as fast as the main checkout.
 
@@ -36,10 +38,10 @@ Branch names are lower case with hyphens. An update's branch takes the name the 
 
 The steps are the same for a `feature/` or `port/` branch.
 
-1. Create the branch and its worktree from `main`:
+1. Create the branch and its worktree from `main`, in the shared checkout:
 
    ```bash
-   git worktree add -b update/<name> <folder> main
+   git worktree add -b update/<name> .claude/worktrees/<name> main
    ```
 
 2. Work and commit there, one concern per commit ([AGENTS.md](../AGENTS.md#5-commits)).
@@ -59,7 +61,7 @@ The steps are the same for a `feature/` or `port/` branch.
    moved after the last `git merge main`, build again on `main`. Then drop the worktree and the branch:
 
    ```bash
-   git worktree remove <folder>
+   git worktree remove .claude/worktrees/<name>
    ```
 
    ```bash
@@ -71,7 +73,7 @@ The steps are the same for a `feature/` or `port/` branch.
 Start from the release's tag, in a worktree of its own:
 
 ```bash
-git worktree add -b release/0.1 <folder> v0.1.1
+git worktree add -b release/0.1 .claude/worktrees/release-0.1 v0.1.1
 ```
 
 Fix there, set the next number, build and tag there ([releasing.md](releasing.md#cutting-a-release)), then merge the
