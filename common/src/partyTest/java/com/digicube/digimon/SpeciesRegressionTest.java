@@ -264,18 +264,20 @@ public final class SpeciesRegressionTest {
                                 && unchanged.followSpeed(true) == unchanged.followSpeed(false),
                         other + " retains its original follow distances and speed even when the owner sprints");
             }
-            // The native model brought a planted directional gait and its own scale, never a new pace or size.
+            // A companion's pace on its planted gait: it strolls at its walk, sets off after its tamer from six blocks, keeps
+            // its follow pace while they walk and runs after them sprinting; its neck reaches as far as its model's look.
             var paced = agumon.locomotion(); var defaults = DigimonLocomotion.DEFAULT;
-            check(paced.followStartDistance() == defaults.followStartDistance() && paced.followStopDistance() == defaults.followStopDistance()
-                            && paced.walkSpeed() == defaults.walkSpeed() && paced.runSpeed() == defaults.runSpeed()
-                            && paced.swimSpeed() == defaults.swimSpeed() && paced.flight() == null && !paced.canRun()
+            check(paced.followStartDistance() == 6 && paced.followStopDistance() == defaults.followStopDistance()
+                            && paced.walkSpeed() == defaults.walkSpeed() && paced.runSpeed() == 1.3 && paced.canRun()
+                            && Math.abs(paced.strollPace() - .06) < 1e-9 && agumon.body().headTurn() == 50
+                            && paced.swimSpeed() == defaults.swimSpeed() && paced.flight() == null
                             && paced.groundGait() != null && paced.groundGait().directional(),
-                    "agumon retains its original follow distances and speed on its planted gait");
+                    "agumon follows, runs and strolls as a companion on its planted gait");
             check(agumon.baseHealth() == 20 && agumon.baseAttack() == 6 && agumon.baseDefence() == 4
                     && agumon.baseSpeed() == .30F && agumon.body().dimensions().width() == DigimonBody.DEFAULT.dimensions().width()
                     && agumon.body().dimensions().height() == DigimonBody.DEFAULT.dimensions().height()
                     && agumon.body().dimensions().eyeHeight() == DigimonBody.DEFAULT.dimensions().eyeHeight()
-                    && agumon.body().mount().isEmpty() && Math.abs(agumon.body().modelScale() - 1.3F / 7) < 1e-5,
+                    && agumon.body().mount().isEmpty() && Math.abs(agumon.body().modelScale() - .375F) < 1e-5,
                     "Agumon stats and dimensions preserved at the native model's scale");
             var leapingClaw = AuthoredAttacks.get(Constants.id("claw"));
             check(agumon.attacks().equals(List.of(DigimonSpeciesBootstrap.PEPPER_BREATH, leapingClaw.attack())),

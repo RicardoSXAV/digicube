@@ -28,7 +28,7 @@ public final class DCEntityTypes {
     public static final ResourceKey<EntityType<?>> DIGIMON_KEY = key("digimon");
     public static final EntityType<DigimonEntity> DIGIMON = register(DIGIMON_KEY,
             EntityType.Builder.of(DigimonEntity::new, MobCategory.CREATURE)
-                    // Agumon's model is 28 px tall, rendered at 0.75 scale: ~1.3 blocks.
+                    // The default body is Agumon's: its model is 56 px tall, drawn at 0.375 scale: 1.3 blocks.
                     .sized(0.7F, 1.3F)
                     .eyeHeight(1.15F)
                     .clientTrackingRange(10)

@@ -16,10 +16,14 @@ import java.util.*;
  * look and the gait.
  */
 public final class NativeAgumonRegressionTest {
-    private static final float SCALE = 1.3F / 7;
-    /** The muzzle marker in the head's own frame, model pixels: 24 below the pivot and 32 ahead (fx_contract.json). */
-    private static final Vec3 MUZZLE = new Vec3(0, 24 / 16.0, -32 / 16.0);
+    private static final float SCALE = .375F;
+    /**
+     * The muzzle: the middle of the mouth's front, halfway between the upper lip (in the head's own frame) and the lower
+     * lip (in the jaw's), model pixels / 16. It opens with the jaw.
+     */
+    private static final Vec3 UPPER_LIP = new Vec3(0, -3.756 / 16, -18.635 / 16), LOWER_LIP = new Vec3(0, -.465 / 16, -17.996 / 16);
     private static final List<String> HEAD = List.of("root", "pelvis", "torso", "neck", "head");
+    private static final List<String> JAW = List.of("root", "pelvis", "torso", "neck", "head", "jaw");
     /** Key reduction moves a point at the end of the head chain by less than this many blocks. */
     private static final double TOLERANCE = .004;
     private static int checks;
@@ -99,12 +103,12 @@ public final class NativeAgumonRegressionTest {
             state.ageInTicks = t; model.setupAnim(state);
             for (int h = 0; h < 8; h++) for (int elevation = -1; elevation <= 1; elevation++) {
                 float yaw = h * 45; var origin = new Vec3(13, 80 + elevation, -19);
-                near(AttackGeometry.world(origin, muzzle.sample(t).mouth(), yaw), point(root, HEAD, MUZZLE, stack(yaw, origin)), TOLERANCE,
-                        "muzzle at " + t + " yaw " + yaw);
+                var drawn = point(root, HEAD, UPPER_LIP, stack(yaw, origin)).add(point(root, JAW, LOWER_LIP, stack(yaw, origin))).scale(.5);
+                near(AttackGeometry.world(origin, muzzle.sample(t).mouth(), yaw), drawn, TOLERANCE, "muzzle at " + t + " yaw " + yaw);
             }
         }
         var release = muzzle.sample(pepper.hitTick()).mouth();
-        check(release.y > .6 && release.y < .75 && release.z > .35 && release.z < .5, "the fireball leaves the snout, not the forehead: " + release);
+        check(release.y > .68 && release.y < .84 && release.z > .42 && release.z < .58, "the fireball leaves the mouth, not the forehead: " + release);
 
         // The ember is drawn inside the mouth, never dropping out of it, and ends at the lips as the ball leaves.
         var fx = new NativeEffectState(); fx.scale = SCALE; fx.clip = "mouth_charge";
@@ -152,7 +156,8 @@ public final class NativeAgumonRegressionTest {
                 for (int h = 0; h < 8; h++) {
                     float yaw = h * 45; var origin = new Vec3(13, 80, -19);
                     var hand = rendered(root, stack(yaw, origin)).entrySet().stream()
-                            .filter(e -> e.getKey().startsWith(side + "_hand") || e.getKey().startsWith(side + "_digit"))
+                            .filter(e -> e.getKey().startsWith(side + "_hand") || e.getKey().startsWith(side + "_finger")
+                                    || e.getKey().startsWith(side + "_claw"))
                             .flatMap(e -> e.getValue().stream()).toList();
                     inside(box.world(origin, yaw, 0), hand, "the " + side + " claw at " + t + " yaw " + yaw);
                     if (h == 0) reach = Math.max(reach, hand.stream().mapToDouble(v -> v.z - origin.z).max().orElseThrow());
@@ -187,8 +192,10 @@ public final class NativeAgumonRegressionTest {
         check(Math.abs(a - b) > .05, "half a cycle apart the legs have swapped");
 
         var gait = species.locomotion().groundGait();
-        check(gait.cycleTicks() == 20 && gait.directional() && Math.abs(gait.fullSpeed(SCALE) - .52 / 20) < 1e-4,
-                "the gait covers the authored 0.52 blocks a cycle");
+        check(gait.cycleTicks() == 12 && gait.directional() && Math.abs(gait.fullSpeed(SCALE) - .609375 / 12) < 1e-4,
+                "the gait covers the authored 0.61 blocks a cycle");
+        check(gait.runLattice() && gait.pivotWalk() && Math.abs(gait.runSpeed(SCALE) - 1.21875 / 6) < 1e-4,
+                "the run lattice covers its authored 1.22 blocks in 6 ticks at full pace");
         Constants.LOG.info("Agumon native parity: {} checks, worst muzzle error {} blocks", checks, worst);
     }
 

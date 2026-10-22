@@ -4,12 +4,19 @@
     "agumon": {
       "culling_margin": 2,
       "walk_blend": true,
-      "attack_blend_in": 1.5,
-      "attack_blend_out": 3,
+      "attack_blend_in": 2.5,
+      "attack_blend_out": 4,
       "look": {
         "path": ["root", "pelvis", "torso", "neck", "head"],
         "yaw": 35,
-        "pitch": 25
+        "pitch": 25,
+        "carry": [{"path": ["root", "pelvis", "torso", "neck"], "share": 0.3, "yaw": 12, "pitch": 8}]
+      },
+      "paws": {
+        "feet": [
+          {"path": ["root", "pelvis", "left_thigh", "left_shin", "left_foot"], "toe": [0, 5.7, -5.12]},
+          {"path": ["root", "pelvis", "right_thigh", "right_shin", "right_foot"], "toe": [0, 5.7, -5.12]}
+        ]
       },
       "attack_effects": {
         "effect": "pepper_breath_fx",
