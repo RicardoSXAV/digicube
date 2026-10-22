@@ -1,9 +1,11 @@
-# Locomotion: gaits, grip, stepping, hovering and facing
+# Locomotion: gaits, turning, the head, moving on its own, grip, stepping and facing
 
 Read this before setting a species' speeds or strides, adding a gait or travel clip, or changing how a body
-steps, changes gait, turns, grips the ground, hovers, faces, climbs or paths while it moves. Measure any pace change with `gait_checks`
-([testing.md](testing.md#gait-checks)). Swimming and everything under a rider is in [mounts.md](mounts.md); a body's own
-leaps, crouches and rolls in [agility.md](agility.md).
+steps, changes gait, turns, looks, strolls, follows its tamer, grips the ground, hovers, faces or paths while it moves.
+Measure any pace change with `gait_checks` ([testing.md](testing.md#gait-checks)) and any change to how a body moves on
+its own AI with `locomotion_checks` ([testing.md](testing.md#locomotion-checks)). Swimming and everything under a rider
+is in [mounts.md](mounts.md); a body's own leaps, crouches and rolls in [agility.md](agility.md); a serpent's body in
+[species/seadramon.md](species/seadramon.md#serpent-bodies).
 
 ## Stride and planted gaits
 
@@ -17,6 +19,17 @@ Ikkakumon at 0.1 x 1.3 went 0.286 blocks a tick on a 0.4-block stride capped at 
 A gait with `side_stride` / `back_stride` is directional: the entity splits its movement in the body's frame
 into shares (`DigimonGait.directions`) and `NativeGroundModel` mixes the lattices by them. Change strides in
 the script and the species sheet together.
+
+The client plays the gait from where it sees the body go (`GaitDriver`, fed each tick by `DigimonEntity` and by
+`locomotion_checks` alike), never from its velocity: a body pushing at a wall or nudged by a neighbour has a velocity
+and goes nowhere, and its legs once stepped on the spot. The move is smoothed over a couple of ticks (`SMOOTH`); under
+`STILL` (12 %) of the walk's pace the body stands; its way plays the walk alone within `AHEAD` (30) degrees of straight
+ahead and the walk back within as much of its tail, the sidesteps only beyond (a 14-degree bend once mixed a third of a
+sidestep in, the side stride being half the walk's); and a turn slower than `TURN_STILL` (0.6 degrees a tick) is taken up
+in the hips, not stepped round. A gait with `cadence_rise` (Agumon 0.4) shares a change of pace between its cadence
+(as the pace to that power) and its stride, under the walk's full pace and across a run lattice's columns, as an animal
+does: a slow walk takes long slow steps and a jog runs on a slower beat than a sprint (a fixed beat played a jog as
+quick short steps, a march).
 
 A species with a `run` clip blends it over `walk` by `groundRunAmount`, both on the shared gait phase
 (`run_cycle_ticks` / `run_stride` on the sheet). The phase counts the walk's `cycle_ticks` a stride, run or walk, so a
@@ -54,63 +67,59 @@ stride (both Greymon's: [species/greymon.md](species/greymon.md#gaits)).
 A body with a pivot turns as an animal does (`SteadyBodyControl`): standing, no faster than its pivot steps round at
 `pivot_cadence` times the walk's cadence (`pivotTurnRate`, about 5 degrees a tick for Garurumon), gathering into the turn
 over eight ticks and braking out of it (`SteadyBodyControl.ease`; as long as the gait takes to reach its full amplitude,
-so the pivot keeps one cadence all through instead of fluttering its paws while its stride grows). Vanilla still picks where the body faces (its travel,
-or after its head as it looks round: the head goes first); the server brings the body round, its facing is that body,
-and clients draw the facing they are sent (vanilla's clients worked the body out from the head, and it snapped). On a
+so the pivot keeps one cadence all through instead of fluttering its paws while its stride grows). Standing, it turns
+only to face what it looks at (its look's target, or with none where its head points), once that lies beyond its neck's
+reach (`body.head_turn`, vanilla's 75 by default) for `PATIENCE` (12) ticks or past `URGENT` (110) degrees at once; it
+then turns all the way to face it, and `SETTLE` (20) ticks pass before another turn. A glance within the reach moves the
+head alone, a push never turns it (vanilla's body came round after every glance), and a turn cut short brakes to a stop.
+In a fight it squares up to its enemy past `SQUARE_UP` (4 degrees) at once: an aim, a breath and a charge go where the
+body faces (Shellmon's jet at prey up a pillar fell from 91 to 59 % on target without it).
+The server brings the body round, its facing is that body, and clients draw the facing they are sent (vanilla's clients
+worked the body out from the head, and it snapped). Its controls are set on its first tick as well as on a change of
+species: a body born the default species (Agumon) never saw its species change, kept vanilla's move control, and walked
+crabwise through every bend. On a
 path the move control turns it the same way from where its body faces (`DigimonMoveControl.steerSteadily`; vanilla
 turned it up to 90 degrees a tick), up to 1.5 times as briskly at a hurried pace (a run, a chase); it keeps its whole
 pace within 30 degrees of its way, slows past that and steps round on the spot from 90 degrees off, so it never walks
-sideways. Ridden, it turns no faster than its pivot standing, eases the same way (in half the time from its walk's full pace)
+sideways. Setting off outside a fight it gathers its pace over `START_TICKS` (6) from `START_KEEP` (30 %), as its stride
+grows. Ridden, it turns no faster than its pivot standing, eases the same way (in half the time from its walk's full pace)
 and gets its full turn rate back as it walks off. `garurumon_checks` pins the rate and the easing ridden, after the head, and onto a path behind it.
 
-Gaits generated by leg IK: Golemon, Centarumon, Digmon, Crabmon, Meramon, Mojyamon, DarkTyrannomon, Ikkakumon and
+Gaits generated by leg IK: Agumon, Golemon, Centarumon, Digmon, Crabmon, Meramon, Mojyamon, DarkTyrannomon, Ikkakumon and
 Betamon (rigid limbs rowing about their lateral point: [species/betamon.md](species/betamon.md#walk-and-idle)).
 
-## Serpents
+## The head
 
-A body with `serpent` on its sheet (`DigimonBody.Serpent`; Seadramon) lies along the path its head took (`SerpentTrail`:
-the places its feet went through, sampled by distance behind the head), so it goes where its head went and never through
-the ground or a wall beside the way. The trail keeps the body's length of the way the head went over the ground (counted
-whole, climbs used it up and the body's end ran on off it, swinging). Backing up, the head takes its trail back; a
-teleport or a first sight lays it out afresh behind the head, bending round blocks. The server lays the hit parts on its
-own trail (their middles at `swim_height` in the water); each client draws the body on its own
-([animation.md](animation.md#serpent-spines)).
+A Digimon with authored controls (`DigimonLookControl`) turns its head as a head turns, gathering into the turn over
+`GATHER` (5) ticks and braking out of it at the rate the look asks (10 degrees a tick at its tamer, 7 for a glance), its
+pitch eased too. It looks no further off its body than its neck reaches (`body.head_turn`; past it the body comes round),
+walking within 60 % of that, and a look that ends holds 12 ticks before the head comes back to the front. In a fight,
+and for a swimmer (its pitch is its body's), it keeps vanilla's look. The client of a body that steps round draws its
+head after the one it is sent the same way (`ClientHead`): vanilla's three-tick lerp of 256ths of a turn stopped it dead.
+`GlanceGoal` looks round idly, mostly within the neck's reach, one standing glance in seven past it (the body follows).
 
-It turns only as it goes (`Serpent.turnRate`): no tighter than a circle of `turn_radius` blocks on land, or
-`swim_turn_radius` in the water, at its pace, and `standing_turn` degrees a tick with no pace at all, gathering into the
-turn and easing out of it (`SteadyBodyControl.ease`). The server turns it and clients draw the facing it is sent
-(`turnsSteadily`). Ridden it carves its turn the same way, within the mount's turn rates.
+## Moving on its own: strolls, following and making way
 
-Its head turns no further off the way its body runs up to it (the trail over the last 1.5 blocks,
-`SerpentTrail.heading`) than `neck_turn` degrees on land and ridden in the water (`holdNeck`, where the body moves,
-after it moved; the AI's path, a look round, an attack's aim and a rider alike): turned on the spot, the head swung
-round over its own body and the drawn neck had no way round to take. Not a wild swimmer: its body is free round it, and
-held, one gliding slowly round to a node below it circled it. To come further round it goes on: on a path it keeps a
-quarter of its pace through any turn (`SLITHER`), its body curling after its head, and a node beside it counts as
-reached from 1.5 blocks across (`DigimonAmphibiousNavigation`), so it never circles one inside its turn. Ridden and
-standing, a look back turns its head as far as its neck; the keys take it round.
+A stroll (`DigimonStrollGoal`) goes at the sheet's `locomotion.stroll_pace` (blocks a tick; Agumon 0.06) through
+`DigimonEntity.modifierForPace` (ground pace is about 2.2 x speed squared); without one, at vanilla's modifier 1. A wild
+body strolls where it likes; a partner potters about its tamer once they have stood still 60 ticks, 2 to 5.5 blocks
+from them (inside its follow start distance), keeping 1.4 blocks off them on the way.
 
-A serpent climbs walls as high as its body lets it (`DigimonEntity.climb`, where the body moves): `climb_share` on its
-sheet is the share of its body it holds up a face, the rest on the ground under it, so it climbs that share of its
-length (`DigimonBody.climbHeight`, the body behind its feet to its furthest hit part; Seadramon half of 9.2 blocks,
-4.6). Pushed at a face with its nose at it (`CLIMB_TOUCH`, 0.1 blocks, less than `CLIMB_ASLANT` (60) degrees off square
-to it; flatter it slides along), whose top is higher than its step (afloat or in the air, any higher than its feet:
-afloat it steps up nothing, and the lip of a shelf a fifth of a block over its floating feet walled it in) and within
-its climb of the ground it set off from (or of the water's surface: out of the water it climbs as on land, and the sea
-mounts' haul, `haulsOut`, is left to bodies that do not climb), with room there for its box, it climbs: it rises up the
-face at `CLIMB_PACE` (0.2 blocks a tick), held to it, while the push holds, the keys and the rider's view moving it no
-other way, until its feet clear the top, however near the top comes; there it is carried on over the edge. A face higher
-than its step it comes round square to and goes straight up; over a lower one it keeps its heading. Neither the push
-being blocked that tick nor where it last stood decides it: the nose at the face does. A higher wall stops it, and let
-go of the push half way up it lowers itself back down the face: it never clings. Off a ledge deeper than its step and no
-deeper than its climb it lowers itself down the face at the same pace, its push carrying it no further out from the edge
-(the air's own drift only), all the way to the ground, and takes no fall; a step it drops as any body does. Its paths
-are planned up such ledges (`maxUpStep` answers the climb while `DigimonAmphibiousNavigation` plans, and the mount's
-step otherwise), and on land it never takes a navigation hop (`DigimonJumpControl`). Each climb's start is logged at
-debug level (`[climb]`, with where it was and which way it faced), and so is why a push into a face it does not climb.
-`seadramon_checks` pins the neck, the curl and the climbs: head on, from a standstill at the foot, aslant, a wall of
-logs from every approach, let go half way, alongside a wall, through a pit, and out of a sea onto a beach behind a
-shelf, a beach at the waterline and a terraced bank, head on and aslant, never standing still at the shore.
+`FollowOwnerGoal` sets off once the tamer is past `follow_start_distance` for a spot at 0.8 x `follow_stop_distance` from
+them on its own side, at the tamer's pace plus 0.05 blocks a tick per block past its stop distance, from its walk's pace
+up to its follow pace (`walk_speed`, `run_speed` with the tamer sprinting). It lays a new path only once the tamer is
+1.25 blocks from the last one's spot, or after 20 ticks, walks on beside a tamer who walks on, stops by a standing one,
+and arrived at their feet steps back facing them. A tamer may walk right up to it (it never scurries off); one standing
+within 1.3 blocks for 15 ticks gets room (`GiveRoomGoal`: a step back facing them, or a turn and a walk, to 2.4 blocks),
+and their brushing against it nudges it at a quarter of vanilla's push (`DigimonEntity.push`; a full one slid it aside).
+
+On a ground path (`DigimonGroundNavigation`) a walker steers at the farthest of the next four nodes on its floor it can
+walk to straight (box free, whole width on walkable ground), so a diagonal is one straight walk; with no enemy it slows
+over its last strides to 30 % of its pace (`ARRIVE_TICKS` of it, 0.6 to 2.2 blocks).
+
+`locomotion_checks` pins it on Agumon, wild and as a partner of a stand-in tamer who stands, walks, sprints, comes up
+beside it and circles: no sidesteps but a shove's, no stepping on the spot, no small turns on the spot, a steady head, a
+walking stroll, the partner within 7 blocks on average.
 
 ## Swimming on a path
 

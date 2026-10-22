@@ -71,9 +71,7 @@ import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.PanicGoal;
-import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.RandomSwimmingGoal;
-import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.level.pathfinder.PathType;
@@ -161,6 +159,18 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
     @Override public void heal(float amount) { if(!evolutionLocked())super.heal(amount); }
     @Override public boolean isPushable() { return !evolutionLocked() && super.isPushable(); }
+
+    /** Share of a nudge a partner takes from its own tamer brushing against it (a full one slid it aside at a scuttle). */
+    private static final double TAMER_NUDGE = .25;
+
+    @Override
+    public void push(double x, double y, double z) {
+        if (y == 0 && !level().isClientSide() && getOwner() instanceof LivingEntity tamer && tamer.getBoundingBox().intersects(getBoundingBox())) {
+            x *= TAMER_NUDGE;
+            z *= TAMER_NUDGE;
+        }
+        super.push(x, y, z);
+    }
     /** A body of fire (the sheet's {@code body.fireproof}) never burns, in fire or lava. */
     @Override public boolean fireImmune() { return super.fireImmune() || getBody().fireproof(); }
 
@@ -581,23 +591,20 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     private float swimAnimationPhase;
     private float previousSwimMotionAmount;
     private float swimMotionAmount;
-    private float previousGroundAnimationPhase;
-    private float groundAnimationPhase;
     private float previousSwimBank;
-    private float groundAnimationAmount;
-    private float groundRunAmount, previousGroundRunAmount;
-    public float getGroundRunAmount(float partial) { return Mth.lerp(partial, previousGroundRunAmount, groundRunAmount); }
-    /** Client: shares of a directional gait spent forwards, backwards, left and right; they sum to one. */
-    private final float[] gaitShares = {1, 0, 0, 0}, previousGaitShares = {1, 0, 0, 0};
-    public float[] getGaitShares(float partial) {
-        float[] shares = new float[4];
-        float sum = 0;
-        for (int i = 0; i < 4; i++) sum += shares[i] = Mth.lerp(partial, previousGaitShares[i], gaitShares[i]);
-        if (sum < 1.0E-4F) return new float[]{1, 0, 0, 0};
-        for (int i = 0; i < 4; i++) shares[i] /= sum;
-        return shares;
+    /** Client: how the ground gait plays what this body is seen to do. */
+    private final GaitDriver gaitDriver = new GaitDriver();
+    /** Client: the head of a body that steps round, drawn after the server's as a head turns. */
+    private final ClientHead clientHead = new ClientHead();
+
+    @Override
+    public void lerpHeadTo(float yRot, int steps) {
+        if (stepsRound()) clientHead.sent(yRot);
+        else super.lerpHeadTo(yRot, steps);
     }
-    private float previousGroundAnimationAmount;
+    public float getGroundRunAmount(float partial) { return gaitDriver.run(partial); }
+    /** Client: shares of a directional gait spent forwards, backwards, left and right; they sum to one. */
+    public float[] getGaitShares(float partial) { return gaitDriver.shares(partial); }
     private float mountWaterAmount;
     private float swimStroke;
     private float previousMountWaterAmount;
@@ -762,16 +769,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         this.goalSelector.addGoal(2, new DigimonAttackGoal(this, 1.25));
         this.goalSelector.addGoal(2, new com.digicube.entity.ai.ThrowerFetchGoal(this));
         this.goalSelector.addGoal(2, new com.digicube.entity.ai.BlindGuardGoal(this, 1.25));
+        this.goalSelector.addGoal(3, new com.digicube.entity.ai.GiveRoomGoal(this));
         this.goalSelector.addGoal(3, new FollowOwnerGoal(this));
         this.goalSelector.addGoal(5, new RandomSwimmingGoal(this, 1.0, 60) {
             @Override public boolean canUse() { return canSwim() && isInWater() && super.canUse(); }
             @Override public boolean canContinueToUse() { return canSwim() && isInWater() && super.canContinueToUse(); }
         });
-        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0) {
-            @Override public boolean canUse() { return (!canSwim() || !isInWater()) && super.canUse(); }
-        });
+        this.goalSelector.addGoal(5, new com.digicube.entity.ai.DigimonStrollGoal(this));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(7, new com.digicube.entity.ai.GlanceGoal(this));
 
         this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this));
@@ -1354,7 +1360,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     public float getGroundAnimationAmount(float partialTick) {
-        return Mth.lerp(partialTick, previousGroundAnimationAmount, groundAnimationAmount);
+        return gaitDriver.amount(partialTick);
     }
 
     /** Physical local attachment, including the gradual buoyancy change on both sides. */
@@ -1396,7 +1402,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
      * @return slow land-cycle clock
      */
     public float getGroundAnimationPhase(float partialTick) {
-        return Mth.lerp(partialTick, previousGroundAnimationPhase, groundAnimationPhase);
+        return gaitDriver.phase(partialTick);
     }
 
     /**
@@ -1426,20 +1432,12 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     /** Degrees a swimmer banks at most into a turn (turnBank), and the share of its cruise past which it is dashing. */
     private static final float TURN_BANK = 42;
     private static final double DASH_FROM = 1.12;
-    /** Blocks in a tick past which a ground body's move is a teleport, not a stride: its gait's phase skips it. */
-    private static final double GAIT_SNAP = 3;
-    /** Share of the walk's full pace from which a turning body walks its turn instead of pivoting on the spot. */
-    private static final double PIVOT_WALK = .5;
     /** Share of its full amplitude the ground gait gains or loses a tick. */
-    public static final float AMPLITUDE_EASE = .125F;
-    /** Client: a gait that changes all at once is in its run (DigimonGait.runFrom). */
-    private boolean gaitRunning;
+    public static final float AMPLITUDE_EASE = GaitDriver.AMPLITUDE_EASE;
     /** Client: the share of the gait a turn on the spot takes, positive turning right (DigimonGait.pivotReach). */
-    private float pivotTurn, previousPivotTurn;
-    public float getPivotTurn(float partial) { return Mth.lerp(partial, previousPivotTurn, pivotTurn); }
+    public float getPivotTurn(float partial) { return gaitDriver.pivotTurn(partial); }
     /** Client: the run lattice's column, the pace against the run's own (DigimonGait.runShare); -1 for a run that is one clip. */
-    private float runShare = -1, previousRunShare = -1;
-    public float getRunShare(float partial) { return runShare < 0 ? -1 : Mth.lerp(partial, Math.max(0, previousRunShare), runShare); }
+    public float getRunShare(float partial) { return gaitDriver.runShare(partial); }
     /** Client: ticks in a row it has ended on the ground, and last tick's move over it. */
     private int groundTicks;
     private double lastMoveX, lastMoveZ;
@@ -1493,6 +1491,49 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     }
 
     public float bodyTurn() { return bodyTurn; }
+
+    /**
+     * Blocks a tick vanilla's ground travel settles at on firm ground for a speed (movement attribute x navigation modifier)
+     * of 1: input fed once a tick goes about k x speed squared, k measured at 2.2 by gait_checks.
+     */
+    public static final double GROUND_PACE = 2.2;
+
+    /** The navigation modifier that walks this body at {@code pace} blocks a tick on firm ground ({@link #GROUND_PACE}). */
+    public double modifierForPace(double pace) {
+        double base = getAttributeValue(Attributes.MOVEMENT_SPEED);
+        return base <= 0 ? 1 : Math.sqrt(Math.max(0, pace) / GROUND_PACE) / base;
+    }
+
+    /** The blocks a tick a navigation modifier walks this body at on firm ground. */
+    public double paceForModifier(double modifier) {
+        double speed = getAttributeValue(Attributes.MOVEMENT_SPEED) * modifier;
+        return GROUND_PACE * speed * speed;
+    }
+
+    /** Blocks a tick of its walk at its full stride (its ground gait's), or a slow walk with no gait. */
+    public double walkPace() {
+        var gait = getLocomotion().groundGait();
+        // Offline fixtures skip the constructor, synced data included.
+        return gait == null || this.entityData == null ? .05 : gait.fullSpeed(getBody().modelScale());
+    }
+
+    /** The navigation modifier of its stroll: its sheet's stroll pace ({@code locomotion.stroll_pace}), or vanilla's 1. */
+    public double strollModifier() {
+        double pace = getLocomotion().strollPace();
+        return pace > 0 ? modifierForPace(pace) : 1;
+    }
+
+    /** The goals running now, by class name joined with '+', for headless traces. */
+    public String runningGoals() {
+        StringBuilder out = new StringBuilder();
+        for (var wrapped : goalSelector.getAvailableGoals()) if (wrapped.isRunning()) {
+            Class<?> c = wrapped.getGoal().getClass();
+            while (c.getSimpleName().isEmpty()) c = c.getSuperclass();
+            if (!out.isEmpty()) out.append('+');
+            out.append(c.getSimpleName());
+        }
+        return out.isEmpty() ? "-" : out.toString();
+    }
     /** Degrees a tick this body turns at most swimming unridden (DigimonMoveControl): a serpent's circle at its pace. */
     public float swimTurnRate() {
         var serpent = serpent();
@@ -1528,7 +1569,15 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         configureSpeciesMovement();
     }
 
+    /**
+     * The species' controls are set when its species changes (onSyncedDataUpdated), and on its first tick: a body born the
+     * default species never sees it change, and kept vanilla's move control, which swung its travel round ahead of its
+     * steady body (a crab's walk).
+     */
+    private boolean speciesMovementSet;
+
     private void configureSpeciesMovement() {
+        speciesMovementSet = true;
         getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(getSpecies().map(DigimonSpecies::baseSpeed).orElse(.3F));
         // A body that steps round on its paws needs the move control that turns it onto its path at its own pace.
         boolean authoredControls = canSwim() || attacks().stream().anyMatch(com.digicube.digimon.KineticAttacks::handles)
@@ -7499,6 +7548,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
 
     @Override
     public void tick() {
+        if (!speciesMovementSet && !level().isClientSide()) configureSpeciesMovement();
         if (level() instanceof ServerLevel serverLevel && !PartyManager.beforeEntityTick(this, serverLevel)) return;
         EvolutionController.tick(this);
         if(isRemoved())return;
@@ -7574,6 +7624,8 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                     ? AttackTravelSync.LUNGE_STEPS : AttackTravelSync.steps(
                     attackAnimationState.isStarted() ? getAnimatingAttack() : null, tickCount + 1 - attackAnimationStartTick));
             holdDrawnPose();
+            // A body that steps round has its head drawn turning as a head turns, after the head the server sends (ClientHead).
+            if (stepsRound() && clientHead.seen()) yHeadRot = clientHead.tick(yHeadRot);
             noticeShot();
             if (canFly()) flightLook.tick(this);
             previousAerialBank=aerialBank;previousAerialPitch=aerialPitch;
@@ -7585,9 +7637,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             previousSwimAnimationAmount = swimAnimationAmount;
             previousSwimAnimationPhase = swimAnimationPhase;
             previousSwimMotionAmount = swimMotionAmount;
-            previousGroundAnimationPhase = groundAnimationPhase;
-            previousGroundAnimationAmount = groundAnimationAmount;
-            previousGroundRunAmount = groundRunAmount;
+            gaitDriver.beginTick();
             previousFlightWalkAmount = flightWalkAmount;
             previousSwimBank = swimBank;
             previousSwimDash = swimDash;
@@ -7610,7 +7660,7 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
                 if (getFlightPhase() == FlightPhase.GROUNDED && groundSpeed < 1) {
                     // Native cycle: 6 px of planted travel over 62% of a second.
                     double stride = (6.0 / .62 / 16) * getBody().modelScale();
-                    groundAnimationPhase += (float) Math.min(2.5, groundSpeed * 20 / stride / Math.max(.25F, flightWalkAmount));
+                    gaitDriver.advancePhase((float) Math.min(2.5, groundSpeed * 20 / stride / Math.max(.25F, flightWalkAmount)));
                 }
             }
             float motion = canSwim() ? (float) Mth.clamp(speed / (getLocomotion().swimSpeed() * .7), 0, 1) : 0;
@@ -7630,70 +7680,19 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
             groundTicks = onGround() ? groundTicks + 1 : 0;
             boolean slipping = tickLegs(dx, dz);
             if (gait != null) {
-                double groundSpeed = Math.max(horizontalTravel, getDeltaMovement().horizontalDistance());
-                if (attackAnimationState.isStarted() && getAnimatingAttack()!=null
-                        && getAnimatingAttack().kind()==DigimonAttack.Kind.CONSTRICTION) groundSpeed=0;
-                // On ice the gait plays where the legs take the body, not where it slides (tickLegs).
-                double pace = slipping ? Math.sqrt(legsX * legsX + legsZ * legsZ) : groundSpeed;
-                System.arraycopy(gaitShares, 0, previousGaitShares, 0, 4);
-                DigimonGait.Drive drive = gait.drive(pace, 0, getBody().modelScale(), gaitRunning);
-                if (gait.directional() && pace > 1.0E-4) {
-                    // Which way the body moves in its own frame decides which planted clips play, and how fast the shared phase runs.
-                    Vec3 moved = slipping ? new Vec3(legsX, 0, legsZ)
-                            : dx * dx + dz * dz > 1.0E-8 ? new Vec3(dx, 0, dz) : getDeltaMovement().multiply(1, 0, 1);
-                    double yaw = yBodyRot * Mth.DEG_TO_RAD, scale = pace / Math.max(1.0E-6, moved.length());
-                    drive = gait.drive((-moved.x * Math.sin(yaw) + moved.z * Math.cos(yaw)) * scale,
-                            (moved.x * Math.cos(yaw) + moved.z * Math.sin(yaw)) * scale, getBody().modelScale(), gaitRunning);
-                    for (int i = 0; i < 4; i++) gaitShares[i] = Mth.approach(gaitShares[i], (float) drive.shares()[i], .2F);
-                }
-                // The run is held through a leap and a stumble: only the ground's own pace changes the gait.
-                if (onGround()) gaitRunning = drive.running();
-                groundRunAmount = Mth.approach(groundRunAmount, drive.run(), gait.runEase());
-                double travel = drive.travel(groundRunAmount);
-                // Turning on the spot the paws step round the body's centre (a gait with pivot_reach): the turn is paid on
-                // the phase with the travel, and its share of the two goes to the model, signed by the turn's way. Only a
-                // body all but standing pivots; one walking turns along its stride (the two step on different beats).
-                float turned = Mth.wrapDegrees(yBodyRot - yBodyRotO);
-                // A pivot on the walk's own beats (pivotWalk) mixes into the walk at any pace: the body walks its turn in an arc.
-                double pivot = onGround() && !isSwimmingMovement() ? gait.pivotTravel(turned, groundRunAmount)
-                        * (gait.pivotWalk() ? 1 : Mth.clamp(1 - travel / (PIVOT_WALK * gait.fullSpeed(getBody().modelScale())), 0, 1)) : 0;
-                previousPivotTurn = pivotTurn;
-                pivotTurn = Mth.approach(pivotTurn, pivot < 1.0E-4 ? 0 : (float) (Math.signum(turned) * pivot / (pivot + travel)), .25F);
-                travel += pivot;
-                // A hovering body flies its travel clip off the ground too: over a ledge, a step or a jump.
-                boolean supported = onGround() || getLocomotion().hovers() && !isInWater();
-                float wanted = supported && !isSwimmingMovement()
-                        ? (float) Mth.clamp(travel / gait.fullSpeed(getBody().modelScale()), 0, 1) : 0;
-                // A ridden leap keeps its stride, held mid-air, instead of settling into the standing pose.
-                if (!onGround() && rider() != null && !isInWater()) wanted = groundAnimationAmount;
-                groundAnimationAmount = Mth.approach(groundAnimationAmount, wanted, AMPLITUDE_EASE);
-                // A run lattice's column follows the pace on the ground and holds through a leap, as the stride does.
-                previousRunShare = runShare;
-                if (!gait.runLattice()) runShare = -1;
-                else if (supported && !isSwimmingMovement()) runShare = Mth.approach(Math.max(0, runShare), gait.runShare(travel, getBody().modelScale()), AMPLITUDE_EASE);
-                else runShare = Math.max(0, runShare);
-                // Any pace a body can run at turns the legs over (a sprint on ice once froze them mid-stride past a block a
-                // tick); only a jump no gait covers, a teleport, is skipped.
-                if (supported && groundSpeed < GAIT_SNAP) {
-                    float step = gait.advance(travel, groundAnimationAmount, getBody().modelScale(), groundRunAmount, Math.max(0, runShare));
-                    // A gait with no clip of its own for going back plays its walk backwards, which plants the feet as well.
-                    boolean backing = !gait.directional() && dx * dx + dz * dz > 1.0E-8
-                            && -dx * Math.sin(yBodyRot * Mth.DEG_TO_RAD) + dz * Math.cos(yBodyRot * Mth.DEG_TO_RAD) < -.5 * horizontalTravel;
-                    groundAnimationPhase += backing ? -step : step;
-                    if (groundAnimationPhase < 0) {
-                        // Clips read no negative clock; whole laps keep the pose where it is.
-                        float laps = gait.cycleTicks() * 64;
-                        groundAnimationPhase += laps;
-                        previousGroundAnimationPhase += laps;
-                    }
-                }
+                boolean bound = attackAnimationState.isStarted() && getAnimatingAttack() != null
+                        && getAnimatingAttack().kind() == DigimonAttack.Kind.CONSTRICTION;
+                gaitDriver.tick(gait, getBody().modelScale(), new GaitDriver.Step(dx, dz, legsX, legsZ, slipping,
+                        yBodyRot, Mth.wrapDegrees(yBodyRot - yBodyRotO), onGround(),
+                        onGround() || getLocomotion().hovers() && !isInWater(), isSwimmingMovement(),
+                        !onGround() && rider() != null && !isInWater(), bound));
             } else if (canSwim() && onGround()) {
                 // Remote entities can move through position interpolation between
                 // velocity packets; keep the paws moving with that displacement too.
                 double groundSpeed = Math.max(horizontalTravel, Math.sqrt(getDeltaMovement().horizontalDistanceSqr()));
                 // Cadence keeps following travel up to 1.65x the native clip, so the paws
                 // still plant about every three blocks at full walking pace.
-                groundAnimationPhase += .55F * (float) Mth.clamp(groundSpeed / .025, 0, 3);
+                gaitDriver.advancePhase(.55F * (float) Mth.clamp(groundSpeed / .025, 0, 3));
             }
             swimBank = Mth.lerp(.15F, swimBank, Mth.clamp(-Mth.wrapDegrees(getYRot() - yRotO) * 2.0F, -12, 12));
             // A swimmer with room to lean (swim_bank in the model catalog) banks deep into a hard turn.

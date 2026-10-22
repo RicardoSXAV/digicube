@@ -93,6 +93,7 @@ public final class CombatScenario {
         if (NAME.equals("mochimon_checks")) { MochimonScenario.tick(level); return; }
         if (NAME.equals("agumon_checks")) { AgumonScenario.tick(level); return; }
         if (NAME.startsWith("agility_checks")) { AgilityScenario.tick(level, NAME.startsWith("agility_checks:") ? NAME.substring(15) : ""); return; }
+        if (NAME.startsWith("locomotion_checks")) { LocomotionScenario.tick(level, NAME.startsWith("locomotion_checks:") ? NAME.substring(18) : ""); return; }
         if (NAME.startsWith("gait_checks")) { GaitScenario.tick(level, NAME.startsWith("gait_checks:") ? NAME.substring(12) : ""); return; }
         if (NAME.equals("evolution_checks")) { com.digicube.party.EvolutionScenario.tick(level); return; }
         if (NAME.equals("scan_checks")) { com.digicube.scan.ScanScenario.tick(level); return; }

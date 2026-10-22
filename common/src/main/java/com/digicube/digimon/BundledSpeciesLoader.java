@@ -164,11 +164,12 @@ public final class BundledSpeciesLoader {
                                 GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "side_stride", GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "stride"))),
                         GsonHelper.getAsFloat(json.getAsJsonObject("ground_gait"), "pivot_cadence", DigimonGait.PIVOT_CADENCE),
                         GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "pivot_walk", false),
-                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "run_lattice", false)) : null,
+                        GsonHelper.getAsBoolean(json.getAsJsonObject("ground_gait"), "run_lattice", false),
+                        GsonHelper.getAsDouble(json.getAsJsonObject("ground_gait"), "cadence_rise", 0)) : null,
                 json.has("hover") ? GsonHelper.getAsDouble(json.getAsJsonObject("hover"), "fall_speed") : 0,
                 json.has("jet") ? jet(json.getAsJsonObject("jet")) : null,
                 json.has("travel_facing") ? travelFacing(json.getAsJsonObject("travel_facing")) : null,
-                GsonHelper.getAsDouble(json, "ice_grip", 0));
+                GsonHelper.getAsDouble(json, "ice_grip", 0), GsonHelper.getAsDouble(json, "stroll_pace", 0));
     }
 
     private static TravelFacing travelFacing(JsonObject json) {

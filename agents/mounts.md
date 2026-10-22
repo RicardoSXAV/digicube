@@ -100,7 +100,7 @@ and mane out and its rider dry): above it the body settles back and its climb is
 water). Pushing into a bank or a quay no higher than `HAUL_ABOVE` (1.6) over the water, or a ledge under it,
 it hauls itself up at `HAUL_PACE` until its feet clear the top and walks on (`haulsOut`; a floating body is
 never on the ground, so vanilla's step never helped it out); a serpent climbs out as it climbs on land, up any face
-over its floating feet, a shelf's lip too ([locomotion.md](locomotion.md#serpents)). A surge streams bubbles and sets off with a
+over its floating feet, a shelf's lip too ([seadramon](species/seadramon.md#serpent-bodies)). A surge streams bubbles and sets off with a
 squirt on every client (`seaWake`, read from the body's travel).
 
 A body that holds the surface (`body.mount.surface_dive`, degrees; Ikkakumon 30) stays afloat within `SURFACE_BAND`
@@ -110,7 +110,7 @@ dips it and a climb from below levels off instead of bobbing out. Looking down p
 the dive key, dives; a surge looking up past it breaches. Without it, the view steers at the surface too.
 
 A sea mount that turns to travel (`turn_to_travel`; Ikkakumon, Seadramon, which carves its turns as a serpent,
-[locomotion.md](locomotion.md#serpents)) steers in water as on land: the strafe keys turn it
+[seadramon](species/seadramon.md#serpent-bodies)) steers in water as on land: the strafe keys turn it
 toward where they point from the view (`travelTurn`) instead of strafing, and it swims on through the turn at
 `SWIM_THE_TURN` of its push at least (`swimPush`; S back-paddles at `BACK_SWIM`). A roller (`body.mount.water_roll`,
 a speed in blocks a tick; Ikkakumon, Seadramon) rolls on a double tap of the jump key in the water (`barrelRoll`, taps at most

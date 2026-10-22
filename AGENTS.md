@@ -88,7 +88,7 @@ Markdown links are relative to the file they sit in; paths in backticks are rela
 | [agents/authored-attacks.md](agents/authored-attacks.md) | a move in `authored_attacks.json` (`AuthoredVolumeAttack`): bursts at the target, travelling sweeps and dashes, leaps, discharges (`ArcDischarge`), whole turns in a clip, particle styles, sound cues, stacked uses, volleys |
 | [agents/compound-attacks.md](agents/compound-attacks.md) | moves cast as other attacks' forms (`compound_attacks.json`, `CompoundAttacks`): drawn-weapon stances (`AttackStance`), gauges (`attackLanded`), chained strikes |
 | [agents/animation.md](agents/animation.md) | models and clips as native JSON (`NativeAnimationSet`); `assetTest`; attack clip names; `ground_models.json` keys (`look`, `attack_effects`, `paws`, `cloth`, `tails`, `ropes`, `spine`); serpent bodies (`SerpentSpine`); rescaling a species |
-| [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips, gait changes and pivots, steady turning (`SteadyBodyControl`), serpents (`SerpentTrail`, their necks and climbing), swimming on a path, ice grip and skids (`IceSlip`), stepping down, hovering, `travel_facing`, wide bodies and pathing |
+| [agents/locomotion.md](agents/locomotion.md) | speeds and strides (`DigimonGait`), gait clips (`GaitDriver`), gait changes, pivots, turning (`SteadyBodyControl`), the head (`GlanceGoal`), strolls, following (`FollowOwnerGoal`), swimming on a path, ice (`IceSlip`), stepping down, hovering, `travel_facing`, pathing |
 | [agents/agility.md](agents/agility.md) | a body's own leap, crouch, roll and tuck (`body.leap`, `body.crouch`, `_crouch` twins), the AI's duck/roll/leap clear, blows' `launch`, shots' `falloff` |
 | [agents/mounts.md](agents/mounts.md) | anything a rider does (`RiderAttack`, `RiderControls`, attack tiles): getting on, pose, water and sea mounts, pace, leaps, charges, flying mounts |
 | [agents/flight.md](agents/flight.md) | flying under a rider (`AerialRiding`, `AerialHandling`): agile flight (dive, boost, slide, barrel roll, skim), the flight reserve's costs (`FlightReserve`), attacks on the wing (pounce wing forms), the catalog's `flight` (`FlightPose`, `FlightLook`), `FlightFeel` |
@@ -109,7 +109,7 @@ walking turns, a biped's aimed pounce), [ikkakumon](agents/species/ikkakumon.md)
 [meramon](agents/species/meramon.md) (and fire breaths),
 [mojyamon](agents/species/mojyamon.md) (and thrown weapons), [monochromon](agents/species/monochromon.md) (and held rushes),
 [pukamon](agents/species/pukamon.md) (Bukamon),
-[seadramon](agents/species/seadramon.md), [shellmon](agents/species/shellmon.md) (and spins in the shell, water jets),
+[seadramon](agents/species/seadramon.md) (serpents), [shellmon](agents/species/shellmon.md) (and spins in the shell, water jets),
 [tentomon](agents/species/tentomon.md) (and fighting on the wing unridden).
 A species without a guide has nothing beyond its sheet and the topic guides.
 

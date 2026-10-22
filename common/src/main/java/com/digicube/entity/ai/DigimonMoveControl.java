@@ -37,6 +37,15 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
         operation = Operation.WAIT;
     }
 
+    /**
+     * Ticks a steady body takes to gather its pace setting off (vanilla's was there in two), the share of it it starts
+     * with, and the ticks without a path after which it counts as setting off again.
+     */
+    private static final float START_TICKS = 6, START_KEEP = .3F;
+    private static final int RESTART_AFTER = 3;
+    /** Ticks on a path since it set off, and ticks without one. */
+    private int walking, standing;
+
     /** A body coming round to its path keeps its whole pace within SLOW_FROM degrees of it and none past SLOW_TO. */
     private static final float SLOW_FROM = 30, SLOW_TO = 90;
     /** Share of its pace a serpent keeps however far round it has to come. */
@@ -71,7 +80,10 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
         // through the turn, slowly, its body curling after its head; a node close beside it counts as reached from further
         // off (DigimonAmphibiousNavigation), so it never circles one inside its turn.
         float keep = mob.serpent() != null ? SLITHER : 0;
-        mob.setZza(mob.zza * Math.max(keep, (float) Mth.smoothstep(Mth.clamp((SLOW_TO - left) / (SLOW_TO - SLOW_FROM), 0, 1))));
+        // setting off it gathers its pace over a few strides, as its stride grows (the gait's amplitude eases in as well);
+        // a chase sets off at once
+        float start = mob.getTarget() != null ? 1 : START_KEEP + (1 - START_KEEP) * (float) Mth.smoothstep(Math.min(1, walking / START_TICKS));
+        mob.setZza(mob.zza * start * Math.max(keep, (float) Mth.smoothstep(Mth.clamp((SLOW_TO - left) / (SLOW_TO - SLOW_FROM), 0, 1))));
     }
 
     /** The heading of the path being walked, kept through a jump (vanilla's JUMPING has no wanted position). */
@@ -116,7 +128,13 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
     public void tick() {
         if (facing && !mob.combatControlsLocked() && (!mob.canSwim() || !mob.isInWater())) {
             facing = false;
-            mob.setYRot(rotlerp(mob.getYRot(), facingYaw, 24));
+            // In a fight it comes round briskly (24 degrees a tick); out of one a body that steps round turns at its own
+            // pace, eased, as it does on a path.
+            if (mob.getTarget() == null && mob.steadyTurnRate() > 0) {
+                mob.setYRot(mob.getYRot() + SteadyBodyControl.ease(mob.bodyTurn(), Mth.wrapDegrees(facingYaw - mob.getYRot()),
+                        mob.steadyTurnRate() * SteadyBodyControl.BRISK));
+                mob.steered();
+            } else mob.setYRot(rotlerp(mob.getYRot(), facingYaw, 24));
             mob.yBodyRot = mob.getYRot();
             float speed = (float) (facingSpeed * mob.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
             float length = Mth.sqrt(facingForward * facingForward + facingLeft * facingLeft);
@@ -156,6 +174,8 @@ public final class DigimonMoveControl extends MoveControl<DigimonEntity> {
                 mob.setYya(0);
                 mob.setXRot(Mth.approachDegrees(mob.getXRot(), 0, 4));
             }
+            if (groundOperation == Operation.MOVE_TO) { standing = 0; walking++; }
+            else if (++standing >= RESTART_AFTER) walking = 0;
             if (groundOperation == Operation.MOVE_TO && mob.steadyTurnRate() > 0 && mob.getLocomotion().travelFacing() == null) steerSteadily();
             if (groundOperation == Operation.MOVE_TO || groundOperation == Operation.JUMPING) faceWhileTravelling(groundOperation, facingBefore);
             return;

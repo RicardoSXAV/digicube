@@ -137,9 +137,11 @@ public final class LocomotionRegressionTest {
         if (follows) {
             follow.start();
             follow.tick();
-            check(mob.nav.requests == 1 && mob.nav.lastTarget == mob.owner,
-                    "follow goal must issue the ground path toward its owner");
-            check(mob.nav.lastSpeed == mob.getLocomotion().walkSpeed(), "following preserves slow land speed");
+            check(mob.nav.requests == 1 && mob.nav.lastSpot != null
+                            && mob.nav.lastSpot.distanceTo(mob.owner.position()) <= mob.getLocomotion().followStopDistance() + 1.0E-6,
+                    "follow goal must lay a ground path to a spot beside its owner");
+            check(mob.nav.lastSpeed > 0 && mob.nav.lastSpeed <= mob.getLocomotion().walkSpeed() + 1.0E-9,
+                    "following never outpaces its follow speed");
             check(follow.canContinueToUse(), "following continues while the owner is beyond stop distance");
             follow.stop();
             check(mob.nav.done, "stopping the follow goal releases its path");
@@ -249,10 +251,18 @@ public final class LocomotionRegressionTest {
         boolean done;
         int requests;
         Entity lastTarget;
+        Vec3 lastSpot;
         double lastSpeed;
         private FixtureNavigation() { super(null, null); }
         @Override public boolean isDone() { return done; }
         @Override public void stop() { done = true; }
+        @Override public boolean moveTo(double x, double y, double z, double speed) {
+            requests++;
+            lastSpot = new Vec3(x, y, z);
+            lastSpeed = speed;
+            done = false;
+            return true;
+        }
         @Override public boolean moveTo(Entity target, double speed) {
             requests++;
             lastTarget = target;

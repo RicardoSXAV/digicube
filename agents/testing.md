@@ -81,6 +81,19 @@ of its own passes the run pace on its walk clips. So does a species whose AI run
 vanilla's ground pace is about k x (base_speed x modifier)^2 blocks a tick with k near 2.1-2.2, so measure
 rather than trust k.
 
+## Locomotion checks
+
+**Locomotion checks** (`common/.../dev/LocomotionScenario`): `DIGICUBE_SCENARIO=locomotion_checks[:<species>]` (Agumon
+by default) lets a body move on its own AI on a walled arena with a few blocks about, in three stretches: wild alone,
+wild with a stand-in player standing near, and a partner following a stand-in tamer who stands, walks, sprints, walks
+through it and circles. Each tick it sees the body as a client does (the position, facing and head packets as the server
+sends them, eased in as a client eases them, and `GaitDriver`'s gait from them) and counts what reads as unnatural:
+sidesteps with no enemy about (`crab`), legs kept stepping while the body neither moves
+nor turns (`treadmill`), small quick steps kept up (`shuffle`), turns on the spot under 15 degrees, the drawn head past 11 degrees a tick or changing speed by
+more than 6 in a tick, a wild stroll at a run, and the partner's distance from its tamer. Logs `[locomotion] PASS|FAIL
+<stretch> ...` with the first few faults and what the body was doing, then `[scenario] PASS|FAIL locomotion_checks`, and
+writes every tick to `locomotion_trace.csv` in the server's directory.
+
 ## Index of checks
 
 Every named scenario runs the same way: set `DIGICUBE_SCENARIO`, start `:fabric:runServer` and read the
@@ -91,6 +104,7 @@ verdict in `fabric/runs/server/logs/latest.log`. The dispatch in `CombatScenario
 | `<caster>_vs_<prey>[@terrain][+duel][+behind]` | one caster against one prey | [Headless scenarios](#headless-scenarios-the-ai-tests-gameplay-in-the-real-game) |
 | `balance:<a>_vs_<b>` | rounds to the death | [Balance runs](#balance-runs) |
 | `gait_checks[:<species>]` | paces against strides | [Gait checks](#gait-checks) |
+| `locomotion_checks[:<species>]` | a body moving on its own AI, wild and following, as a client sees it | [Locomotion checks](#locomotion-checks) |
 | `rider_checks` | rider attacks cast by a stand-in rider | [mounts.md](mounts.md#rider-attacks) |
 | `sea_mount_checks` | sea mounts driven by a stand-in rider | [mounts.md](mounts.md#sea-mounts) |
 | `thrower_checks` | the returning bone and the icicle | [species/mojyamon.md](species/mojyamon.md) |

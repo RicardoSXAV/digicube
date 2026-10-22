@@ -19,12 +19,23 @@ package com.digicube.digimon;
  * turns as it walks mixes the two by their shares and goes round in an arc on planted feet, at any pace of the walk.
  * A run with {@code runLattice} is a lattice over its pace ({@link #runShare}): each column planted on its own stride, the
  * run's stride times its share, so a jog and a sprint keep the run's cadence instead of one stride sped up or slowed down.
+ * A gait with {@code cadenceRise} shares a change of pace between its cadence and its stride as an animal does: the
+ * cadence goes as the pace to that power and the stride takes the rest (walking, under the walk's full pace, and in a run
+ * lattice's columns), so a slow walk takes long slow steps instead of quick short ones and a jog runs on a slower beat
+ * than a sprint; zero keeps the cadence and moves the stride alone.
  */
 public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
                           double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach,
-                          double pivotStride, float pivotCadence, boolean pivotWalk, boolean runLattice) {
+                          double pivotStride, float pivotCadence, boolean pivotWalk, boolean runLattice, double cadenceRise) {
     /** The pivot's cadence, times the walk's, when the sheet names none. */
     public static final float PIVOT_CADENCE = 1.5F;
+
+    public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
+                       double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach,
+                       double pivotStride, float pivotCadence, boolean pivotWalk, boolean runLattice) {
+        this(cycleTicks, stride, maxPlaybackRate, runCycleTicks, runStride, sideStride, backStride, footfalls, runFrom, runUntil, pivotReach,
+                pivotStride, pivotCadence, pivotWalk, runLattice, 0);
+    }
 
     public DigimonGait(float cycleTicks, double stride, float maxPlaybackRate, float runCycleTicks, double runStride,
                        double sideStride, double backStride, boolean footfalls, double runFrom, double runUntil, double pivotReach,
@@ -67,7 +78,7 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
                 || !Double.isFinite(sideStride) || sideStride <= 0 || !Double.isFinite(backStride) || backStride <= 0
                 || !Double.isFinite(runFrom) || runFrom < 0 || !Double.isFinite(runUntil) || runUntil < 0 || runUntil > runFrom
                 || !Double.isFinite(pivotReach) || pivotReach < 0 || !Double.isFinite(pivotStride) || pivotStride <= 0
-                || !Float.isFinite(pivotCadence) || pivotCadence <= 0) {
+                || !Float.isFinite(pivotCadence) || pivotCadence <= 0 || !(cadenceRise >= 0 && cadenceRise < 1)) {
             throw new IllegalArgumentException("Invalid authored ground gait");
         }
     }
@@ -146,9 +157,20 @@ public record DigimonGait(float cycleTicks, double stride, float maxPlaybackRate
         return (float) Math.min(maxPlaybackRate, travel * cycleTicks / (blendedStride * modelScale * Math.max(.001F, amount)));
     }
 
-    /** The run lattice's column for a pace ({@link #runLattice}): the ground covered against the run's own pace, at most 1. */
+    /**
+     * The run lattice's column for a pace ({@link #runLattice}): the ground covered against the run's own pace, at most 1, to
+     * the power of what the cadence leaves the stride ({@link #cadenceRise}).
+     */
     public float runShare(double travel, float modelScale) {
-        return runLattice ? (float) Math.clamp(travel / runSpeed(modelScale), 0, 1) : 1;
+        return runLattice ? (float) Math.clamp(Math.pow(Math.max(0, travel / runSpeed(modelScale)), 1 - cadenceRise), 0, 1) : 1;
+    }
+
+    /**
+     * The walk's amplitude for a pace: the ground covered against the walk's full pace, at most 1, to the power of what the
+     * cadence leaves the stride ({@link #cadenceRise}).
+     */
+    public float walkAmount(double travel, float modelScale) {
+        return (float) Math.clamp(Math.pow(Math.max(0, travel / fullSpeed(modelScale)), 1 - cadenceRise), 0, 1);
     }
 
     /** As {@link #advance(double, float, float, float)}, a run lattice paying the run's share of its stride ({@code share}). */

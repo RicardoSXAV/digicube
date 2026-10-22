@@ -129,7 +129,7 @@ it with an init script).
 
 A serpent's body is `spine` in `ground_models.json` (`SerpentSpine`): the `path` to the part its first link hangs in,
 the `chain` of links (each the next one's parent) and the `tip` part after the last. After the pose each frame, the
-chain is laid along the drawn body's trail ([locomotion.md](locomotion.md#serpents)): the clips give each point its
+chain is laid along the drawn body's trail ([trail](species/seadramon.md#serpent-bodies)): the clips give each point its
 height above the feet and its spacing, the trail where along the ground it lies, and a sway its place aside. On land the
 sway is fixed to the ground (`land_wave` blocks, over `wavelength`), so the body slides through it without slipping
 aside, as a snake does; in the water it runs back along the body faster than the body swims (`slip`), stronger with its

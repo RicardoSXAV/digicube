@@ -16,11 +16,18 @@ package com.digicube.digimon;
  * @param iceGrip   a sure-footed body (a wolf's paws; {@code DigimonEntity.sureFooting}): the share of firm ground's grip
  *                  its paws keep on ice, so it skids there without running any faster, and on the ground its run turns
  *                  where its legs drive it instead of carrying on in its old line; zero leaves vanilla's slide
+ * @param strollPace blocks a tick it strolls at, wandering on its own or pottering about near a tamer who stands still (its
+ *                   walk: a stroll at a run reads as a body in a hurry for nothing); zero keeps vanilla's stroll, the
+ *                   movement attribute unmodified
  */
 public record DigimonLocomotion(float followStartDistance, float followStopDistance,
                                double walkSpeed, double runSpeed, double swimSpeed, DigimonFlight flight,
                                DigimonGait groundGait, double hoverFallSpeed, JetSwim jet, TravelFacing travelFacing,
-                               double iceGrip) {
+                               double iceGrip, double strollPace) {
+    public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
+                             DigimonGait groundGait, double hoverFallSpeed, JetSwim jet, TravelFacing travelFacing, double iceGrip) {
+        this(start, stop, walk, run, swim, flight, groundGait, hoverFallSpeed, jet, travelFacing, iceGrip, 0);
+    }
     public DigimonLocomotion(float start, float stop, double walk, double run, double swim, DigimonFlight flight,
                              DigimonGait groundGait, double hoverFallSpeed, JetSwim jet, TravelFacing travelFacing) {
         this(start, stop, walk, run, swim, flight, groundGait, hoverFallSpeed, jet, travelFacing, 0);
@@ -56,7 +63,7 @@ public record DigimonLocomotion(float followStartDistance, float followStopDista
                 || walkSpeed <= 0 || runSpeed < walkSpeed
                 || !Double.isFinite(swimSpeed) || swimSpeed < 0 || swimSpeed > 1
                 || !Double.isFinite(hoverFallSpeed) || hoverFallSpeed < 0 || hoverFallSpeed > 1 || jet != null && swimSpeed <= 0
-                || !(iceGrip >= 0 && iceGrip <= 1)) {
+                || !(iceGrip >= 0 && iceGrip <= 1) || !(strollPace >= 0 && strollPace < 1)) {
             throw new IllegalArgumentException("Invalid species locomotion settings");
         }
     }
