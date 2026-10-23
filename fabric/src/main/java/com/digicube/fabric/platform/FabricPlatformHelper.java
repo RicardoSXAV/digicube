@@ -1,6 +1,9 @@
 package com.digicube.fabric.platform;
 
+import com.digicube.fabric.mode.FabricModes;
+import com.digicube.mode.DigiCubeMode;
 import com.digicube.platform.services.IPlatformHelper;
+import net.minecraft.world.level.gamerules.GameRule;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -43,5 +46,10 @@ public class FabricPlatformHelper implements IPlatformHelper {
     @Override
     public Path gameDirectory() {
         return FabricLoader.getInstance().getGameDir();
+    }
+
+    @Override
+    public GameRule<DigiCubeMode> modeRule() {
+        return FabricModes.rule();
     }
 }

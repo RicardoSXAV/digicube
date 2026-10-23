@@ -5,6 +5,8 @@ import com.digicube.analyzer.AnalyzerDiscoveryPayload;
 import com.digicube.digimon.CombatMark;
 import com.digicube.fabric.client.digivice.AnalyzerNews;
 import com.digicube.fabric.client.digivice.DiscoveryToast;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModePayload;
 import com.digicube.entity.DigimonEntity;
 import com.digicube.entity.DigimonPart;
 import com.digicube.fabric.client.digivice.DigiviceScreen;
@@ -41,6 +43,8 @@ import java.util.List;
  */
 public final class PartyClient {
     private PartySnapshotPayload snapshot = empty();
+    /** The world's DigiCube Mode ({@link DigiCubeModePayload}); UNSET until the server has sent it. */
+    private DigiCubeMode mode = DigiCubeMode.UNSET;
     /** Client ticks since {@link #snapshot} arrived, so a countdown can continue between server updates. */
     private int snapshotAge;
     /** The party slot the arrow keys have selected; always a filled slot while the party is not empty. */
@@ -120,8 +124,11 @@ public final class PartyClient {
                 context.client().execute(() -> discovered(context.client(), payload)));
         ClientPlayNetworking.registerGlobalReceiver(com.digicube.scan.ScanToastPayload.TYPE, (payload, context) ->
                 context.client().execute(() -> com.digicube.fabric.client.digivice.ScanToast.show(context.client(), payload)));
+        ClientPlayNetworking.registerGlobalReceiver(DigiCubeModePayload.TYPE, (payload, context) ->
+                context.client().execute(() -> mode = payload.mode()));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             snapshot = empty();
+            mode = DigiCubeMode.UNSET;
             selected = 0;
             aimed = null;
             sighted = null;
@@ -334,6 +341,9 @@ public final class PartyClient {
     KeyMapping wheelKey() { return wheelKey; }
 
     public PartySnapshotPayload snapshot() { return snapshot; }
+
+    /** The world's DigiCube Mode, as the server sent it on joining; UNSET until then. */
+    public DigiCubeMode mode() { return mode; }
     public int snapshotAge() { return snapshotAge; }
 
     public void send(PartyActionPayload payload) {

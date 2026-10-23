@@ -3,6 +3,7 @@ package com.digicube.fabric.client.digivice;
 import com.digicube.fabric.client.gui.DigiPanels;
 import com.digicube.fabric.client.gui.DigiTheme;
 import com.digicube.fabric.client.party.PartyClient;
+import com.digicube.mode.DigiCubeMode;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyMemberView;
@@ -331,6 +332,16 @@ public final class DigiviceScreen extends Screen {
             x += w + 3;
         }
         for (int i = 0; i < EMPTY_BAYS; i++) { DigiviceKit.emptyBay(g, x, y, 44, 16); x += 47; }
+        modeTag(g, y);
+    }
+
+    /** The world's DigiCube Mode at the strip's right end: TAMER in cyan, CLASSIC in amber. */
+    private void modeTag(GuiGraphicsExtractor g, int y) {
+        DigiCubeMode mode = client.mode();
+        if (!mode.chosen()) return;
+        String label = upper(Component.translatable("gui.digicube.digivice.mode", Component.translatable(mode.translationKey())));
+        int x = DISPLAY_X + DISPLAY_WIDTH - 6 - font.width(label);
+        g.text(font, label, x, y + 6, mode == DigiCubeMode.CLASSIC ? DigiTheme.AMBER : DigiTheme.CYAN, false);
     }
 
     /** Changing tab breaks the old view into blocks; powering on fills the display from the top behind a line of light. */

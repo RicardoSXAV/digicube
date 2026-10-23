@@ -1,7 +1,9 @@
 package com.digicube.platform.services;
 
+import com.digicube.mode.DigiCubeMode;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.gamerules.GameRule;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -49,4 +51,10 @@ public interface IPlatformHelper {
      * dev run). The developer panel walks up from it to find the repository.
      */
     Path gameDirectory();
+
+    /**
+     * The world game rule {@code digicube:mode} that carries the DigiCube Mode from Create World into the new world
+     * ({@link com.digicube.mode.DigiCubeModes}). Vanilla has no enum rules, so each loader builds it.
+     */
+    GameRule<DigiCubeMode> modeRule();
 }

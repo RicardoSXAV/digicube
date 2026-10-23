@@ -544,5 +544,16 @@
   "attack.digicube.hydro_pressure": "Hydro Pressure",
   "attack.digicube.drill_shell": "Drill Shell",
   "attack.digicube.twice_arm": "Twice Arm",
-  "attack.digicube.petit_thunder": "Petit Thunder"
+  "attack.digicube.petit_thunder": "Petit Thunder",
+  "mode.digicube.unset": "Not chosen",
+  "mode.digicube.tamer": "Tamer",
+  "mode.digicube.classic": "Classic",
+  "gamerule.digicube.mode": "DigiCube Mode",
+  "gamerule.digicube.mode.description": "Chosen when the world is created. Can't be changed after creation.",
+  "gamerule.digicube.mode.unset": "Not chosen",
+  "gamerule.digicube.mode.tamer": "Tamer",
+  "gamerule.digicube.mode.classic": "Classic",
+  "chat.digicube.mode.joined": "This world plays DigiCube Mode: %s.",
+  "chat.digicube.mode.locked": "DigiCube Mode can't be changed after creation. This world stays %s.",
+  "gui.digicube.digivice.mode": "%s mode"
 }

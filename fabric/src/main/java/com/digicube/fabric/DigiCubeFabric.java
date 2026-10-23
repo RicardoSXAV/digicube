@@ -22,6 +22,7 @@ public class DigiCubeFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         DigiCube.init();
+        com.digicube.fabric.mode.FabricModes.init();
         com.digicube.fabric.digivice.FabricDigivices.init();
         DCCreativeTabs.init();
         FabricPartyNetworking.init();
