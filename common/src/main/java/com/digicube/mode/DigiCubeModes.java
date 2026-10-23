@@ -72,11 +72,14 @@ public final class DigiCubeModes {
         if (!data.mode().chosen() || value == data.mode()) return;
         setRule(server, data.mode());
         Component message = Component.translatable("chat.digicube.mode.locked", name(data.mode()));
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (Commands.hasPermission(Commands.LEVEL_GAMEMASTERS).test(player.createCommandSourceStack())) {
-                player.sendSystemMessage(message);
+        // queued, so it follows the line /gamerule prints after setting the rule and is the last word operators read
+        server.schedule(server.wrapRunnable(() -> {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (Commands.hasPermission(Commands.LEVEL_GAMEMASTERS).test(player.createCommandSourceStack())) {
+                    player.sendSystemMessage(message);
+                }
             }
-        }
+        }));
         Constants.LOG.info("DigiCube Mode can't be changed after creation; the game rule is back to {}.", data.mode());
     }
 

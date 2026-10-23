@@ -18,7 +18,7 @@ Every world plays one DigiCube Mode, TAMER or CLASSIC, chosen once by its creato
   After that the rule only mirrors the saved mode.
 - **The lock**: any change to the rule (`/gamerule`, the in-world Game Rules screen) reaches
   `DigiCubeModes.ruleChanged` through `GameRuleEvents.changeCallback`, which sets the rule straight back and tells the
-  operators online (`chat.digicube.mode.locked`).
+  operators online (`chat.digicube.mode.locked`), queued so it follows the line `/gamerule` prints.
 - **Players**: on joining, `DigiCubeModePayload` gives the client the mode (`PartyClient.mode()`); the first join in a
   world prints `chat.digicube.mode.joined`. The Digivice's tab strip ends in TAMER MODE (cyan) or CLASSIC MODE (amber).
 - Headless scenarios put the dev world in a mode with `DigiCubeModes.stage`, past the lock, and put its own mode back
