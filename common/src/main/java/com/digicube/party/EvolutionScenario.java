@@ -3,6 +3,8 @@ package com.digicube.party;
 import com.digicube.Constants;
 import com.digicube.digimon.*;
 import com.digicube.entity.*;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModes;
 import com.digicube.registry.DCEntityTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.*;
@@ -25,7 +27,9 @@ public final class EvolutionScenario {
     private static boolean mounted;
     private static DigimonEntity combatPrey;
     private static int combatStep,combatDeadline,commitTick;
-    private static int growthStep;
+    private static int growthStep,tamerStep;
+    /** The dev world's own mode, put back at the end: the suite runs CLASSIC's rules, then TAMER's. */
+    private static DigiCubeMode original;
 
     private EvolutionScenario() {}
     private static void check(boolean value,String label){if(!value)throw new AssertionError(label+" step="+step);}
@@ -48,9 +52,9 @@ public final class EvolutionScenario {
                     check(Math.abs(hp-partner.getHealth()/partner.getMaxHealth())<1e-6,"level no healing");
                     fraction=hp;check(partner.evolution().charge==3600,"one-time unlock grant");
                     // The choice: two ready routes, so the tamer has to name one; news until its tree is opened.
-                    check(partner.evolution().news(partner.getSpeciesId(),20)&&PartyMemberView.of(data,member).line().isEmpty(),"agumon at 20 has an open choice and news");
-                    check(PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&!partner.evolution().news(partner.getSpeciesId(),20),"opening its tree clears the news");
-                    check((PartyMemberView.of(data,member).noticed()&3)==3,"the snapshot carries both routes as seen");
+                    check(partner.evolution().news(partner.getSpeciesId(),20,true)&&PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).line().isEmpty(),"agumon at 20 has an open choice and news");
+                    check(PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&!partner.evolution().news(partner.getSpeciesId(),20,true),"opening its tree clears the news");
+                    check((PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).noticed()&3)==3,"the snapshot carries both routes as seen");
                     check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose")&&partner.evolution().charge==3600,"no choice named: refused, nothing spent");
                     check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("garurumon")).endsWith("route"),"another Rookie's Champion refused");
                     check(partner.evolution().line==null,"nothing bound before a digivolution commits");
@@ -80,7 +84,7 @@ public final class EvolutionScenario {
                 case 2 -> {
                     check(partner.getSpeciesId().equals(Constants.id("greymon")),"commit at long duration");check(partner.evolutionEvent()==null,"commit clears tracked event with species");
                     check(partner.evolution().charge==3240,"drain begins after commit");check(partner.evolution().completed.contains(Constants.id("greymon")),"history commit");
-                    check(Constants.id("greymon").equals(partner.evolution().line)&&PartyMemberView.of(data,member).line().equals("digicube:greymon"),"the first digivolution binds it to greymon");
+                    check(Constants.id("greymon").equals(partner.evolution().line)&&PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).line().equals("digicube:greymon"),"the first digivolution binds it to greymon");
                     check(Math.abs(fraction-partner.getHealth()/partner.getMaxHealth())<1e-6,"form no healing");
                     check(EvolutionController.revert(partner).isEmpty(),"return accepted");waitUntil=now+16;
                 }
@@ -119,7 +123,7 @@ public final class EvolutionScenario {
                     check(old.originRequired()&&!old.active()&&!data.live.containsKey(old.id()),"unresolved owned Champion safely stored");
                     check(PartyEvolution.action(owner,old.id(),"origin",0,Constants.id("gomamon")).endsWith("origin"),"unrelated origin rejected");
                     check(PartyEvolution.action(owner,old.id(),"origin",0,Constants.id("agumon")).isEmpty()&&old.species().equals(Constants.id("agumon")),"explicit origin repair");
-                    check(Constants.id("greymon").equals(old.evolution().line)&&old.evolution().choices(old.species(),20).equals(List.of(Constants.id("greymon"))),"the Rookie form stays bound to the Champion it was");
+                    check(Constants.id("greymon").equals(old.evolution().line)&&old.evolution().choices(old.species(),20,true).equals(List.of(Constants.id("greymon"))),"the Rookie form stays bound to the Champion it was");
                     var crab=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);crab.initializeAs(DigimonSpeciesRegistry.getOrThrow(Constants.id("gesomon")),20);var unresolved=PartyManager.give(owner,crab);
                     check(unresolved.originRequired()&&!unresolved.active()&&unresolved.evolution().origin==null&&EvolutionRules.origins(unresolved.species()).equals(List.of(Constants.id("ganimon"))),"no ancestry guessed");
                     pass("evolution_origin_migration","direct Champions stored; explicit matching Rookie only, bound to the Champion it was");
@@ -144,7 +148,7 @@ public final class EvolutionScenario {
                 }
                 default -> throw new AssertionError("unexpected step");
             }
-        } catch(RuntimeException|AssertionError error){Constants.LOG.error("[scenario] FAIL evolution_checks",error);done=true;level.getServer().halt(false);}
+        } catch(RuntimeException|AssertionError error){Constants.LOG.error("[scenario] FAIL evolution_checks",error);done=true;if(original!=null)DigiCubeModes.stage(level.getServer(),original);level.getServer().halt(false);}
     }
     private static void routes(ServerLevel level,int now) {
         if(routeIndex>=routeSources.size()){combat(level,now);return;}
@@ -224,8 +228,8 @@ public final class EvolutionScenario {
                 member=PartyManager.give(owner,fresh);partner=data.live.get(member.id());check(partner!=null,"baby deployed");
                 partner.setNoAi(true);partner.setPos(0,301,0);partner.setOnGround(true);
                 check(PartyEvolution.action(owner,member.id(),"evolve",0,agumon).endsWith("grow_level"),"a level-9 Baby II cannot grow yet");
-                check(PartyEvolution.action(owner,member.id(),"level",10,null).isEmpty()&&partner.evolution().news(koromon,10),"at level 10 its two Rookies are news");
-                check((PartyMemberView.of(data,member).noticed()&3)==0&&PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&(PartyMemberView.of(data,member).noticed()&3)==3,"its tree's NOTICE marks both Rookies seen");
+                check(PartyEvolution.action(owner,member.id(),"level",10,null).isEmpty()&&partner.evolution().news(koromon,10,true),"at level 10 its two Rookies are news");
+                check((PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).noticed()&3)==0&&PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&(PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).noticed()&3)==3,"its tree's NOTICE marks both Rookies seen");
                 check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose"),"two Rookies: the tamer has to name one");
                 check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("greymon")).endsWith("route"),"a Champion is no growth");
                 check(partner.evolution().charge==0&&!partner.evolution().initialized,"a Baby II has no DigiSoul");
@@ -248,13 +252,63 @@ public final class EvolutionScenario {
                 check(s.line==null&&s.origin==null&&s.charge==0&&!s.initialized&&s.noticed.isEmpty()&&s.completed.isEmpty(),"a fresh Rookie: no line, no return form, no DigiSoul, no history");
                 check(EvolutionController.revert(partner).endsWith("busy"),"a growth cannot be undone");
                 check(EvolutionController.evolve(partner,Constants.id("greymon")).endsWith("level"),"its Champions wait for level 20");
-                check(PartyEvolution.action(owner,member.id(),"level",20,null).isEmpty()&&partner.evolution().choices(agumon,20).size()==2,"at 20 both of Agumon's Champions are open");
+                check(PartyEvolution.action(owner,member.id(),"level",20,null).isEmpty()&&partner.evolution().choices(agumon,20,true).size()==2,"at 20 both of Agumon's Champions are open");
                 PartyManager.select(owner,member.id(),-1);
                 check(member.species().equals(agumon)&&member.level()==20,"stored as an Agumon");
                 pass("evolution_growth","L9 refused; L10 Koromon chooses Betamon or Agumon, recall mid-way keeps Koromon, Agumon committed for good with no DigiSoul and an open Champion choice");
+                waitUntil=now;
+            }
+            default -> tamer(level,now);
+        }
+    }
+    /** TAMER: nothing binds and there is no DigiSoul. Either Champion every time, nothing spent or drained, the cooldown kept. */
+    private static void tamer(ServerLevel level,int now) {
+        if(now<waitUntil)return;
+        var agumon=Constants.id("agumon");var greymon=Constants.id("greymon");var meramon=Constants.id("meramon");
+        switch(tamerStep++) {
+            case 0 -> {
+                DigiCubeModes.stage(level.getServer(),DigiCubeMode.TAMER);
+                var fresh=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);fresh.initializeAs(DigimonSpeciesRegistry.getOrThrow(agumon),20);
+                member=PartyManager.give(owner,fresh);partner=data.live.get(member.id());check(partner!=null,"TAMER: Agumon deployed");
+                partner.setNoAi(true);partner.setPos(0,301,0);partner.setOnGround(true);
+                partner.evolution().charge=0; // an empty DigiSoul changes nothing where there is none
+                check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose"),"TAMER: two Champions, the tamer names one");
+                check(EvolutionController.evolve(partner,greymon).isEmpty(),"TAMER: Greymon accepted with an empty DigiSoul");
+                check(partner.evolution().charge==Progression.DIGISOUL_CAPACITY&&!partner.evolution().fee,"TAMER: nothing spent");
+                waitUntil=now+EvolutionTimeline.LONG.duration();
+            }
+            case 1 -> {
+                var s=partner.evolution();
+                check(partner.getSpeciesId().equals(greymon)&&s.phase==EvolutionState.Phase.EVOLVED&&s.line==null,"TAMER: Greymon committed, nothing bound");
+                var view=PartyMemberView.of(data,member,DigiCubeMode.TAMER);
+                check(view.line().isEmpty()&&view.soul()==Progression.DIGISOUL_CAPACITY&&view.soulHeld(),"TAMER: the view has no line and a full DigiSoul that never counts down");
+                waitUntil=now+400;
+            }
+            case 2 -> {
+                check(partner.getSpeciesId().equals(greymon)&&partner.evolution().charge==Progression.DIGISOUL_CAPACITY,"TAMER: still Greymon 400 ticks on, nothing drained");
+                check(EvolutionController.revert(partner).isEmpty(),"TAMER: sent back");waitUntil=now+16;
+            }
+            case 3 -> {
+                check(partner.getSpeciesId().equals(agumon)&&partner.evolution().cooldown>Progression.EVOLUTION_COOLDOWN-5,"TAMER: back to Agumon, cooling down");
+                check(EvolutionController.evolve(partner,meramon).endsWith("cooldown"),"TAMER: the cooldown still applies");
+                waitUntil=now+Progression.EVOLUTION_COOLDOWN+2;
+            }
+            case 4 -> {
+                check(partner.evolution().choices(agumon,20,false).size()==2&&partner.evolution().news(agumon,20,false),"TAMER: both Champions still open after Greymon, unseen ones news");
+                check(EvolutionController.evolve(partner,meramon).isEmpty()&&partner.evolution().duration==EvolutionTimeline.LONG.duration(),"TAMER: Meramon accepted after Greymon, its first time long");
+                waitUntil=now+EvolutionTimeline.LONG.duration();
+            }
+            case 5 -> {
+                check(partner.getSpeciesId().equals(meramon)&&partner.evolution().line==null,"TAMER: Meramon committed, still unbound");
+                check(PartyEvolution.action(owner,member.id(),"level",19,null).isEmpty(),"TAMER: dev level 19");waitUntil=now+17;
+            }
+            case 6 -> {
+                check(partner.getSpeciesId().equals(agumon),"TAMER: under level 20 a Champion goes back by itself");
+                PartyManager.select(owner,member.id(),-1);
+                pass("evolution_tamer","either Champion every time, nothing spent or drained, stays until sent back, cooldown kept, no bind");
                 finish(level);
             }
-            default -> throw new AssertionError("growth step");
+            default -> throw new AssertionError("tamer step");
         }
     }
     private static void tracking(ServerLevel level) {
@@ -281,6 +335,7 @@ public final class EvolutionScenario {
     }
     private static void setup(ServerLevel level) {
         started=true;var server=level.getServer();server.tickRateManager().requestGameToSprint(20000);
+        original=DigiCubeModes.of(server);DigiCubeModes.stage(server,DigiCubeMode.CLASSIC);
         for(int x=-2;x<=1;x++)for(int z=-2;z<=1;z++)level.setChunkForced(x,z,true);
         for(int x=-16;x<=16;x++)for(int z=-16;z<=16;z++)for(int y=300;y<320;y++)level.setBlock(new BlockPos(x,y,z),(y==300?Blocks.STONE:Blocks.AIR).defaultBlockState(),3);
         level.getEntitiesOfClass(net.minecraft.world.entity.Mob.class,new net.minecraft.world.phys.AABB(-18,298,-18,18,315,18)).forEach(net.minecraft.world.entity.Entity::discard);
@@ -302,6 +357,7 @@ public final class EvolutionScenario {
     }
     private static void finish(ServerLevel level) {
         done=true;PartyManager.disconnect(owner);level.getServer().getPlayerList().getPlayers().remove(owner);level.getServer().getPlayerList().getPlayersByUUID().remove(owner.getUUID());owner.discard();
+        DigiCubeModes.stage(level.getServer(),original);
         Constants.LOG.info("[scenario] PASS evolution_checks cases={}",cases);level.getServer().halt(false);
     }
 }

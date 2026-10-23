@@ -115,7 +115,8 @@ final class PartyHud {
      * @param selected  the party slot the arrow keys have selected; its card wears the amber corner brackets
      * @param evolveKey the Digivolve key, for the READY hint on the selected card
      */
-    void draw(GuiGraphicsExtractor graphics, DeltaTracker delta, PartySnapshotPayload snapshot, int age, int selected, KeyMapping evolveKey) {
+    /** {@code digisoul}: whether the world runs digivolution on DigiSoul (CLASSIC); in TAMER the cards show none. */
+    void draw(GuiGraphicsExtractor graphics, DeltaTracker delta, PartySnapshotPayload snapshot, int age, int selected, KeyMapping evolveKey, boolean digisoul) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.player.isSpectator() || client.gui.hud.isHidden() || snapshot.total() == 0
                 // the dev panel is translucent and centred: the strip would show through it
@@ -159,7 +160,7 @@ final class PartyHud {
             boolean isSelected = slot == selected;
             String key = isSelected && evolveKey != null && !evolveKey.isUnbound() ? evolveKey.getTranslatedKeyMessage().getString() : "";
             card(graphics, font, x, y, member, age, isSelected, key, flightFuel.get(member.id()), gauges.get(member.id()),
-                    memories.computeIfAbsent(member.id(), id -> new Memory()), time, fade);
+                    memories.computeIfAbsent(member.id(), id -> new Memory()), time, fade, digisoul);
             y += H + GAP;
         }
         graphics.pose().popMatrix();
@@ -184,13 +185,15 @@ final class PartyHud {
     }
 
     private void card(GuiGraphicsExtractor g, Font font, int x, int y, PartyMemberView m, int age, boolean selected, String key,
-                      Float fuel, Float gauge, Memory memory, float time, float fade) {
+                      Float fuel, Float gauge, Memory memory, float time, float fade, boolean digisoul) {
         float health = PartyHudReadout.healthFraction(m);
         boolean alive = m.health() > 0;
         boolean lit = alive && m.deployed();
         boolean hurt = alive && health <= LOW_HEALTH;
         boolean route = EvolutionRules.target(m.species(), m.level()).isPresent();
         Status status = PartyHudReadout.status(m, age, route);
+        // TAMER has no DigiSoul: a Champion's card names its stage instead of a clock
+        if (!digisoul && status == Status.SOUL) status = Status.STAGE;
         DigimonSpecies species = DigimonSpeciesRegistry.get(m.species()).orElse(null);
         DigimonAttribute attribute = species == null ? DigimonAttribute.UNKNOWN : species.attribute();
         int attributeColor = DigiPanels.attributeColor(attribute);
@@ -295,8 +298,13 @@ final class PartyHud {
         rect(g, hx, y + 36, xpWidth, 2, tint(memory.flash > 0 ? DigiTheme.GRID_BRIGHT : DigiTheme.DATA, 0xFF, fade));
         rect(g, hx, y + 36, xpWidth, 1, tint(memory.flash > 0 ? DigiTheme.WHITE : DigiTheme.DATA_LIGHT, 0x90, fade));
 
-        // DigiSoul cell
+        // DigiSoul cell (CLASSIC only)
         int gx = x + 103, gy = y + 4, gw = 5, gh = 34;
+        if (!digisoul) {
+            if (selected) DigiPanels.brackets(g, x, y, W, H, 8, 2, tint(DigiTheme.AMBER, 0xFF, fade));
+            bloom(g, x, y, memory, fade);
+            return;
+        }
         rect(g, gx - 1, gy - 1, gw + 2, gh + 2, tint(DigiTheme.SHADOW, 0xFF, fade));
         rect(g, gx, gy, gw, gh, tint(DigiTheme.VOID, 0xE6, fade));
         boolean locked = PartyHudReadout.soulLocked(m);
@@ -323,13 +331,16 @@ final class PartyHud {
             rect(g, gx + 1, gy + 2, 3, 1, tint(DigiTheme.WHITE, Math.round(0x60 + 0x9F * breath(time, DigiTheme.BREATH_TICKS, 0)), fade));
         }
         if (selected) DigiPanels.brackets(g, x, y, W, H, 8, 2, tint(DigiTheme.AMBER, 0xFF, fade));
-        // level up: data squares bloom over the card
-        if (memory.flash > 0) {
-            int[][] cells = {{8, 8}, {18, 12}, {10, 20}, {22, 22}, {16, 28}};
-            for (int i = 0; i < cells.length; i++) {
-                float alpha = Math.max(0, Mth.sin(memory.flash / (float) DigiTheme.FLASH_TICKS * Mth.PI + i)) * 0x70;
-                rect(g, x + cells[i][0], y + cells[i][1], 6, 6, tint(DigiTheme.DATA_LIGHT, Math.round(alpha), fade));
-            }
+        bloom(g, x, y, memory, fade);
+    }
+
+    /** Level up: data squares bloom over the card. */
+    private static void bloom(GuiGraphicsExtractor g, int x, int y, Memory memory, float fade) {
+        if (memory.flash <= 0) return;
+        int[][] cells = {{8, 8}, {18, 12}, {10, 20}, {22, 22}, {16, 28}};
+        for (int i = 0; i < cells.length; i++) {
+            float alpha = Math.max(0, Mth.sin(memory.flash / (float) DigiTheme.FLASH_TICKS * Mth.PI + i)) * 0x70;
+            rect(g, x + cells[i][0], y + cells[i][1], 6, 6, tint(DigiTheme.DATA_LIGHT, Math.round(alpha), fade));
         }
     }
 

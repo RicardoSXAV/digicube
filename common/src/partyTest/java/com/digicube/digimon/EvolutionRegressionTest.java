@@ -27,15 +27,18 @@ public final class EvolutionRegressionTest {
             check(EvolutionRules.targets(rookie,20).equals(List.of(adult,meramon))&&EvolutionRules.targets(rookie,19).isEmpty(),"agumon offers greymon and meramon at 20, in sheet order");
             check(EvolutionRules.validOrigin(Constants.id("tentomon"),Constants.id("digmon"))&&EvolutionRules.champion(Constants.id("digmon")),"an Armor route counts as a Champion");
             check(EvolutionRules.targets(Constants.id("elecmon"),20).equals(List.of(Constants.id("leomon"),Constants.id("darktyrannomon"))),"elecmon offers leomon and darktyrannomon at 20, in sheet order");
-            var open=new EvolutionState();check(open.line(rookie)==null&&open.choices(rookie,20).size()==2,"unbound: both open");
-            check(open.news(rookie,20)&&!open.news(rookie,19),"ready routes not looked at are news");
-            open.noticed.addAll(open.choices(rookie,20));check(!open.news(rookie,20),"looked at, no news");
-            open.line=meramon;check(open.line(rookie).equals(meramon)&&open.choices(rookie,20).equals(List.of(meramon)),"bound: only the chosen form");
-            check(!open.news(rookie,20),"a bound Digimon has no choice to announce");
+            var open=new EvolutionState();check(open.line(rookie)==null&&open.choices(rookie,20,true).size()==2,"unbound: both open");
+            check(open.news(rookie,20,true)&&!open.news(rookie,19,true),"ready routes not looked at are news");
+            open.noticed.addAll(open.choices(rookie,20,true));check(!open.news(rookie,20,true),"looked at, no news");
+            open.line=meramon;check(open.line(rookie).equals(meramon)&&open.choices(rookie,20,true).equals(List.of(meramon)),"bound: only the chosen form");
+            check(!open.news(rookie,20,true),"a bound Digimon has no choice to announce");
+            // TAMER: a line binds nothing; both forms stay open every time.
+            check(open.choices(rookie,20,false).equals(List.of(adult,meramon)),"TAMER: a line binds nothing");
+            open.noticed.remove(adult);check(open.news(rookie,20,false)&&!open.news(rookie,20,true),"TAMER: an unseen ready form is news even with a line");open.noticed.add(adult);
             open.origin=rookie;check(open.line(meramon).equals(meramon),"the Champion form keeps its line");
             var bound=EvolutionState.load(open.save());check(meramon.equals(bound.line)&&bound.noticed.containsAll(List.of(adult,meramon)),"line and noticed persist");
             check(EvolutionState.load(new CompoundTag()).line==null&&EvolutionState.load(new CompoundTag()).noticed.isEmpty(),"old saves load unbound");
-            var legacy=new EvolutionState();legacy.completed.add(adult);check(adult.equals(legacy.line(rookie))&&legacy.choices(rookie,20).equals(List.of(adult)),"a save that reached greymon before the choice existed is bound to it");
+            var legacy=new EvolutionState();legacy.completed.add(adult);check(adult.equals(legacy.line(rookie))&&legacy.choices(rookie,20,true).equals(List.of(adult)),"a save that reached greymon before the choice existed is bound to it");
             var migrated=new EvolutionState();migrated.origin=rookie;migrated.migrationChampion=meramon;check(meramon.equals(migrated.line(rookie)),"a Champion given a Rookie form keeps its Champion");
             check(new EvolutionState().line(Constants.id("gesomon")).equals(Constants.id("gesomon")),"a Champion with no Rookie form is bound to itself");
             check(com.digicube.party.PartyActionPayload.routeValue(rookie,meramon)==2&&meramon.equals(com.digicube.party.PartyActionPayload.route(rookie,2))

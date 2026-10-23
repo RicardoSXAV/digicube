@@ -29,16 +29,18 @@ classpath loaders do not process `/reload`.
   cooldown and is for good: at its commit `EvolutionController` leaves the Rookie at rest with no line, no return form
   and no history, its Champion choice still open (the server's refusal below 10 is `grow_level`). It plays the long
   sequence; a recall in the middle leaves the Baby II.
-- **Digivolution** opens at `CHAMPION_LEVEL` (20) on DigiSoul, and the first one to commit binds the individual to that
-  Champion for good: `EvolutionState.line`, saved with the evolution state. `EvolutionController.evolve(entity, choice)`
-  refuses a missing choice while several routes are open (`choose`) and any other Champion once bound (`locked`); the
-  one-argument `evolve` (tooling) takes the line, else the first ready route. A Champion with no Rookie form is bound
-  to the form it is, and SET (`origin`) keeps that; `EvolutionRules.validOrigin` names Rookies only. Saves from before
-  the choice bind to the Champion they reached.
+- **Digivolution** opens at `CHAMPION_LEVEL` (20). In CLASSIC it runs on DigiSoul and the first one to commit binds the
+  individual to that Champion for good: `EvolutionState.line`, saved with the evolution state. In TAMER nothing binds
+  and there is no DigiSoul ([game-modes.md](game-modes.md#what-each-mode-changes)). `EvolutionController.evolve(entity,
+  choice)` refuses a missing choice while several routes are open (`choose`) and any other Champion once bound
+  (`locked`); the one-argument `evolve` (tooling) takes the line, else the first ready route. A Champion with no Rookie
+  form is bound to the form it is, and SET (`origin`) keeps that; `EvolutionRules.validOrigin` names Rookies only.
+  Saves from before the choice bind to the Champion they reached.
 - `EvolutionState.noticed` holds the routes the tamer has seen ready in the Digimon's tree (`PartyActionPayload.NOTICE`);
   a ready route not in it is news. `PartyActionPayload.EVOLVE` carries the route as 1 + its index (0: the line), for a
   growth as for a digivolution. Check with `DIGICUBE_SCENARIO=evolution_checks` (`[scenario] PASS evolution_checks
-  cases=29`: every Champion route staged, and `evolution_growth`) and `:common:evolutionTest`.
+  cases=30`: CLASSIC with every Champion route staged and `evolution_growth`, then `evolution_tamer`) and
+  `:common:evolutionTest`.
 
 ## Ownership and the first partner
 

@@ -146,7 +146,7 @@ public final class PartyClient {
         HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, vanilla ->
                 (graphics, delta) -> RiderAttacks.hud(graphics, delta, () -> vanilla.extractRenderState(graphics, delta)));
         HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, Constants.id("party"),
-                (graphics, delta) -> hud.draw(graphics, delta, snapshot, snapshotAge, selected, evolveKey));
+                (graphics, delta) -> hud.draw(graphics, delta, snapshot, snapshotAge, selected, evolveKey, mode.digisoul()));
     }
 
     /**

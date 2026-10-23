@@ -47,33 +47,34 @@ public record PartyMemberView(UUID id, Identifier species, String nickname, floa
     public PartyMemberView(UUID id,Identifier species,String nickname,float health,float maxHealth,int level,int xp,int slot,boolean deployed,int restTicks) {
         this(id,species,nickname,health,maxHealth,level,xp,slot,deployed,restTicks,0,"RESTING",0,false,"",true,0,0);
     }
-    public static PartyMemberView of(PartySavedData data, PartyMember member) {
+    /**
+     * The summary of {@code member} in a world of {@code mode}. In TAMER no choice binds, so {@code line} stays empty,
+     * and there is no DigiSoul, so {@code soul} reads full and {@code soulHeld} is set: nothing waits on it or counts it
+     * down, and the client does not show it.
+     */
+    public static PartyMemberView of(PartySavedData data, PartyMember member, com.digicube.mode.DigiCubeMode mode) {
         String name = member.nickname();
         // The saved entity snapshot is intentionally less frequent than UI health updates.
         var live = data.live.get(member.id());
         var state=live==null?member.evolution():live.evolution();var species=live==null?member.species():live.getSpeciesId();
-        var bound=state.line(species);
+        var bound=mode.binds()?state.line(species):null;
+        boolean soulless=!mode.digisoul();
         var target=bound!=null?bound:com.digicube.digimon.EvolutionRules.target(species,Math.max(20,member.level())).orElse(null);
         return new PartyMemberView(member.id(), species, name.substring(0, Math.min(name.length(), 128)),
                 live == null ? member.health() : live.getHealth(),
                 live == null ? member.maxHealth() : live.getMaxHealth(),
                 live == null ? member.level() : live.getLevel(),
                 live == null ? member.xp() : live.getXp(),
-                member.slot(), live != null, live == null ? member.restTicks() : 0,state.charge,state.phase.name(),state.cooldown,
+                member.slot(), live != null, live == null ? member.restTicks() : 0,soulless?com.digicube.digimon.Progression.DIGISOUL_CAPACITY:state.charge,state.phase.name(),state.cooldown,
                 state.needsOrigin(species)&&!PartyManager.creative(data,member.owner()),
                 state.origin==null?"":state.origin.toString(),target!=null&&!state.completed.contains(target),member.generation(),state.sequence,
-                live != null && live.isHolding(), live != null && live.hasLiveTarget(), PartyManager.creative(data, member.owner()),
+                live != null && live.isHolding(), live != null && live.hasLiveTarget(), soulless || PartyManager.creative(data, member.owner()),
                 live != null ? live.manualMask() : member.manualMask(), live != null ? live.liveTargetId() : -1,
-                lineOf(state, species), noticedMask(state, species), live == null ? member.hatchTicks() : 0);
+                bound == null ? "" : bound.toString(), noticedMask(state, species), live == null ? member.hatchTicks() : 0);
     }
 
     /** A Digitama from the scan, still waiting to hatch: it stays in the Digivice and cannot join the party. */
     public boolean egg() { return hatchTicks > 0; }
-
-    private static String lineOf(com.digicube.digimon.EvolutionState state, Identifier species) {
-        Identifier line = state.line(species);
-        return line == null ? "" : line.toString();
-    }
 
     /** The routes of the Baby II or Rookie form behind {@code species} the tamer has seen ready, one bit each. */
     private static int noticedMask(com.digicube.digimon.EvolutionState state, Identifier species) {

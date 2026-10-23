@@ -1,6 +1,8 @@
 package com.digicube.entity;
 
 import com.digicube.digimon.*;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModes;
 import com.digicube.party.PartyManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -12,17 +14,21 @@ public final class EvolutionController {
     private EvolutionController() {}
     /** Tooling: the Champion it is bound to, else its first ready route. */
     public static String evolve(DigimonEntity entity) {
-        var choices=entity.evolution().choices(entity.getSpeciesId(),entity.getLevel());
+        var choices=entity.evolution().choices(entity.getSpeciesId(),entity.getLevel(),mode(entity).binds());
         return evolve(entity,choices.isEmpty()?null:choices.getFirst());
     }
+    /** The world's DigiCube Mode, which every rule here reads through this. */
+    private static DigiCubeMode mode(DigimonEntity entity){var server=entity.level().getServer();return server==null?DigiCubeMode.TAMER:DigiCubeModes.of(server);}
     /**
      * The tamer's digivolution into {@code choice}. Before the first one commits every ready route is open and the
-     * tamer must name one when there are several; after it, only the Champion it took ({@link EvolutionState#line}),
-     * so a null choice means that one and any other is refused. A Baby II's growth into a Rookie takes the same path:
-     * a choice among its family's Rookies, from {@link Progression#GROWTH_LEVEL}, for good and without DigiSoul.
+     * tamer must name one when there are several; after it, in CLASSIC, only the Champion it took
+     * ({@link EvolutionState#line}), so a null choice means that one and any other is refused. TAMER never binds and
+     * has no DigiSoul: every ready route stays open and nothing is spent, only the cooldown is kept. A Baby II's growth
+     * into a Rookie takes the same path: a choice among its family's Rookies, from {@link Progression#GROWTH_LEVEL},
+     * for good and without DigiSoul.
      */
     public static String evolve(DigimonEntity entity,Identifier choice) {
-        var s=entity.evolution();s.unlock(entity.getSpeciesId(),entity.getLevel());
+        var s=entity.evolution();s.unlock(entity.getSpeciesId(),entity.getLevel());var mode=mode(entity);
         if(s.transitioning()||s.phase==EVOLVED)return reject(s,"busy");
         if(!entity.isAlive())return reject(s,"resting");
         if(entity.isVehicle()||entity.isPassenger())return reject(s,"dismount");
@@ -30,20 +36,22 @@ public final class EvolutionController {
         if(entity.hasEffect(com.digicube.registry.DCEffects.CONSTRICTED))return reject(s,"captured");
         boolean growth=EvolutionRules.baby(entity.getSpeciesId());
         if(entity.getLevel()<EvolutionRules.minimumLevel(entity.getSpeciesId()))return reject(s,growth?"grow_level":"level");
-        var choices=s.choices(entity.getSpeciesId(),entity.getLevel());var bound=s.line(entity.getSpeciesId());
+        var choices=s.choices(entity.getSpeciesId(),entity.getLevel(),mode.binds());var bound=mode.binds()?s.line(entity.getSpeciesId()):null;
         if(choices.isEmpty())return reject(s,"route");
         if(bound!=null&&choice!=null&&!choice.equals(bound))return reject(s,"locked");
         if(choice==null&&choices.size()>1)return reject(s,"choose");
         var target=choice==null?choices.getFirst():choice;
         if(!choices.contains(target))return reject(s,"route");
         boolean creative=creative(entity);
+        // TAMER has no DigiSoul: it reads full, so nothing waits on it or spends it.
+        if(!mode.digisoul()){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}
         if(!growth&&s.cooldown>0&&!creative)return reject(s,"cooldown");
         if(!growth&&s.charge<Progression.DIGISOUL_MINIMUM&&!creative)return reject(s,"charge");
         if(!fits(entity,target))return reject(s,"space");
         // Growth spends nothing and leaves nothing to return to.
         if(growth){begin(entity,target,EvolutionTimeline.LONG.duration(),EVOLVING);return "";}
         s.origin=entity.getSpeciesId();
-        if(creative){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}else{s.charge-=Progression.DIGISOUL_FEE;s.fee=true;}
+        if(creative||!mode.digisoul()){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}else{s.charge-=Progression.DIGISOUL_FEE;s.fee=true;}
         begin(entity,target,s.completed.contains(target)?EvolutionTimeline.SHORT.duration():EvolutionTimeline.LONG.duration(),EVOLVING);return "";
     }
     /** Test play: the owner is in creative (see {@code PartyManager.creative}). */
@@ -88,24 +96,31 @@ public final class EvolutionController {
             s.rejection="";boolean upward=s.phase==EVOLVING,growth=upward&&EvolutionRules.baby(s.source);entity.changeEvolutionForm(s.target);
             // A growth is for good: the Rookie it became starts its own story, its Champion choice still open.
             if(growth){s.phase=RESTING;s.origin=null;s.line=null;s.fee=false;s.cooldown=0;s.noticed.clear();s.source=null;s.target=null;}
-            // The first digivolution to commit binds the Digimon to that Champion for good.
-            else if(upward){if(s.line==null)s.line=s.target;s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
+            // In CLASSIC the first digivolution to commit binds the Digimon to that Champion for good; TAMER never binds.
+            else if(upward){if(mode(entity).binds()&&s.line==null)s.line=s.target;s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
             entity.syncEvolutionEvent(false);PartyManager.progressChanged(entity);return;
         }
         if(creative(entity)) {
             // Test play: DigiSoul stays full and nothing cools down, so a Champion can be tried for as long as it takes.
             s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;s.cooldown=0;
+        } else if(!mode(entity).digisoul()) {
+            // TAMER: no DigiSoul. A Champion stays until its tamer sends it back; only a level under the Champion's ends it.
+            s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;
+            if(s.phase==EVOLVED){if(entity.getLevel()<Progression.CHAMPION_LEVEL)sendBack(entity);}
+            else s.recover(false);
         } else if(s.phase==EVOLVED) {
             if(entity.getLevel()<Progression.CHAMPION_LEVEL)s.charge=0;
             if(s.charge>0)s.charge--;
             if(s.charge==600||s.charge==200)if(entity.getOwner() instanceof net.minecraft.server.level.ServerPlayer player)
                 player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("gui.digicube.evolution.warning",s.charge/20));
-            if(s.charge==0) {
-                entity.stopForEvolution();
-                if(entity.isVehicle()||entity.isPassenger()||entity.isFlyingMovement()||!fits(entity,s.origin))PartyManager.storeForEvolution(entity);
-                else begin(entity,s.origin,16,REVERTING);
-            }
+            if(s.charge==0)sendBack(entity);
         } else s.recover(PartyManager.canRecoverDigiSoul(entity)&&EvolutionRules.rookie(entity.getSpeciesId()));
+    }
+    /** A Champion's time is up: back to its Rookie form where it stands, or into the Digivice when it cannot be. */
+    private static void sendBack(DigimonEntity entity) {
+        var s=entity.evolution();entity.stopForEvolution();
+        if(entity.isVehicle()||entity.isPassenger()||entity.isFlyingMovement()||!fits(entity,s.origin))PartyManager.storeForEvolution(entity);
+        else begin(entity,s.origin,16,REVERTING);
     }
     /** Normalize before capture; transaction fee is refunded exactly once, history only on commit. */
     public static void normalize(DigimonEntity entity) {

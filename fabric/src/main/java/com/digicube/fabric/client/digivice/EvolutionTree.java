@@ -5,6 +5,7 @@ import com.digicube.digimon.DigimonSpeciesRegistry;
 import com.digicube.digimon.Evolution;
 import com.digicube.digimon.EvolutionRules;
 import com.digicube.fabric.client.party.CommandWheelReadout;
+import com.digicube.mode.DigiCubeMode;
 import com.digicube.party.PartyMemberView;
 import net.minecraft.resources.Identifier;
 
@@ -243,6 +244,23 @@ public final class EvolutionTree {
      * why {@code m} cannot digivolve right now ({@link CommandWheelReadout.Reason#NONE} when it can), as the wheel says it.
      */
     public static Sentence sentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block) {
+        return sentence(m, form, known, block, DigiCubeMode.CLASSIC);
+    }
+
+    /**
+     * The same in a world of {@code mode}: in TAMER, where nothing binds and there is no DigiSoul, a choice says the
+     * other form stays open, a Champion stays until it is sent back, and a Rookie form needs no DigiSoul.
+     */
+    public static Sentence sentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block, DigiCubeMode mode) {
+        Sentence s = classicSentence(m, form, known, block);
+        if (mode.digisoul() || m == null || EvolutionRules.baby(m.species())) return s;
+        return switch (s.key()) {
+            case "choose", "evolved", "set" -> new Sentence(s.key() + "_tamer", s.args(), s.amber(), s.record());
+            default -> s;
+        };
+    }
+
+    private static Sentence classicSentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block) {
         Branch up = parent(form);
         boolean seen = known.test(form);
         Sentence s;

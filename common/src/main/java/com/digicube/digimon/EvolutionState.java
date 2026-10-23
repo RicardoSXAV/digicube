@@ -38,14 +38,17 @@ public final class EvolutionState {
         if(migrationChampion!=null&&EvolutionRules.validOrigin(rookie,migrationChampion))return migrationChampion;
         return null;
     }
-    /** What {@code current} at {@code level} may digivolve into now: its line once bound, else every ready route. */
-    public List<Identifier> choices(Identifier current,int level) {
-        var ready=EvolutionRules.targets(current,level);var bound=line(current);
+    /**
+     * What {@code current} at {@code level} may digivolve into now: its line once bound, else every ready route. In a
+     * world whose first digivolution does not bind ({@code binds} false, TAMER) every ready route, always.
+     */
+    public List<Identifier> choices(Identifier current,int level,boolean binds) {
+        var ready=EvolutionRules.targets(current,level);var bound=binds?line(current):null;
         return bound==null?ready:ready.stream().filter(bound::equals).toList();
     }
     /** Whether {@code current} has a ready route the tamer has not looked at in its tree yet. */
-    public boolean news(Identifier current,int level) {
-        return line(current)==null&&choices(current,level).stream().anyMatch(t->!noticed.contains(t));
+    public boolean news(Identifier current,int level,boolean binds) {
+        return (!binds||line(current)==null)&&choices(current,level,binds).stream().anyMatch(t->!noticed.contains(t));
     }
     public void unlock(Identifier current,int level) {
         if(!initialized&&EvolutionRules.rookie(current)&&level>=Progression.CHAMPION_LEVEL){charge=Progression.DIGISOUL_CAPACITY;initialized=true;}

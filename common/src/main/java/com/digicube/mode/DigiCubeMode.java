@@ -20,6 +20,16 @@ public enum DigiCubeMode implements StringRepresentable {
         return this != UNSET;
     }
 
+    /** Whether a Rookie's first digivolution binds it to that Champion for good (CLASSIC); in TAMER each one picks anew. */
+    public boolean binds() {
+        return this == CLASSIC;
+    }
+
+    /** Whether digivolution runs on DigiSoul (CLASSIC); in TAMER a Champion stays until it is sent back. */
+    public boolean digisoul() {
+        return this == CLASSIC;
+    }
+
     /** The lang key of the mode's name, {@code mode.digicube.tamer}. */
     public String translationKey() {
         return "mode.digicube." + getSerializedName();

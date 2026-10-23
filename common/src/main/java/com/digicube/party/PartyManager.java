@@ -251,7 +251,8 @@ public final class PartyManager {
         boolean creative=creative(data,entity.getOwnerReference().getUUID());
         if(entity.evolution().needsOrigin(entity.getSpeciesId())&&!creative){storeForEvolution(entity);return false;}
         if(EvolutionRules.champion(entity.getSpeciesId())&&entity.evolution().phase==com.digicube.digimon.EvolutionState.Phase.RESTING) {
-            if(creative){entity.evolution().charge=Progression.DIGISOUL_CAPACITY;entity.evolution().initialized=true;}
+            // In creative, and in TAMER where there is no DigiSoul, it reads full.
+            if(creative||!com.digicube.mode.DigiCubeModes.of(level.getServer()).digisoul()){entity.evolution().charge=Progression.DIGISOUL_CAPACITY;entity.evolution().initialized=true;}
             if(entity.getLevel()<Progression.CHAMPION_LEVEL||entity.evolution().charge<=0){storeForEvolution(entity);return false;}
             entity.evolution().phase=com.digicube.digimon.EvolutionState.Phase.EVOLVED;
         }

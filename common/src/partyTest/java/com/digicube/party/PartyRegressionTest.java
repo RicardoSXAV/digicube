@@ -205,7 +205,10 @@ public final class PartyRegressionTest {
         check(repaired.owned(owner).size() == 3 && repaired.party(owner).size() == 1, "bad save slots repaired without deleting partners");
         check(new PartySavedData().roster().all().isEmpty(), "separate world registries do not share state");
 
-        PartyMemberView view = PartyMemberView.of(data, first);
+        PartyMemberView view = PartyMemberView.of(data, first, com.digicube.mode.DigiCubeMode.CLASSIC);
+        // TAMER has no DigiSoul and binds nothing: the view reads full, never counts down, and names no line.
+        PartyMemberView tamer = PartyMemberView.of(data, first, com.digicube.mode.DigiCubeMode.TAMER);
+        check(tamer.soul() == com.digicube.digimon.Progression.DIGISOUL_CAPACITY && tamer.soulHeld() && tamer.line().isEmpty(), "a TAMER view: full DigiSoul, held, no line");
         // Universal control: AUTO settings live in the stored entity data and travel as a mask in the snapshot.
         check(ManualAttacks.read(first.entityData()).isEmpty() && view.manual() == 0 && view.target() == -1, "every attack starts on AUTO, with no target");
         CompoundTag stored = new CompoundTag();

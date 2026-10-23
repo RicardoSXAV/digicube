@@ -125,10 +125,13 @@ final class EvolutionSheet {
         return CommandWheelReadout.modules(m, screen.client().snapshotAge(), route)[CommandWheelReadout.BOTTOM_RIGHT].reason();
     }
 
-    /** DIGIVOLVE on a form: the first time it asks, because the answer binds the Digimon; bound already, it digivolves. */
+    /**
+     * DIGIVOLVE on a form: when the answer is for good it asks first (a growth; in CLASSIC the first digivolution, which
+     * binds the Digimon); otherwise it digivolves.
+     */
     private void take(PartyMemberView m, Identifier form) {
         if (block(m) != CommandWheelReadout.Reason.NONE || !EvolutionTree.ready(m).contains(form)) return;
-        if (EvolutionTree.chooses(m)) { asking = form; focus = form; }
+        if (EvolutionTree.chooses(m) && (EvolutionRules.baby(m.species()) || screen.client().mode().binds())) { asking = form; focus = form; }
         else digivolve(m, form);
     }
 
@@ -358,8 +361,8 @@ final class EvolutionSheet {
         key(g, font, x + 6, ky, w - 12, an, false, seen, "tree_analyze", live, () -> { close(); screen.analyze(f); });
         int bottom = ky - 6;
 
-        // a partner's DigiSoul, and what a digivolution would spend of it
-        if (partner && (EvolutionRules.rookie(m.species()) || EvolutionTree.evolved(m))) {
+        // a partner's DigiSoul, and what a digivolution would spend of it (CLASSIC only)
+        if (partner && screen.client().mode().digisoul() && (EvolutionRules.rookie(m.species()) || EvolutionTree.evolved(m))) {
             int sy = bottom - 18;
             DigiviceKit.label(g, font, DigiviceScreen.upper(Component.translatable("gui.digicube.tree.digisoul")), x + 6, sy, w - 12);
             soul(g, font, x + 6, sy + 11, w - 12, m, go);
@@ -385,7 +388,7 @@ final class EvolutionSheet {
             }
             bottom = ay0 - 5;
         }
-        EvolutionTree.Sentence sentence = EvolutionTree.sentence(m, f, screen::knows, block);
+        EvolutionTree.Sentence sentence = EvolutionTree.sentence(m, f, screen::knows, block, screen.client().mode());
         int rows = Math.max(1, (bottom - (y + 31)) / 9);
         List<String> lines = wrap(font, text(sentence, m), w - 12);
         for (int i = 0; i < Math.min(rows, lines.size()); i++) g.text(font, lines.get(i), x + 6, y + 31 + i * 9, sentence.amber() ? DigiTheme.AMBER : DigiTheme.MUTED, false);

@@ -44,7 +44,7 @@ public final class PartyEvolution {
             case "notice" -> {
                 // The tamer opened its tree: what it can digivolve into now is no longer news.
                 var species=live==null?member.species():live.getSpeciesId();int level=live==null?member.level():live.getLevel();
-                var ready=state.choices(species,level);if(state.noticed.containsAll(ready))return "";
+                var ready=state.choices(species,level,com.digicube.mode.DigiCubeModes.of(player.level().getServer()).binds());if(state.noticed.containsAll(ready))return "";
                 state.noticed.addAll(ready);
             }
             case "preview" -> {
@@ -59,7 +59,7 @@ public final class PartyEvolution {
         data.setDirty();data.session(player.getUUID()).sync.invalidate();return result;
     }
     static void tick(MinecraftServer server,PartySavedData data) {
-        long now=server.overworld().getGameTime();
+        long now=server.overworld().getGameTime();boolean digisoul=com.digicube.mode.DigiCubeModes.of(server).digisoul();
         for(var owner:server.getPlayerList().getPlayers()) {
             var session=data.session(owner.getUUID());
             if(session.creative!=owner.isCreative()){session.creative=owner.isCreative();session.sync.invalidate();}
@@ -87,6 +87,8 @@ public final class PartyEvolution {
                 }
                 if(session.creative){state.charge=Progression.DIGISOUL_CAPACITY;state.initialized=true;state.cooldown=0;}
                 state.unlock(member.species(),member.level());state.recover(eligible&&!member.defeated()&&!member.resting()&&EvolutionRules.rookie(member.species()));
+                // TAMER has no DigiSoul: it reads full; only the cooldown counts down.
+                if(!digisoul){state.charge=Progression.DIGISOUL_CAPACITY;state.initialized=true;}
                 member.saveEvolution(state);data.setDirty();
             }
             if(now%20==0)session.sync.invalidate();

@@ -2,6 +2,8 @@ package com.digicube.fabric.party;
 
 import com.digicube.analyzer.AnalyzerDiscoveryPayload;
 import com.digicube.analyzer.AnalyzerWitness;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModes;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyHealthPayload;
 import com.digicube.party.PartyManager;
@@ -169,15 +171,16 @@ public final class FabricPartyNetworking {
     private static void send(ServerPlayer player, boolean open, String message) {
         if (!ServerPlayNetworking.canSend(player, PartySnapshotPayload.TYPE)) return;
         PartySavedData data = PartySavedData.get(player.level().getServer());
+        DigiCubeMode mode = DigiCubeModes.of(player.level().getServer());
         PartySavedData.Session session = data.session(player.getUUID());
         List<PartyMember> owned = data.roster().owned(player.getUUID());
         session.page = Math.min(session.page, Math.max(0, (owned.size() - 1) / PartySnapshotPayload.PAGE_SIZE));
         int first = session.page * PartySnapshotPayload.PAGE_SIZE;
         List<PartyMemberView> page = session.open ? owned.subList(first,
                 Math.min(owned.size(), first + PartySnapshotPayload.PAGE_SIZE)).stream()
-                .map(member -> PartyMemberView.of(data, member)).toList() : List.of();
+                .map(member -> PartyMemberView.of(data, member, mode)).toList() : List.of();
         PartySnapshotPayload snapshot = new PartySnapshotPayload(open, session.page, owned.size(),
-                data.roster().party(player.getUUID()).stream().map(member -> PartyMemberView.of(data, member)).toList(),
+                data.roster().party(player.getUUID()).stream().map(member -> PartyMemberView.of(data, member, mode)).toList(),
                 page, message, session.open ? AnalyzerWitness.species(player) : List.of(), session.open ? AnalyzerWitness.marks(player) : 0,
                 Scan.bars(player.level().getServer(), player.getUUID()));
         if (session.sync.updateSnapshot(snapshot)) ServerPlayNetworking.send(player, snapshot);
