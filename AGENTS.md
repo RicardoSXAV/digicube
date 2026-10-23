@@ -95,7 +95,7 @@ read it from there.
 | [agents/screens.md](agents/screens.md) | a screen: the GUI language (`DigiTheme`, `DigiPanels`), the Digivice screen (`DigiviceScreen`: Analyzer with its marks guide, record (`AnalyzerWitness`) and SCAN page (`ScanPage`), Digispace, the DIGIVOLUTION tree and its choice (`EvolutionSheet`, `EvolutionTree`)) |
 | [agents/command-wheel.md](agents/command-wheel.md) | the command wheel (`CommandWheelScreen`, `CommandWheelReadout`): its orders, layout, pointing and cursor; universal control: AUTO per attack (`ManualAttacks`) and attack orders (`DigimonEntity.orderAttack`, `AttackOrders`) |
 | [agents/dev-panel.md](agents/dev-panel.md) | the developer panel (`DevCatalog`, `DevActions`), battle testing (`BattleTest`) |
-| [agents/game-modes.md](agents/game-modes.md) | the world's DigiCube Mode, TAMER or CLASSIC (`DigiCubeModes`): its lock, Create World's DigiCube Mode section, what each mode changes, CLASSIC's raising |
+| [agents/game-modes.md](agents/game-modes.md) | the world's DigiCube Mode, TAMER or CLASSIC (`DigiCubeModes`): its lock, Create World and the world list, what each mode changes, CLASSIC's raising |
 | [agents/porting.md](agents/porting.md) | adding NeoForge or moving to a new Minecraft version |
 
 **Species.** Work on one species starts at its guide under `agents/species/`, named by the species id:

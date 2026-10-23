@@ -4,10 +4,21 @@ import com.digicube.Constants;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtException;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.ReportedNbtException;
 import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,6 +53,28 @@ public final class DigiCubeModeData extends SavedData {
         this.setAt = setAt;
         this.adopted = adopted;
         this.greeted.addAll(greeted);
+    }
+
+    /**
+     * The mode saved in a world's folder, read from this data's file without loading the world (the world list shows
+     * it): {@link DigiCubeMode#UNSET} for a world that has none yet, or whose file can't be read.
+     */
+    public static DigiCubeMode read(Path world) {
+        Path file = file(world);
+        if (!Files.isRegularFile(file)) return DigiCubeMode.UNSET;
+        try {
+            CompoundTag data = NbtIo.readCompressed(file, NbtAccounter.defaultQuota()).getCompoundOrEmpty("data");
+            return CODEC.parse(NbtOps.INSTANCE, data).result().map(DigiCubeModeData::mode).orElse(DigiCubeMode.UNSET);
+        } catch (IOException | NbtException | ReportedNbtException unreadable) {
+            Constants.LOG.warn("Can't read the DigiCube Mode saved in {}: {}", file, unreadable.toString());
+            return DigiCubeMode.UNSET;
+        }
+    }
+
+    /** Where a world's folder keeps this data: the overworld's data storage, as its server saves it. */
+    public static Path file(Path world) {
+        Path storage = DimensionType.getStorageFolder(Level.OVERWORLD, world).resolve("data");
+        return TYPE.id().withSuffix(".dat").resolveAgainst(storage);
     }
 
     /** The world's mode; {@link DigiCubeMode#UNSET} only before {@link DigiCubeModes#adopt} wrote it. */

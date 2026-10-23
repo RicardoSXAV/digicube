@@ -1,7 +1,7 @@
 # Game modes: TAMER and CLASSIC
 
 Read this when a task touches the DigiCube Mode a world is created in: where the mode lives and how it stays fixed,
-the DigiCube Mode section of Create World, what each mode changes, and CLASSIC's raising.
+the DigiCube Mode section of Create World, the mode in the world list, what each mode changes, and CLASSIC's raising.
 
 ## The world's mode
 
@@ -21,6 +21,12 @@ Every world plays one DigiCube Mode, TAMER or CLASSIC, chosen once by its creato
   operators online (`chat.digicube.mode.locked`), queued so it follows the line `/gamerule` prints.
 - **Players**: on joining, `DigiCubeModePayload` gives the client the mode (`PartyClient.mode()`); the first join in a
   world prints `chat.digicube.mode.joined`. The Digivice's tab strip ends in TAMER MODE (cyan) or CLASSIC MODE (amber).
+- **The world list**: a world's third line starts with its mode's badge and word ("Tamer, Survival Mode, ..."; the
+  narrator reads "Tamer mode, ..."), read from the saved data's file without loading the world
+  (`DigiCubeModeData.read`, in `MixinWorldListEntry` through `client/mode/WorldListMode`). A world with no mode yet
+  keeps vanilla's line, and so does a line that is a warning (locked, to convert, incompatible, linked, corrupted). The
+  badges are GUI sprites, `textures/gui/sprites/mode/badge_<mode>.png`: 8 x 8 inline glyphs, drawn white and without a
+  shadow so the line's grey does not dim them.
 - Headless scenarios put the dev world in a mode with `DigiCubeModes.stage`, past the lock, and put its own mode back
   before the verdict. Play never calls it.
 
@@ -92,8 +98,9 @@ digivolves into. Several signals count together; today two, the foes it beats an
 ## Checks
 
 `DIGICUBE_SCENARIO=mode_checks` (`ModeScenario`): the adoption rule (a world made in CLASSIC, one with its mode, an
-unset one), the saved data, an empty file and the payload round trip, the lock against every other value in both
-modes, the join line once. Prints `[scenario] PASS mode_checks cases=5`. `evolution_checks` stages CLASSIC, then
+unset one), the saved data, an empty file and the payload round trip, the saved file read back from the world's folder
+as the world list reads it (and none, or an unreadable one, read as no mode), the lock against every other value in
+both modes, the join line once. Prints `[scenario] PASS mode_checks cases=6`. `evolution_checks` stages CLASSIC, then
 `evolution_tamer` (either Champion every time, nothing spent or drained, the cooldown kept, no bind, a level under 20
 sending it back); `:common:evolutionTest`, `:common:partyTest` and `:fabric:digiviceTest` pin `choices`, the TAMER
 view and its sentences. `scan_checks` ends with `scan_classic` (1000 a Digitama, 2000 a bar, CONVERT, the base XP);
@@ -104,6 +111,7 @@ forest, digivolves into Dinohyumon and stays bound whatever its record says next
 by day and by night, and nothing in TAMER. `evolution_checks` reaches each Champion route with a record of its own
 foe and place, and `:common:evolutionTest` checks all 24 routes' raising, the triangle, ties and the save.
 
-The section is checked by eye: `DIGICUBE_MODE_SHOTS=1` with `:fabric:runClient` (development only) opens Create World
-from the title screen, saves `mode_unset`, `mode_cards`, `mode_cards_classic`, `mode_classic` and
-`mode_enter_refused.png` into `fabric/runs/client/screenshots` and quits (`ModeScreenShots`).
+The section and the world list are checked by eye: `DIGICUBE_MODE_SHOTS=1` with `:fabric:runClient` (development only)
+opens Create World from the title screen, saves `mode_unset`, `mode_cards`, `mode_cards_classic`, `mode_classic` and
+`mode_enter_refused.png`, then the world list as `mode_world_list.png`, into `fabric/runs/client/screenshots` and quits
+(`ModeScreenShots`).

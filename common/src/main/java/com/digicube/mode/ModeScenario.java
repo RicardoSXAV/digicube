@@ -8,15 +8,22 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * {@code DIGICUBE_SCENARIO=mode_checks}: the DigiCube Mode as world data on the dedicated dev server. The adoption
  * rule (a rule set by Create World, an unset rule, a world that already has its mode), the saved data and the payload
- * round trip, staging, the lock against a game rule change, and the join line given once. The dev world's own mode is
- * put back before the verdict.
+ * round trip, the saved file as the world list reads it, staging, the lock against a game rule change, and the join
+ * line given once. The dev world's own mode is put back before the verdict.
  */
 public final class ModeScenario {
     private static boolean done;
@@ -80,6 +87,30 @@ public final class ModeScenario {
         DigiCubeModePayload.STREAM_CODEC.encode(buffer, new DigiCubeModePayload(DigiCubeMode.CLASSIC));
         check(DigiCubeModePayload.STREAM_CODEC.decode(buffer).mode() == DigiCubeMode.CLASSIC, "the payload carries the mode");
         pass("mode_saved", "save and load, an empty file, the payload");
+
+        Path folder = server.getWorldPath(LevelResource.ROOT).normalize();
+        for (DigiCubeMode mode : List.of(DigiCubeMode.CLASSIC, DigiCubeMode.TAMER)) {
+            DigiCubeModes.stage(server, mode);
+            server.overworld().getDataStorage().saveAndJoin();
+            check(DigiCubeModeData.read(folder) == mode, "the world list reads " + mode + " in " + DigiCubeModeData.file(folder));
+        }
+        try {
+            Path scratch = Files.createTempDirectory("digicube-mode");
+            try {
+                check(DigiCubeModeData.read(scratch) == DigiCubeMode.UNSET, "a world with no saved mode shows none");
+                Path unreadable = DigiCubeModeData.file(scratch);
+                Files.createDirectories(unreadable.getParent());
+                Files.writeString(unreadable, "not a saved mode");
+                check(DigiCubeModeData.read(scratch) == DigiCubeMode.UNSET, "an unreadable file shows no mode");
+            } finally {
+                try (Stream<Path> paths = Files.walk(scratch)) {
+                    for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        pass("mode_file", "CLASSIC and TAMER read back from the world's folder; no file and an unreadable one show none");
 
         for (DigiCubeMode mode : List.of(DigiCubeMode.CLASSIC, DigiCubeMode.TAMER)) {
             DigiCubeModes.stage(server, mode);

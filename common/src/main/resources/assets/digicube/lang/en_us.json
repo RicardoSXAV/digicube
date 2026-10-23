@@ -574,5 +574,7 @@
   "gui.digicube.mode.card.classic.3": "Its raising decides its form.",
   "gui.digicube.mode.card.tamer.1": "Collect and command.",
   "gui.digicube.mode.card.tamer.2": "New Digimon come quickly.",
-  "gui.digicube.mode.card.tamer.3": "Digivolve into any form."
+  "gui.digicube.mode.card.tamer.3": "Digivolve into any form.",
+  "gui.digicube.mode.world_list": "%s, %s",
+  "gui.digicube.mode.world_list.narration": "%s mode, %s"
 }

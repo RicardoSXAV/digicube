@@ -21,6 +21,7 @@
     "MixinGuiGraphicsExtractor",
     "MixinHud",
     "MixinCreateWorldGameTab",
+    "MixinWorldListEntry",
     "KeyMappingAccessor",
     "LocalPlayerAccessor"
   ],
