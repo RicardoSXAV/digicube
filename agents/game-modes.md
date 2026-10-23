@@ -24,6 +24,25 @@ Every world plays one DigiCube Mode, TAMER or CLASSIC, chosen once by its creato
 - Headless scenarios put the dev world in a mode with `DigiCubeModes.stage`, past the lock, and put its own mode back
   before the verdict. Play never calls it.
 
+## Create World's DigiCube Mode section
+
+`MixinCreateWorldGameTab` (the one mixin: no event reaches a vanilla tab's layout) adds `client/mode/ModeSection`
+under the Game tab's last row: the label "DigiCube Mode" with `InfoKey` five units after it, the note "Can't be changed
+after creation." three under it, and two `ModeButton`s (Classic, Tamer; 101 x 20, eight apart) six under that, none
+picked at first. The rest is Fabric's screen events, wired on every init of `CreateWorldScreen`:
+
+- **A pick** writes `digicube:mode` into the screen's `WorldCreationUiState` game rules; the buttons read it back each
+  frame, so the More tab's Game Rules screen and the section always agree. The picked button shows a check before its
+  name and the other name turns grey.
+- **The create guard**: each tick Create New World (found by its `selectWorld.create` key) is inactive, with the tooltip
+  "Choose a DigiCube Mode first.", while the rule is unset. **The Enter guard**: Enter that would create the world (the
+  name box, the info key, nothing focused) is refused, the focus goes to Classic and both buttons flash yellow.
+- **The cards**: pointed at, or focused from the keyboard, the info key shows `ModeCards` on top of the screen (drawn in
+  `afterExtract`, a new stratum): one card per mode in DigiCube's chamfered frame, centred, three units above the key,
+  each a viewport (`textures/gui/mode/*.png`, 140 x 72, over a perspective floor of fills), a bold name plate and three
+  lines (`gui.digicube.mode.card.<mode>.<n>`); the picked mode's card turns amber. A click does nothing and pins
+  nothing; the key's narration reads both cards.
+
 ## What each mode changes
 
 Rule switches live on `DigiCubeMode` (`binds`, `digisoul`) and are asked of the world's mode; nothing else checks it.
@@ -82,3 +101,7 @@ fight at level 10 and grows by itself into Betamon, its record starting over; th
 forest, digivolves into Dinohyumon and stays bound whatever its record says next; a defeat records its foe and where,
 by day and by night, and nothing in TAMER. `evolution_checks` reaches each Champion route with a record of its own
 foe and place, and `:common:evolutionTest` checks all 24 routes' raising, the triangle, ties and the save.
+
+The section is checked by eye: `DIGICUBE_MODE_SHOTS=1` with `:fabric:runClient` (development only) opens Create World
+from the title screen, saves `mode_unset`, `mode_cards`, `mode_cards_classic`, `mode_classic` and
+`mode_enter_refused.png` into `fabric/runs/client/screenshots` and quits (`ModeScreenShots`).

@@ -36,6 +36,8 @@ public class DigiCubeFabricClient implements ClientModInitializer {
         PartyClient party = new PartyClient();
         party.init();
         new StarterClient().init();
+        com.digicube.fabric.client.mode.ModeSection.init();
+        com.digicube.fabric.client.mode.ModeScreenShots.init();
         new com.digicube.fabric.client.digivice.DigiviceLocator().init();
         com.digicube.fabric.client.digivice.RecallVisuals.init();
         com.digicube.fabric.client.digivice.DigitamaVisuals.init(party::openEgg);
