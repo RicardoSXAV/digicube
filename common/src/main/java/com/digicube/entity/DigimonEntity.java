@@ -2064,14 +2064,11 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
         return getLocomotion().hovers() || getLocomotion().groundGait() != null && getLocomotion().groundGait().footfalls();
     }
 
+    // A Digimon's steps sound only through this. Vanilla calls playCombinationStepSounds and playMuffledStepSound from
+    // Player alone, and NeoForge changes their parameters, so overriding them would break the NeoForge build.
     @Override
     protected void playStepSound(BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
         if (!ownFootfalls()) super.playStepSound(pos, state);
-    }
-
-    @Override
-    protected void playCombinationStepSounds(net.minecraft.world.level.block.state.BlockState primary, net.minecraft.world.level.block.state.BlockState secondary) {
-        if (!ownFootfalls()) super.playCombinationStepSounds(primary, secondary);
     }
 
     // --- voice: data/digicube/voices.json, vanilla's where a species has none ------------------------------------------
@@ -2114,11 +2111,6 @@ public class DigimonEntity extends PathfinderMob implements OwnableEntity, Playe
     public int getAmbientSoundInterval() {
         var voice = voice();
         return voice == null ? super.getAmbientSoundInterval() : voice.ambientInterval();
-    }
-
-    @Override
-    protected void playMuffledStepSound(net.minecraft.world.level.block.state.BlockState state) {
-        if (!ownFootfalls()) super.playMuffledStepSound(state);
     }
 
     private boolean turnsToTravel() {
