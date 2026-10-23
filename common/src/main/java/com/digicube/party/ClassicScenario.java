@@ -69,6 +69,7 @@ public final class ClassicScenario {
                 }
                 case 1 -> {
                     check(partner.getSpeciesId().equals(KOROMON) && !partner.evolution().transitioning(), "CLASSIC: no growth in the middle of a fight");
+                    check(PartyEvolution.action(owner, member.id(), "evolve", 0, null).endsWith("grows") && !partner.evolution().transitioning(), "CLASSIC: V or the wheel cannot start the growth");
                     prey.discard();
                     prey = null;
                     partner.setTarget(null);

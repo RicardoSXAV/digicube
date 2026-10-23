@@ -78,7 +78,8 @@ digivolves into. Several signals count together; today two, the foes it beats an
   wins in its place and takes the best; a tie or an empty record takes the first in sheet order.
 - **Growth by itself**: an owned CLASSIC Baby II at its growth level grows at the first calm moment
   (`DigimonEntity.calm`, checked each second in `EvolutionController.tick`), into the raising's Rookie; one in the
-  Digivice grows when it is next out.
+  Digivice grows when it is next out. The tamer cannot start it: V and the wheel are refused (`PartyEvolution`,
+  `gui.digicube.evolution.grows`).
 - **The Champion**: the tamer still digivolves it (V, the wheel, the tree), on DigiSoul; no form is named
   (`EvolutionController.evolve` refuses any other with `raised`), and the first commit binds the raising's pick.
 - **The client**: the V key and the wheel never open the tree for a choice (`PartyClient.picksForm`); the wheel says

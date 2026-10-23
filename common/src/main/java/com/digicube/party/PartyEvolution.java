@@ -27,7 +27,12 @@ public final class PartyEvolution {
         if(member==null||!member.owner().equals(player.getUUID())||!player.isAlive()||player.isSpectator())return "gui.digicube.party.invalid";
         var live=data.live.get(id);var state=live==null?member.evolution():live.evolution();String result="";
         switch(action) {
-            case "evolve" -> {if(live==null)return "gui.digicube.evolution.deploy";result=EvolutionController.evolve(live,choice);}
+            case "evolve" -> {
+                if(live==null)return "gui.digicube.evolution.deploy";
+                // CLASSIC: a Baby II grows by itself at its first calm moment; the tamer does not start it
+                if(com.digicube.mode.DigiCubeModes.of(player.level().getServer()).raises()&&EvolutionRules.baby(live.getSpeciesId()))return "gui.digicube.evolution.grows";
+                result=EvolutionController.evolve(live,choice);
+            }
             case "revert" -> {if(live==null)return "gui.digicube.evolution.deploy";result=EvolutionController.revert(live);}
             case "origin" -> {
                 if(live!=null||!member.originRequired()||!EvolutionRules.validOrigin(choice,member.species()))return "gui.digicube.evolution.origin";

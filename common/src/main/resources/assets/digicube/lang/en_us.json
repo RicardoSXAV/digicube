@@ -211,6 +211,7 @@
   "gui.digicube.evolution.choose": "Choose its form in its tree first",
   "gui.digicube.evolution.locked": "It only digivolves into its chosen form",
   "gui.digicube.evolution.raised": "Its raising decides its form",
+  "gui.digicube.evolution.grows": "It grows by itself once it is calm",
   "key.digicube.evolve": "Digivolve the selected partner",
   "key.digicube.party_previous": "Select the previous partner",
   "key.digicube.party_next": "Select the next partner",
