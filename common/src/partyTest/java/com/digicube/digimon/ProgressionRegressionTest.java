@@ -65,6 +65,10 @@ public final class ProgressionRegressionTest {
         for (int[] row : adult) check(Progression.xpYield(DigimonStage.ADULT, row[0]) == row[1], "adult yield at " + row[0]);
         int[][] perfect = {{1, 105}, {5, 189}, {20, 504}, {50, 1134}};
         for (int[] row : perfect) check(Progression.xpYield(DigimonStage.PERFECT, row[0]) == row[1], "perfect yield at " + row[0]);
+        // CLASSIC pays the base yield, two thirds of TAMER's 150 %.
+        int[][] classicChild = {{1, 25}, {5, 45}, {10, 70}, {20, 120}, {50, 270}};
+        for (int[] row : classicChild) check(Progression.xpYield(DigimonStage.CHILD, row[0], com.digicube.mode.DigiCubeMode.CLASSIC) == row[1], "classic child yield at " + row[0]);
+        check(Progression.xpYield(DigimonStage.CHILD, 10, com.digicube.mode.DigiCubeMode.TAMER) == Progression.xpYield(DigimonStage.CHILD, 10), "TAMER is the default yield");
     }
 
     private static void checkGap() {

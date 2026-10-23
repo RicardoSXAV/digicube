@@ -8,6 +8,8 @@ import com.digicube.digimon.DigimonStage;
 import com.digicube.digimon.Progression;
 import com.digicube.digivice.Digivices;
 import com.digicube.entity.DigimonEntity;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModes;
 import com.digicube.party.PartyManager;
 import com.digicube.party.PartyMember;
 import com.digicube.party.PartySavedData;
@@ -44,6 +46,8 @@ public final class ScanScenario {
     private static ServerPlayer tamer, rival;
     private static DigimonEntity partner, rivalPartner;
     private static PartySavedData parties;
+    /** The dev world's own mode, put back at the end. */
+    private static DigiCubeMode original;
     /** The wild Digimon this run put down; any other wild one is cleared away, so nothing else is sighted. */
     private static final java.util.Set<UUID> staged = new java.util.HashSet<>();
     private static final Identifier KOROMON = Constants.id("koromon"), TSUNOMON = Constants.id("tsunomon"), AGUMON = Constants.id("agumon");
@@ -73,12 +77,14 @@ public final class ScanScenario {
                 case 4 -> convert();
                 case 5 -> take(level);
                 case 6 -> hatch();
+                case 7 -> classic(level);
                 default -> finish(level);
             }
             waitUntil = now + 2;
         } catch (RuntimeException | AssertionError error) {
             Constants.LOG.error("[scenario] FAIL scan_checks", error);
             done = true;
+            if (original != null) DigiCubeModes.stage(level.getServer(), original);
             level.getServer().halt(false);
         }
     }
@@ -157,7 +163,7 @@ public final class ScanScenario {
         DigimonEntity wild = wild(level, AGUMON, 9, 2);
         wild.setHealth(5);
         for (int i = 0; i < 10 && wild.isAlive(); i++) hit(level, wild, partner, 3);
-        check(!wild.isAlive() && record.data(KOROMON) == Progression.SCAN_CAPACITY, "a full bar stops at 200");
+        check(!wild.isAlive() && record.data(KOROMON) == record.capacity() && record.capacity() == 200, "a full bar stops at 200");
         check(record.defeatsLeft(KOROMON) == 0, "a ready bar has no defeats left");
         pass("scan_cap", "195 + a defeat stops at 200");
     }
@@ -261,6 +267,9 @@ public final class ScanScenario {
 
     private static void setup(ServerLevel level) {
         started = true;
+        // TAMER's pace first, CLASSIC's at the end; the dev world's own mode is put back.
+        original = DigiCubeModes.of(level.getServer());
+        DigiCubeModes.stage(level.getServer(), DigiCubeMode.TAMER);
         for (int x = -2; x <= 1; x++) for (int z = -2; z <= 1; z++) level.setChunkForced(x, z, true);
         for (int x = -16; x <= 16; x++) for (int z = -16; z <= 16; z++) for (int y = 300; y < 312; y++)
             level.setBlock(new BlockPos(x, y, z), (y == 300 ? Blocks.STONE : Blocks.AIR).defaultBlockState(), 3);
@@ -273,6 +282,33 @@ public final class ScanScenario {
         waitUntil = level.getServer().getTickCount() + 5;
     }
 
+    /**
+     * CLASSIC's pace: a Digitama costs 1000 data and a bar holds 2000, the first sighting still 30, and a defeat pays
+     * the base XP, two thirds of TAMER's.
+     */
+    private static void classic(ServerLevel level) {
+        DigiCubeModes.stage(level.getServer(), DigiCubeMode.CLASSIC);
+        ScanRecord record = record(rival);
+        check(record.cost() == 1000 && record.capacity() == 2000, "CLASSIC: 1000 data a Digitama, 2000 a bar");
+        record.set(TSUNOMON, 999);
+        check(!record.ready(TSUNOMON) && record.defeatsLeft(TSUNOMON) != 0, "CLASSIC: 999 is not a Digitama yet");
+        check(record.defeat(TSUNOMON, 1).readied() && record.ready(TSUNOMON), "CLASSIC: the thousandth datum readies it");
+        ScanRecord.Gain over = record.defeat(TSUNOMON, 5000);
+        check(record.data(TSUNOMON) == 2000 && over.lost() == 4000, "CLASSIC: the bar stops at 2000");
+        check(record.convert(TSUNOMON) && record.data(TSUNOMON) == 1000, "CLASSIC: CONVERT spends 1000");
+        DigimonEntity wild = wild(level, AGUMON, 9, 0);
+        wild.setHealth(4);
+        int level0 = rivalPartner.getLevel(), xp0 = rivalPartner.getXp();
+        float lost = 0;
+        for (int i = 0; i < 10 && wild.isAlive(); i++) lost += hit(level, wild, rivalPartner, 4);
+        check(!wild.isAlive(), "CLASSIC: the wild Agumon fell to the rival's partner");
+        int expected = Progression.split(DigimonStage.CHILD, 9, List.of(new Progression.Contributor(rivalPartner.getUUID(), level0, lost)), DigiCubeMode.CLASSIC).get(rivalPartner.getUUID());
+        int tamerXp = Progression.split(DigimonStage.CHILD, 9, List.of(new Progression.Contributor(rivalPartner.getUUID(), level0, lost)), DigiCubeMode.TAMER).get(rivalPartner.getUUID());
+        int gained = Progression.totalXpToReach(rivalPartner.getLevel()) + rivalPartner.getXp() - Progression.totalXpToReach(level0) - xp0;
+        check(gained == expected && expected < tamerXp, "CLASSIC: the defeat paid " + gained + " XP, the base " + expected + " (TAMER " + tamerXp + ")");
+        pass("scan_classic", "1000 a Digitama, 2000 a bar, CONVERT spends 1000, XP " + expected + " against TAMER's " + tamerXp);
+    }
+
     private static void finish(ServerLevel level) {
         done = true;
         for (ServerPlayer player : new ArrayList<>(List.of(tamer, rival))) {
@@ -281,6 +317,7 @@ public final class ScanScenario {
             level.getServer().getPlayerList().getPlayersByUUID().remove(player.getUUID());
             player.discard();
         }
+        DigiCubeModes.stage(level.getServer(), original);
         Constants.LOG.info("[scenario] PASS scan_checks cases={}", cases);
         level.getServer().halt(false);
     }

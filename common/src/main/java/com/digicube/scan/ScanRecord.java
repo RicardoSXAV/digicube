@@ -34,20 +34,29 @@ public final class ScanRecord {
     private final Map<Identifier, Integer> data = new LinkedHashMap<>();
     private final Set<Identifier> seen = new LinkedHashSet<>();
     private final Deque<Defeat> recent = new ArrayDeque<>();
+    /** Data one Digitama costs in this record's world ({@link Progression#digitamaData}); TAMER's until told. */
+    private int cost = Progression.DIGITAMA_DATA;
 
     public ScanRecord() {}
 
     ScanRecord(Map<Identifier, Integer> data, Set<Identifier> seen, List<Defeat> recent) {
-        data.forEach((family, amount) -> { if (amount > 0) this.data.put(family, Math.min(amount, Progression.SCAN_CAPACITY)); });
+        data.forEach((family, amount) -> { if (amount > 0) this.data.put(family, Math.min(amount, Progression.MAX_SCAN_CAPACITY)); });
         this.seen.addAll(seen);
         for (Defeat defeat : recent) remember(defeat);
     }
 
-    /** Data in {@code family}'s bar, 0 to {@link Progression#SCAN_CAPACITY}. */
+    /** Data one Digitama costs here: CONVERT opens at it. */
+    public int cost() { return cost; }
+    /** Most data a bar holds here: {@link Progression#SCAN_BAR_DIGITAMA} Digitama's worth. */
+    public int capacity() { return Progression.scanCapacity(cost); }
+    /** Sets the world's pace, from its DigiCube Mode ({@link ScanSavedData#get}); a bar past the new capacity keeps its data until it next changes. */
+    void pace(int cost) { this.cost = cost; }
+
+    /** Data in {@code family}'s bar, 0 to {@link #capacity}. */
     public int data(Identifier family) { return data.getOrDefault(family, 0); }
     public boolean seen(Identifier family) { return seen.contains(family); }
     /** Whether the bar holds a Digitama's worth: CONVERT is open. */
-    public boolean ready(Identifier family) { return data(family) >= Progression.DIGITAMA_DATA; }
+    public boolean ready(Identifier family) { return data(family) >= cost; }
 
     /** The first sighting of {@code family} fills {@link Progression#FIRST_SIGHTING_DATA}; later ones nothing. */
     public Gain sight(Identifier family) {
@@ -68,22 +77,22 @@ public final class ScanRecord {
 
     private Gain add(Identifier family, int amount) {
         if (amount <= 0) return Gain.NONE;
-        int before = data(family), after = Math.min(Progression.SCAN_CAPACITY, before + amount);
+        int before = data(family), after = Math.min(capacity(), before + amount);
         data.put(family, after);
         return new Gain(after - before, before + amount - after,
-                before < Progression.DIGITAMA_DATA && after >= Progression.DIGITAMA_DATA);
+                before < cost && after >= cost);
     }
 
     /** Developer tooling and checks: puts {@code data} (clamped to the bar) in {@code family}'s bar, sighting it. */
     public void set(Identifier family, int data) {
         seen.add(family);
-        this.data.put(family, Math.clamp(data, 0, Progression.SCAN_CAPACITY));
+        this.data.put(family, Math.clamp(data, 0, capacity()));
     }
 
     /** Spends a Digitama's worth of {@code family}'s data. @return false, spending nothing, when the bar holds less */
     public boolean convert(Identifier family) {
         if (!ready(family)) return false;
-        data.put(family, data(family) - Progression.DIGITAMA_DATA);
+        data.put(family, data(family) - cost);
         return true;
     }
 
@@ -93,7 +102,7 @@ public final class ScanRecord {
      * @return 0 when the bar is ready, -1 when the family has had no data in the window
      */
     public int defeatsLeft(Identifier family) {
-        int missing = Progression.DIGITAMA_DATA - data(family);
+        int missing = cost - data(family);
         if (missing <= 0) return 0;
         int sum = 0;
         for (Defeat defeat : recent) if (defeat.family().equals(family)) sum += defeat.data();

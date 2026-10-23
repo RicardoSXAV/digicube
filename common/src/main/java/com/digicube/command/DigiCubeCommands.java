@@ -219,7 +219,7 @@ public final class DigiCubeCommands {
                 .requires(operator())
                 .then(Commands.literal("set")
                         .then(speciesArgument()
-                                .then(Commands.argument("data", IntegerArgumentType.integer(0, Progression.SCAN_CAPACITY))
+                                .then(Commands.argument("data", IntegerArgumentType.integer(0, Progression.MAX_SCAN_CAPACITY))
                                         .executes(context -> scanSet(context, context.getSource().getPlayerOrException()))
                                         .then(Commands.argument("player", EntityArgument.player())
                                                 .executes(context -> scanSet(context, EntityArgument.getPlayer(context, "player")))))))

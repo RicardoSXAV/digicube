@@ -65,9 +65,10 @@ public final class Scan {
     }
 
     private static void announce(ServerPlayer player, Identifier family, ScanRecord.Gain gain, ScanToastPayload.Kind kind, int now) {
-        if (gain.added() > 0) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(kind, family, gain.added(), now));
-        if (gain.lost() > 0) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.LOST, family, gain.lost(), now));
-        if (gain.readied()) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.READY, family, 0, now));
+        int cost = ScanSavedData.get(player.level().getServer()).record(player.getUUID()).cost();
+        if (gain.added() > 0) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(kind, family, gain.added(), now, cost));
+        if (gain.lost() > 0) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.LOST, family, gain.lost(), now, cost));
+        if (gain.readied()) Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.READY, family, 0, now, cost));
     }
 
     /** Operator tooling: {@code player}'s bar of {@code family} holds {@code data}, and the family counts as sighted. */
@@ -81,8 +82,8 @@ public final class Scan {
 
     /** A Digitama of {@code family} hatched in {@code player}'s Digivice. */
     public static void hatched(ServerPlayer player, Identifier family) {
-        Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.HATCHED, family, 0,
-                ScanSavedData.get(player.level().getServer()).record(player.getUUID()).data(family)));
+        ScanRecord record = ScanSavedData.get(player.level().getServer()).record(player.getUUID());
+        Services.PLATFORM.sendToPlayer(player, new ScanToastPayload(ScanToastPayload.Kind.HATCHED, family, 0, record.data(family), record.cost()));
     }
 
     /** The tamer's bars, one per family in {@link DigimonFamilies#all} order. */
@@ -90,7 +91,7 @@ public final class Scan {
         ScanRecord record = ScanSavedData.get(server).record(player);
         List<ScanBar> bars = new ArrayList<>();
         for (Identifier family : DigimonFamilies.all()) {
-            bars.add(new ScanBar(family, record.data(family), record.seen(family), record.defeatsLeft(family)));
+            bars.add(new ScanBar(family, record.data(family), record.seen(family), record.defeatsLeft(family), record.cost()));
         }
         return bars;
     }

@@ -452,7 +452,7 @@ final class AnalyzerTab {
         com.digicube.scan.ScanBar bar = screen.snapshot().scan().stream().filter(b -> b.family().equals(family)).findFirst()
                 .orElse(new com.digicube.scan.ScanBar(family, 0, false, -1));
         boolean ready = ScanPage.ready(bar);
-        String text = bar.seen() ? bar.data() * 100 / com.digicube.digimon.Progression.DIGITAMA_DATA + "%" : "?";
+        String text = bar.seen() ? bar.percent() + "%" : "?";
         int w = 12 + font.width(text) + 4, x = right - w, tone = ready ? DigiTheme.AMBER : DigiTheme.CYAN;
         boolean over = screen.over(x, y, w, 11);
         DigiPanels.frame(g, x, y, w, 11, withAlpha(tone, over ? 0x40 : 0x14), withAlpha(tone, over ? 0xFF : 0x80), 1);

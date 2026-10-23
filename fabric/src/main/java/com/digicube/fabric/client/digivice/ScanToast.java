@@ -26,6 +26,8 @@ public final class ScanToast implements Toast {
     private final ScanToastPayload.Kind kind;
     private final Identifier family;
     private int amount, data;
+    /** Data one Digitama costs in this world. */
+    private final int cost;
     private Visibility wanted = Visibility.SHOW;
     private long since = -1, shown = SHOWN_MILLIS, visible;
 
@@ -34,6 +36,7 @@ public final class ScanToast implements Toast {
         this.family = payload.family();
         this.amount = payload.amount();
         this.data = payload.data();
+        this.cost = payload.cost();
     }
 
     /** Shows {@code payload}; data from a family whose data toast is still up adds to that one and keeps it up. */
@@ -66,7 +69,7 @@ public final class ScanToast implements Toast {
     @Override public void extractRenderState(GuiGraphicsExtractor g, Font font, long visibleFor) {
         int w = width(), h = height();
         boolean amber = kind == ScanToastPayload.Kind.READY || kind == ScanToastPayload.Kind.LOST;
-        float fill = Math.min(1, data / (float) Progression.DIGITAMA_DATA);
+        float fill = Math.min(1, data / (float) cost);
         DigiPanels.frame(g, 0, 0, w, h, withAlpha(DigiTheme.PANEL, 0xF0), amber ? DigiTheme.AMBER : DigiTheme.EDGE, 3);
         DigiPanels.bevel(g, 1, 1, w - 2, h - 2, 2, withAlpha(DigiTheme.EDGE_LIGHT, 0x80), DigiTheme.SHADOW);
         DigiviceKit.slot(g, 4, 4, 24, 24, amber ? DigiTheme.AMBER : DigiTheme.EDGE);
@@ -75,7 +78,7 @@ public final class ScanToast implements Toast {
                 kind == ScanToastPayload.Kind.READY ? breath : 0, 0, 0, 0, (int) (visibleFor / 50));
         String caption = switch (kind) {
             case DATA -> Component.translatable("gui.digicube.scan.toast.data", Math.max(1, amount)).getString();
-            case SIGHTED -> Component.translatable("gui.digicube.scan.toast.sighted", amount * 100 / Progression.DIGITAMA_DATA).getString();
+            case SIGHTED -> Component.translatable("gui.digicube.scan.toast.sighted", amount * 100 / cost).getString();
             case LOST -> Component.translatable("gui.digicube.scan.toast.lost").getString();
             case READY -> Component.translatable("gui.digicube.scan.toast.ready").getString();
             case HATCHED -> Component.translatable("gui.digicube.scan.toast.hatched").getString();
@@ -85,7 +88,7 @@ public final class ScanToast implements Toast {
         String name = kind == ScanToastPayload.Kind.HATCHED ? familyName.toUpperCase(java.util.Locale.ROOT) + "  L" + Progression.MIN_LEVEL
                 : DigiviceScreen.upper(Component.translatable("gui.digicube.scan.digitama", familyName));
         String side = kind == ScanToastPayload.Kind.HATCHED ? DigiviceScreen.upper(Component.translatable("gui.digicube.digivice.digispace"))
-                : data * 100 / Progression.DIGITAMA_DATA + "%";
+                : data * 100 / cost + "%";
         int room = w - 33 - 5 - font.width(side) - 4;
         g.text(font, font.plainSubstrByWidth(name, room), 33, 18, DigiTheme.WHITE, true);
         g.text(font, side, w - 5 - font.width(side), 18, kind == ScanToastPayload.Kind.HATCHED ? withAlpha(DigiTheme.MUTED, 0x90) : DigiTheme.WHITE, false);
@@ -95,7 +98,7 @@ public final class ScanToast implements Toast {
         } else {
             // the bar toward the next Digitama, amber once it holds one
             g.fill(33, h - 4, w - 4, h - 3, withAlpha(DigiTheme.EDGE_DIM, 0xC0));
-            g.fill(33, h - 4, 33 + Math.round((w - 37) * fill), h - 3, data >= Progression.DIGITAMA_DATA ? DigiTheme.AMBER : DigiTheme.CYAN);
+            g.fill(33, h - 4, 33 + Math.round((w - 37) * fill), h - 3, data >= cost ? DigiTheme.AMBER : DigiTheme.CYAN);
         }
     }
 }

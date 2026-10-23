@@ -38,6 +38,10 @@ Rule switches live on `DigiCubeMode` (`binds`, `digisoul`) and are asked of the 
   The growth Baby II to Rookie stays a choice for good.
 - **CLASSIC** (`binds` and `digisoul` true): digivolution as [domain.md](domain.md#species-and-individuals) describes
   it, on DigiSoul, the first one binding.
+- **Numbers** (all in `Progression`, by mode): a Digitama costs 100 scan data in TAMER and 1000 in CLASSIC
+  (`digitamaData`), a bar holds two (`scanCapacity`), the first sighting is 30 in both; XP is 150 % of the base
+  yield in TAMER and 100 % in CLASSIC (`xpYield(.., mode)`). Hatching (10 minutes) and the defeat rest (30 seconds)
+  are the same.
 
 ## Checks
 
@@ -46,4 +50,5 @@ unset one), the saved data, an empty file and the payload round trip, the lock a
 modes, the join line once. Prints `[scenario] PASS mode_checks cases=5`. `evolution_checks` stages CLASSIC, then
 `evolution_tamer` (either Champion every time, nothing spent or drained, the cooldown kept, no bind, a level under 20
 sending it back); `:common:evolutionTest`, `:common:partyTest` and `:fabric:digiviceTest` pin `choices`, the TAMER
-view and its sentences.
+view and its sentences. `scan_checks` ends with `scan_classic` (1000 a Digitama, 2000 a bar, CONVERT, the base XP);
+`:common:progressionTest` and `:common:scanTest` pin the numbers of both modes.

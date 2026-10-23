@@ -1,6 +1,5 @@
 package com.digicube.fabric.client.digivice;
 
-import com.digicube.digimon.Progression;
 import com.digicube.scan.ScanBar;
 import net.minecraft.resources.Identifier;
 
@@ -23,9 +22,9 @@ public final class ScanNews {
     public void update(List<ScanBar> bars) {
         for (ScanBar bar : bars) {
             Integer before = last.put(bar.family(), bar.data());
-            boolean now = bar.seen() && bar.data() >= Progression.DIGITAMA_DATA;
+            boolean now = bar.ready();
             if (!now) ready.remove(bar.family());
-            else if (before == null || before < Progression.DIGITAMA_DATA) ready.add(bar.family());
+            else if (before == null || before < bar.cost()) ready.add(bar.family());
         }
     }
 

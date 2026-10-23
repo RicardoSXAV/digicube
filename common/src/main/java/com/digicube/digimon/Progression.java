@@ -1,5 +1,7 @@
 package com.digicube.digimon;
 
+import com.digicube.mode.DigiCubeMode;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,12 +70,16 @@ public final class Progression {
     public static final int DIGIMEAT_NUTRITION = 6;
     public static final float DIGIMEAT_SATURATION_MODIFIER = 0.6F;
 
-    /** Scan data one Digitama costs: CONVERT opens at this much in a family's bar. */
+    /** Scan data one Digitama costs in a TAMER world: CONVERT opens at this much in a family's bar. */
     public static final int DIGITAMA_DATA = 100;
-    /** Data the first sighting of a family puts in its bar. */
+    /** Scan data one Digitama costs in a CLASSIC world, where new Digimon are rare and earned: about 2.5 fighting hours. */
+    public static final int CLASSIC_DIGITAMA_DATA = 1000;
+    /** Data the first sighting of a family puts in its bar, in either mode. */
     public static final int FIRST_SIGHTING_DATA = 30;
-    /** Most data a bar holds, one conversion saved; past it a defeat's data is lost. */
-    public static final int SCAN_CAPACITY = 200;
+    /** A bar holds this many Digitama's worth, one conversion saved; past it a defeat's data is lost. */
+    public static final int SCAN_BAR_DIGITAMA = 2;
+    /** The most data any world's bar holds: CLASSIC's. A saved bar is never read past it. */
+    public static final int MAX_SCAN_CAPACITY = SCAN_BAR_DIGITAMA * CLASSIC_DIGITAMA_DATA;
     /** A Digitama hatches after this much of its tamer's time online: ten minutes. */
     public static final int DIGITAMA_HATCH_TICKS = 12000;
     /** How many of the tamer's last defeats the scan's pace (defeats left) is the mean of. */
@@ -83,8 +89,10 @@ public final class Progression {
     private static final int HEALTH_GROWTH_PERCENT = 4;
     /** Attack grows by this percentage of the base value per level above 1. */
     private static final int ATTACK_GROWTH_PERCENT = 3;
-    /** Every wild Digimon's XP yield, as a percentage of the base yield {@code stageYield × (level + 4) / 2}. */
+    /** Every wild Digimon's XP yield in a TAMER world, as a percentage of the base yield {@code stageYield × (level + 4) / 2}. */
     private static final int XP_RATE_PERCENT = 150;
+    /** The same in a CLASSIC world: the base yield. */
+    private static final int CLASSIC_XP_RATE_PERCENT = 100;
     /** The level-gap multiplier moves by this percentage per level of difference. */
     private static final int GAP_STEP_PERCENT = 10;
     /** Far weaker wilds still pay half: a partner that outgrew its home is not left with nothing to fight. */
@@ -130,9 +138,28 @@ public final class Progression {
         };
     }
 
-    /** Total XP a wild Digimon of this stage and level is worth, before any split: the base yield at {@link #XP_RATE_PERCENT}. */
+    /** Total XP a wild Digimon of this stage and level is worth in a TAMER world, before any split. */
     public static int xpYield(DigimonStage stage, int wildLevel) {
-        return stageYield(stage) * (wildLevel + 4) * XP_RATE_PERCENT / 200;
+        return xpYield(stage, wildLevel, DigiCubeMode.TAMER);
+    }
+
+    /** The same in a world of {@code mode}: the base yield at {@link #XP_RATE_PERCENT}, or {@link #CLASSIC_XP_RATE_PERCENT}. */
+    public static int xpYield(DigimonStage stage, int wildLevel, DigiCubeMode mode) {
+        return stageYield(stage) * (wildLevel + 4) * xpRatePercent(mode) / 200;
+    }
+
+    private static int xpRatePercent(DigiCubeMode mode) {
+        return mode == DigiCubeMode.CLASSIC ? CLASSIC_XP_RATE_PERCENT : XP_RATE_PERCENT;
+    }
+
+    /** Scan data one Digitama costs in a world of {@code mode}. */
+    public static int digitamaData(DigiCubeMode mode) {
+        return mode == DigiCubeMode.CLASSIC ? CLASSIC_DIGITAMA_DATA : DIGITAMA_DATA;
+    }
+
+    /** Most data a bar holds where a Digitama costs {@code digitamaData}: {@link #SCAN_BAR_DIGITAMA} of them. */
+    public static int scanCapacity(int digitamaData) {
+        return SCAN_BAR_DIGITAMA * digitamaData;
     }
 
     /**
@@ -221,7 +248,12 @@ public final class Progression {
      * @return share per contributor id, in the order given; empty when nobody dealt damage
      */
     public static Map<UUID, Integer> split(DigimonStage stage, int wildLevel, List<Contributor> contributors) {
-        return shares(xpYield(stage, wildLevel), wildLevel, contributors);
+        return split(stage, wildLevel, contributors, DigiCubeMode.TAMER);
+    }
+
+    /** {@link #split} in a world of {@code mode}, whose XP rate sets the pie. */
+    public static Map<UUID, Integer> split(DigimonStage stage, int wildLevel, List<Contributor> contributors, DigiCubeMode mode) {
+        return shares(xpYield(stage, wildLevel, mode), wildLevel, contributors);
     }
 
     /**

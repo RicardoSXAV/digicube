@@ -4,6 +4,8 @@ import com.digicube.Constants;
 import com.digicube.digimon.DamageLedger;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.Progression;
+import com.digicube.mode.DigiCubeMode;
+import com.digicube.mode.DigiCubeModes;
 import com.digicube.scan.Scan;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityReference;
@@ -41,7 +43,8 @@ final class ExperienceAward {
             contributors.add(new Progression.Contributor(partner.getUUID(), partner.getLevel(), entry.damage()));
             partners.put(partner.getUUID(), partner);
         }
-        Map<UUID, Integer> shares = Progression.split(species.stage(), defeated.getLevel(), contributors);
+        DigiCubeMode mode = DigiCubeModes.of(level.getServer());
+        Map<UUID, Integer> shares = Progression.split(species.stage(), defeated.getLevel(), contributors, mode);
         shares.forEach((id, share) -> partners.get(id).addExperience(share));
         // The same split fills the scan: each tamer gets its partners' shares of the stage's data.
         Map<UUID, Integer> data = new LinkedHashMap<>();
@@ -52,7 +55,7 @@ final class ExperienceAward {
         Scan.credit(level.getServer(), species.id(), data);
         if (Constants.LOG.isDebugEnabled()) {
             Constants.LOG.debug("Wild {} (level {}) defeated: yield {} split {} from ledger {}", species.id(),
-                    defeated.getLevel(), Progression.xpYield(species.stage(), defeated.getLevel()), shares, ledger.entries());
+                    defeated.getLevel(), Progression.xpYield(species.stage(), defeated.getLevel(), mode), shares, ledger.entries());
         }
     }
 }

@@ -66,7 +66,8 @@ tables. Never put a balance constant anywhere else. `DigimonEntity` holds
 `ExperienceAward` splits the yield at the end of `hurtServer` on the killing blow (vanilla calls `die` from
 inside `hurtServer`, before the last hit could be recorded). Only partners enter the ledger: a tamer's own blows add
 nothing to a share. A partner that falls forfeits its entries on every wild ledger (`DigimonEntity.forfeitShares`), so
-it earns nothing from a fight it lost. The yield is the base `stageYield × (level + 4) / 2` at `XP_RATE_PERCENT` (150).
+it earns nothing from a fight it lost. The yield is the base `stageYield × (level + 4) / 2` at `XP_RATE_PERCENT` (150),
+or `CLASSIC_XP_RATE_PERCENT` (100) in a CLASSIC world (`Progression.split(.., mode)`).
 
 Healing in survival: a partner heals on its own, full in `Progression.FULL_HEAL_TICKS` (two minutes). In the Digivice
 that is `PartyManager.regenerateReserve`, one pulse per `RESERVE_REGEN_INTERVAL_TICKS` while the tamer is online; out
@@ -112,8 +113,10 @@ world in `ScanSavedData`):
 - Each defeat of a wild Digimon fills its family's bar by `Progression.scanSplit`, the XP split on the stage's yield
   (Baby II 6, Rookie 10, Champion and Armor 18) with each partner's level-gap multiplier, summed per tamer
   (`ExperienceAward` → `Scan.credit`). The last `SCAN_PACE_DEFEATS` defeats give the pace (`ScanRecord.defeatsLeft`).
-- A bar holds `SCAN_CAPACITY` (200); past it data is lost. CONVERT (`PartyActionPayload.CONVERT`, the family's index)
-  spends `DIGITAMA_DATA` (100) at any level and puts a Digitama item in the tamer's inventory (`digicube:digitama`,
+- A Digitama costs `DIGITAMA_DATA` (100), or `CLASSIC_DIGITAMA_DATA` (1000) in a CLASSIC world: `ScanSavedData.get`
+  gives every record its world's `cost`, and `ScanBar` and `ScanToastPayload` carry it to the client. A bar holds
+  `SCAN_BAR_DIGITAMA` (2) of them; past it data is lost. CONVERT (`PartyActionPayload.CONVERT`, the family's index)
+  spends one at any level and puts a Digitama item in the tamer's inventory (`digicube:digitama`,
   `DigitamaItem`, one a slot, its family in the `digicube:digitama` component, `DCDataComponents`); with no free slot it
   is refused (`gui.digicube.scan.no_room`) and spends nothing. The item model picks the family's egg by the component
   (`items/digitama.json`; a stack without one is the blank egg and cannot be used).
@@ -126,8 +129,8 @@ world in `ScanSavedData`):
   tamer's time online (`PartyManager.incubate`, at the reserve pulse).
 - The party snapshot always carries the bars (`ScanBar`); `ScanToastPayload` tells of data, sightings, losses, ready
   bars and hatchings. `/digicube scan set <species> <data> [player]` and `/digicube scan hatch [player]` are the
-  operator's shortcuts. Check with `DIGICUBE_SCENARIO=scan_checks` (`[scenario] PASS scan_checks cases=7`) and
-  `:common:scanTest`.
+  operator's shortcuts. Check with `DIGICUBE_SCENARIO=scan_checks` (`[scenario] PASS scan_checks cases=8`: TAMER's
+  pace, then `scan_classic`) and `:common:scanTest`.
 
 ## Wild spawning
 

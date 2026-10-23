@@ -1,6 +1,8 @@
 package com.digicube.scan;
 
 import com.digicube.Constants;
+import com.digicube.digimon.Progression;
+import com.digicube.mode.DigiCubeModes;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.UUIDUtil;
@@ -49,6 +51,8 @@ public final class ScanSavedData extends SavedData {
             Constants.id("scan"), ScanSavedData::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 
     private final Map<UUID, ScanRecord> records = new LinkedHashMap<>();
+    /** Data one Digitama costs in this world, from its DigiCube Mode; every record reads it. */
+    private int cost = Progression.DIGITAMA_DATA;
 
     public ScanSavedData() {}
 
@@ -73,12 +77,25 @@ public final class ScanSavedData extends SavedData {
         }).toList();
     }
 
+    /** The world's scans, at its DigiCube Mode's pace ({@link Progression#digitamaData}). */
     public static ScanSavedData get(MinecraftServer server) {
-        return server.overworld().getDataStorage().computeIfAbsent(TYPE);
+        ScanSavedData data = server.overworld().getDataStorage().computeIfAbsent(TYPE);
+        data.pace(Progression.digitamaData(DigiCubeModes.of(server)));
+        return data;
+    }
+
+    private void pace(int cost) {
+        if (cost == this.cost) return;
+        this.cost = cost;
+        records.values().forEach(record -> record.pace(cost));
     }
 
     /** The tamer's scan, made empty on first use. */
     public ScanRecord record(UUID player) {
-        return records.computeIfAbsent(player, ignored -> new ScanRecord());
+        return records.computeIfAbsent(player, ignored -> {
+            ScanRecord record = new ScanRecord();
+            record.pace(cost);
+            return record;
+        });
     }
 }

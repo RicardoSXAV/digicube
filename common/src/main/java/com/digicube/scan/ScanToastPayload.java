@@ -12,8 +12,9 @@ import net.minecraft.resources.Identifier;
  * @param family the family's first form
  * @param amount the data gained or lost ({@link Kind#DATA}, {@link Kind#SIGHTED}, {@link Kind#LOST}); 0 otherwise
  * @param data   the bar's data after it
+ * @param cost   data one Digitama costs in this world (its DigiCube Mode), at least 1
  */
-public record ScanToastPayload(Kind kind, Identifier family, int amount, int data) implements CustomPacketPayload {
+public record ScanToastPayload(Kind kind, Identifier family, int amount, int data, int cost) implements CustomPacketPayload {
     public enum Kind {
         /** A defeat filled the bar. */
         DATA,
@@ -31,15 +32,25 @@ public record ScanToastPayload(Kind kind, Identifier family, int amount, int dat
     public static final StreamCodec<RegistryFriendlyByteBuf, ScanToastPayload> STREAM_CODEC =
             StreamCodec.ofMember(ScanToastPayload::write, ScanToastPayload::read);
 
+    public ScanToastPayload {
+        cost = Math.max(1, cost);
+    }
+
+    /** A toast of a TAMER world, where a Digitama costs {@link com.digicube.digimon.Progression#DIGITAMA_DATA}. */
+    public ScanToastPayload(Kind kind, Identifier family, int amount, int data) {
+        this(kind, family, amount, data, com.digicube.digimon.Progression.DIGITAMA_DATA);
+    }
+
     private void write(RegistryFriendlyByteBuf buffer) {
         buffer.writeEnum(kind);
         buffer.writeIdentifier(family);
         buffer.writeVarInt(amount);
         buffer.writeVarInt(data);
+        buffer.writeVarInt(cost);
     }
 
     private static ScanToastPayload read(RegistryFriendlyByteBuf buffer) {
-        return new ScanToastPayload(buffer.readEnum(Kind.class), buffer.readIdentifier(), buffer.readVarInt(), buffer.readVarInt());
+        return new ScanToastPayload(buffer.readEnum(Kind.class), buffer.readIdentifier(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt());
     }
 
     @Override public Type<ScanToastPayload> type() { return TYPE; }

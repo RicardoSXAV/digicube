@@ -90,13 +90,13 @@ final class ScanPage {
         return new ScanBar(family, 0, false, -1);
     }
 
-    static boolean ready(ScanBar bar) { return bar.seen() && bar.data() >= Progression.DIGITAMA_DATA; }
+    static boolean ready(ScanBar bar) { return bar.ready(); }
 
     /** The strip's counter: the fullest bar the tamer has sighted. */
     String count() {
         int best = 0;
-        for (ScanBar bar : bars()) if (bar.seen()) best = Math.max(best, bar.data());
-        return best * 100 / Progression.DIGITAMA_DATA + "%";
+        for (ScanBar bar : bars()) if (bar.seen()) best = Math.max(best, bar.percent());
+        return best + "%";
     }
 
     /** The newest Digitama of {@code family} in the Digivice, or null. */
@@ -192,7 +192,7 @@ final class ScanPage {
         if (screen.client().scanNews().fresh(family)) DigiviceArt.dot(g, x + 2, y + 2);
 
         int size = DigitamaArt.SIZE * EGG_SCALE, ex = x + (BAY_WIDTH - size) / 2, ey = y + 12;
-        float frac = seen ? Math.min(1, bar.data() / (float) Progression.DIGITAMA_DATA) : 0;
+        float frac = seen ? Math.min(1, bar.data() / (float) bar.cost()) : 0;
         float breath = 0.5F + 0.5F * (float) Math.sin(screen.time() * Math.PI * 2 / DigiTheme.BREATH_TICKS);
         float pour = pouring ? Math.min(1, (convertTicks + screen.partial()) / POUR_TICKS) : 0;
         DigitamaArt.pedestal(g, x + BAY_WIDTH / 2, ey + 45, ready || pouring);
@@ -221,7 +221,7 @@ final class ScanPage {
             status = "";
             tone = DigiTheme.MUTED;
         } else {
-            String percent = bar.data() * 100 / Progression.DIGITAMA_DATA + "%";
+            String percent = bar.percent() + "%";
             g.pose().pushMatrix();
             g.pose().translate(x + (BAY_WIDTH - font.width(percent) * 2) / 2F, y + 60);
             g.pose().scale(2, 2);
@@ -231,9 +231,9 @@ final class ScanPage {
             else if (leaving) { status = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.sent")); tone = DigiTheme.AMBER; }
             else if (egg != null && !ready) { status = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.hatching", clock(hatchLeft(egg)))); tone = DigiTheme.CYAN; }
             else if (ready) {
-                status = DigiviceScreen.upper(Component.translatable(bar.data() >= Progression.SCAN_CAPACITY ? "gui.digicube.scan.full" : "gui.digicube.scan.ready"));
+                status = DigiviceScreen.upper(Component.translatable(bar.data() >= bar.capacity() ? "gui.digicube.scan.full" : "gui.digicube.scan.ready"));
                 tone = DigiTheme.AMBER;
-            } else { status = bar.data() + " / " + Progression.DIGITAMA_DATA; tone = DigiTheme.MUTED; }
+            } else { status = bar.data() + " / " + bar.cost(); tone = DigiTheme.MUTED; }
         }
         if (!status.isEmpty()) g.text(font, status, x + (BAY_WIDTH - font.width(status)) / 2, y + 75, tone, false);
         screen.hit(x, y, BAY_WIDTH, BAY_HEIGHT, () -> selected = family);
@@ -279,11 +279,11 @@ final class ScanPage {
         String say;
         int sayTone = DigiTheme.MUTED;
         if (!note.isEmpty()) { say = note; sayTone = DigiTheme.RED; }
-        else if (!seen) say = Component.translatable("gui.digicube.scan.say.unseen", Progression.FIRST_SIGHTING_DATA * 100 / Progression.DIGITAMA_DATA).getString();
+        else if (!seen) say = Component.translatable("gui.digicube.scan.say.unseen", Progression.FIRST_SIGHTING_DATA * 100 / bar.cost()).getString();
         else if (pouring) { say = Component.translatable("gui.digicube.scan.say.converting", name(family)).getString(); sayTone = DigiTheme.AMBER; }
         else if (leaving) { say = Component.translatable("gui.digicube.scan.say.sent").getString(); sayTone = DigiTheme.AMBER; }
         else if (ready && !room) { say = Component.translatable("gui.digicube.scan.say.no_room").getString(); sayTone = DigiTheme.RED; }
-        else if (bar.data() >= Progression.SCAN_CAPACITY) { say = Component.translatable("gui.digicube.scan.say.full").getString(); sayTone = DigiTheme.AMBER; }
+        else if (bar.data() >= bar.capacity()) { say = Component.translatable("gui.digicube.scan.say.full").getString(); sayTone = DigiTheme.AMBER; }
         else if (ready) { say = Component.translatable("gui.digicube.scan.say.ready").getString(); sayTone = DigiTheme.AMBER; }
         else if (held > 0) { say = Component.translatable("gui.digicube.scan.say.held").getString(); sayTone = DigiTheme.CYAN; }
         else if (egg != null) { say = Component.translatable("gui.digicube.scan.say.egg").getString(); sayTone = DigiTheme.CYAN; }
@@ -294,7 +294,7 @@ final class ScanPage {
         int rx = x + w - 152, rw = 146;
         g.fill(rx - 6, y + 5, rx - 5, y + h - 5, DigiTheme.EDGE_DIM);
         g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.scan.data")), rx, y + 5, DigiTheme.MUTED, false);
-        String data = seen ? bar.data() + " / " + Progression.DIGITAMA_DATA : "- - -";
+        String data = seen ? bar.data() + " / " + bar.cost() : "- - -";
         g.text(font, data, rx + rw - font.width(data), y + 5, seen ? DigiTheme.WHITE : DigiTheme.MUTED, false);
         String first = "", second = "";
         int firstTone = DigiTheme.MUTED;
@@ -310,11 +310,11 @@ final class ScanPage {
             firstTone = DigiTheme.CYAN;
             if (bar.defeatsLeft() > 0) second = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.next_in", bar.defeatsLeft()));
         } else if (ready) {
-            boolean two = bar.data() >= Progression.SCAN_CAPACITY;
+            boolean two = bar.data() >= bar.capacity();
             first = DigiviceScreen.upper(Component.translatable(two ? "gui.digicube.scan.two_saved" : "gui.digicube.scan.ready_line"));
             firstTone = DigiTheme.AMBER;
             if (two) second = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.data_lost"));
-            else if (bar.data() > Progression.DIGITAMA_DATA) second = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.holds", Progression.SCAN_CAPACITY * 100 / Progression.DIGITAMA_DATA));
+            else if (bar.data() > bar.cost()) second = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.holds", bar.capacity() * 100 / bar.cost()));
         } else if (bar.defeatsLeft() > 0) {
             first = DigiviceScreen.upper(Component.translatable(bar.defeatsLeft() == 1 ? "gui.digicube.scan.defeats_left_one" : "gui.digicube.scan.defeats_left", bar.defeatsLeft()));
             second = DigiviceScreen.upper(Component.translatable("gui.digicube.scan.at_pace"));

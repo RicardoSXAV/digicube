@@ -53,8 +53,15 @@ public final class ScanRegressionTest {
     }
 
     private static void checkNumbers() {
-        check(Progression.DIGITAMA_DATA == 100 && Progression.FIRST_SIGHTING_DATA == 30 && Progression.SCAN_CAPACITY == 200,
-                "a Digitama is 100 data, a first sighting 30, a bar holds 200");
+        check(Progression.DIGITAMA_DATA == 100 && Progression.FIRST_SIGHTING_DATA == 30 && new ScanRecord().capacity() == 200,
+                "TAMER: a Digitama is 100 data, a first sighting 30, a bar holds 200");
+        check(Progression.digitamaData(com.digicube.mode.DigiCubeMode.CLASSIC) == 1000 && Progression.digitamaData(com.digicube.mode.DigiCubeMode.TAMER) == 100
+                && Progression.scanCapacity(1000) == 2000 && Progression.MAX_SCAN_CAPACITY == 2000, "CLASSIC: a Digitama is 1000 data, a bar holds 2000");
+        ScanRecord classic = new ScanRecord();
+        classic.pace(1000);
+        Identifier family = com.digicube.Constants.id("koromon");
+        check(classic.sight(family).added() == 30 && !classic.ready(family) && classic.defeat(family, 970).readied() && classic.convert(family) && classic.data(family) == 0,
+                "CLASSIC: a first sighting is 30 of the 1000 a Digitama costs; 970 more ready it; CONVERT spends it all");
         check(Progression.DIGITAMA_HATCH_TICKS == 12000 && Progression.GROWTH_LEVEL == 10 && Progression.CHAMPION_LEVEL == 20,
                 "ten minutes to hatch, growth at 10, Champions at 20");
     }
