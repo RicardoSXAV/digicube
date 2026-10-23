@@ -7,4 +7,8 @@ plugins {
     // (via NeoForm). It is also what the future `neoforge` module will use.
     // New versions: https://projects.neoforged.net/neoforged/moddevgradle
     id 'net.neoforged.moddev' version '2.0.141' apply false
+
+    // Mod Publish Plugin: uploads a release jar to CurseForge (and Modrinth, once it is wired).
+    // New versions: https://plugins.gradle.org/plugin/me.modmuss50.mod-publish-plugin
+    id 'me.modmuss50.mod-publish-plugin' version '2.2.1' apply false
 }

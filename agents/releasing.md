@@ -1,7 +1,7 @@
 # Releasing: version numbers, tags and the release jar
 
 Read this before cutting a release: which number it takes, what each kind of release may hold, the tag that marks
-it and the jar players install.
+it with its changelog, and how the jar players install reaches CurseForge.
 
 ## Version numbers
 
@@ -27,19 +27,69 @@ It never repeats the Minecraft version: the jar name already carries it.
 1. Commit everything the release ships; the working tree is clean.
 2. Set `version` in `gradle.properties` in its own commit: `chore: set version to 0.1.1`.
 3. `./gradlew build` passes on that commit.
-4. Tag it with an annotated tag named `v` plus the version, then push the branch with its tags:
+4. Write the tag message in a scratch file outside the repository: `v` plus the version, a blank line, then the
+   [changelog](#the-changelog). Tag with it as an annotated tag named `v` plus the version, then push the branch
+   with its tags:
+
+   ```
+   v0.1.2
+
+   **New**
+   - Partners can now ...
+
+   **Fixed**
+   - Riding Garurumon into water no longer ...
+   ```
 
    ```bash
-   git tag -a v0.1.1 -m "v0.1.1"
+   git tag -a v0.1.2 -F <message file>
    git push origin main --follow-tags
    ```
 
-5. Publish `fabric/build/libs/digicube-fabric-<minecraft_version>-<version>.jar`. The `-sources` and `-javadoc`
-   jars (built only with `-Pextra_jars=true`) are not for players, and older jars in that folder are leftovers of
-   earlier versions.
+5. The pushed tag publishes the jar to CurseForge by itself ([below](#publishing-to-curseforge)). Follow its
+   **Release** run in the repository's Actions tab until it is green.
 
 A tag is never moved once pushed. Before that, a release that changes again gets its tag recreated on the new
-commit (`git tag -d v0.1.1`, then tag again).
+commit (`git tag -d v0.1.2`, then tag again).
+
+## The changelog
+
+The body of the tag message, below its first line, is the changelog players read on CurseForge, in Markdown:
+
+- For players, in English: what changes in the game, in short plain sentences. No internal tasks, tests or docs.
+- Under the headings **New**, **Improved** and **Fixed**, in that order. A heading with nothing under it is left
+  out. Headings are bold, never `#`: git drops lines starting with `#` from a tag message as comments.
+- No semicolons: a comma, "and", or a new sentence instead.
+
+## Publishing to CurseForge
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which:
+
+1. Checks that the tag is `v` plus `version` from `gradle.properties` and is annotated, with a changelog.
+2. Checks that the repository secret `CURSEFORGE_TOKEN` works and that CurseForge knows every version tag the
+   upload names.
+3. Runs `./gradlew build`, then `./gradlew :fabric:publishMods`, which uploads
+   `fabric/build/libs/digicube-fabric-<minecraft_version>-<version>.jar` to the CurseForge project
+   `curseforge_project_id` in `gradle.properties`: an alpha named `DigiCube <version> Alpha`, for Minecraft
+   `minecraft_version`, Fabric, client and server, with Fabric API as a required dependency.
+
+The upload's settings are the `publishMods` block in `fabric/build.gradle` (the Mod Publish Plugin, its version in
+the root `build.gradle`). CurseForge reviews each file before players can download it.
+
+- **Dry run.** Run the Release workflow by hand (Actions, Release, Run workflow) on `main`: the same checks and
+  build with a placeholder changelog, and nothing uploaded, since only a tag push hands the token to the upload
+  step. Locally, `./gradlew :fabric:publishMods` is a dry run whenever `CURSEFORGE_TOKEN` is unset or blank: set
+  `RELEASE_CHANGELOG` to the changelog, and it prints what it would send and copies the jar to
+  `fabric/build/publishMods`.
+- **A failed run.** A run that fails before its upload sent nothing: fix the cause and use Re-run jobs on the run's
+  page. A tag that fails its own checks (no changelog, the wrong version) stays as it is, and the release takes the
+  next number. Re-running a run that uploaded uploads the file a second time.
+- `v0.1.0` and `v0.1.1` were uploaded by hand: their commits have no release workflow, so their tags never run one.
+  Neither would a hotfix branched from them: its jar is uploaded by hand.
+- Modrinth is not wired yet. The plugin publishes there too, from a `modrinth {}` block beside `curseforge {}` with
+  its own project id and token secret.
+- The `-sources` and `-javadoc` jars (built only with `-Pextra_jars=true`) are not for players, and older jars in
+  `fabric/build/libs` are leftovers of earlier versions.
 
 A release is cut from `main`, which holds only what can ship. A hotfix while `main` holds work not ready to ship is
 cut from a branch off the release's tag, in a worktree of its own

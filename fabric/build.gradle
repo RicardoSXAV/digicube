@@ -1,6 +1,7 @@
 plugins {
     id 'multiloader-loader'
     id 'net.fabricmc.fabric-loom'
+    id 'me.modmuss50.mod-publish-plugin'
 }
 
 // Exercise the real client model without opening a window or creating an OpenGL context.
@@ -56,6 +57,27 @@ dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+}
+
+// The release upload, run by .github/workflows/release.yml when a v* tag is pushed (agents/releasing.md).
+// Without a CURSEFORGE_TOKEN it is a dry run: `publishMods` uploads nothing and copies what it would send
+// into build/publishMods. RELEASE_CHANGELOG holds the changelog: the tag message's body in the workflow.
+publishMods {
+    file = jar.archiveFile
+    changelog = providers.environmentVariable('RELEASE_CHANGELOG')
+    type = ALPHA
+    displayName = "${mod_name} ${project.version} Alpha"
+    modLoaders.add('fabric')
+    dryRun = providers.environmentVariable('CURSEFORGE_TOKEN').map { it.isBlank() }.orElse(true)
+
+    curseforge {
+        accessToken = providers.environmentVariable('CURSEFORGE_TOKEN')
+        projectId = curseforge_project_id
+        minecraftVersions.add(minecraft_version)
+        client = true
+        server = true
+        requires('fabric-api')
+    }
 }
 
 tasks.register('evolutionGeometryTest', JavaExec) {
