@@ -73,7 +73,8 @@ Fabric tab APIs belong in `fabric/`, not `common/`.
 
 ## Formatting
 
-JSON files use **2-space** indentation; Java uses **4 spaces**.
+JSON files use **2-space** indentation; Java uses **4 spaces**. In `AGENTS.md` and these guides, Markdown links are
+relative to the file they sit in; paths in backticks are relative to the repository root.
 
 ## Where to look things up
 

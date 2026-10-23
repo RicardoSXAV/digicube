@@ -17,7 +17,7 @@ Digimon.
 | Java | **25** | Set by `java_version` in `gradle.properties`. Records, sealed types, pattern matching and `switch` expressions are all fair game. |
 | Mappings | **Mojang official (mojmap)** | Class names are `Identifier`, `Item`, `Level`, `Player`, `ItemStack`. Note `Identifier` — Mojang **renamed `ResourceLocation` to `Identifier`** in the 26.x mappings, so pre-26 tutorials and muscle memory are wrong here. `World` and `PlayerEntity` are Yarn names and do not exist. |
 | Loader today | **Fabric** | The `fabric/` module. |
-| Loader later | **NeoForge** | The `neoforge/` module does not exist yet. [agents/porting.md](agents/porting.md) covers adding it. |
+| Loader later | **NeoForge** | No `neoforge/` module yet; [agents/porting.md](agents/porting.md) covers adding it. |
 | Build | Gradle 9.5 + MultiLoader layout | No Architectury — its API has no `26.x` release. |
 
 Authoritative version numbers live in `gradle.properties`. Never hardcode a version in a build script or in Java;
@@ -73,8 +73,6 @@ read it from there.
 
 ## 3. Map: read only what the task needs
 
-Markdown links are relative to the file they sit in; paths in backticks are relative to the repository root.
-
 | Guide | Read it when the task touches |
 |---|---|
 | [agents/architecture.md](agents/architecture.md) | a new class, loader hook, mixin, platform service (`IPlatformHelper`) or resource file; the layout; client vs server; `assets/` vs `data/` |
@@ -111,7 +109,6 @@ walking turns, a biped's aimed pounce), [ikkakumon](agents/species/ikkakumon.md)
 [pukamon](agents/species/pukamon.md) (Bukamon),
 [seadramon](agents/species/seadramon.md) (serpents), [shellmon](agents/species/shellmon.md) (and spins in the shell, water jets),
 [tentomon](agents/species/tentomon.md) (and fighting on the wing unridden).
-A species without a guide has nothing beyond its sheet and the topic guides.
 
 ## 4. Definition of done
 
