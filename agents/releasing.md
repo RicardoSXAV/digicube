@@ -10,7 +10,7 @@ It never repeats the Minecraft version: the jar name already carries it.
 
 | Release | Number | What it holds |
 |---|---|---|
-| Alpha | `0.1.0` | The first public build: experimental, under heavy development, not stable. Its mechanics may still change a lot. Published on the alpha channel. |
+| Alpha | `0.1.0` | The first public build: experimental, under heavy development, not stable. Its mechanics may still change a lot. |
 | Update | next `0.N.x` | New Digimon, remakes, mechanics and fixes. No fixed date: the line ships as it goes, so each feature finished on `main` can go out as the next number. |
 | Hotfix | next `0.N.x` | Urgent fixes for bugs players reported. None is cut while nothing urgent is pending. |
 | Major update | `0.N+1.0` | Complex systems: new maps, bosses with their own structures, progression through quests, NPCs and lore. It ships whole, when its goal is done. |
@@ -19,8 +19,8 @@ It never repeats the Minecraft version: the jar name already carries it.
 - The last number counts every release in a major line, update or hotfix alike: `0.1.0` (alpha), then `0.1.1`,
   `0.1.2` and on. A major update resets it: `0.1.5` is followed by `0.2.0`.
 - A number is never reused. A broken release is replaced by a new one, not rebuilt under the same number.
-- No `-beta` or `-alpha` suffix: a `0.` number already says the mod is not stable, and the release channel is
-  chosen where the jar is published.
+- No `-beta` or `-alpha` suffix: a `0.` number already says the mod is not stable, and the file's name on
+  CurseForge says Alpha ([below](#publishing-to-curseforge)).
 
 ## Cutting a release
 
@@ -70,8 +70,9 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`, which:
    upload names.
 3. Runs `./gradlew build`, then `./gradlew :fabric:publishMods`, which uploads
    `fabric/build/libs/digicube-fabric-<minecraft_version>-<version>.jar` to the CurseForge project
-   `curseforge_project_id` in `gradle.properties`: an alpha named `DigiCube <version> Alpha`, for Minecraft
-   `minecraft_version`, Fabric, client and server, with Fabric API as a required dependency.
+   `curseforge_project_id` in `gradle.properties`: a Release file named `DigiCube <version> Alpha`, for
+   Minecraft `minecraft_version`, Fabric, client and server, with Fabric API as a required dependency. Every file
+   goes out as a Release, never an Alpha, since CurseForge hides alpha files from players by default.
 
 The upload's settings are the `publishMods` block in `fabric/build.gradle` (the Mod Publish Plugin, its version in
 the root `build.gradle`). CurseForge reviews each file before players can download it.

@@ -65,7 +65,8 @@ dependencies {
 publishMods {
     file = jar.archiveFile
     changelog = providers.environmentVariable('RELEASE_CHANGELOG')
-    type = ALPHA
+    // STABLE is CurseForge's Release type. CurseForge hides alpha files by default, so the name says Alpha instead.
+    type = STABLE
     displayName = "${mod_name} ${project.version} Alpha"
     modLoaders.add('fabric')
     dryRun = providers.environmentVariable('CURSEFORGE_TOKEN').map { it.isBlank() }.orElse(true)
