@@ -26,10 +26,11 @@ sit under the left keys (`centerX`; at 426 × 240, the 4K, 1440p and 720p size, 
   The key's state is polled every tick: its release event is lost when it comes up before the screen opens.
 - **Keys**: Q and E cast the first and second attack, Space steps to the next partner, Esc closes.
 - **Orders**: Stand still / Follow, Call off (Ride instead when the wheel was opened by aiming at a partner at peace
-  that would carry its owner), Recall, Digivolve / Revert. An unavailable key dims (`Reason`). Before a partner's
-  first digivolution, Digivolve (caption CHOOSE A FORM) opens the Digivice on its tree to choose the form
-  (`PartyClient.openTree`: `OPEN`, then the screen opens on that sheet); once bound (`PartyMemberView.line`) it
-  digivolves straight into its form (caption INTO <FORM>). The Digivolve key (V) does the same.
+  that would carry its owner), Recall, Digivolve / Revert. An unavailable key dims (`Reason`). While the tamer picks
+  the form (`PartyClient.picksForm`: no line yet, and not CLASSIC), Digivolve (caption CHOOSE A FORM) opens the
+  Digivice on its tree to choose it (`PartyClient.openTree`: `OPEN`, then the screen opens on that sheet); once bound
+  (`PartyMemberView.line`) it digivolves straight into its form (caption INTO <FORM>), and in CLASSIC straight into
+  the raising's (caption ITS RAISING DECIDES; [game-modes.md](game-modes.md)). The Digivolve key (V) does the same.
 - **Caption**: a refused order's reason in red (`PartyHud.notice` puts it on the strip card for 40 ticks once the
   wheel has closed); else what letting go would give, or why it cannot; at rest TARGET · its name (the target's
   entity id travels in `PartyMemberView.target`), IN SIGHT · the enemy an order would go at, or NO TARGET.
