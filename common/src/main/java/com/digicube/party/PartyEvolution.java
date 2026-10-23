@@ -88,7 +88,7 @@ public final class PartyEvolution {
                 if(session.creative){state.charge=Progression.DIGISOUL_CAPACITY;state.initialized=true;state.cooldown=0;}
                 state.unlock(member.species(),member.level());state.recover(eligible&&!member.defeated()&&!member.resting()&&EvolutionRules.rookie(member.species()));
                 // TAMER has no DigiSoul: it reads full; only the cooldown counts down.
-                if(!digisoul){state.charge=Progression.DIGISOUL_CAPACITY;state.initialized=true;}
+                if(!digisoul&&state.initialized)state.charge=Progression.DIGISOUL_CAPACITY;
                 member.saveEvolution(state);data.setDirty();
             }
             if(now%20==0)session.sync.invalidate();

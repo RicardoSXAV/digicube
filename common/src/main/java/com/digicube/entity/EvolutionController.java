@@ -43,8 +43,8 @@ public final class EvolutionController {
         var target=choice==null?choices.getFirst():choice;
         if(!choices.contains(target))return reject(s,"route");
         boolean creative=creative(entity);
-        // TAMER has no DigiSoul: it reads full, so nothing waits on it or spends it.
-        if(!mode.digisoul()){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}
+        // TAMER has no DigiSoul: a digivolution's reads full, so nothing waits on it or spends it (a growth has none).
+        if(!mode.digisoul()&&!growth){s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;}
         if(!growth&&s.cooldown>0&&!creative)return reject(s,"cooldown");
         if(!growth&&s.charge<Progression.DIGISOUL_MINIMUM&&!creative)return reject(s,"charge");
         if(!fits(entity,target))return reject(s,"space");
@@ -105,7 +105,7 @@ public final class EvolutionController {
             s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;s.cooldown=0;
         } else if(!mode(entity).digisoul()) {
             // TAMER: no DigiSoul. A Champion stays until its tamer sends it back; only a level under the Champion's ends it.
-            s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;
+            if(s.initialized)s.charge=Progression.DIGISOUL_CAPACITY;
             if(s.phase==EVOLVED){if(entity.getLevel()<Progression.CHAMPION_LEVEL)sendBack(entity);}
             else s.recover(false);
         } else if(s.phase==EVOLVED) {
