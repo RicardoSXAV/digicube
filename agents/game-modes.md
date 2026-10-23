@@ -36,7 +36,8 @@ picked at first. The rest is Fabric's screen events, wired on every init of `Cre
   name and the other name turns grey.
 - **The create guard**: each tick Create New World (found by its `selectWorld.create` key) is inactive, with the tooltip
   "Choose a DigiCube Mode first.", while the rule is unset. **The Enter guard**: Enter that would create the world (the
-  name box, the info key, nothing focused) is refused, the focus goes to Classic and both buttons flash yellow.
+  name box, the info key, an inactive button, nothing focused; only an active button takes Enter itself) is refused,
+  the focus goes to Classic and both buttons flash yellow.
 - **The cards**: pointed at, or focused from the keyboard, the info key shows `ModeCards` on top of the screen (drawn in
   `afterExtract`, a new stratum): one card per mode in DigiCube's chamfered frame, centred, three units above the key,
   each a viewport (`textures/gui/mode/*.png`, 140 x 72, over a perspective floor of fills), a bold name plate and three

@@ -132,12 +132,13 @@ public final class ModeSection {
     }
 
     /**
-     * Enter that would create the world while no mode is picked (in the name box, on the info key, on nothing that
-     * takes Enter itself) is turned away: the focus goes to Classic and both buttons flash.
+     * Enter that would create the world while no mode is picked (in the name box, on the info key, on an inactive
+     * button, on nothing that takes Enter itself) is turned away: the focus goes to Classic and both buttons flash.
      */
     private static boolean allowKey(CreateWorldScreen screen, KeyEvent key) {
         if (!key.isConfirmation() || mode(screen.getUiState()).chosen()) return true;
-        if (screen.getFocused() instanceof AbstractButton) return true;
+        // an active button takes Enter itself; an inactive one lets it fall through to the screen, which would create
+        if (screen.getFocused() instanceof AbstractButton button && button.isActive()) return true;
         refuse(screen);
         return false;
     }
