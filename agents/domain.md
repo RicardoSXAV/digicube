@@ -24,7 +24,8 @@ classpath loaders do not process `/reload`.
 - A family is a Baby II and every form its routes reach (`DigimonFamilies`: four in the catalog, Koromon's, Tsunomon's,
   Bukamon's and Motimon's, in catalog order of their earliest member). A Baby II's `evolutions` are its growth into
   one of its family's Rookies, a Rookie's its Champion routes (`EvolutionRules.routes`; an Armor target counts as a
-  Champion), in sheet order, and the tamer **chooses** one in the Digimon's tree.
+  Champion), in sheet order, and the tamer **chooses** one in the Digimon's tree; in CLASSIC its raising does, and a
+  Baby II grows by itself ([game-modes.md](game-modes.md#classics-raising)).
 - **Growth** opens at `Progression.GROWTH_LEVEL` (10; the sheets say so too), spends no DigiSoul, waits for no
   cooldown and is for good: at its commit `EvolutionController` leaves the Rookie at rest with no line, no return form
   and no history, its Champion choice still open (the server's refusal below 10 is `grow_level`). It plays the long

@@ -9,11 +9,19 @@
   "evolutions": [
     {
       "target": "digicube:agumon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "virus",
+        "place": "hot"
+      }
     },
     {
       "target": "digicube:betamon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "data",
+        "place": "water"
+      }
     }
   ]
 }

@@ -12,11 +12,19 @@
   "evolutions": [
     {
       "target": "digicube:seadramon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "vaccine",
+        "place": "water"
+      }
     },
     {
       "target": "digicube:dinohyumon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "virus",
+        "place": "forest"
+      }
     }
   ],
   "body": {

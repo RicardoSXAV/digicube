@@ -202,8 +202,13 @@ public final class PartyClient {
     private void digivolve(PartyMemberView m) {
         boolean route = com.digicube.digimon.EvolutionRules.target(m.species(), m.level()).isPresent();
         boolean ready = CommandWheelReadout.modules(m, snapshotAge, route)[CommandWheelReadout.BOTTOM_RIGHT].enabled();
-        if (ready && m.lineId() == null) openTree(m);
+        if (ready && picksForm(m)) openTree(m);
         else send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), 0, m.generation(), m.sequence()));
+    }
+
+    /** Whether the tamer picks {@code m}'s form in its tree before it digivolves: not bound yet, and not CLASSIC, where the raising picks. */
+    public boolean picksForm(PartyMemberView m) {
+        return m.lineId() == null && !mode.raises();
     }
 
     /** Opens the Digivice on {@code member}'s tree, where the tamer picks the form it digivolves into. */

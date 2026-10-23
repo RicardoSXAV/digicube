@@ -170,6 +170,18 @@ public final class EvolutionTree {
     /** Before its first digivolution the sheet is a choice: DIGIVOLVE asks first, because the answer binds it. */
     public static boolean chooses(PartyMemberView m) { return offers(m) && line(m) == null; }
 
+    /** The same in a world of {@code mode}: in CLASSIC the sheet is no choice, since the raising picks the form. */
+    public static boolean chooses(PartyMemberView m, DigiCubeMode mode) { return !mode.raises() && chooses(m); }
+
+    /**
+     * In CLASSIC a form ahead of {@code m} that it has not reached is a blank "?": the tree names no branch it could take,
+     * so the tamer learns the form when it happens.
+     */
+    public static boolean hidden(PartyMemberView m, Identifier id, DigiCubeMode mode) {
+        if (!mode.raises() || m == null || id.equals(m.species()) || reached(m, id)) return false;
+        return ancestor(m.species(), id) || evolved(m) && origin(m) != null && ancestor(origin(m), id);
+    }
+
     /** The bits of {@code m}'s ready routes, by index among its own routes. */
     public static int readyMask(PartyMemberView m) {
         if (!EvolutionRules.chooser(m.species())) return 0;
@@ -244,15 +256,22 @@ public final class EvolutionTree {
      * why {@code m} cannot digivolve right now ({@link CommandWheelReadout.Reason#NONE} when it can), as the wheel says it.
      */
     public static Sentence sentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block) {
-        return sentence(m, form, known, block, DigiCubeMode.CLASSIC);
+        return baseSentence(m, form, known, block);
     }
 
     /**
      * The same in a world of {@code mode}: in TAMER, where nothing binds and there is no DigiSoul, a choice says the
-     * other form stays open, a Champion stays until it is sent back, and a Rookie form needs no DigiSoul.
+     * other form stays open, a Champion stays until it is sent back, and a Rookie form needs no DigiSoul; in CLASSIC a
+     * form ahead is not named, and the partner's own form says its raising decides.
      */
     public static Sentence sentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block, DigiCubeMode mode) {
-        Sentence s = classicSentence(m, form, known, block);
+        if (mode.raises() && m != null) {
+            // CLASSIC names no branch ahead, and says the raising picks
+            if (hidden(m, form, mode)) return Sentence.of("hidden_classic", false);
+            if (form.equals(m.species()) && offers(m) && line(m) == null)
+                return Sentence.of(EvolutionRules.baby(m.species()) ? "grows_classic" : "raised_classic", true);
+        }
+        Sentence s = baseSentence(m, form, known, block);
         if (mode.digisoul() || m == null || EvolutionRules.baby(m.species())) return s;
         return switch (s.key()) {
             case "choose", "evolved", "set" -> new Sentence(s.key() + "_tamer", s.args(), s.amber(), s.record());
@@ -260,7 +279,7 @@ public final class EvolutionTree {
         };
     }
 
-    private static Sentence classicSentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block) {
+    private static Sentence baseSentence(PartyMemberView m, Identifier form, Predicate<Identifier> known, CommandWheelReadout.Reason block) {
         Branch up = parent(form);
         boolean seen = known.test(form);
         Sentence s;

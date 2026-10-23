@@ -115,8 +115,13 @@ public final class BundledSpeciesLoader {
             if (level < 1 || bond < 0 || bond > 100 || weight < -1 || training < 0) {
                 throw new IllegalArgumentException(id + ": invalid evolution conditions");
             }
+            RaisingCondition raising = null;
+            if (e.has("raising")) {
+                JsonObject r = GsonHelper.getAsJsonObject(e, "raising");
+                raising = new RaisingCondition(DigimonAttribute.byId(GsonHelper.getAsString(r, "foe")), RaisingPlace.byId(GsonHelper.getAsString(r, "place")));
+            }
             evolutions.add(new Evolution(identifier(GsonHelper.getAsString(e, "target")), level, bond, weight, training,
-                    e.has("required_item") ? identifier(GsonHelper.getAsString(e, "required_item")) : null));
+                    e.has("required_item") ? identifier(GsonHelper.getAsString(e, "required_item")) : null, raising));
         }
         return new DigimonSpecies(id, DigimonStage.byId(GsonHelper.getAsString(json, "stage")),
                 DigimonAttribute.byId(GsonHelper.getAsString(json, "attribute")), health, attack, defence, speed,

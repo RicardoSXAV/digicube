@@ -10,6 +10,7 @@ import com.digicube.fabric.client.gui.DigiTheme;
 import com.digicube.fabric.client.party.CommandWheelReadout;
 import com.digicube.fabric.client.party.CommandWheelScreen;
 import com.digicube.fabric.client.party.PartyHudReadout;
+import com.digicube.mode.DigiCubeMode;
 import com.digicube.party.PartyActionPayload;
 import com.digicube.party.PartyMemberView;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -130,6 +131,11 @@ final class EvolutionSheet {
      * binds the Digimon); otherwise it digivolves.
      */
     private void take(PartyMemberView m, Identifier form) {
+        // CLASSIC: the raising picks the form, so DIGIVOLVE names none; a Baby II grows by itself
+        if (mode().raises()) {
+            if (block(m) == CommandWheelReadout.Reason.NONE && EvolutionTree.offers(m) && !EvolutionRules.baby(m.species())) digivolve(m, null);
+            return;
+        }
         if (block(m) != CommandWheelReadout.Reason.NONE || !EvolutionTree.ready(m).contains(form)) return;
         if (EvolutionTree.chooses(m) && (EvolutionRules.baby(m.species()) || screen.client().mode().binds())) { asking = form; focus = form; }
         else digivolve(m, form);
@@ -141,6 +147,9 @@ final class EvolutionSheet {
         screen.send(new PartyActionPayload(PartyActionPayload.EVOLVE, m.id(), PartyActionPayload.routeValue(m.species(), form), m.generation(), m.sequence()));
         screen.onClose();
     }
+
+    /** The world's DigiCube Mode, as the server sent it. */
+    private DigiCubeMode mode() { return screen.client().mode(); }
 
     // ---------- words ----------
 
@@ -203,7 +212,7 @@ final class EvolutionSheet {
             g.text(font, nm, hx, sy + 8, DigiTheme.WHITE, true);
             g.text(font, DigiviceScreen.upper(Component.translatable("gui.digicube.tree.in_analyzer")), hx + font.width(nm) + 6, sy + 8, DigiTheme.MUTED, false);
         }
-        boolean choosing = EvolutionTree.chooses(m);
+        boolean choosing = EvolutionTree.chooses(m, mode());
         String title = DigiviceScreen.upper(Component.translatable(choosing ? "gui.digicube.wheel.digivolve" : "gui.digicube.tree.title"));
         int tc = choosing ? DigiTheme.AMBER : DigiTheme.CYAN, tx = sx + sw - 8 - font.width(title);
         if (choosing) DigiviceArt.chevronIcon(g, tx - 15, sy + 6, tc); else DigiviceArt.treeIcon(g, tx - 15, sy + 6, tc);
@@ -236,13 +245,14 @@ final class EvolutionSheet {
         for (EvolutionTree.Node fork : layout.forks()) fork(g, font, fork, m, scope);
         float pulse = 0.5F + 0.5F * (float) Math.sin(screen.time() * Math.PI * 2 / DigiTheme.BREATH_TICKS);
         for (EvolutionTree.Node n : layout.all()) {
-            boolean seen = screen.knows(n.id());
-            String label = seen ? name(n.id()).toUpperCase(Locale.ROOT) : DigiviceScreen.upper(Component.translatable("gui.digicube.tree.no_data"));
+            // CLASSIC names no branch ahead of the partner: a blank plate with a "?"
+            boolean hidden = EvolutionTree.hidden(m, n.id(), mode()), seen = !hidden && screen.knows(n.id());
+            String label = hidden ? "?" : seen ? name(n.id()).toUpperCase(Locale.ROOT) : DigiviceScreen.upper(Component.translatable("gui.digicube.tree.no_data"));
             int lw = Math.max(EvolutionTree.NODE, font.width(label)), bx = Math.min(n.x(), n.x() + EvolutionTree.NODE / 2 - lw / 2), bh = EvolutionTree.extent(n);
             boolean hover = live && screen.over(bx, n.y(), lw, bh), choice = choices.contains(n.id());
             boolean locked = EvolutionTree.blocked(m, n.id()), dim = scope != null && !scope.contains(n.id()) || locked;
-            node(g, font, n, label, seen, dim, locked, hover, choice, choice && n.id().equals(focus), n.id().equals(focus), candidates.contains(n.id()),
-                    m != null && n.id().equals(m.species()), m != null && EvolutionTree.reached(m, n.id()), fresh.contains(n.id()), pulse);
+            node(g, font, n, label, seen, hidden, dim, locked, hover, choice, choice && n.id().equals(focus), n.id().equals(focus), candidates.contains(n.id()),
+                    m != null && n.id().equals(m.species()), m != null && EvolutionTree.reached(m, n.id()), !hidden && fresh.contains(n.id()), pulse);
             if (live) {
                 Identifier id = n.id();
                 if (n.folded() > 0) screen.hit(bx, n.y(), lw, bh, () -> { unfolded = id; focus = id; });
@@ -291,13 +301,13 @@ final class EvolutionSheet {
     }
 
     /** One form: its sprite or its shape, a frame that says what it is to this Digimon, its name under it. */
-    private void node(GuiGraphicsExtractor g, Font font, EvolutionTree.Node n, String label, boolean seen, boolean dim, boolean locked, boolean hover, boolean choice,
+    private void node(GuiGraphicsExtractor g, Font font, EvolutionTree.Node n, String label, boolean seen, boolean hidden, boolean dim, boolean locked, boolean hover, boolean choice,
                       boolean selected, boolean focused, boolean candidate, boolean current, boolean reached, boolean isNew, float pulse) {
         int x = n.x(), y = n.y(), size = EvolutionTree.NODE;
         rect(g, x, y, size, size, withAlpha(DigiTheme.VOID, dim ? 0xA0 : 0xF0));
         if (!dim) DigiPanels.grid(g, x + 1, y + 1, size - 2, size - 2, 8, withAlpha(DigiTheme.GRID, 0x2C));
         if (seen) DigiPanels.icon(g, n.id(), x + 1, y + 1, size - 2, dim ? 0x48FFFFFF : 0xFFFFFFFF);
-        else if (!DigiviceArt.silhouette(g, n.id(), x + 1, y + 1, size - 2, withAlpha(0xFF244775, dim ? 0x60 : 0xFF)))
+        else if (hidden || !DigiviceArt.silhouette(g, n.id(), x + 1, y + 1, size - 2, withAlpha(0xFF244775, dim ? 0x60 : 0xFF)))
             g.text(font, "?", x + 15, y + 13, DigiTheme.EDGE_LIGHT, false);
         int edge = focused ? DigiTheme.WHITE : choice ? DigiTheme.mix(DigiTheme.EDGE, DigiTheme.AMBER, 0.55F + 0.45F * pulse) : reached ? DigiTheme.CYAN
                 : hover ? DigiTheme.EDGE_LIGHT : dim ? DigiTheme.EDGE_DIM : DigiTheme.EDGE;
@@ -331,13 +341,15 @@ final class EvolutionSheet {
         if (f == null) return;
         DigimonSpecies d = DigimonSpeciesRegistry.get(f).orElse(null);
         if (d == null) return;
-        boolean seen = screen.knows(f), partner = m != null && EvolutionTree.inParty(m);
+        boolean hidden = EvolutionTree.hidden(m, f, mode()), seen = !hidden && screen.knows(f), partner = m != null && EvolutionTree.inParty(m);
         boolean candidate = m != null && m.originRequired() && EvolutionRules.origins(m.species()).contains(f);
         CommandWheelReadout.Reason block = block(m);
-        boolean choice = EvolutionTree.offers(m) && EvolutionTree.ready(m).contains(f), go = choice && block == CommandWheelReadout.Reason.NONE;
+        // CLASSIC: DIGIVOLVE needs no form picked (the raising picks it), and a Baby II has none (it grows by itself)
+        boolean raises = mode().raises(), choice = EvolutionTree.offers(m) && (raises || EvolutionTree.ready(m).contains(f));
+        boolean go = choice && block == CommandWheelReadout.Reason.NONE && !(raises && EvolutionRules.baby(m.species()));
         DigiPanels.frame(g, x, y, w, h, withAlpha(DigiTheme.PANEL, 0xE8), DigiTheme.EDGE_DIM, 2);
         rect(g, x + 3, y, w - 6, 1, withAlpha(DigiTheme.CYAN, 0x70));
-        String nm = seen ? name(f).toUpperCase(Locale.ROOT) : DigiviceScreen.upper(Component.translatable("gui.digicube.tree.no_data"));
+        String nm = hidden ? "?" : seen ? name(f).toUpperCase(Locale.ROOT) : DigiviceScreen.upper(Component.translatable("gui.digicube.tree.no_data"));
         g.text(font, DigiPanels.shortText(font, Component.literal(nm), w - 12), x + 6, y + 6, seen ? DigiTheme.WHITE : DigiTheme.EDGE_LIGHT, true);
         String stage = DigiviceScreen.upper(Component.translatable("digicube.stage." + d.stage().getId()));
         g.text(font, stage, x + 6, y + 16, DigiTheme.MUTED, false);
@@ -352,7 +364,7 @@ final class EvolutionSheet {
             int index = origins.indexOf(f);
             key(g, font, x + 6, ky, w - 12, set, true, true, "tree_set", live, () -> screen.send(new PartyActionPayload(PartyActionPayload.ORIGIN, m.id(), index, m.generation(), m.sequence())));
             ky -= 19;
-        } else if (partner && EvolutionRules.chooser(m.species()) && !EvolutionRules.routes(m.species()).isEmpty()) {
+        } else if (partner && EvolutionRules.chooser(m.species()) && !EvolutionRules.routes(m.species()).isEmpty() && !(raises && EvolutionRules.baby(m.species()))) {
             String dg = DigiviceScreen.upper(Component.translatable("gui.digicube.wheel.digivolve"));
             key(g, font, x + 6, ky, w - 12, dg, true, go, "tree_digivolve", live, () -> take(m, f));
             ky -= 19;
@@ -435,9 +447,9 @@ final class EvolutionSheet {
         // the Digimon as it is, an arrow, the form it would take
         int ax = x + w / 2, ny = y + 27;
         float pulse = 0.5F + 0.5F * (float) Math.sin(screen.time() * Math.PI * 2 / DigiTheme.BREATH_TICKS);
-        node(g, font, new EvolutionTree.Node(m.species(), ax - 57, ny, 1, 0, 0, List.of()), name(m.species()).toUpperCase(Locale.ROOT), screen.knows(m.species()), false, false, false, false, false, false, false, true, false, false, pulse);
+        node(g, font, new EvolutionTree.Node(m.species(), ax - 57, ny, 1, 0, 0, List.of()), name(m.species()).toUpperCase(Locale.ROOT), screen.knows(m.species()), false, false, false, false, false, false, false, false, true, false, false, pulse);
         node(g, font, new EvolutionTree.Node(f, ax + 23, ny, 2, 0, 0, List.of()), screen.knows(f) ? name(f).toUpperCase(Locale.ROOT) : DigiviceScreen.upper(Component.translatable("gui.digicube.tree.no_data")),
-                screen.knows(f), false, false, false, true, false, false, false, false, false, false, pulse);
+                screen.knows(f), false, false, false, false, true, false, false, false, false, false, false, pulse);
         rect(g, ax - 16, ny + 17, 30, 1, DigiTheme.AMBER); rect(g, ax + 13, ny + 15, 1, 5, DigiTheme.AMBER); rect(g, ax + 14, ny + 16, 1, 3, DigiTheme.AMBER); rect(g, ax + 15, ny + 17, 1, 1, DigiTheme.AMBER);
         int ty = y + 78;
         for (String line : say) { g.text(font, line, x + (w - font.width(line)) / 2, ty, DigiTheme.WHITE, false); ty += 9; }

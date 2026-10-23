@@ -199,7 +199,7 @@ public final class SpeciesRegressionTest {
             check(gabumon.stage() == DigimonStage.CHILD && gabumon.attribute() == DigimonAttribute.DATA,
                     "Gabumon is a data rookie");
             check(gabumon.attacks().equals(List.of(DigimonSpeciesBootstrap.BLUE_BLASTER, DigimonSpeciesBootstrap.HORN_ATTACK))
-                            && gabumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("garurumon"),20), Evolution.atLevel(Constants.id("centalmon"),20))), "Gabumon prioritizes fueled breath, then horn contact, with its level-20 routes");
+                            && routes(gabumon).equals(List.of(Evolution.atLevel(Constants.id("garurumon"),20), Evolution.atLevel(Constants.id("centalmon"),20))), "Gabumon prioritizes fueled breath, then horn contact, with its level-20 routes");
             check(DigimonSpeciesBootstrap.BLUE_BLASTER.cooldownTicks() == 0
                     && DigimonSpeciesBootstrap.BLUE_BLASTER.fuel().capacityTicks() == 80
                     && DigimonSpeciesBootstrap.HORN_ATTACK.knockback() == 0,
@@ -251,11 +251,11 @@ public final class SpeciesRegressionTest {
                     && CrackMark.charges(slap) == 0 && blownBubbles.id().equals(bubble.id()) && blownBubbles.motion() != null
                     && blownBubbles.motion() != inflatedBubbles.motion(),
                     "Flipper Slap alternates flippers once per cast; Bubbles leaves Bukamon's own mouth");
-            check(pukamon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("gomamon"), 10), Evolution.atLevel(Constants.id("ganimon"), 10))),
+            check(routes(pukamon).equals(List.of(Evolution.atLevel(Constants.id("gomamon"), 10), Evolution.atLevel(Constants.id("ganimon"), 10))),
                     "Bukamon grows into Gomamon or Crabmon at level 10");
             check(tsunomon.body().equals(koromon.body()) && tsunomon.baseSpeed() == koromon.baseSpeed(),
                     "shared model scale and follow speed");
-            check(koromon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("agumon"), 10), Evolution.atLevel(Constants.id("betamon"), 10))),
+            check(routes(koromon).equals(List.of(Evolution.atLevel(Constants.id("agumon"), 10), Evolution.atLevel(Constants.id("betamon"), 10))),
                     "Koromon grows into Agumon or Betamon at level 10");
             var agumon = DigimonSpeciesRegistry.getOrThrow(Constants.id("agumon"));
             for (String other : List.of("koromon", "tsunomon")) {
@@ -286,7 +286,7 @@ public final class SpeciesRegressionTest {
                     && leapingClaw.hitWindows().getFirst()[0] >= leapingClaw.leap().land() - 1
                     && leapingClaw.particles() == com.digicube.entity.StrikeParticles.CLAW,
                     "Agumon's claw is a leap that strikes as it lands, with either hand");
-            check(agumon.evolutions().equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20), Evolution.atLevel(Constants.id("meramon"), 20))),
+            check(routes(agumon).equals(List.of(Evolution.atLevel(Constants.id("greymon"), 20), Evolution.atLevel(Constants.id("meramon"), 20))),
                     "Agumon's two level-20 routes, Greymon first");
             var greymon = DigimonSpeciesRegistry.getOrThrow(Constants.id("greymon"));
             check(greymon.baseHealth() == 40 && greymon.baseAttack() == 14 && greymon.baseDefence() == 10
@@ -361,6 +361,11 @@ public final class SpeciesRegressionTest {
         } finally {
             Util.shutdownExecutors();
         }
+    }
+
+    /** A sheet's routes as targets and levels: CLASSIC's raising on them is EvolutionRegressionTest's to check. */
+    private static List<Evolution> routes(DigimonSpecies species) {
+        return species.evolutions().stream().map(e -> Evolution.atLevel(e.target(), e.minLevel())).toList();
     }
 
     private static void check(boolean condition, String message) {

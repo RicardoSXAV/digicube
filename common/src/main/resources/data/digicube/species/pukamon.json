@@ -15,11 +15,19 @@
   "evolutions": [
     {
       "target": "digicube:gomamon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "virus",
+        "place": "cold"
+      }
     },
     {
       "target": "digicube:ganimon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "vaccine",
+        "place": "water"
+      }
     }
   ],
   "body": {

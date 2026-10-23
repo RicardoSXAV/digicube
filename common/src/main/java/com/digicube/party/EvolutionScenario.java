@@ -55,10 +55,10 @@ public final class EvolutionScenario {
                     check(partner.evolution().news(partner.getSpeciesId(),20,true)&&PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).line().isEmpty(),"agumon at 20 has an open choice and news");
                     check(PartyEvolution.action(owner,member.id(),"notice",0,null).isEmpty()&&!partner.evolution().news(partner.getSpeciesId(),20,true),"opening its tree clears the news");
                     check((PartyMemberView.of(data,member,DigiCubeMode.CLASSIC).noticed()&3)==3,"the snapshot carries both routes as seen");
-                    check(PartyEvolution.action(owner,member.id(),"evolve",0,null).endsWith("choose")&&partner.evolution().charge==3600,"no choice named: refused, nothing spent");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("meramon")).endsWith("raised")&&partner.evolution().charge==3600,"CLASSIC: a form the raising did not pick is refused, nothing spent");
                     check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("garurumon")).endsWith("route"),"another Rookie's Champion refused");
                     check(partner.evolution().line==null,"nothing bound before a digivolution commits");
-                    check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("greymon")).isEmpty(),"accept long");
+                    check(PartyEvolution.action(owner,member.id(),"evolve",0,null).isEmpty(),"CLASSIC: no form named, the raising picks: an empty record takes the first route, Greymon");
                     check(partner.evolution().duration==EvolutionTimeline.LONG.duration(),"first duration");tracking(level);startedTick=now;waitUntil=now+(int)EvolutionTimeline.LONG.leadIn();
                     pass("evolution_unlock","19 rejected; 20 accepted; fee=360");
                 }
@@ -94,7 +94,7 @@ public final class EvolutionScenario {
                     check(PartyEvolution.action(owner,member.id(),"evolve",0,Constants.id("meramon")).endsWith("locked")&&partner.evolution().charge==charge,"bound: meramon refused for good, nothing spent");
                     check(PartyEvolution.action(owner,member.id(),"evolve",0,null).isEmpty(),"bound: no choice needed, repeat accepted");check(partner.evolution().duration==32,"short repeat");waitUntil=now+32;
                 }
-                case 5 -> {check(partner.getSpeciesId().equals(Constants.id("greymon")),"short committed");pass("evolution_first_repeat","choice required, bound to greymon, meramon locked; 220/32/16 exact ticks; damage blocked; history durable");partner.evolution().charge=1;waitUntil=now+17;}
+                case 5 -> {check(partner.getSpeciesId().equals(Constants.id("greymon")),"short committed");pass("evolution_first_repeat","the raising picks greymon, bound to it, meramon locked; 220/32/16 exact ticks; damage blocked; history durable");partner.evolution().charge=1;waitUntil=now+17;}
                 case 6 -> {
                     check(partner.getSpeciesId().equals(Constants.id("agumon"))&&partner.evolution().phase==EvolutionState.Phase.RESTING,"depletion returns");
                     pass("digisoul_deplete","last unit spent then 16-tick return; no Champion attack extension");
@@ -156,6 +156,10 @@ public final class EvolutionScenario {
         switch(routeStep++) {
             case 0 -> {
                 var fresh=DCEntityTypes.DIGIMON.create(level,EntitySpawnReason.COMMAND);fresh.initializeAs(source,20);
+                // CLASSIC: a record of three wins over the route's foe, in its place, makes the raising pick it.
+                var raising=EvolutionRules.routes(source.id()).stream().filter(e->e.target().equals(target)).findFirst().orElseThrow().raising();
+                check(raising!=null,"every Champion route has a raising");for(int i=0;i<3;i++)fresh.evolution().raising.win(raising.foe(),java.util.EnumSet.of(raising.place()));
+                check(EvolutionRules.raised(source.id(),20,fresh.evolution().raising).orElseThrow().equals(target),"its own foe and place pick "+target);
                 member=PartyManager.give(owner,fresh);partner=data.live.get(member.id());check(partner!=null,"route deployed");
                 partner.setNoAi(true);partner.setPos(0,301,0);partner.setOnGround(true);
                 var generation=member.generation();var sequence=partner.evolution().sequence;
@@ -221,6 +225,8 @@ public final class EvolutionScenario {
     /** A Baby II grows into one of its family's Rookies at level 10: chosen, permanent, no DigiSoul, interrupted by a recall. */
     private static void growth(ServerLevel level,int now) {
         if(now<waitUntil)return;
+        // The tamer picking its Rookie is TAMER's rule; CLASSIC's growth by itself is classic_checks'.
+        if(growthStep==0)DigiCubeModes.stage(level.getServer(),DigiCubeMode.TAMER);
         var agumon=Constants.id("agumon");var betamon=Constants.id("betamon");var koromon=Constants.id("koromon");
         switch(growthStep++) {
             case 0 -> {
@@ -255,7 +261,7 @@ public final class EvolutionScenario {
                 check(PartyEvolution.action(owner,member.id(),"level",20,null).isEmpty()&&partner.evolution().choices(agumon,20,true).size()==2,"at 20 both of Agumon's Champions are open");
                 PartyManager.select(owner,member.id(),-1);
                 check(member.species().equals(agumon)&&member.level()==20,"stored as an Agumon");
-                pass("evolution_growth","L9 refused; L10 Koromon chooses Betamon or Agumon, recall mid-way keeps Koromon, Agumon committed for good with no DigiSoul and an open Champion choice");
+                pass("evolution_growth","TAMER: L9 refused; L10 Koromon chooses Betamon or Agumon, recall mid-way keeps Koromon, Agumon committed for good with no DigiSoul and an open Champion choice");
                 waitUntil=now;
             }
             default -> tamer(level,now);

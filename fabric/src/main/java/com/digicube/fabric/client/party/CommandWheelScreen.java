@@ -176,8 +176,8 @@ public final class CommandWheelScreen extends Screen {
             }
             case KEY -> {
                 Module module = modules(member)[pick.index()];
-                // Before its first digivolution the partner's tree opens: the tamer picks the form, once and for good.
-                if (module.enabled() && module.order() == Order.DIGIVOLVE && member.lineId() == null) client.openTree(member);
+                // Where the tamer picks the form (never in CLASSIC, where the raising picks), the partner's tree opens first.
+                if (module.enabled() && module.order() == Order.DIGIVOLVE && client.picksForm(member)) client.openTree(member);
                 else if (module.enabled()) {
                     Order order = module.order();
                     client.send(order.evolution()
@@ -530,11 +530,11 @@ public final class CommandWheelScreen extends Screen {
         return Component.translatable("gui.digicube.wheel." + order.name().toLowerCase(Locale.ROOT)).getString();
     }
 
-    /** Pointed at DIGIVOLVE: the choice still to make, or the form the partner is bound to. */
-    private static String digivolveCaption(PartyMemberView member) {
+    /** Pointed at DIGIVOLVE: the choice still to make (in CLASSIC, that the raising decides), or the form the partner is bound to. */
+    private String digivolveCaption(PartyMemberView member) {
         var line = member.lineId();
         var species = line == null ? null : DigimonSpeciesRegistry.get(line).orElse(null);
-        return species == null ? Component.translatable("gui.digicube.wheel.choose_form").getString()
+        return species == null ? Component.translatable(client.mode().raises() ? "gui.digicube.wheel.raised" : "gui.digicube.wheel.choose_form").getString()
                 : Component.translatable("gui.digicube.wheel.into", upper(Component.translatable(species.translationKey()).getString())).getString();
     }
 

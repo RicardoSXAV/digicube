@@ -12,11 +12,19 @@
   "evolutions": [
     {
       "target": "digicube:gesomon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "data",
+        "place": "night"
+      }
     },
     {
       "target": "digicube:shellmon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "vaccine",
+        "place": "water"
+      }
     }
   ],
   "body": {

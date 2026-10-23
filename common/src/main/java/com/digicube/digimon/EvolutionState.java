@@ -22,6 +22,8 @@ public final class EvolutionState {
     public Identifier line;
     /** Routes the tamer has seen ready in this Digimon's tree; a ready route not in here is news. */
     public final Set<Identifier> noticed=new LinkedHashSet<>();
+    /** How it has been raised in its current form: in CLASSIC this, not the tamer, picks the form it grows into. */
+    public final RaisingRecord raising=new RaisingRecord();
     public boolean transitioning(){return phase==Phase.EVOLVING||phase==Phase.REVERTING;}
     public boolean needsOrigin(Identifier current){return EvolutionRules.champion(current)&&!EvolutionRules.validOrigin(origin,current);}
     /**
@@ -66,7 +68,8 @@ public final class EvolutionState {
         tag.putInt("charge",charge);tag.putBoolean("initialized",initialized);tag.putInt("cooldown",cooldown);tag.putBoolean("fee",fee);
         tag.putLong("sequence",sequence);tag.putLong("start",start);tag.putInt("duration",duration);tag.putInt("recharge",rechargeTick);
         tag.putString("rejection",rejection);tag.putString("completed",String.join(",",completed.stream().map(Object::toString).toList()));
-        if(line!=null)tag.putString("line",line.toString());if(!noticed.isEmpty())tag.putString("noticed",String.join(",",noticed.stream().map(Object::toString).toList()));return tag;
+        if(line!=null)tag.putString("line",line.toString());if(!noticed.isEmpty())tag.putString("noticed",String.join(",",noticed.stream().map(Object::toString).toList()));
+        if(!raising.isEmpty())tag.put("raising",raising.save());return tag;
     }
     public static EvolutionState load(CompoundTag tag) {
         var s=new EvolutionState();try{s.phase=Phase.valueOf(tag.getStringOr("phase","RESTING"));}catch(IllegalArgumentException ignored){s.phase=Phase.RESTING;}
@@ -77,6 +80,7 @@ public final class EvolutionState {
         for(String name:tag.getStringOr("completed","").split(",")){if(name.isBlank())continue;var id=Identifier.tryParse(name);if(id!=null&&s.completed.size()<256)s.completed.add(id);}
         for(String name:tag.getStringOr("noticed","").split(",")){if(name.isBlank())continue;var id=Identifier.tryParse(name);if(id!=null&&s.noticed.size()<256)s.noticed.add(id);}
         s.line=optionalId(tag,"line");
+        s.raising.read(tag.getCompoundOrEmpty("raising"));
         s.rejection=tag.getStringOr("rejection","");
         return s;
     }

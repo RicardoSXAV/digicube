@@ -30,6 +30,14 @@ public enum DigiCubeMode implements StringRepresentable {
         return this == CLASSIC;
     }
 
+    /**
+     * Whether the way a partner was raised, not its tamer, picks the form it grows and digivolves into (CLASSIC), and a
+     * Baby II grows by itself.
+     */
+    public boolean raises() {
+        return this == CLASSIC;
+    }
+
     /** The lang key of the mode's name, {@code mode.digicube.tamer}. */
     public String translationKey() {
         return "mode.digicube." + getSerializedName();

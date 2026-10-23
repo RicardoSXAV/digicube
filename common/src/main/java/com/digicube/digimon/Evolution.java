@@ -15,6 +15,7 @@ import net.minecraft.resources.Identifier;
  * @param maxWeight   maximum weight in "g"; -1 disables the check
  * @param minTraining minimum accumulated training points; 0 disables the check
  * @param requiredItem item the tamer must be holding, or null for none
+ * @param raising     how a CLASSIC partner takes this route ({@link RaisingCondition}), or null: scored 0
  */
 public record Evolution(
         Identifier target,
@@ -22,8 +23,14 @@ public record Evolution(
         int minBond,
         int maxWeight,
         int minTraining,
-        Identifier requiredItem
+        Identifier requiredItem,
+        RaisingCondition raising
 ) {
+
+    /** A route with no raising of its own. */
+    public Evolution(Identifier target, int minLevel, int minBond, int maxWeight, int minTraining, Identifier requiredItem) {
+        this(target, minLevel, minBond, maxWeight, minTraining, requiredItem, null);
+    }
 
     /** A plain level-gated evolution with no extra conditions. */
     public static Evolution atLevel(Identifier target, int minLevel) {

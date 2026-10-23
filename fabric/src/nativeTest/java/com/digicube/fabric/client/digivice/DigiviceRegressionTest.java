@@ -219,6 +219,12 @@ public final class DigiviceRegressionTest {
         check(EvolutionTree.sentence(ready, agumon, all, NONE).key().equals("choose") && EvolutionTree.sentence(ready, agumon, all, NONE).amber(), "its own form asks for a choice");
         check(EvolutionTree.sentence(ready, agumon, all, NONE, com.digicube.mode.DigiCubeMode.TAMER).key().equals("choose_tamer")
                 && EvolutionTree.sentence(ready, meramon, all, NONE, com.digicube.mode.DigiCubeMode.TAMER).key().equals("digivolve"), "TAMER: the choice says the other form stays open");
+        var classic = com.digicube.mode.DigiCubeMode.CLASSIC;
+        check(EvolutionTree.hidden(ready, meramon, classic) && EvolutionTree.hidden(ready, greymon, classic) && !EvolutionTree.hidden(ready, agumon, classic)
+                && !EvolutionTree.hidden(ready, meramon, com.digicube.mode.DigiCubeMode.TAMER) && !EvolutionTree.chooses(ready, classic) && EvolutionTree.chooses(ready, com.digicube.mode.DigiCubeMode.TAMER),
+                "CLASSIC: the forms ahead are blank, and the sheet is no choice");
+        check(EvolutionTree.sentence(ready, agumon, all, NONE, classic).key().equals("raised_classic") && EvolutionTree.sentence(ready, meramon, all, NONE, classic).key().equals("hidden_classic")
+                && !EvolutionTree.hidden(bound, meramon, classic) && EvolutionTree.hidden(bound, greymon, classic), "CLASSIC: its raising decides; once bound, its line shows, the other stays blank");
         check(EvolutionTree.sentence(ready, meramon, all, NONE).key().equals("digivolve") && EvolutionTree.sentence(bound, meramon, all, NONE).key().equals("digivolve_chosen"), "a ready form says digivolve, the chosen one says so");
         check(EvolutionTree.sentence(bound, greymon, all, NONE).key().equals("blocked") && EvolutionTree.sentence(bound, agumon, all, NONE).key().equals("bound"), "the blocked form names the chosen one");
         check(EvolutionTree.sentence(partner(agumon, 20, -1, "", 0, "RESTING", ""), meramon, all, NONE).key().equals("ready_reserve")

@@ -39,6 +39,29 @@ public final class EvolutionRegressionTest {
             var bound=EvolutionState.load(open.save());check(meramon.equals(bound.line)&&bound.noticed.containsAll(List.of(adult,meramon)),"line and noticed persist");
             check(EvolutionState.load(new CompoundTag()).line==null&&EvolutionState.load(new CompoundTag()).noticed.isEmpty(),"old saves load unbound");
             var legacy=new EvolutionState();legacy.completed.add(adult);check(adult.equals(legacy.line(rookie))&&legacy.choices(rookie,20,true).equals(List.of(adult)),"a save that reached greymon before the choice existed is bound to it");
+            // CLASSIC's raising: every growth and Champion route names a foe and a place; the foe is the triangle's prey
+            // of the target (Digmon, Free, takes Data); siblings differ in place, so each is reached by its own record.
+            int raised=0;
+            for(var sp:DigimonSpeciesRegistry.all())if(EvolutionRules.chooser(sp.id())){
+                var ways=EvolutionRules.routes(sp.id());
+                for(var e:ways){
+                    var r=e.raising();check(r!=null,sp.id()+" -> "+e.target()+" has a raising");raised++;
+                    var t=DigimonSpeciesRegistry.getOrThrow(e.target()).attribute();
+                    check(t.strongAgainst()==null?r.foe()==DigimonAttribute.DATA:r.foe()==t.strongAgainst(),e.target()+" is raised against what it beats");
+                    var record=new RaisingRecord();for(int i=0;i<3;i++)record.win(r.foe(),java.util.EnumSet.of(r.place()));
+                    check(EvolutionRules.raised(sp.id(),50,record).orElseThrow().equals(e.target()),"its own foe and place pick "+e.target());
+                    for(var o:ways)if(o!=e)check(o.raising().place()!=r.place(),sp.id()+"'s routes differ in place");
+                }
+                check(EvolutionRules.raised(sp.id(),50,new RaisingRecord()).orElseThrow().equals(ways.getFirst().target()),"an empty record takes the first route");
+            }
+            check(raised==24,"24 raised routes, got "+raised);
+            var tie=new RaisingRecord();tie.win(DigimonAttribute.VIRUS,java.util.EnumSet.of(RaisingPlace.WATER));
+            check(EvolutionRules.raised(Constants.id("koromon"),10,tie).orElseThrow().equals(Constants.id("agumon")),"a tie (Agumon's foe, Betamon's place) takes the first route");
+            check(EvolutionRules.raised(Constants.id("koromon"),9,tie).isEmpty()&&EvolutionRules.raised(rookie,19,tie).isEmpty(),"no route before its level");
+            var kept=new EvolutionState();kept.raising.win(DigimonAttribute.DATA,java.util.EnumSet.of(RaisingPlace.WATER,RaisingPlace.NIGHT));
+            var back=EvolutionState.load(kept.save()).raising;
+            check(back.wins()==1&&back.foes(DigimonAttribute.DATA)==1&&back.places(RaisingPlace.WATER)==1&&back.places(RaisingPlace.NIGHT)==1&&back.places(RaisingPlace.COLD)==0,"the record survives a save");
+            check(EvolutionState.load(new CompoundTag()).raising.isEmpty(),"old saves load with an empty record");
             var migrated=new EvolutionState();migrated.origin=rookie;migrated.migrationChampion=meramon;check(meramon.equals(migrated.line(rookie)),"a Champion given a Rookie form keeps its Champion");
             check(new EvolutionState().line(Constants.id("gesomon")).equals(Constants.id("gesomon")),"a Champion with no Rookie form is bound to itself");
             check(com.digicube.party.PartyActionPayload.routeValue(rookie,meramon)==2&&meramon.equals(com.digicube.party.PartyActionPayload.route(rookie,2))

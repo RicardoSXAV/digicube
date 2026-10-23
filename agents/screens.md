@@ -78,7 +78,8 @@ that has not digivolved yet it is a choice: the forms it can take now breathe am
 ring two units clear, arrows and Enter walk and take them, and DIGIVOLVE asks ARE YOU SURE? (the Digimon, the form,
 THIS CHOICE CANNOT BE UNDONE) before it sends the route and closes. Once bound, the other Champion is dimmed with a
 padlock and says why, and DIGIVOLVE goes straight. In a TAMER world it asks only before a growth, binds nothing and
-shows no DigiSoul ([game-modes.md](game-modes.md#what-each-mode-changes)). The readout column shows the form's sentence, two attacks, a
+shows no DigiSoul ([game-modes.md](game-modes.md#what-each-mode-changes)); in a CLASSIC world it names no form ahead
+of the partner and offers no choice ([game-modes.md](game-modes.md#classics-raising)). The readout column shows the form's sentence, two attacks, a
 partner's DigiSoul with what a digivolution spends, ANALYZE, and DIGIVOLVE or SET (the Rookie form of a Champion
 without one). News (`EvolutionTree.news`: a ready route not yet seen in the tree, before the first digivolution)
 puts a white balloon with an amber "!" over the Digimon on the island or its bay, and amber dots on the DIGISPACE tab,

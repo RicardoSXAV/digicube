@@ -38,6 +38,15 @@ public final class EvolutionRules {
     public static List<Identifier> targets(Identifier source,int level) {
         return routes(source).stream().filter(e->level>=level(e)).map(Evolution::target).toList();
     }
+    /**
+     * CLASSIC: the ready route of {@code source} at {@code level} whose raising {@code record} meets best
+     * ({@link RaisingRecord#score}); a tie, or a record with nothing in it, takes the first in sheet order.
+     */
+    public static Optional<Identifier> raised(Identifier source,int level,RaisingRecord record) {
+        Evolution best=null;int top=-1;
+        for(Evolution route:routes(source)){if(level<level(route))continue;int score=record.score(route.raising());if(score>top){top=score;best=route;}}
+        return Optional.ofNullable(best).map(Evolution::target);
+    }
     /** The first of {@link #targets}: whether {@code source} can grow or digivolve at all at this level. */
     public static Optional<Identifier> target(Identifier source,int level) {
         return targets(source,level).stream().findFirst();

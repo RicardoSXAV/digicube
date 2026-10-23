@@ -11,6 +11,8 @@ import static com.digicube.digimon.EvolutionState.Phase.*;
 
 /** The single server lifecycle used by player actions, depletion, recall, saves and tooling. */
 public final class EvolutionController {
+    /** How often a CLASSIC Baby II at its growth level looks for a calm moment to grow: once a second. */
+    static final int GROWTH_CHECK_TICKS = 20;
     private EvolutionController() {}
     /** Tooling: the Champion it is bound to, else its first ready route. */
     public static String evolve(DigimonEntity entity) {
@@ -39,8 +41,11 @@ public final class EvolutionController {
         var choices=s.choices(entity.getSpeciesId(),entity.getLevel(),mode.binds());var bound=mode.binds()?s.line(entity.getSpeciesId()):null;
         if(choices.isEmpty())return reject(s,"route");
         if(bound!=null&&choice!=null&&!choice.equals(bound))return reject(s,"locked");
-        if(choice==null&&choices.size()>1)return reject(s,"choose");
-        var target=choice==null?choices.getFirst():choice;
+        // CLASSIC: until a line binds it, the way it was raised picks the form, and the tamer names none.
+        var raised=mode.raises()&&bound==null?EvolutionRules.raised(entity.getSpeciesId(),entity.getLevel(),s.raising).orElse(null):null;
+        if(raised!=null&&choice!=null&&!choice.equals(raised))return reject(s,choices.contains(choice)?"raised":"route");
+        if(raised==null&&choice==null&&choices.size()>1)return reject(s,"choose");
+        var target=raised!=null?raised:choice==null?choices.getFirst():choice;
         if(!choices.contains(target))return reject(s,"route");
         boolean creative=creative(entity);
         // TAMER has no DigiSoul: a digivolution's reads full, so nothing waits on it or spends it (a growth has none).
@@ -95,15 +100,20 @@ public final class EvolutionController {
             }
             s.rejection="";boolean upward=s.phase==EVOLVING,growth=upward&&EvolutionRules.baby(s.source);entity.changeEvolutionForm(s.target);
             // A growth is for good: the Rookie it became starts its own story, its Champion choice still open.
-            if(growth){s.phase=RESTING;s.origin=null;s.line=null;s.fee=false;s.cooldown=0;s.noticed.clear();s.source=null;s.target=null;}
+            if(growth){s.phase=RESTING;s.origin=null;s.line=null;s.fee=false;s.cooldown=0;s.noticed.clear();s.raising.clear();s.source=null;s.target=null;}
             // In CLASSIC the first digivolution to commit binds the Digimon to that Champion for good; TAMER never binds.
             else if(upward){if(mode(entity).binds()&&s.line==null)s.line=s.target;s.completed.add(s.target);s.fee=false;s.phase=EVOLVED;}else{s.phase=RESTING;s.cooldown=Progression.EVOLUTION_COOLDOWN;}
             entity.syncEvolutionEvent(false);PartyManager.progressChanged(entity);return;
         }
+        var mode=mode(entity);
+        // CLASSIC: a Baby II grows by itself at its growth level, once calm, into the Rookie its raising points to.
+        if(mode.raises()&&s.phase==RESTING&&entity.tickCount%GROWTH_CHECK_TICKS==0&&EvolutionRules.baby(entity.getSpeciesId())
+                &&entity.getLevel()>=Progression.GROWTH_LEVEL&&entity.calm())
+            EvolutionRules.raised(entity.getSpeciesId(),entity.getLevel(),s.raising).filter(t->fits(entity,t)).ifPresent(t->evolve(entity,t));
         if(creative(entity)) {
             // Test play: DigiSoul stays full and nothing cools down, so a Champion can be tried for as long as it takes.
             s.charge=Progression.DIGISOUL_CAPACITY;s.initialized=true;s.cooldown=0;
-        } else if(!mode(entity).digisoul()) {
+        } else if(!mode.digisoul()) {
             // TAMER: no DigiSoul. A Champion stays until its tamer sends it back; only a level under the Champion's ends it.
             if(s.initialized)s.charge=Progression.DIGISOUL_CAPACITY;
             if(s.phase==EVOLVED){if(entity.getLevel()<Progression.CHAMPION_LEVEL)sendBack(entity);}

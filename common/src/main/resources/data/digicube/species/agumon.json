@@ -12,11 +12,19 @@
   "evolutions": [
     {
       "target": "digicube:greymon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "virus",
+        "place": "forest"
+      }
     },
     {
       "target": "digicube:meramon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "vaccine",
+        "place": "hot"
+      }
     }
   ],
   "body": {

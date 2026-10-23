@@ -9,11 +9,19 @@
   "evolutions": [
     {
       "target": "digicube:kabuterimon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "virus",
+        "place": "forest"
+      }
     },
     {
       "target": "digicube:digmon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "data",
+        "place": "underground"
+      }
     }
   ],
   "tactics": {

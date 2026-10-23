@@ -4,6 +4,7 @@ import com.digicube.Constants;
 import com.digicube.digimon.DamageLedger;
 import com.digicube.digimon.DigimonSpecies;
 import com.digicube.digimon.Progression;
+import com.digicube.digimon.RaisingPlace;
 import com.digicube.mode.DigiCubeMode;
 import com.digicube.mode.DigiCubeModes;
 import com.digicube.scan.Scan;
@@ -46,6 +47,8 @@ final class ExperienceAward {
         DigiCubeMode mode = DigiCubeModes.of(level.getServer());
         Map<UUID, Integer> shares = Progression.split(species.stage(), defeated.getLevel(), contributors, mode);
         shares.forEach((id, share) -> partners.get(id).addExperience(share));
+        // CLASSIC: each partner that took part remembers the foe it beat and where, for the form its raising picks.
+        if (mode.raises()) partners.values().forEach(partner -> partner.evolution().raising.win(species.attribute(), RaisingPlace.at(partner)));
         // The same split fills the scan: each tamer gets its partners' shares of the stage's data.
         Map<UUID, Integer> data = new LinkedHashMap<>();
         Progression.scanSplit(species.stage(), defeated.getLevel(), contributors).forEach((id, share) -> {

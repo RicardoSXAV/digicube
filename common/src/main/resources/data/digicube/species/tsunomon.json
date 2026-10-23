@@ -9,11 +9,19 @@
   "evolutions": [
     {
       "target": "digicube:gabumon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "vaccine",
+        "place": "cold"
+      }
     },
     {
       "target": "digicube:elecmon",
-      "min_level": 10
+      "min_level": 10,
+      "raising": {
+        "foe": "vaccine",
+        "place": "forest"
+      }
     }
   ]
 }

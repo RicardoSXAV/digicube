@@ -12,11 +12,19 @@
   "evolutions": [
     {
       "target": "digicube:garurumon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "virus",
+        "place": "cold"
+      }
     },
     {
       "target": "digicube:centalmon",
-      "min_level": 20
+      "min_level": 20,
+      "raising": {
+        "foe": "vaccine",
+        "place": "hot"
+      }
     }
   ],
   "locomotion": {
