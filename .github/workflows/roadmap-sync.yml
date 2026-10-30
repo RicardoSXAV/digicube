@@ -29,13 +29,16 @@ jobs:
       - name: Sync status
         run: |
           set -euo pipefail
+          err="$RUNNER_TEMP/gh-errors.log"
+          : > "$err"
+          trap 'code=$?; if [ "$code" -ne 0 ]; then echo "::error::Failed at: $BASH_COMMAND -- $(tail -c 1500 "$err" | tr "\n" " ")"; fi' EXIT
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::Secret ROADMAP_TOKEN is missing (classic token with the project scope)"
             exit 1
           fi
 
-          project_id=$(gh project view "$PROJECT" --owner "$OWNER" --format json --jq .id)
-          fields=$(gh project field-list "$PROJECT" --owner "$OWNER" --format json)
+          project_id=$(gh project view "$PROJECT" --owner "$OWNER" --format json --jq .id 2>>"$err")
+          fields=$(gh project field-list "$PROJECT" --owner "$OWNER" --format json 2>>"$err")
           field_id=$(jq -r '.fields[] | select(.name == "Status") | .id' <<<"$fields")
           option_id() {
             jq -r --arg name "$1" '.fields[] | select(.name == "Status") | .options[] | select(.name == $name) | .id' <<<"$fields"
@@ -43,7 +46,7 @@ jobs:
 
           sync() {
             local issue status url item
-            issue=$(gh issue view "$1" --repo "$REPO" --json state,labels,url)
+            issue=$(gh issue view "$1" --repo "$REPO" --json state,labels,url 2>>"$err")
             if [ "$(jq -r .state <<<"$issue")" = "CLOSED" ]; then
               status="Done"
             elif jq -e '.labels[] | select(.name == "in progress")' <<<"$issue" >/dev/null; then
@@ -52,16 +55,16 @@ jobs:
               status="Todo"
             fi
             url=$(jq -r .url <<<"$issue")
-            item=$(gh project item-add "$PROJECT" --owner "$OWNER" --url "$url" --format json --jq .id)
+            item=$(gh project item-add "$PROJECT" --owner "$OWNER" --url "$url" --format json --jq .id 2>>"$err")
             gh project item-edit --id "$item" --project-id "$project_id" --field-id "$field_id" \
-              --single-select-option-id "$(option_id "$status")" >/dev/null
+              --single-select-option-id "$(option_id "$status")" >/dev/null 2>>"$err"
             echo "#$1 -> $status"
           }
 
           if [ -n "${ISSUE:-}" ]; then
             sync "$ISSUE"
           else
-            for number in $(gh issue list --repo "$REPO" --state all --limit 1000 --json number --jq '.[].number'); do
+            for number in $(gh issue list --repo "$REPO" --state all --limit 1000 --json number --jq '.[].number' 2>>"$err"); do
               sync "$number"
             done
           fi
