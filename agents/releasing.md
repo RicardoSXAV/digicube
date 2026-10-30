@@ -1,7 +1,8 @@
 # Releasing: version numbers, tags and the release jar
 
 Read this before cutting a release: which number it takes, what each kind of release may hold, the tag that marks
-it with its changelog, and how the jar players install reaches CurseForge.
+it with its changelog, and how the jar players install reaches CurseForge. Also before opening, closing or starting
+an issue: its milestone is its release line and its label its status.
 
 ## Version numbers
 
@@ -104,3 +105,21 @@ cut from a branch off the release's tag, in a worktree of its own
 - The icon is `common/src/main/resources/digicube.png`: square, a power of two on each side.
 - Players need Fabric Loader at `fabric_loader_version` or newer and Fabric API: the `depends` block of
   `fabric.mod.json`, filled from `gradle.properties` at build time.
+
+## Issues and the Roadmap
+
+Each issue's milestone is the release line it ships in: `0.1.x` (the updates and hotfixes of the 0.1 line), `0.2.0`
+(the next major update) or `Ports` (a loader or Minecraft port, outside the version lines). Every issue gets one;
+an issue without a milestone is not planned yet.
+
+| Status | The issue is |
+|---|---|
+| Todo | open, without the `in progress` label |
+| In Progress | open, with the `in progress` label |
+| Done | closed |
+
+The issue list is the source of truth. `.github/workflows/roadmap-sync.yml` copies each issue's status into the
+Status field of the Roadmap project on every opened, reopened, closed, labeled and unlabeled event, and adds new
+issues to it. Change the label or close the issue: a Status set by hand on the board is overwritten on the issue's
+next event. The workflow reads the `ROADMAP_TOKEN` secret, a classic token with the `project` scope (the built-in
+token cannot reach a user's project); running it by hand (`workflow_dispatch`) resyncs every issue.
